@@ -11,8 +11,8 @@ import base58
 from nacl.signing import SigningKey
 from config import get_rpc_url, ESCROW_PRIVKEY_B58, ESCROW_ADDRESS
 
-JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1"
-JUPITER_SWAP_API = "https://api.jup.ag/swap/v1/swap"
+JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
+JUPITER_SWAP_API = "https://lite-api.jup.ag/swap/v1/swap"
 JUPITER_TOKENS_API = "https://tokens.jup.ag/tokens"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
@@ -21,36 +21,50 @@ print("[Jupiter] Router initialise — Jupiter V6 API")
 
 async def get_quote(input_mint: str, output_mint: str, amount_raw: int,
                      slippage_bps: int = 50) -> dict:
-    """Obtient un devis de swap via Jupiter."""
-    try:
-        params = {
-            "inputMint": input_mint,
-            "outputMint": output_mint,
-            "amount": str(amount_raw),
-            "slippageBps": slippage_bps,
-        }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"{JUPITER_QUOTE_API}/quote", params=params)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "success": True,
-                    "inputMint": input_mint,
-                    "outputMint": output_mint,
-                    "inAmount": data.get("inAmount", "0"),
-                    "outAmount": data.get("outAmount", "0"),
-                    "priceImpactPct": data.get("priceImpactPct", "0"),
-                    "routePlan": [
-                        {"swapInfo": step.get("swapInfo", {}).get("label", ""),
-                         "percent": step.get("percent", 100)}
-                        for step in data.get("routePlan", [])
-                    ],
-                    "raw_quote": data,
-                }
-            else:
-                return {"success": False, "error": f"Jupiter quote error {resp.status_code}: {resp.text[:200]}"}
-    except Exception as e:
-        return {"success": False, "error": f"Jupiter quote error: {e}"}
+    """Obtient un devis de swap via Jupiter lite-api (gratuit, retry si rate limit)."""
+    params = {
+        "inputMint": input_mint,
+        "outputMint": output_mint,
+        "amount": str(amount_raw),
+        "slippageBps": slippage_bps,
+        "restrictIntermediateTokens": "true",
+    }
+    jup_urls = [
+        "https://lite-api.jup.ag/swap/v1/quote",
+        "https://api.jup.ag/swap/v1/quote",
+    ]
+    last_error = ""
+    for jup_url in jup_urls:
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(jup_url, params=params)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return {
+                            "success": True,
+                            "inputMint": input_mint,
+                            "outputMint": output_mint,
+                            "inAmount": data.get("inAmount", "0"),
+                            "outAmount": data.get("outAmount", "0"),
+                            "priceImpactPct": data.get("priceImpactPct", "0"),
+                            "routePlan": [
+                                {"swapInfo": step.get("swapInfo", {}).get("label", ""),
+                                 "percent": step.get("percent", 100)}
+                                for step in data.get("routePlan", [])
+                            ],
+                            "raw_quote": data,
+                        }
+                    elif resp.status_code == 429:
+                        await asyncio.sleep(2 * (attempt + 1))
+                        continue
+                    else:
+                        last_error = f"Jupiter {resp.status_code}: {resp.text[:100]}"
+                        break
+            except Exception as e:
+                last_error = str(e)
+                break
+    return {"success": False, "error": last_error or "Jupiter unavailable"}
 
 
 async def execute_swap(quote_response: dict, user_wallet: str) -> dict:

@@ -8,8 +8,8 @@ import asyncio, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
 
-JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1"
-JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
+JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
+JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v2"
 
 # Tokens populaires avec mint addresses
 SUPPORTED_TOKENS = {
@@ -227,25 +227,45 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
             "outputMint": to_mint,
             "amount": str(amount_raw),
             "slippageBps": 50,
+            "restrictIntermediateTokens": "true",
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{JUPITER_QUOTE_API}/quote", params=params)
-            if resp.status_code == 200:
-                jdata = resp.json()
-                to_decimals = SUPPORTED_TOKENS[to_token]["decimals"]
-                jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_decimals)
-                jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
-                jupiter_quote = {
-                    "output_amount": jupiter_output,
-                    "price_impact_pct": jupiter_price_impact,
-                    "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
-                    "raw": jdata,
-                }
-                # Utiliser le meilleur prix entre notre calcul et Jupiter
-                if jupiter_output > output_amount:
-                    # Jupiter donne un meilleur prix, ajuster
-                    commission_from_jupiter = jupiter_output * commission_bps / 10000
-                    output_amount = jupiter_output - commission_from_jupiter
+
+        # Jupiter lite-api (gratuit) avec retry si rate limit
+        jup_urls = [
+            "https://lite-api.jup.ag/swap/v1/quote",
+            "https://api.jup.ag/swap/v1/quote",
+        ]
+        for jup_url in jup_urls:
+            if jupiter_quote:
+                break
+            for attempt in range(3):
+                try:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        resp = await client.get(jup_url, params=params)
+                        if resp.status_code == 200:
+                            jdata = resp.json()
+                            to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
+                            jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
+                            jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
+                            jupiter_quote = {
+                                "output_amount": jupiter_output,
+                                "price_impact_pct": jupiter_price_impact,
+                                "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
+                                "raw": jdata,
+                            }
+                            if jupiter_output > output_amount:
+                                commission_from_jupiter = jupiter_output * commission_bps / 10000
+                                output_amount = jupiter_output - commission_from_jupiter
+                            break
+                        elif resp.status_code == 429:
+                            # Rate limit — attendre et reessayer
+                            import asyncio as _aio
+                            await _aio.sleep(2 * (attempt + 1))
+                            continue
+                        else:
+                            break  # Autre erreur, essayer URL suivante
+                except Exception:
+                    break
     except Exception:
         pass
 

@@ -207,7 +207,7 @@ POST /api/public/wallet-monitor/add
   <div class="section-title">Start Trading Now</div>
   <div class="section-sub">Free registration. No credit card. Pay with USDC on Solana.</div>
   <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
-    <a href="/api/public/register" class="btn btn-primary">Register Your AI Agent (Free)</a>
+    <a href="javascript:void(0)" onclick="registerAgent()" class="btn btn-primary">Register Your AI Agent (Free)</a>
     <a href="https://maxiaworld.app/MAXIA_WhitePaper_v1.pdf" class="btn btn-secondary">White Paper</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank" class="btn btn-secondary">@MAXIA_WORLD</a>
   </div>
@@ -266,7 +266,18 @@ async function loadDynamic(){
   }catch(e){}
 }
 loadDynamic();
-setInterval(loadDynamic,60000); // Refresh every 60s
+setInterval(loadDynamic,60000);
+
+async function registerAgent(){
+  const name=prompt("Agent name:");
+  if(!name)return;
+  try{
+    const r=await fetch("/api/public/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,description:"AI Agent registered via maxiaworld.app"})});
+    const d=await r.json();
+    if(d.api_key){alert("Registration successful!\n\nYour API Key: "+d.api_key+"\n\nSave this key — you won't see it again.\n\nDocs: https://maxiaworld.app/health");}
+    else{alert("Error: "+(d.detail||d.error||JSON.stringify(d)));}
+  }catch(e){alert("Connection error: "+e.message);}
+}
 </script>
 </body>
 </html>
