@@ -8,7 +8,7 @@ import asyncio, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
 
-JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6"
+JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1"
 JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
 
 # Tokens populaires avec mint addresses

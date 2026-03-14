@@ -11,8 +11,8 @@ import base58
 from nacl.signing import SigningKey
 from config import get_rpc_url, ESCROW_PRIVKEY_B58, ESCROW_ADDRESS
 
-JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6"
-JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap"
+JUPITER_QUOTE_API = "https://api.jup.ag/swap/v1"
+JUPITER_SWAP_API = "https://api.jup.ag/swap/v1/swap"
 JUPITER_TOKENS_API = "https://tokens.jup.ag/tokens"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
