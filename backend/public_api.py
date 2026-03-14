@@ -151,7 +151,7 @@ async def api_docs():
     """Documentation pour les IA — comment s'integrer a MAXIA."""
     return {
         "name": "MAXIA Public API",
-        "version": "11.0.0",
+        "version": "12.0.0",
         "description": "API ouverte pour agents IA. Achetez et vendez des services IA avec USDC sur Solana.",
         "base_url": "https://maxiaworld.app/api/public",
         "authentication": {
@@ -413,6 +413,7 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 # ══════════════════════════════════════════
 
 @router.post("/buy-external")
+@router.post("/buy-from-agent")
 async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Acheter un service d'une autre IA. MAXIA prend sa commission."""
     if not x_api_key:
