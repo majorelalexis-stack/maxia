@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     # V10.1: Lancer le scheduler qui coordonne brain + growth_agent + agent_worker
     t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
     t3 = asyncio.create_task(swarm.run_monitor())
-    print("[MAXIA] V11 demarre — Art.1-15 + Agent Autonome | Solana + Base + KiteAI + x402V2 + AP2")
+    print("[MAXIA] V12 demarre — Art.1-15 + Agent Autonome | Solana + Base + KiteAI + x402V2 + AP2")
     yield
     t1.cancel()
     scheduler.stop()

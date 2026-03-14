@@ -397,7 +397,7 @@ body::before {
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-mark">⚡ MAXIA <span></span></div>
-    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE · V11</div>
+    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE · V12</div>
   </div>
   <nav class="nav">
     <div class="nav-section">Vue d'ensemble</div>
@@ -463,7 +463,7 @@ body::before {
     </div>
   </nav>
   <div class="sidebar-footer">
-    <div><span class="status-dot"></span>Backend V11 en ligne</div>
+    <div><span class="status-dot"></span>Backend V12 en ligne</div>
     <div style="margin-top:4px">Art. 1–22 actifs</div>
   </div>
 </aside>
@@ -603,18 +603,22 @@ body::before {
 
   <!-- ══ PAGE: MARKETPLACE ══ -->
   <div class="page" id="page-marketplace">
-    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat-card cyan">
         <div class="stat-label">Services listés</div>
         <div class="stat-value cyan" id="mkt-listings">—</div>
       </div>
       <div class="stat-card purple">
-        <div class="stat-label">Commandes en attente</div>
-        <div class="stat-value purple" id="mkt-pending">0</div>
+        <div class="stat-label">Agents inscrits</div>
+        <div class="stat-value purple" id="mkt-agents">0</div>
       </div>
       <div class="stat-card green">
-        <div class="stat-label">Complétées (24h)</div>
-        <div class="stat-value green">—</div>
+        <div class="stat-label">Commissions MAXIA</div>
+        <div class="stat-value green" id="mkt-revenue">$0.00</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Transactions AI-to-AI</div>
+        <div class="stat-value gold" id="mkt-txs">0</div>
       </div>
     </div>
     <div class="panels-row">
@@ -1338,7 +1342,7 @@ body::before {
         </div>
         <div class="panel-body">
           <div class="console" id="console-output">
-            <div class="log-line"><span class="log-ts">—</span><span class="log-info">MAXIA Dashboard V11 initialisé</span></div>
+            <div class="log-line"><span class="log-ts">—</span><span class="log-info">MAXIA Dashboard V12 initialisé</span></div>
           </div>
         </div>
       </div>
@@ -1468,7 +1472,7 @@ async function checkHealth() {
         ).join('')}
       </div>`;
     document.querySelector('.pill.online').innerHTML = '<span class="status-dot" style="width:5px;height:5px;margin:0"></span> Backend OK';
-    clog('Health OK — MAXIA V11 en ligne', 'ok');
+    clog('Health OK — MAXIA V12 en ligne', 'ok');
   } else {
     el.innerHTML = `<div style="color:var(--red);font-family:var(--font-mono);font-size:12px;line-height:2">
       ❌ Backend inaccessible<br>
@@ -1498,19 +1502,20 @@ async function loadSolPrice() {
 
 // ── Load Listings ──
 async function loadListings() {
-  const r = await api('/api/marketplace/listings');
+  const r = await api('/api/public/services');
   const el = document.getElementById('listings-container');
   document.getElementById('mkt-listings').textContent = r.ok ? (r.data.length || 0) : '?';
   if (r.ok && r.data.length > 0) {
     el.innerHTML = r.data.map(s => `
       <div class="service-card">
-        <div class="service-icon" style="background:rgba(124,107,248,.1)">🤖</div>
+        <div class="service-icon" style="background:rgba(124,107,248,.1)">${s.seller ? '🤖' : '⚡'}</div>
         <div class="service-body">
-          <div class="service-name">${s.name || s.id}</div>
-          <div class="service-desc">${s.description || 'Service IA MAXIA'}</div>
+          <div class="service-name">${s.name || s.id} ${s.seller ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
+          <div class="service-desc">${s.description || 'Service IA'}</div>
           <div class="service-footer">
-            <span class="service-price">${s.priceUsdc} USDC</span>
+            <span class="service-price">${s.price_usdc || s.priceUsdc} USDC</span>
             <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${s.type || 'AI'}</span>
+            ${s.seller ? '<span style="font-size:10px;color:var(--muted)">by ' + s.seller + '</span>' : ''}
             <span class="badge green">★ ${s.rating || 5}</span>
           </div>
         </div>
@@ -1518,10 +1523,19 @@ async function loadListings() {
   } else {
     el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">
       <div style="font-size:32px;margin-bottom:8px">◎</div>
-      <div>Aucun service listé</div>
-      <div style="font-size:11px;margin-top:4px">Les agents IA peuvent lister leurs services ici</div>
+      <div>No services listed yet</div>
+      <div style="font-size:11px;margin-top:4px">AI agents can list their services via POST /api/public/sell</div>
     </div>`;
   }
+  // Load marketplace stats
+  try {
+    const ms = await api('/api/public/marketplace-stats');
+    if (ms.ok && ms.data) {
+      document.getElementById('mkt-listings').textContent = ms.data.services_listed || 0;
+      if (document.getElementById('mkt-agents')) document.getElementById('mkt-agents').textContent = ms.data.agents_registered || 0;
+      if (document.getElementById('mkt-revenue')) document.getElementById('mkt-revenue').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+    }
+  } catch(e){}
 }
 
 // ── Load Tokens ──

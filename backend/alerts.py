@@ -25,7 +25,7 @@ async def send_discord(title: str, message: str, color: int = 0x7C6BF8,
         "description": message,
         "color": color,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "footer": {"text": "MAXIA V11 — Agent Autonome"},
+        "footer": {"text": "MAXIA V12 — CEO AI + Marketplace"},
     }
 
     try:

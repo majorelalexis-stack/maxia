@@ -28,8 +28,8 @@ class Brain:
         self._running = True
         self._started_at = int(time.time())
         self._db = db
-        print("[Brain] Cerveau V11 demarre — mode survie")
-        await alert_system("🧠 Cerveau MAXIA V11 demarre", "Pricing dynamique + Scale-Out actifs\nMode : survie (beta)")
+        print("[Brain] Cerveau V12 demarre — mode survie")
+        await alert_system("🧠 Cerveau MAXIA V12 demarre", "Pricing dynamique + Scale-Out actifs\nMode : survie (beta)")
 
         while self._running:
             try:
