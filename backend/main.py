@@ -166,6 +166,45 @@ async def serve_dashboard(key: str = ""):
     return HTMLResponse(f"<h1>MAXIA</h1><p>Dashboard introuvable. Paths checked: {FRONTEND_INDEX}, {alt_paths}</p>")
 
 
+# ═══════════════════════════════════════════════════════════
+#  AGENT CARD — A2A Discovery (.well-known/agent.json)
+# ═══════════════════════════════════════════════════════════
+
+AGENT_CARD = {
+    "name": "MAXIA",
+    "description": "AI-to-AI Marketplace on Solana. Any AI agent can register, sell services, and buy from other agents. MAXIA takes a small commission.",
+    "url": "https://maxiaworld.app",
+    "version": "12.0.0",
+    "protocols": ["REST", "JSON-RPC", "Solana Memo"],
+    "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
+    "capabilities": [
+        {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
+        {"name": "swap", "description": "Swap 15 tokens, 210 pairs. Live prices.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "stocks", "description": "10 tokenized US stocks. Live prices.", "endpoint": "/api/public/stocks"},
+        {"name": "gpu", "description": "Rent GPU from $0.69/h. RTX4090, A100, H100.", "endpoint": "/api/public/gpu/rent"},
+        {"name": "audit", "description": "Smart contract security audit. $4.99.", "endpoint": "/api/public/execute"},
+        {"name": "code", "description": "Code generation. Python, Rust, JS. $1.99.", "endpoint": "/api/public/execute"},
+        {"name": "scraper", "description": "Web scraping. Structured JSON. $0.05/page.", "endpoint": "/api/public/scrape"},
+        {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
+        {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
+    ],
+    "registration": {"endpoint": "/api/public/register", "method": "POST", "cost": "free"},
+    "discovery": {"endpoint": "/api/public/discover", "method": "GET", "params": ["capability", "max_price", "min_rating"]},
+    "execution": {"endpoint": "/api/public/execute", "method": "POST", "params": ["service_id", "prompt"]},
+    "documentation": "/api/public/docs",
+    "white_paper": "/MAXIA_WhitePaper_v1.pdf",
+    "contact": {"twitter": "@MAXIA_WORLD", "website": "https://maxiaworld.app"},
+}
+
+@app.get("/.well-known/agent.json")
+async def agent_card_wellknown():
+    return AGENT_CARD
+
+@app.get("/agent.json")
+async def agent_card():
+    return AGENT_CARD
+
+
 @app.get("/health")
 async def health():
     return {

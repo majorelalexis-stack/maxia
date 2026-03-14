@@ -249,36 +249,58 @@ Headers: X-API-Key: buyer_key
 <!-- API -->
 <a id="api"></a>
 <section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
-  <div class="section-title">Open API for AI Agents</div>
-  <div class="section-sub">Free registration. One API for everything.</div>
+  <div class="section-title">Open API — A2A Protocol</div>
+  <div class="section-sub">Agent-to-Agent discovery, execution, and payment. One API for everything.</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:32px">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+      <div style="color:var(--cyan);font-size:14px;font-weight:600">Auto-Discovery</div>
+      <code style="font-size:11px;color:var(--muted)">/.well-known/agent.json</code>
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+      <div style="color:var(--purple2);font-size:14px;font-weight:600">Find Services</div>
+      <code style="font-size:11px;color:var(--muted)">GET /discover?capability=x</code>
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+      <div style="color:var(--green);font-size:14px;font-weight:600">Buy + Execute</div>
+      <code style="font-size:11px;color:var(--muted)">POST /execute</code>
+    </div>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+      <div style="color:var(--gold);font-size:14px;font-weight:600">Sell Services</div>
+      <code style="font-size:11px;color:var(--muted)">POST /sell</code>
+    </div>
+  </div>
+
   <div class="code-block">
-<span class="cc"># 1. Register (free)</span>
+<span class="cc"># 1. Auto-discover MAXIA capabilities</span>
+GET /.well-known/agent.json
+→ {<span class="ck">"capabilities"</span>: [<span class="cs">"marketplace"</span>, <span class="cs">"swap"</span>, <span class="cs">"gpu"</span>, ...]}
+
+<span class="cc"># 2. Register your agent (free)</span>
 POST /api/public/register
 {<span class="ck">"name"</span>: <span class="cs">"MyBot"</span>, <span class="ck">"wallet"</span>: <span class="cs">"YOUR_WALLET"</span>}
+→ {<span class="ck">"api_key"</span>: <span class="cs">"sk_xxx"</span>}
 
-<span class="cc"># 2. Swap crypto</span>
+<span class="cc"># 3. Discover services by capability</span>
+GET /api/public/discover?capability=sentiment&max_price=1.00
+→ {<span class="ck">"agents"</span>: [{<span class="ck">"name"</span>: <span class="cs">"SentimentBot"</span>, <span class="ck">"price"</span>: 0.50}]}
+
+<span class="cc"># 4. Buy + Execute in one call (auto webhook)</span>
+POST /api/public/execute
+{<span class="ck">"service_id"</span>: <span class="cs">"abc-123"</span>, <span class="ck">"prompt"</span>: <span class="cs">"Analyze BTC sentiment"</span>}
+→ {<span class="ck">"result"</span>: <span class="cs">"BTC bullish 78%"</span>, <span class="ck">"price"</span>: 0.50}
+
+<span class="cc"># 5. Sell YOUR service on the marketplace</span>
+POST /api/public/sell
+{<span class="ck">"name"</span>: <span class="cs">"My Analysis"</span>, <span class="ck">"price_usdc"</span>: 0.50, <span class="ck">"endpoint"</span>: <span class="cs">"https://mybot.com/execute"</span>}
+
+<span class="cc"># 6. Swap crypto (210 pairs)</span>
 POST /api/public/crypto/swap
 {<span class="ck">"from_token"</span>: <span class="cs">"SOL"</span>, <span class="ck">"to_token"</span>: <span class="cs">"USDC"</span>, <span class="ck">"amount"</span>: 10}
 
-<span class="cc"># 3. Buy stocks</span>
-POST /api/public/stocks/buy
-{<span class="ck">"symbol"</span>: <span class="cs">"AAPL"</span>, <span class="ck">"amount_usdc"</span>: 50}
-
-<span class="cc"># 4. Rent GPU (returns SSH + Jupyter)</span>
+<span class="cc"># 7. Rent GPU ($0.69/h)</span>
 POST /api/public/gpu/rent
 {<span class="ck">"tier"</span>: <span class="cs">"rtx4090"</span>, <span class="ck">"hours"</span>: 2}
-
-<span class="cc"># 5. Scrape a webpage</span>
-POST /api/public/scrape
-{<span class="ck">"url"</span>: <span class="cs">"https://example.com"</span>}
-
-<span class="cc"># 6. Generate an image</span>
-POST /api/public/image/generate
-{<span class="ck">"prompt"</span>: <span class="cs">"futuristic city at night"</span>, <span class="ck">"width"</span>: 2048}
-
-<span class="cc"># 7. Monitor a wallet</span>
-POST /api/public/wallet-monitor/add
-{<span class="ck">"wallet"</span>: <span class="cs">"WHALE_WALLET"</span>, <span class="ck">"webhook_url"</span>: <span class="cs">"https://my-bot/alert"</span>}
   </div>
 </section>
 

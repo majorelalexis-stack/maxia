@@ -159,15 +159,24 @@ async def api_docs():
             "register": "POST /register — gratuit, instantane",
             "rate_limit": "100 requetes/jour (gratuit)",
         },
+        "protocols": {
+            "A2A": "Agent-to-Agent discovery via GET /discover",
+            "execution": "One-call buy+execute via POST /execute",
+            "agent_card": "/.well-known/agent.json for auto-discovery",
+        },
         "endpoints": {
-            "GET /services": "Liste tous les services (sans auth)",
-            "GET /prices": "Prix en temps reel (sans auth)",
-            "GET /docs": "Cette documentation (sans auth)",
-            "POST /register": "Inscription gratuite → API key",
-            "POST /buy": "Acheter un service (API key requise)",
-            "POST /sell": "Vendre un service (API key requise)",
-            "GET /my-stats": "Vos statistiques (API key requise)",
-            "GET /my-earnings": "Vos revenus vendeur (API key requise)",
+            "GET /services": "List all services — MAXIA + external agents (no auth)",
+            "GET /discover": "A2A discovery: find services by capability, price, rating (no auth)",
+            "GET /docs": "This documentation (no auth)",
+            "GET /prices": "Live token prices (no auth)",
+            "POST /register": "Free registration → API key",
+            "POST /buy": "Buy a MAXIA native service (API key)",
+            "POST /sell": "List YOUR service for sale (API key)",
+            "POST /buy-from-agent": "Buy from another AI agent (API key)",
+            "POST /execute": "Buy AND execute in one call — webhook auto-call (API key)",
+            "GET /my-stats": "Your stats (API key)",
+            "GET /my-earnings": "Your seller earnings (API key)",
+            "GET /marketplace-stats": "Global marketplace stats (no auth)",
         },
         "example_buy": {
             "method": "POST",
@@ -554,6 +563,245 @@ async def marketplace_stats():
             "baleine": "0.1% (5000+ USDC)",
         },
     }
+
+
+# ══════════════════════════════════════════
+#  DISCOVER — Agent-to-Agent Discovery (A2A style)
+# ══════════════════════════════════════════
+
+@router.get("/discover")
+async def discover_services(
+    capability: str = "",
+    max_price: float = 9999,
+    min_rating: float = 0,
+    agent_type: str = "",
+):
+    """A2A-style discovery. AI agents find services by capability, price, rating.
+
+    Examples:
+      GET /discover?capability=sentiment
+      GET /discover?capability=audit&max_price=10
+      GET /discover?agent_type=data&min_rating=4
+    """
+    results = []
+    capability_lower = capability.lower()
+
+    for s in _agent_services:
+        if s["status"] != "active":
+            continue
+        if s["price_usdc"] > max_price:
+            continue
+        if s.get("rating", 5) < min_rating:
+            continue
+
+        # Match capability against name, description, type
+        searchable = f"{s['name']} {s['description']} {s['type']}".lower()
+        if capability_lower and capability_lower not in searchable:
+            continue
+        if agent_type and agent_type.lower() not in s.get("type", "").lower():
+            continue
+
+        results.append({
+            "service_id": s["id"],
+            "name": s["name"],
+            "description": s["description"],
+            "type": s["type"],
+            "price_usdc": s["price_usdc"],
+            "seller": s["agent_name"],
+            "rating": s.get("rating", 5),
+            "sales": s.get("sales", 0),
+            "endpoint": s.get("endpoint", ""),
+            "listed_at": s.get("listed_at", 0),
+        })
+
+    # Also include MAXIA native services
+    maxia_native = [
+        {"service_id": "maxia-audit", "name": "AI Security Audit", "type": "code", "price_usdc": 4.99, "seller": "MAXIA", "rating": 5, "description": "Smart contract vulnerability scanner"},
+        {"service_id": "maxia-code", "name": "Code Generation", "type": "code", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "Python, Rust, JS, Solidity. Production-ready"},
+        {"service_id": "maxia-data", "name": "Crypto Data Analyst", "type": "data", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "DeFi analytics, whale tracking, predictions"},
+        {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Scrape any URL, structured JSON output"},
+        {"service_id": "maxia-image", "name": "Image Generation", "type": "media", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "FLUX.1, up to 2048x2048 HD"},
+        {"service_id": "maxia-translate", "name": "Universal Translator", "type": "text", "price_usdc": 0.09, "seller": "MAXIA", "rating": 5, "description": "50+ languages, context-aware"},
+    ]
+    for ns in maxia_native:
+        searchable = f"{ns['name']} {ns['description']} {ns['type']}".lower()
+        if capability_lower and capability_lower not in searchable:
+            continue
+        if ns["price_usdc"] > max_price:
+            continue
+        results.append(ns)
+
+    # Sort by rating then price
+    results.sort(key=lambda x: (-x.get("rating", 0), x["price_usdc"]))
+
+    return {
+        "query": {"capability": capability, "max_price": max_price, "min_rating": min_rating},
+        "results_count": len(results),
+        "agents": results,
+    }
+
+
+# ══════════════════════════════════════════
+#  EXECUTE — Webhook-based service execution
+# ══════════════════════════════════════════
+
+@router.post("/execute")
+async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Buy AND execute a service in one call.
+
+    If the seller has a webhook endpoint, MAXIA calls it automatically
+    and returns the result. Full AI-to-AI automation.
+
+    Body: {"service_id": "xxx", "prompt": "your request", "payment_tx": "optional"}
+    """
+    if not x_api_key:
+        raise HTTPException(401, "Header X-API-Key requis")
+
+    buyer = _get_agent(x_api_key)
+    _check_rate(x_api_key)
+
+    service_id = req.get("service_id", "")
+    prompt = req.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+
+    _check_safety(prompt, "prompt")
+
+    # Find the service
+    service = None
+    for s in _agent_services:
+        if s["id"] == service_id and s["status"] == "active":
+            service = s
+            break
+
+    # Check if it's a MAXIA native service
+    is_native = service_id.startswith("maxia-")
+    if is_native:
+        # Execute MAXIA native service via Groq
+        result_text = await _execute_native_service(service_id, prompt)
+        price = {"maxia-audit": 4.99, "maxia-code": 1.99, "maxia-data": 1.99,
+                 "maxia-scraper": 0.05, "maxia-image": 0.10, "maxia-translate": 0.09}.get(service_id, 1.99)
+        volume = buyer.get("volume_30d", 0)
+        commission_bps = get_commission_bps(volume)
+        commission = price * commission_bps / 10000
+
+        tx = {
+            "tx_id": str(uuid.uuid4()), "buyer": buyer["name"],
+            "seller": "MAXIA", "service": service_id,
+            "price_usdc": price, "commission_usdc": commission,
+            "seller_gets_usdc": price - commission, "timestamp": int(time.time()),
+        }
+        _transactions.append(tx)
+        buyer["volume_30d"] += price
+        buyer["total_spent"] += price
+
+        return {
+            "success": True, "tx_id": tx["tx_id"],
+            "service": service_id, "seller": "MAXIA",
+            "price_usdc": price, "commission_usdc": commission,
+            "result": result_text,
+            "execution": "native",
+        }
+
+    if not service:
+        raise HTTPException(404, "Service not found. Use GET /discover to find services.")
+
+    price = service["price_usdc"]
+    volume = buyer.get("volume_30d", 0)
+    commission_bps = get_commission_bps(volume)
+    commission = price * commission_bps / 10000
+    seller_gets = price - commission
+
+    # Record transaction
+    tx = {
+        "tx_id": str(uuid.uuid4()), "buyer": buyer["name"],
+        "seller": service["agent_name"], "service": service["name"],
+        "price_usdc": price, "commission_usdc": commission,
+        "seller_gets_usdc": seller_gets, "timestamp": int(time.time()),
+    }
+    _transactions.append(tx)
+    buyer["volume_30d"] += price
+    buyer["total_spent"] += price
+    service["sales"] += 1
+
+    # Credit seller
+    seller_key = service.get("agent_api_key")
+    seller = _registered_agents.get(seller_key)
+    if seller:
+        seller["total_earned"] += seller_gets
+        seller["volume_30d"] += seller_gets
+
+    # Execute via webhook if available
+    result_text = None
+    execution_method = "pending"
+    endpoint = service.get("endpoint", "")
+
+    if endpoint and endpoint.startswith("http"):
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(endpoint, json={
+                    "prompt": prompt,
+                    "buyer": buyer["name"],
+                    "service_id": service_id,
+                    "tx_id": tx["tx_id"],
+                })
+                if resp.status_code == 200:
+                    result_data = resp.json()
+                    result_text = result_data.get("result", result_data.get("text", str(result_data)))
+                    execution_method = "webhook"
+                else:
+                    result_text = f"Seller webhook returned {resp.status_code}"
+                    execution_method = "webhook_error"
+        except Exception as e:
+            result_text = f"Webhook call failed: {e}"
+            execution_method = "webhook_error"
+    else:
+        execution_method = "manual"
+        result_text = "Service purchased. Seller will deliver manually (no webhook configured)."
+
+    # Alert
+    try:
+        from alerts import alert_revenue
+        await alert_revenue(commission, f"AI-to-AI: {buyer['name']} -> {service['agent_name']}")
+    except Exception:
+        pass
+
+    return {
+        "success": True, "tx_id": tx["tx_id"],
+        "service": service["name"], "seller": service["agent_name"],
+        "price_usdc": price, "commission_usdc": commission,
+        "seller_gets_usdc": seller_gets,
+        "result": result_text,
+        "execution": execution_method,
+        "seller_wallet": service["agent_wallet"],
+    }
+
+
+async def _execute_native_service(service_id: str, prompt: str) -> str:
+    """Execute a MAXIA native service via Groq."""
+    if not groq_client:
+        return "Service temporarily unavailable (no LLM)"
+
+    system_prompts = {
+        "maxia-audit": "You are a smart contract security auditor. Analyze the code for vulnerabilities. Be thorough and specific.",
+        "maxia-code": "You are a senior software engineer. Write production-ready code. Include error handling and comments.",
+        "maxia-data": "You are a DeFi data analyst. Provide detailed analytics with numbers and insights.",
+        "maxia-translate": "You are a professional translator. Translate accurately while preserving meaning and tone.",
+    }
+    sys = system_prompts.get(service_id, "You are a helpful AI assistant.")
+
+    try:
+        def _call():
+            resp = groq_client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "system", "content": sys}, {"role": "user", "content": prompt}],
+                max_tokens=1500, temperature=0.7,
+            )
+            return resp.choices[0].message.content.strip()
+        return await asyncio.to_thread(_call)
+    except Exception as e:
+        return f"Execution error: {e}"
 
 
 # ── Utilitaire ──
