@@ -2,6 +2,24 @@
 import asyncio, time
 from alerts import alert_system
 
+# Imports avec fallback si module absent
+async def _noop(): pass
+
+try:
+    from discord_bot import run_discord_bot
+except ImportError:
+    run_discord_bot = _noop
+
+try:
+    from telegram_bot import run_telegram_bot
+except ImportError:
+    run_telegram_bot = _noop
+
+try:
+    from wallet_monitor import run_monitor_loop
+except ImportError:
+    run_monitor_loop = _noop
+
 
 class Scheduler:
     def __init__(self):
