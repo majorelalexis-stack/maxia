@@ -1,0 +1,229 @@
+"""MAXIA Art.26 — Generation d'Images IA
+
+Les IA ne peuvent pas generer d'images elles-memes.
+Ce service utilise Together AI (gratuit tier) ou Stability AI
+pour generer des images a partir d'un prompt texte.
+"""
+import asyncio, time, uuid, base64, os
+import httpx
+
+# Together AI — tier gratuit disponible
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
+TOGETHER_URL = "https://api.together.xyz/v1/images/generations"
+
+# Modeles disponibles
+MODELS = {
+    "flux-schnell": {
+        "id": "black-forest-labs/FLUX.1-schnell-Free",
+        "name": "FLUX.1 Schnell (Fast)",
+        "speed": "fast",
+        "quality": "good",
+        "free": True,
+    },
+    "flux-dev": {
+        "id": "black-forest-labs/FLUX.1-dev",
+        "name": "FLUX.1 Dev (High Quality)",
+        "speed": "medium",
+        "quality": "high",
+        "free": False,
+    },
+    "sdxl": {
+        "id": "stabilityai/stable-diffusion-xl-base-1.0",
+        "name": "Stable Diffusion XL",
+        "speed": "medium",
+        "quality": "good",
+        "free": True,
+    },
+}
+
+# Mots bloques (Art.1 — securite)
+BLOCKED_WORDS = [
+    "child", "minor", "underage", "kid", "teen", "young girl", "young boy",
+    "nude", "naked", "nsfw", "porn", "sexual", "explicit",
+    "gore", "violence", "blood", "murder", "torture",
+    "terrorism", "bomb", "weapon", "gun",
+]
+
+# Stats
+_gen_stats = {"total": 0, "success": 0, "blocked": 0, "errors": 0}
+_gen_history: list = []
+
+print(f"[ImageGen] Service initialise — Together AI {'connecte' if TOGETHER_API_KEY else 'sans cle (mode demo)'}")
+
+
+def _check_prompt_safety(prompt: str) -> bool:
+    """Verifie que le prompt ne contient pas de contenu interdit (Art.1)."""
+    prompt_lower = prompt.lower()
+    for word in BLOCKED_WORDS:
+        if word in prompt_lower:
+            return False
+    return True
+
+
+async def generate_image(prompt: str, model: str = "flux-schnell",
+                          width: int = 1024, height: int = 1024,
+                          steps: int = 4, seed: int = 0) -> dict:
+    """Genere une image a partir d'un prompt texte."""
+    _gen_stats["total"] += 1
+
+    # Validation
+    if not prompt or len(prompt) < 3:
+        return {"success": False, "error": "Prompt trop court (min 3 caracteres)"}
+
+    if len(prompt) > 1000:
+        prompt = prompt[:1000]
+
+    # Art.1 — Securite
+    if not _check_prompt_safety(prompt):
+        _gen_stats["blocked"] += 1
+        return {"success": False, "error": "Prompt bloque par Art.1 (contenu interdit detecte)"}
+
+    # Valider le modele
+    model_config = MODELS.get(model)
+    if not model_config:
+        return {"success": False, "error": f"Modele inconnu: {model}. Disponibles: {list(MODELS.keys())}"}
+
+    # Valider les dimensions
+    width = max(256, min(width, 2048))
+    height = max(256, min(height, 2048))
+
+    # Generer via Together AI
+    if TOGETHER_API_KEY:
+        result = await _generate_together(prompt, model_config["id"], width, height, steps, seed)
+    else:
+        # Mode demo sans cle API — retourne un placeholder
+        result = _generate_placeholder(prompt, width, height)
+
+    if result.get("success"):
+        _gen_stats["success"] += 1
+        gen_record = {
+            "gen_id": str(uuid.uuid4()),
+            "prompt": prompt[:100],
+            "model": model,
+            "width": width, "height": height,
+            "timestamp": int(time.time()),
+        }
+        _gen_history.append(gen_record)
+        print(f"[ImageGen] Generated: '{prompt[:50]}...' ({model}, {width}x{height})")
+
+    return result
+
+
+async def _generate_together(prompt: str, model_id: str,
+                               width: int, height: int,
+                               steps: int, seed: int) -> dict:
+    """Genere via Together AI API."""
+    try:
+        headers = {
+            "Authorization": f"Bearer {TOGETHER_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model_id,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "steps": steps,
+            "n": 1,
+            "response_format": "b64_json",
+        }
+        if seed > 0:
+            payload["seed"] = seed
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(TOGETHER_URL, json=payload, headers=headers)
+
+        if resp.status_code == 200:
+            data = resp.json()
+            images = data.get("data", [])
+            if images:
+                b64 = images[0].get("b64_json", "")
+                if b64:
+                    return {
+                        "success": True,
+                        "image_base64": b64,
+                        "format": "png",
+                        "width": width,
+                        "height": height,
+                        "model": model_id,
+                        "prompt": prompt,
+                        "data_url": f"data:image/png;base64,{b64[:50]}...",
+                        "size_bytes": len(b64) * 3 // 4,
+                    }
+
+            # URL format
+            if images and images[0].get("url"):
+                return {
+                    "success": True,
+                    "image_url": images[0]["url"],
+                    "format": "png",
+                    "width": width, "height": height,
+                    "model": model_id, "prompt": prompt,
+                }
+
+            return {"success": False, "error": "Pas d'image dans la reponse"}
+
+        elif resp.status_code == 429:
+            return {"success": False, "error": "Rate limit Together AI — reessayez dans 60s"}
+        else:
+            error_text = resp.text[:200]
+            _gen_stats["errors"] += 1
+            return {"success": False, "error": f"Together AI error {resp.status_code}: {error_text}"}
+
+    except httpx.TimeoutException:
+        _gen_stats["errors"] += 1
+        return {"success": False, "error": "Timeout (60s) — image trop complexe ou serveur surcharge"}
+    except Exception as e:
+        _gen_stats["errors"] += 1
+        return {"success": False, "error": str(e)[:200]}
+
+
+def _generate_placeholder(prompt: str, width: int, height: int) -> dict:
+    """Mode demo sans cle API — retourne un SVG placeholder."""
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">'
+        f'<rect width="100%" height="100%" fill="#1a1a2e"/>'
+        f'<text x="50%" y="45%" text-anchor="middle" fill="#e94560" font-size="24" font-family="Arial">MAXIA Image Gen</text>'
+        f'<text x="50%" y="55%" text-anchor="middle" fill="#8B5CF6" font-size="14" font-family="Arial">{prompt[:60]}</text>'
+        f'<text x="50%" y="70%" text-anchor="middle" fill="#666" font-size="12" font-family="Arial">Set TOGETHER_API_KEY for real images</text>'
+        f'</svg>'
+    )
+    b64 = base64.b64encode(svg.encode()).decode()
+    return {
+        "success": True,
+        "image_base64": b64,
+        "format": "svg",
+        "width": width, "height": height,
+        "model": "placeholder",
+        "prompt": prompt,
+        "note": "Mode demo — ajoutez TOGETHER_API_KEY pour des vraies images",
+    }
+
+
+def list_models() -> dict:
+    """Liste les modeles disponibles."""
+    return {
+        "models": [
+            {
+                "id": k,
+                "name": v["name"],
+                "speed": v["speed"],
+                "quality": v["quality"],
+                "free": v["free"],
+            }
+            for k, v in MODELS.items()
+        ],
+        "default": "flux-schnell",
+        "max_width": 2048,
+        "max_height": 2048,
+        "api_key_configured": bool(TOGETHER_API_KEY),
+    }
+
+
+def get_gen_stats() -> dict:
+    return {
+        **_gen_stats,
+        "history_count": len(_gen_history),
+        "models_available": len(MODELS),
+        "api_key_configured": bool(TOGETHER_API_KEY),
+    }

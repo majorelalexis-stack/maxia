@@ -1,0 +1,72 @@
+"""MAXIA Art.12 - Data Marketplace"""
+import os, uuid, time, json
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from auth import require_auth
+from database import db
+from models import DatasetListRequest
+
+router = APIRouter(prefix="/api/data", tags=["data_marketplace"])
+FEE_BPS = int(os.getenv("DATA_FEE_BPS", "200"))
+
+class DataPurchaseRequest(BaseModel):
+    dataset_id: str
+    tx_signature: str
+
+@router.get("/datasets")
+async def list_all(category: str = None, max_price: float = None):
+    async with db._db.execute("SELECT data FROM datasets ORDER BY created_at DESC") as c:
+        rows = await c.fetchall()
+    ds = [json.loads(r[0]) for r in rows]
+    if category:
+        ds = [d for d in ds if d.get("category") == category]
+    if max_price:
+        ds = [d for d in ds if d.get("priceUsdc", 0) <= max_price]
+    return ds
+
+@router.post("/datasets")
+async def create_dataset(req: DatasetListRequest, wallet: str = Depends(require_auth)):
+    fee = req.price_usdc * FEE_BPS / 10000
+    d = {
+        "datasetId": str(uuid.uuid4()), "seller": wallet, "name": req.name,
+        "description": req.description, "category": req.category, "sizeMb": req.size_mb,
+        "priceUsdc": req.price_usdc, "feeUsdc": fee, "netUsdc": req.price_usdc - fee,
+        "sampleHash": req.sample_hash, "format": req.format,
+        "sales": 0, "revenue": 0, "listedAt": int(time.time()), "status": "active"
+    }
+    await db._db.execute(
+        "INSERT INTO datasets(dataset_id,seller,data) VALUES(?,?,?)",
+        (d["datasetId"], wallet, json.dumps(d)))
+    await db._db.commit()
+    return d
+
+@router.post("/purchase")
+async def purchase(req: DataPurchaseRequest, wallet: str = Depends(require_auth)):
+    if await db.tx_already_processed(req.tx_signature):
+        raise HTTPException(400, "Transaction deja utilisee.")
+    async with db._db.execute("SELECT data FROM datasets WHERE dataset_id=?", (req.dataset_id,)) as c:
+        row = await c.fetchone()
+    if not row:
+        raise HTTPException(404, "Dataset introuvable.")
+    d = json.loads(row[0])
+    d["sales"] += 1
+    d["revenue"] = d.get("revenue", 0) + d["netUsdc"]
+    await db._db.execute("UPDATE datasets SET data=? WHERE dataset_id=?", (json.dumps(d), req.dataset_id))
+    p = {
+        "purchaseId": str(uuid.uuid4()), "datasetId": req.dataset_id,
+        "buyer": wallet, "seller": d["seller"],
+        "priceUsdc": d["priceUsdc"], "feeUsdc": d["feeUsdc"],
+        "txSignature": req.tx_signature, "purchasedAt": int(time.time())
+    }
+    await db._db.execute(
+        "INSERT INTO data_purchases(purchase_id,data) VALUES(?,?)",
+        (p["purchaseId"], json.dumps(p)))
+    await db._db.commit()
+    await db.record_transaction(wallet, req.tx_signature, d["priceUsdc"], "data_purchase")
+    return {"ok": True, "purchaseId": p["purchaseId"], "dataset": d}
+
+@router.get("/my-datasets")
+async def my_datasets(wallet: str = Depends(require_auth)):
+    async with db._db.execute("SELECT data FROM datasets WHERE seller=?", (wallet,)) as c:
+        rows = await c.fetchall()
+    return [json.loads(r[0]) for r in rows]

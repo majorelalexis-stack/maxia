@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — AI Marketplace on Solana</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 80% 20%,rgba(139,92,246,.06) 0%,transparent 50%)}
+.hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='0.02'/%3E%3C/svg%3E");pointer-events:none}
+.logo-text{font-size:72px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
+.tagline{font-size:22px;color:var(--muted);margin-top:16px;font-weight:300;animation:fadeUp 1s ease}
+.hero-badges{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1.2s ease}
+.badge{padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--cyan)}
+.hero-cta{display:flex;gap:16px;margin-top:40px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1.4s ease}
+.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'Outfit',sans-serif;display:inline-block}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+.btn-secondary{background:transparent;color:var(--text);border:1px solid var(--muted2)}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan)}
+.section{max-width:1100px;margin:0 auto;padding:80px 24px}
+.section-title{font-size:36px;font-weight:700;margin-bottom:12px}
+.section-sub{color:var(--muted);font-size:18px;margin-bottom:48px}
+.section-dark{background:var(--bg2)}
+.stats-bar{display:flex;justify-content:center;gap:40px;padding:40px 24px;flex-wrap:wrap;background:var(--bg2);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05)}
+.stat{text-align:center}.stat-num{font-size:32px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace}.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;transition:all .3s}
+.card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.card-icon{font-size:28px;margin-bottom:16px}.card-name{font-size:18px;font-weight:600;margin-bottom:8px}
+.card-desc{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.card-price{font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--green);font-weight:600}
+.tw{overflow-x:auto}
+table.ct{width:100%;border-collapse:collapse;margin-top:24px}
+table.ct th{text-align:left;padding:12px 16px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid rgba(255,255,255,.06);font-family:'JetBrains Mono',monospace}
+table.ct td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.03);font-size:15px}
+table.ct tr:hover{background:rgba(59,130,246,.03)}
+.tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px}
+.tier{background:var(--card);border-radius:16px;padding:24px;text-align:center;border:1px solid rgba(255,255,255,.06);transition:all .3s}
+.tier:hover{border-color:rgba(59,130,246,.3)}
+.tier-name{font-size:14px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.1em}
+.tier-pct{font-size:36px;font-weight:700;margin:12px 0}
+.tier-vol{font-size:13px;color:var(--muted2)}
+.tier:nth-child(1) .tier-pct{color:#CD7F32}.tier:nth-child(2) .tier-pct{color:#C0C0C0}.tier:nth-child(3) .tier-pct{color:#FFD700}.tier:nth-child(4) .tier-pct{color:var(--cyan)}
+.code-block{background:#0D1117;border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;overflow-x:auto;color:#E6EDF3;margin-top:24px}
+.cc{color:#8B949E}.cs{color:#A5D6FF}.ck{color:#FF7B72}
+.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+.footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}.fade-in.visible{opacity:1;transform:translateY(0)}
+@media(max-width:768px){.logo-text{font-size:48px}.tagline{font-size:18px}.tiers{grid-template-columns:repeat(2,1fr)}.stats-bar{gap:24px}}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="logo-text">MAXIA</div>
+  <p class="tagline">AI Marketplace on Solana — Where AI Agents Trade Autonomously</p>
+  <div class="hero-badges" id="badges">
+    <span class="badge">Solana</span>
+    <span class="badge" id="badge-articles">27 Modules</span>
+    <span class="badge">10 Stocks</span>
+    <span class="badge">15 Cryptos</span>
+    <span class="badge">210 Pairs</span>
+    <span class="badge">5 GPU</span>
+    <span class="badge">Open API</span>
+  </div>
+  <div class="hero-cta">
+    <a href="#services" class="btn btn-primary">Our Services</a>
+    <a href="#stocks" class="btn btn-secondary">Tokenized Stocks</a>
+    <a href="#crypto" class="btn btn-secondary">Crypto Swap</a>
+    <a href="#api" class="btn btn-secondary">For AI Agents</a>
+  </div>
+</section>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat"><div class="stat-num" id="s-articles">27</div><div class="stat-label">Active Modules</div></div>
+  <div class="stat"><div class="stat-num" id="s-stocks">10</div><div class="stat-label">Tokenized Stocks</div></div>
+  <div class="stat"><div class="stat-num">210</div><div class="stat-label">Crypto Pairs</div></div>
+  <div class="stat"><div class="stat-num">5</div><div class="stat-label">GPU Tiers</div></div>
+  <div class="stat"><div class="stat-num">0.02%</div><div class="stat-label">Min Commission</div></div>
+  <div class="stat"><div class="stat-num" id="s-modules">42</div><div class="stat-label">Python Modules</div></div>
+</div>
+
+<!-- SERVICES -->
+<section class="section fade-in" id="services">
+  <div class="section-title">AI Services</div>
+  <div class="section-sub">Pay per use with USDC. No subscription. First request free.</div>
+  <div class="grid">
+    <div class="card"><div class="card-icon">🔒</div><div class="card-name">AI Security Scan</div><div class="card-desc">Smart contract vulnerability scanner. Solidity, Rust, Move. Structured report.</div><div class="card-price">$4.99 <span style="font-size:13px;color:var(--muted)">/scan</span></div></div>
+    <div class="card"><div class="card-icon">📊</div><div class="card-name">Crypto Data Analyst</div><div class="card-desc">DeFi analytics, whale tracking, liquidity analysis, price predictions.</div><div class="card-price">$1.99 <span style="font-size:13px;color:var(--muted)">/query</span></div></div>
+    <div class="card"><div class="card-icon">💻</div><div class="card-name">Code Engineer</div><div class="card-desc">Python, Rust, JavaScript, TypeScript, Solidity. Production-ready.</div><div class="card-price">$1.99 <span style="font-size:13px;color:var(--muted)">/task</span></div></div>
+    <div class="card"><div class="card-icon">🌍</div><div class="card-name">Universal Translator</div><div class="card-desc">50+ languages. Professional quality, context-aware.</div><div class="card-price">$0.09 <span style="font-size:13px;color:var(--muted)">/request</span></div></div>
+    <div class="card"><div class="card-icon">🛡️</div><div class="card-name">Deep Security Audit</div><div class="card-desc">Multi-pass: reentrancy, flash loans, oracle manipulation. PDF report.</div><div class="card-price">$49.99 <span style="font-size:13px;color:var(--muted)">/audit</span></div></div>
+    <div class="card"><div class="card-icon">🌐</div><div class="card-name">Web Scraper</div><div class="card-desc">Scrape any URL. Returns structured JSON: title, text, links, images. Batch up to 5 URLs.</div><div class="card-price">$0.05 <span style="font-size:13px;color:var(--muted)">/page</span></div></div>
+    <div class="card"><div class="card-icon">🎨</div><div class="card-name">Image Generation</div><div class="card-desc">FLUX.1, Stable Diffusion XL. Up to 2048x2048 HD. Art, logos, mockups.</div><div class="card-price">$0.10 <span style="font-size:13px;color:var(--muted)">/image</span></div></div>
+    <div class="card"><div class="card-icon">👁️</div><div class="card-name">Wallet Monitor</div><div class="card-desc">Real-time Solana wallet surveillance. Balance changes, transactions. Webhook alerts.</div><div class="card-price">$0.99 <span style="font-size:13px;color:var(--muted)">/month</span></div></div>
+    <div class="card"><div class="card-icon">🔄</div><div class="card-name">Crypto Swap</div><div class="card-desc">SOL, USDC, BTC, ETH, TRUMP, BONK, JUP, RAY, WIF + 6 more. 210 pairs. Live prices.</div><div class="card-price">0.02% <span style="font-size:13px;color:var(--muted)">commission (Whale)</span></div></div>
+  </div>
+</section>
+
+<!-- GPU -->
+<a id="gpu"></a>
+<section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
+  <div class="section-title">⚡ GPU Rental — 0% Markup</div>
+  <div class="section-sub">RunPod cost price. SSH + Jupyter included. Auto-terminate. Pay with USDC.</div>
+  <div class="tw"><table class="ct">
+    <thead><tr><th>GPU</th><th>VRAM</th><th>Price/hour</th><th>Markup</th><th>Includes</th></tr></thead>
+    <tbody>
+      <tr><td style="font-weight:600">RTX 4090</td><td>24 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$0.69</td><td style="color:var(--cyan)">0%</td><td>SSH + Jupyter + Auto-stop</td></tr>
+      <tr><td style="font-weight:600">A100 80GB</td><td>80 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$1.99</td><td style="color:var(--cyan)">0%</td><td>SSH + Jupyter + Auto-stop</td></tr>
+      <tr><td style="font-weight:600">H100 SXM5</td><td>80 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$3.29</td><td style="color:var(--cyan)">0%</td><td>SSH + Jupyter + Auto-stop</td></tr>
+      <tr><td style="font-weight:600">RTX A6000</td><td>48 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$0.99</td><td style="color:var(--cyan)">0%</td><td>SSH + Jupyter + Auto-stop</td></tr>
+      <tr><td style="font-weight:600">4x A100 80GB</td><td>320 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$7.49</td><td style="color:var(--cyan)">0%</td><td>SSH + Jupyter + Auto-stop</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:20px;color:var(--muted);font-size:14px">vs AWS H100: $32.77/h | vs GCP H100: $31.22/h — MAXIA is up to 10x cheaper.</p>
+</section>
+
+<!-- STOCKS (dynamic) -->
+<a id="stocks"></a>
+<section class="section fade-in">
+  <div class="section-title">📈 Tokenized Stocks</div>
+  <div class="section-sub">Trade US equities 24/7 on Solana. Real xStock mint addresses. Jupiter routing.</div>
+  <div class="tw"><table class="ct" id="stocks-table">
+    <thead><tr><th>Stock</th><th>Symbol</th><th>Sector</th><th>xStock</th><th>Price</th></tr></thead>
+    <tbody id="stocks-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
+  </table></div>
+  <p style="margin-top:20px;color:var(--muted);font-size:14px">New stocks auto-discovered hourly from Jupiter, Backed Finance, and Ondo APIs.</p>
+</section>
+
+<!-- CRYPTO (dynamic) -->
+<a id="crypto"></a>
+<section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
+  <div class="section-title">🔄 Crypto Swap — 210 Pairs</div>
+  <div class="section-sub">Swap any token instantly via Jupiter. Real-time competitive pricing.</div>
+  <div class="tw"><table class="ct" id="crypto-table">
+    <thead><tr><th>Token</th><th>Name</th><th>Price USD</th></tr></thead>
+    <tbody id="crypto-body"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
+  </table></div>
+  <p style="margin-top:20px;color:var(--muted);font-size:14px">15 tokens, 210 pairs. Commission: 0.15% Bronze → 0.08% Silver → 0.05% Gold → 0.02% Whale.</p>
+</section>
+
+<!-- COMMISSIONS -->
+<a id="commissions"></a>
+<section class="section fade-in">
+  <div class="section-title">Lowest Commissions in the Market</div>
+  <div class="section-sub">The more you trade, the less you pay. Transparent, no hidden spread.</div>
+  <h3 style="font-size:18px;margin-bottom:16px;color:var(--muted)">Stocks</h3>
+  <div class="tiers">
+    <div class="tier"><div class="tier-name">Bronze</div><div class="tier-pct">0.5%</div><div class="tier-vol">0-1K/mo</div></div>
+    <div class="tier"><div class="tier-name">Silver</div><div class="tier-pct">0.2%</div><div class="tier-vol">1K-5K/mo</div></div>
+    <div class="tier"><div class="tier-name">Gold</div><div class="tier-pct">0.1%</div><div class="tier-vol">5K-25K/mo</div></div>
+    <div class="tier"><div class="tier-name">Whale</div><div class="tier-pct">0.05%</div><div class="tier-vol">25K+/mo</div></div>
+  </div>
+  <h3 style="font-size:18px;margin-top:40px;margin-bottom:16px;color:var(--muted)">Crypto Swap</h3>
+  <div class="tiers">
+    <div class="tier"><div class="tier-name">Bronze</div><div class="tier-pct">0.15%</div><div class="tier-vol">0-1K/mo</div></div>
+    <div class="tier"><div class="tier-name">Silver</div><div class="tier-pct">0.08%</div><div class="tier-vol">1K-5K/mo</div></div>
+    <div class="tier"><div class="tier-name">Gold</div><div class="tier-pct">0.05%</div><div class="tier-vol">5K-25K/mo</div></div>
+    <div class="tier"><div class="tier-name">Whale</div><div class="tier-pct">0.02%</div><div class="tier-vol">25K+/mo</div></div>
+  </div>
+</section>
+
+<!-- API -->
+<a id="api"></a>
+<section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
+  <div class="section-title">Open API for AI Agents</div>
+  <div class="section-sub">Free registration. One API for everything.</div>
+  <div class="code-block">
+<span class="cc"># 1. Register (free)</span>
+POST /api/public/register
+{<span class="ck">"name"</span>: <span class="cs">"MyBot"</span>, <span class="ck">"wallet"</span>: <span class="cs">"YOUR_WALLET"</span>}
+
+<span class="cc"># 2. Swap crypto</span>
+POST /api/public/crypto/swap
+{<span class="ck">"from_token"</span>: <span class="cs">"SOL"</span>, <span class="ck">"to_token"</span>: <span class="cs">"USDC"</span>, <span class="ck">"amount"</span>: 10}
+
+<span class="cc"># 3. Buy stocks</span>
+POST /api/public/stocks/buy
+{<span class="ck">"symbol"</span>: <span class="cs">"AAPL"</span>, <span class="ck">"amount_usdc"</span>: 50}
+
+<span class="cc"># 4. Rent GPU (returns SSH + Jupyter)</span>
+POST /api/public/gpu/rent
+{<span class="ck">"tier"</span>: <span class="cs">"rtx4090"</span>, <span class="ck">"hours"</span>: 2}
+
+<span class="cc"># 5. Scrape a webpage</span>
+POST /api/public/scrape
+{<span class="ck">"url"</span>: <span class="cs">"https://example.com"</span>}
+
+<span class="cc"># 6. Generate an image</span>
+POST /api/public/image/generate
+{<span class="ck">"prompt"</span>: <span class="cs">"futuristic city at night"</span>, <span class="ck">"width"</span>: 2048}
+
+<span class="cc"># 7. Monitor a wallet</span>
+POST /api/public/wallet-monitor/add
+{<span class="ck">"wallet"</span>: <span class="cs">"WHALE_WALLET"</span>, <span class="ck">"webhook_url"</span>: <span class="cs">"https://my-bot/alert"</span>}
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section fade-in" style="text-align:center">
+  <div class="section-title">Start Trading Now</div>
+  <div class="section-sub">Free registration. No credit card. Pay with USDC on Solana.</div>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
+    <a href="/api/public/register" class="btn btn-primary">Register Your AI Agent (Free)</a>
+    <a href="https://maxiaworld.app/MAXIA_WhitePaper_v1.pdf" class="btn btn-secondary">White Paper</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank" class="btn btn-secondary">@MAXIA_WORLD</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-links">
+    <a href="#services">Services</a><a href="#gpu">GPU</a><a href="#stocks">Stocks</a>
+    <a href="#crypto">Crypto</a><a href="#commissions">Commissions</a><a href="#api">API</a>
+    <a href="https://maxiaworld.app/MAXIA_WhitePaper_v1.pdf">White Paper</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
+  </div>
+  <p>MAXIA v12 — <span id="f-articles">27</span> Articles — <span id="f-modules">39</span> Modules — 3 Networks — 3 Protocols</p>
+  <p style="margin-top:8px;font-size:12px;color:var(--muted2)">Tokenized stocks via Backed Finance and Ondo Global Markets. Not available in the USA.</p>
+</footer>
+
+<script>
+const obs=new IntersectionObserver(e=>{e.forEach(el=>{if(el.isIntersecting)el.target.classList.add('visible')})},{threshold:.1});
+document.querySelectorAll('.fade-in').forEach(el=>obs.observe(el));
+
+// Dynamic data loading from API
+async function loadDynamic(){
+  try{
+    // Health → article count
+    const h=await(await fetch('/health')).json();
+    const ac=h.articles?h.articles.length:27;
+    document.getElementById('s-articles').textContent=ac;
+    document.getElementById('badge-articles').textContent=ac+' Modules';
+    document.getElementById('f-articles').textContent=ac;
+  }catch(e){}
+
+  try{
+    // Stocks
+    const st=await(await fetch('/api/public/stocks')).json();
+    if(st.stocks&&st.stocks.length>0){
+      document.getElementById('s-stocks').textContent=st.stocks.length;
+      document.getElementById('stocks-body').innerHTML=st.stocks.map(s=>
+        '<tr><td style="font-weight:600">'+s.name+'</td><td>'+s.symbol+'</td>'
+        +'<td style="color:var(--muted)">'+s.sector+'</td>'
+        +'<td style="color:var(--purple)">'+s.xstock+'</td>'
+        +'<td style="font-family:JetBrains Mono;color:var(--green)">$'+(s.price_usd||0).toFixed(2)+'</td></tr>'
+      ).join('');
+    }
+  }catch(e){}
+
+  try{
+    // Crypto prices
+    const cp=await(await fetch('/api/public/crypto/prices')).json();
+    if(cp.prices){
+      const rows=Object.entries(cp.prices).map(([sym,d])=>
+        '<tr><td style="font-weight:600">'+sym+'</td><td>'+d.name+'</td>'
+        +'<td style="font-family:JetBrains Mono;color:var(--green)">$'+(d.price||0).toFixed(4)+'</td></tr>'
+      ).join('');
+      if(rows)document.getElementById('crypto-body').innerHTML=rows;
+    }
+  }catch(e){}
+}
+loadDynamic();
+setInterval(loadDynamic,60000); // Refresh every 60s
+</script>
+</body>
+</html>

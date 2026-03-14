@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — AI Marketplace on Solana</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080A0F;
+  --bg1:      #0D1017;
+  --bg2:      #131720;
+  --bg3:      #1A2030;
+  --border:   #1E2840;
+  --border2:  #2A3550;
+  --purple:   #7C6BF8;
+  --purple2:  #9D8FFF;
+  --cyan:     #00E5CC;
+  --cyan2:    #00FFE5;
+  --green:    #00E676;
+  --red:      #FF4560;
+  --gold:     #FFB300;
+  --text:     #E8EAF0;
+  --muted:    #6B7A9A;
+  --muted2:   #4A556A;
+  --font-mono: 'Space Mono', monospace;
+  --font-sans: 'Syne', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,107,248,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(0,229,204,0.05) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── LAYOUT ── */
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg1);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; height: 100vh;
+  z-index: 100;
+}
+.logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  font-family: var(--font-sans);
+  font-size: 22px; font-weight: 800;
+  color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.logo-mark span {
+  display: inline-block; width: 8px; height: 8px;
+  background: var(--cyan); border-radius: 50%;
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulse 2s infinite;
+}
+.logo-sub { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-top: 3px; letter-spacing: 0.1em; }
+
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 8px var(--cyan);} 50%{opacity:.5;box-shadow:0 0 2px var(--cyan);} }
+
+.nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+.nav-section { padding: 12px 16px 4px; font-family: var(--font-mono); font-size: 9px; color: var(--muted2); letter-spacing: 0.15em; text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  transition: all .15s; border-left: 2px solid transparent;
+  margin: 1px 0;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-item.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(0,229,204,.06); }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-badge {
+  margin-left: auto; background: var(--purple);
+  color: #fff; font-family: var(--font-mono); font-size: 9px;
+  padding: 2px 6px; border-radius: 10px;
+}
+.nav-badge.green { background: rgba(0,230,118,.2); color: var(--green); }
+.nav-badge.gold { background: rgba(255,179,0,.2); color: var(--gold); }
+
+.sidebar-footer {
+  padding: 16px; border-top: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 9px; color: var(--muted2);
+}
+.status-dot {
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 6px var(--green); margin-right: 6px;
+  animation: pulse2 3s infinite;
+}
+@keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── MAIN ── */
+.main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  height: 56px; background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 28px; gap: 16px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title { font-size: 15px; font-weight: 700; flex: 1; }
+.topbar-pills { display: flex; gap: 8px; align-items: center; }
+.pill {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.pill.online { border-color: rgba(0,230,118,.3); color: var(--green); }
+.pill.sol { border-color: rgba(124,107,248,.3); color: var(--purple2); }
+
+.btn-wallet {
+  padding: 7px 16px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple), #5B4FE0);
+  color: #fff; font-family: var(--font-mono); font-size: 11px;
+  border: none; cursor: pointer; font-weight: 700;
+  transition: all .2s; letter-spacing: .02em;
+  box-shadow: 0 0 20px rgba(124,107,248,.3);
+}
+.btn-wallet:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(124,107,248,.5); }
+.btn-wallet.connected { background: linear-gradient(135deg,#0D3B2E, #0A2E25); border: 1px solid rgba(0,230,118,.3); color: var(--green); }
+
+/* ── PAGE CONTENT ── */
+.page { display: none; padding: 28px; flex: 1; }
+.page.active { display: block; }
+
+/* ── STAT CARDS ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card.purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+.stat-card.cyan::before   { background: linear-gradient(90deg, var(--cyan), transparent); }
+.stat-card.green::before  { background: linear-gradient(90deg, var(--green), transparent); }
+.stat-card.gold::before   { background: linear-gradient(90deg, var(--gold), transparent); }
+
+.stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+.stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+.stat-value.purple { color: var(--purple2); }
+.stat-value.cyan   { color: var(--cyan); }
+.stat-value.green  { color: var(--green); }
+.stat-value.gold   { color: var(--gold); }
+.stat-sub { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 6px; }
+.stat-icon { position: absolute; right: 16px; top: 16px; font-size: 22px; opacity: .3; }
+
+/* ── PANELS ── */
+.panels-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.panels-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.panel-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title { font-size: 13px; font-weight: 700; }
+.panel-body { padding: 16px; }
+.panel-action {
+  font-family: var(--font-mono); font-size: 10px; color: var(--cyan);
+  cursor: pointer; background: none; border: none; padding: 0;
+}
+.panel-action:hover { text-decoration: underline; }
+
+/* ── TABLE ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 400;
+  color: var(--muted2); text-transform: uppercase; letter-spacing: .1em;
+  padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 10px; border-bottom: 1px solid rgba(30,40,64,.5); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  padding: 3px 8px; border-radius: 6px; letter-spacing: .05em;
+}
+.badge.green { background: rgba(0,230,118,.1); color: var(--green); border: 1px solid rgba(0,230,118,.2); }
+.badge.red   { background: rgba(255,69,96,.1);  color: var(--red);   border: 1px solid rgba(255,69,96,.2); }
+.badge.purple{ background: rgba(124,107,248,.1);color: var(--purple2);border: 1px solid rgba(124,107,248,.2); }
+.badge.cyan  { background: rgba(0,229,204,.1);  color: var(--cyan);  border: 1px solid rgba(0,229,204,.2); }
+.badge.gold  { background: rgba(255,179,0,.1);  color: var(--gold);  border: 1px solid rgba(255,179,0,.2); }
+.badge.gray  { background: rgba(107,122,154,.1);color: var(--muted); border: 1px solid rgba(107,122,154,.2); }
+
+/* ── MONO TEXT ── */
+.mono { font-family: var(--font-mono); }
+.addr { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.addr span { color: var(--text); }
+
+/* ── CHARTS ── */
+.mini-chart { height: 60px; position: relative; overflow: hidden; }
+.mini-chart canvas { width: 100% !important; height: 60px !important; }
+
+/* ── FORM ELEMENTS ── */
+.form-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.form-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.form-input {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  padding: 9px 12px; border-radius: 8px; outline: none;
+  transition: border-color .15s;
+}
+.form-input:focus { border-color: var(--cyan); }
+.form-select {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  padding: 9px 12px; border-radius: 8px; outline: none; cursor: pointer;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 9px 18px; border-radius: 8px; border: none;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all .15s; letter-spacing: .03em;
+}
+.btn-primary { background: var(--purple); color: #fff; }
+.btn-primary:hover { background: var(--purple2); transform: translateY(-1px); }
+.btn-cyan { background: rgba(0,229,204,.15); color: var(--cyan); border: 1px solid rgba(0,229,204,.3); }
+.btn-cyan:hover { background: rgba(0,229,204,.25); }
+.btn-green { background: rgba(0,230,118,.15); color: var(--green); border: 1px solid rgba(0,230,118,.3); }
+.btn-danger { background: rgba(255,69,96,.15); color: var(--red); border: 1px solid rgba(255,69,96,.3); }
+.btn-sm { padding: 5px 12px; font-size: 10px; }
+.btn-full { width: 100%; }
+
+/* ── PROGRESS BAR ── */
+.progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width .5s; }
+
+/* ── TIER CARD ── */
+.tier-card {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px; margin-bottom: 8px;
+}
+.tier-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tier-name { font-weight: 700; font-size: 13px; }
+
+/* ── LOG CONSOLE ── */
+.console {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px;
+  font-family: var(--font-mono); font-size: 11px;
+  max-height: 220px; overflow-y: auto; line-height: 1.7;
+}
+.log-line { display: flex; gap: 10px; }
+.log-ts { color: var(--muted2); flex-shrink: 0; }
+.log-ok   { color: var(--green); }
+.log-warn { color: var(--gold); }
+.log-err  { color: var(--red); }
+.log-info { color: var(--cyan); }
+
+/* ── x402 SPECIFIC ── */
+.x402-flow {
+  display: flex; gap: 0; align-items: stretch;
+  background: var(--bg3); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border2); margin-bottom: 16px;
+}
+.x402-step {
+  flex: 1; padding: 14px; text-align: center;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+.x402-step:last-child { border-right: none; }
+.x402-step::after {
+  content: '→'; position: absolute; right: -8px; top: 50%;
+  transform: translateY(-50%); color: var(--cyan); font-size: 14px;
+  z-index: 1;
+}
+.x402-step:last-child::after { display: none; }
+.x402-num { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-bottom: 4px; }
+.x402-label { font-size: 11px; font-weight: 700; color: var(--cyan); }
+.x402-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.code-block {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.7;
+  margin: 8px 0; overflow-x: auto;
+  border-left: 3px solid var(--cyan);
+}
+.code-block .k  { color: var(--purple2); }
+.code-block .s  { color: var(--green); }
+.code-block .c  { color: var(--muted); font-style: italic; }
+.code-block .n  { color: var(--cyan); }
+.code-block .v  { color: var(--gold); }
+
+/* ── AUCTION CARD ── */
+.auction-card {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px; margin-bottom: 10px;
+  transition: border-color .2s;
+}
+.auction-card:hover { border-color: var(--purple); }
+.auction-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.auction-gpu { font-weight: 700; font-size: 14px; }
+.auction-vram { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.auction-bid { text-align: right; }
+.auction-price { font-size: 18px; font-weight: 800; color: var(--gold); }
+.auction-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+.auction-timer { font-family: var(--font-mono); font-size: 11px; color: var(--red); }
+
+/* ── MARKETPLACE CARD ── */
+.service-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px; margin-bottom: 10px;
+  display: flex; gap: 12px; align-items: flex-start;
+  transition: border-color .2s, transform .2s;
+  cursor: pointer;
+}
+.service-card:hover { border-color: var(--cyan); transform: translateY(-1px); }
+.service-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.service-body { flex: 1; }
+.service-name { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+.service-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.service-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.service-price { font-family: var(--font-mono); font-weight: 700; color: var(--cyan); font-size: 12px; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 12px 18px;
+  font-family: var(--font-mono); font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
+  transform: translateY(80px); opacity: 0;
+  transition: all .3s; z-index: 9999;
+  max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.ok   { border-left: 3px solid var(--green); }
+#toast.err  { border-left: 3px solid var(--red); }
+#toast.info { border-left: 3px solid var(--cyan); }
+
+/* ── LOADING ── */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border2);
+  border-top-color: var(--cyan); border-radius: 50%;
+  animation: spin .8s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .panels-row.three { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">⚡ MAXIA <span></span></div>
+    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE · V11</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Vue d'ensemble</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)">
+      <span class="icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('marketplace',this)">
+      <span class="icon">◎</span> Marketplace IA
+      <span class="nav-badge">NEW</span>
+    </div>
+    <div class="nav-section">Trading</div>
+    <div class="nav-item" onclick="showPage('exchange',this)">
+      <span class="icon">📈</span> Actions Tokenisees
+    </div>
+    <div class="nav-item" onclick="showPage('auctions',this)">
+      <span class="icon">⚙</span> GPU Enchères
+      <span class="nav-badge gold">LIVE</span>
+    </div>
+    <div class="nav-section">Revenus</div>
+    <div class="nav-item" onclick="showPage('subscriptions',this)">
+      <span class="icon">♾</span> Abonnements
+    </div>
+    <div class="nav-item" onclick="showPage('referrals',this)">
+      <span class="icon">⬡</span> Référrals
+    </div>
+    <div class="nav-item" onclick="showPage('data',this)">
+      <span class="icon">◫</span> Data Market
+    </div>
+    <div class="nav-section">Blockchain</div>
+    <div class="nav-item" onclick="showPage('base',this)">
+      <span class="icon">⬡</span> Base (Coinbase L2)
+      <span class="nav-badge" style="background:rgba(0,82,255,.2);color:#0052FF">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('kite',this)">
+      <span class="icon">🪁</span> Kite AI
+      <span class="nav-badge" style="background:rgba(255,107,53,.2);color:#FF6B35">NEW</span>
+    </div>
+    <div class="nav-section">Protocoles</div>
+    <div class="nav-item" onclick="showPage('ap2',this)">
+      <span class="icon">◈</span> AP2 (Google)
+      <span class="nav-badge" style="background:rgba(66,133,244,.2);color:#4285F4">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('x402',this)">
+      <span class="icon">◈</span> x402 Protocol
+      <span class="nav-badge" style="background:rgba(0,229,204,.2);color:var(--cyan)">NEW</span>
+    </div>
+    <div class="nav-section">IA Autonome</div>
+    <div class="nav-item" onclick="loadPublicAPI()" id="nav-publicapi">
+      <span class="icon">🌐</span> API Publique <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <div class="nav-item" onclick="loadSwarmStats()" id="nav-swarm">
+      <span class="icon">🐝</span> Essaim IA <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <div class="nav-item" onclick="loadEscrowStats()" id="nav-escrow">
+      <span class="icon">🔒</span> Escrow <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <a class="nav-item" href="/MAXIA_WhitePaper_v1.pdf" target="_blank" id="nav-wp" style="text-decoration:none;color:inherit">
+      <span class="icon">📄</span> White Paper
+    </a>
+    <div class="nav-section">Système</div>
+    <div class="nav-item" onclick="showPage('logs',this)">
+      <span class="icon">▤</span> Logs &amp; API
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div><span class="status-dot"></span>Backend V11 en ligne</div>
+    <div style="margin-top:4px">Art. 1–22 actifs</div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-pills">
+      <div class="pill online"><span class="status-dot" style="width:5px;height:5px;margin:0"></span> Backend OK</div>
+      <div class="pill sol">◎ <span id="sol-price">chargement...</span></div>
+      <div class="pill" id="block-pill">Block #<span id="block-num">—</span></div>
+    </div>
+    <button class="btn-wallet" id="wallet-btn" onclick="connectWallet()">
+      ◎ Connecter Phantom
+    </button>
+  </header>
+
+  <!-- ══ PAGE: DASHBOARD ══ -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats-grid">
+      <div class="stat-card purple">
+        <div class="stat-icon">◈</div>
+        <div class="stat-label">Volume 24h</div>
+        <div class="stat-value purple" id="vol24">—</div>
+        <div class="stat-sub">USDC total transactions</div>
+      </div>
+      <div class="stat-card cyan">
+        <div class="stat-icon">⬡</div>
+        <div class="stat-label">Services actifs</div>
+        <div class="stat-value cyan" id="svc-count">—</div>
+        <div class="stat-sub">Agents IA disponibles</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon">⇌</div>
+        <div class="stat-label">Revenus totaux</div>
+        <div class="stat-value green" id="rev-total">—</div>
+        <div class="stat-sub">USDC générés (tout Art.)</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-icon">⚙</div>
+        <div class="stat-label">GPU en enchères</div>
+        <div class="stat-value gold" id="gpu-count">—</div>
+        <div class="stat-sub">Instances RunPod actives</div>
+      </div>
+    </div>
+
+    <div class="panels-row">
+      <!-- Activité récente -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ Activité récente</div>
+          <button class="panel-action" onclick="loadActivity()">Actualiser</button>
+        </div>
+        <div class="panel-body">
+          <table class="data-table">
+            <thead><tr><th>Type</th><th>Wallet</th><th>Montant</th><th>Statut</th><th>Heure</th></tr></thead>
+            <tbody id="activity-table">
+              <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">
+                <div class="spinner" style="margin:0 auto"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- API Health -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Santé du système</div>
+          <button class="panel-action" onclick="checkHealth()">Vérifier</button>
+        </div>
+        <div class="panel-body">
+          <div id="health-display">
+            <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wallets overview -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">◎ Wallets MAXIA</div>
+        <span class="badge cyan">Solana Mainnet</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="tier-card">
+            <div class="tier-header">
+              <div>
+                <div class="tier-name" style="color:var(--gold)">Treasury</div>
+                <div style="font-size:10px;color:var(--muted)">Vos revenus MAXIA</div>
+              </div>
+              <span class="badge gold">TREASURY</span>
+            </div>
+            <div class="addr" style="word-break:break-all;font-size:10px">
+              <span>FiYWC9NGUdCbRdNftajVDTpY</span>3siQQUtcaHk58ZvEAE4h
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="stat-label">SOL</div>
+                <div id="treasury-sol" style="font-weight:700;color:var(--purple2);font-family:var(--font-mono)">—</div>
+              </div>
+              <div style="flex:1">
+                <div class="stat-label">USDC</div>
+                <div id="treasury-usdc" style="font-weight:700;color:var(--green);font-family:var(--font-mono)">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="tier-card">
+            <div class="tier-header">
+              <div>
+                <div class="tier-name" style="color:var(--cyan)">Escrow</div>
+                <div style="font-size:10px;color:var(--muted)">Fonds en transit</div>
+              </div>
+              <span class="badge cyan">ESCROW</span>
+            </div>
+            <div class="addr" style="word-break:break-all;font-size:10px">
+              <span>2bx7cMeEPSd9icdEHL2d6wVB</span>SinsRm2g6Wd3Avm5BzGX
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="stat-label">SOL</div>
+                <div id="escrow-sol" style="font-weight:700;color:var(--purple2);font-family:var(--font-mono)">—</div>
+              </div>
+              <div style="flex:1">
+                <div class="stat-label">USDC</div>
+                <div id="escrow-usdc" style="font-weight:700;color:var(--green);font-family:var(--font-mono)">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: MARKETPLACE ══ -->
+  <div class="page" id="page-marketplace">
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Services listés</div>
+        <div class="stat-value cyan" id="mkt-listings">—</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Commandes en attente</div>
+        <div class="stat-value purple" id="mkt-pending">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Complétées (24h)</div>
+        <div class="stat-value green">—</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header">
+          <div class="panel-title">◎ Services IA disponibles</div>
+          <button class="btn btn-cyan btn-sm" onclick="loadListings()">↺ Actualiser</button>
+        </div>
+        <div class="panel-body" id="listings-container">
+          <div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Nouvelle commande -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⊕ Passer une commande</div>
+        <span class="badge gray">Auth requise</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Service ID</label>
+            <input class="form-input" id="cmd-service" placeholder="ex: code-sentinel-v2">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant USDC</label>
+            <input class="form-input" id="cmd-amount" type="number" placeholder="1.00">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Prompt / Instructions</label>
+          <textarea class="form-input" id="cmd-prompt" rows="3" placeholder="Décrivez votre demande..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="sendCommand()">⊕ Envoyer commande (simulé)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: EXCHANGE ══ -->
+  <div class="page" id="page-exchange">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card">
+        <div class="stat-label">Actions disponibles</div>
+        <div class="stat-value purple" id="stocks-count">10</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Commission min</div>
+        <div class="stat-value green">0.05%</div>
+        <div class="stat-sub">Palier Baleine</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Achat minimum</div>
+        <div class="stat-value cyan">1 USDC</div>
+        <div class="stat-sub">Fractionne</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Fournisseurs</div>
+        <div class="stat-value gold">2</div>
+        <div class="stat-sub">xStocks + Ondo</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📈 Actions Tokenisees (xStocks / Ondo via Jupiter)</div>
+        <button class="btn btn-cyan btn-sm" onclick="loadStocks()">↺ Actualiser</button>
+      </div>
+      <div class="panel-body">
+        <table class="data-table" id="stocks-table">
+          <thead><tr><th>Action</th><th>Symbole</th><th>Secteur</th><th>Token xStock</th><th>Prix USD</th><th>Variation 24h</th></tr></thead>
+          <tbody id="stocks-body">
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panels-row" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">💰 Commissions Actions</div>
+        </div>
+        <div class="panel-body">
+          <table class="data-table" style="font-size:12px">
+            <thead><tr><th>Palier</th><th>Volume 30j</th><th>Commission</th></tr></thead>
+            <tbody>
+              <tr><td style="color:#CD7F32;font-weight:600">BRONZE</td><td>0 - 1K USDC</td><td>0.5%</td></tr>
+              <tr><td style="color:#C0C0C0;font-weight:600">ARGENT</td><td>1K - 5K USDC</td><td>0.2%</td></tr>
+              <tr><td style="color:#FFD700;font-weight:600">OR</td><td>5K - 25K USDC</td><td>0.1%</td></tr>
+              <tr><td style="color:var(--cyan);font-weight:600">BALEINE</td><td>25K+ USDC</td><td>0.05%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📊 Stats Bourse</div>
+          <button class="panel-action" onclick="loadStockStats()">↺</button>
+        </div>
+        <div class="panel-body" id="stock-stats-body">
+          <div style="color:var(--muted);font-size:13px;padding:10px">
+            <p>Trades: <span id="ss-trades">0</span></p>
+            <p style="margin-top:6px">Volume: <span id="ss-volume">0</span> USDC</p>
+            <p style="margin-top:6px">Commission: <span id="ss-commission">0</span> USDC</p>
+            <p style="margin-top:6px">Holders: <span id="ss-holders">0</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: AUCTIONS ══ -->
+  <div class="page" id="page-auctions">
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card gold">
+        <div class="stat-label">Enchères actives</div>
+        <div class="stat-value gold" id="live-auctions">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Marge broker</div>
+        <div class="stat-value green">0%</div>
+        <div class="stat-sub">Prix coutant RunPod</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">GPU disponibles</div>
+        <div class="stat-value purple">3</div>
+        <div class="stat-sub">RTX4090 · A100 · H100</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⚙ Créer une enchère GPU</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Tier GPU</label>
+            <select class="form-select" id="gpu-tier">
+              <option value="rtx4090">RTX 4090 — 24GB VRAM — $0.69/h</option>
+              <option value="a100_80">A100 80GB — $1.99/h</option>
+              <option value="h100_sxm5">H100 SXM5 — $3.29/h</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Durée (heures)</label>
+              <input class="form-input" id="gpu-hours" type="number" value="1" min="0.5" step="0.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prix plancher USDC</label>
+              <input class="form-input" id="gpu-floor" placeholder="Auto (prix coutant)">
+            </div>
+          </div>
+          <button class="btn btn-gold btn-full" onclick="createAuction()"
+            style="background:rgba(255,179,0,.15);color:var(--gold);border:1px solid rgba(255,179,0,.3);padding:9px;border-radius:8px;font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;width:100%">
+            ⚡ Lancer l'enchère (Auth requise)
+          </button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Enchères en cours</div>
+        </div>
+        <div class="panel-body" id="auctions-live">
+          <div style="text-align:center;padding:20px;color:var(--muted)">
+            Connectez-vous via WebSocket pour voir les enchères en temps réel
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: SUBSCRIPTIONS ══ -->
+  <div class="page" id="page-subscriptions">
+    <div class="panels-row three">
+      <div class="panel" style="border-color:rgba(107,122,154,.3)">
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--muted);margin-bottom:6px">BASIC</div>
+          <div style="font-size:40px;font-weight:800;color:var(--text)">9.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px;color:var(--muted)">✓ 100 requêtes / jour</div>
+            <div style="font-size:12px;color:var(--muted)">✓ Marketplace IA</div>
+            <div style="font-size:12px;color:var(--muted)">✓ Bourse SPL</div>
+          </div>
+          <button class="btn btn-sm" style="background:var(--border);color:var(--muted);border:none;padding:8px 20px;border-radius:8px;font-family:var(--font-mono);cursor:pointer;width:100%">Souscrire</button>
+        </div>
+      </div>
+      <div class="panel" style="border-color:var(--purple);box-shadow:0 0 30px rgba(124,107,248,.1)">
+        <div style="padding:4px;text-align:center;background:var(--purple);font-family:var(--font-mono);font-size:9px;letter-spacing:.1em">POPULAIRE</div>
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--purple2);margin-bottom:6px">PRO</div>
+          <div style="font-size:40px;font-weight:800;color:var(--purple2)">29.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px">✓ 1000 requêtes / jour</div>
+            <div style="font-size:12px">✓ Tout Basic +</div>
+            <div style="font-size:12px">✓ GPU Enchères</div>
+            <div style="font-size:12px">✓ Agent IA prioritaire</div>
+          </div>
+          <button class="btn btn-primary btn-sm" style="width:100%;padding:8px">Souscrire</button>
+        </div>
+      </div>
+      <div class="panel" style="border-color:rgba(255,179,0,.3)">
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--gold);margin-bottom:6px">ELITE</div>
+          <div style="font-size:40px;font-weight:800;color:var(--gold)">99.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px">✓ Illimité</div>
+            <div style="font-size:12px">✓ Tout Pro +</div>
+            <div style="font-size:12px">✓ Data Marketplace</div>
+            <div style="font-size:12px">✓ Agent dédié</div>
+            <div style="font-size:12px">✓ Accès API direct</div>
+          </div>
+          <button class="btn btn-sm" style="background:rgba(255,179,0,.15);color:var(--gold);border:1px solid rgba(255,179,0,.3);padding:8px;border-radius:8px;font-family:var(--font-mono);cursor:pointer;width:100%">Souscrire</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">
+        <div class="panel-title">◎ Revenus abonnements</div>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div>
+            <div class="stat-label">Total collecté</div>
+            <div style="font-size:28px;font-weight:800;color:var(--green);font-family:var(--font-mono)" id="sub-revenue">—</div>
+          </div>
+          <button class="btn btn-cyan btn-sm" onclick="loadSubRevenue()">↺ Actualiser</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: REFERRALS ══ -->
+  <div class="page" id="page-referrals">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⬡ Votre code de parrainage</div>
+        <span class="badge green">2% commission</span>
+      </div>
+      <div class="panel-body">
+        <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:20px;text-align:center;margin-bottom:16px">
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:8px">VOTRE CODE</div>
+          <div style="font-size:32px;font-weight:800;color:var(--cyan);letter-spacing:.1em" id="ref-code">
+            Connectez Phantom
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Partagez ce code — gagnez 2% sur chaque transaction de vos filleuls</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Filleuls</div>
+            <div style="font-size:28px;font-weight:800;color:var(--purple2)" id="ref-count">—</div>
+          </div>
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Gains totaux</div>
+            <div style="font-size:28px;font-weight:800;color:var(--green)" id="ref-earned">—</div>
+          </div>
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Taux</div>
+            <div style="font-size:28px;font-weight:800;color:var(--gold)">2%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: DATA MARKETPLACE ══ -->
+  <div class="page" id="page-data">
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◫ Lister un Dataset</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nom du dataset</label>
+              <input class="form-input" id="ds-name" placeholder="Solana DeFi Trades 2024">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catégorie</label>
+              <select class="form-select" id="ds-cat">
+                <option value="market_data">Market Data</option>
+                <option value="training">Training Data</option>
+                <option value="evaluation">Evaluation</option>
+                <option value="rl_feedback">RL Feedback</option>
+                <option value="synthetic">Synthetic</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Taille (MB)</label>
+              <input class="form-input" id="ds-size" type="number" placeholder="500">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prix USDC</label>
+              <input class="form-input" id="ds-price" type="number" placeholder="49.99">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Format</label>
+              <select class="form-select" id="ds-format">
+                <option>jsonl</option><option>csv</option><option>parquet</option><option>hdf5</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-cyan btn-full" onclick="listDataset()">◫ Lister le dataset (Auth requise)</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◎ Datasets disponibles</div>
+          <button class="panel-action" onclick="loadDatasets()">↺</button>
+        </div>
+        <div class="panel-body" id="datasets-list">
+          <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: x402 PROTOCOL ══ -->
+  <div class="page" id="page-x402">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">◈ Protocole x402</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        x402 est le standard ouvert de micropaiements HTTP natifs. Quand un agent IA appelle une ressource MAXIA,
+        le serveur répond <code style="color:var(--cyan);font-family:var(--font-mono)">402 Payment Required</code> avec les instructions de paiement.
+        L'agent paie automatiquement en USDC/SOL et reçoit l'accès. <strong>Zéro intermédiaire, zéro friction.</strong>
+      </p>
+    </div>
+
+    <!-- Flux x402 -->
+    <div class="x402-flow">
+      <div class="x402-step">
+        <div class="x402-num">01</div>
+        <div class="x402-label">REQUEST</div>
+        <div class="x402-sub">Agent appelle<br>GET /api/service</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">02</div>
+        <div class="x402-label" style="color:var(--gold)">402</div>
+        <div class="x402-sub">MAXIA répond<br>Payment Required</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">03</div>
+        <div class="x402-label" style="color:var(--purple2)">SIGN</div>
+        <div class="x402-sub">Agent signe<br>tx Solana/USDC</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">04</div>
+        <div class="x402-label" style="color:var(--green)">200 OK</div>
+        <div class="x402-sub">MAXIA vérifie<br>et délivre</div>
+      </div>
+    </div>
+
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ Intégration dans MAXIA</div>
+          <span class="badge cyan">Implémenté</span>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+            MAXIA intègre x402 nativement. Chaque endpoint API peut être protégé avec une directive de prix.
+            Les agents autonomes (Gemini, GPT, Claude) peuvent payer et accéder automatiquement.
+          </p>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono)">backend/x402_middleware.py</div>
+          <div class="code-block">
+<span class="c"># Middleware FastAPI x402</span>
+<span class="k">from</span> <span class="n">fastapi</span> <span class="k">import</span> Request, Response
+<span class="k">import</span> <span class="n">json</span>
+
+<span class="k">class</span> <span class="n">X402Middleware</span>:
+  <span class="v">PRICE_MAP</span> = {
+    <span class="s">"/api/marketplace/commands"</span>: <span class="v">0.50</span>,
+    <span class="s">"/api/data/datasets"</span>:         <span class="v">0.10</span>,
+    <span class="s">"/api/gpu/auctions"</span>:           <span class="v">1.00</span>,
+  }
+
+  <span class="k">async def</span> <span class="n">__call__</span>(self, request: Request, call_next):
+    path = request.url.path
+    price = self.<span class="v">PRICE_MAP</span>.get(path)
+    pay_hdr = request.headers.get(<span class="s">"X-Payment"</span>)
+
+    <span class="k">if</span> price <span class="k">and not</span> pay_hdr:
+      <span class="k">return</span> Response(
+        status_code=<span class="v">402</span>,
+        content=json.dumps({
+          <span class="s">"x402Version"</span>: <span class="v">1</span>,
+          <span class="s">"accepts"</span>: [{
+            <span class="s">"scheme"</span>:  <span class="s">"exact"</span>,
+            <span class="s">"network"</span>: <span class="s">"solana-mainnet"</span>,
+            <span class="s">"maxAmountRequired"</span>: str(int(price * 1e6)),
+            <span class="s">"resource"</span>: path,
+            <span class="s">"description"</span>: <span class="s">f"MAXIA service: {path}"</span>,
+            <span class="s">"mimeType"</span>: <span class="s">"application/json"</span>,
+            <span class="s">"payTo"</span>: <span class="s">"FiYWC9NGUdCbRdNftajVDTpY3siQQUtcaHk58ZvEAE4h"</span>,
+            <span class="s">"maxTimeoutSeconds"</span>: <span class="v">60</span>
+          }]
+        })
+      )
+    <span class="k">return await</span> call_next(request)
+</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◈ Client x402 (Agent IA)</div>
+          <span class="badge purple">SDK Python</span>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+            Exemple d'un agent IA autonome qui paie automatiquement pour accéder aux services MAXIA sans intervention humaine.
+          </p>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono)">agent_x402_client.py</div>
+          <div class="code-block">
+<span class="k">import</span> <span class="n">httpx</span>
+<span class="k">from</span> <span class="n">solders.keypair</span> <span class="k">import</span> Keypair
+<span class="k">from</span> <span class="n">solana.transaction</span> <span class="k">import</span> Transaction
+
+<span class="k">class</span> <span class="n">MaxiaX402Client</span>:
+  <span class="k">def</span> <span class="n">__init__</span>(self, keypair: <span class="n">Keypair</span>):
+    self.kp = keypair
+
+  <span class="k">async def</span> <span class="n">call</span>(self, url, payload=<span class="v">None</span>):
+    <span class="c"># 1. Requête initiale</span>
+    r = <span class="k">await</span> httpx.post(url, json=payload)
+
+    <span class="k">if</span> r.status_code == <span class="v">402</span>:
+      <span class="c"># 2. Parser les instructions de paiement</span>
+      offer = r.json()[<span class="s">"accepts"</span>][<span class="v">0</span>]
+      amount = int(offer[<span class="s">"maxAmountRequired"</span>])
+      pay_to = offer[<span class="s">"payTo"</span>]
+
+      <span class="c"># 3. Construire + signer tx USDC</span>
+      tx_sig = <span class="k">await</span> self.<span class="n">pay_usdc</span>(pay_to, amount)
+
+      <span class="c"># 4. Retry avec preuve de paiement</span>
+      r = <span class="k">await</span> httpx.post(url, json=payload,
+        headers={<span class="s">"X-Payment"</span>: tx_sig})
+
+    <span class="k">return</span> r.json()
+</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tarification x402 -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">◎ Grille tarifaire x402 (MAXIA)</div>
+        <button class="panel-action" onclick="saveX402Prices()">Sauvegarder</button>
+      </div>
+      <div class="panel-body">
+        <table class="data-table">
+          <thead><tr><th>Endpoint</th><th>Prix par appel</th><th>Réseau</th><th>Destination</th><th>Statut</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">/api/marketplace/commands</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">0.50 USDC</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/data/datasets/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">variable</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/gpu/auctions</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">1.00 USDC</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/x402/premium/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">configurable</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge cyan">Nouveau</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- ══ PAGE: BASE (Coinbase L2) ══ -->
+  <div class="page" id="page-base">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x2B21; Base — Coinbase Layer 2</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        Base est le Layer 2 de Coinbase. MAXIA accepte les paiements USDC sur Base
+        via le protocole x402 V2. Frais quasi-nuls, r&egrave;glement instantan&eacute;.
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">R&eacute;seau</div>
+        <div class="stat-value cyan" style="font-size:20px">Base Mainnet</div>
+        <div class="stat-sub">Chain ID: 8453</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">USDC Contract</div>
+        <div class="stat-value purple" style="font-size:12px;word-break:break-all" id="base-usdc-addr">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Treasury Base</div>
+        <div class="stat-value green" style="font-size:12px;word-break:break-all" id="base-treasury-addr">Non configur&eacute;</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x2B21; V&eacute;rifier une transaction Base</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">TX Hash (Base)</label>
+            <input class="form-input" id="base-tx-hash" placeholder="0x...">
+          </div>
+          <button class="btn btn-cyan btn-full" onclick="verifyBaseTx()">V&eacute;rifier la transaction</button>
+          <div id="base-verify-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; V&eacute;rifier un transfert USDC</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">TX Hash USDC</label>
+            <input class="form-input" id="base-usdc-tx" placeholder="0x...">
+          </div>
+          <button class="btn btn-green btn-full" onclick="verifyBaseUsdc()">V&eacute;rifier USDC Transfer</button>
+          <div id="base-usdc-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: KITE AI ══ -->
+  <div class="page" id="page-kite">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x1FA81; Kite AI — Agent Payment Blockchain</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        Kite AI est la premi&egrave;re blockchain de paiement IA. Identit&eacute; v&eacute;rifiable,
+        paiements machine-&agrave;-machine, et Proof of Attributed Intelligence (PoAI).
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Agent ID</div>
+        <div class="stat-value cyan" style="font-size:13px" id="kite-agent-id">&mdash;</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">API</div>
+        <div class="stat-value purple" id="kite-api-ok">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Services</div>
+        <div class="stat-value green" id="kite-svc-count">&mdash;</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">PoAI</div>
+        <div class="stat-value gold">Actif</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x1FA81; Enregistrer un Agent</div>
+          <span class="badge gray">Auth requise</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label">Nom de l'agent</label>
+            <input class="form-input" id="kite-agent-name" placeholder="MAXIA-MonAgent">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Capacit&eacute;s</label>
+            <input class="form-input" id="kite-caps" placeholder="ai_inference, data, gpu" value="ai_inference, data, gpu">
+          </div>
+          <button class="btn btn-primary btn-full" onclick="kiteRegister()">Enregistrer sur Kite AI</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; D&eacute;couverte de services</div>
+          <button class="panel-action" onclick="kiteDiscover()">Rechercher</button>
+        </div>
+        <div class="panel-body" id="kite-services-list">
+          <div style="text-align:center;padding:20px;color:var(--muted)">
+            Cliquez Rechercher pour explorer le Kite Agent App Store
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">&#x25C9; V&eacute;rifier un Agent</div>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Agent ID</label>
+            <input class="form-input" id="kite-verify-id" placeholder="agent-id-here">
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-cyan" onclick="kiteVerify()">V&eacute;rifier</button>
+          </div>
+        </div>
+        <div id="kite-verify-result" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: AP2 (Google) ══ -->
+  <div class="page" id="page-ap2">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x25C8; Google AP2 — Agent Payments Protocol</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        AP2 est le protocole ouvert de Google pour les paiements autonomes par agents IA.
+        Mandats cryptographiques, multi-rail, interop&eacute;rable avec x402 et A2A.
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Version AP2</div>
+        <div class="stat-value cyan" id="ap2-version">&mdash;</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Agent ID</div>
+        <div class="stat-value purple" style="font-size:13px" id="ap2-agent">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Mandats actifs</div>
+        <div class="stat-value green" id="ap2-mandates">0</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Paiements</div>
+        <div class="stat-value gold" id="ap2-payments">0</div>
+      </div>
+    </div>
+    <div class="x402-flow" style="margin-bottom:16px">
+      <div class="x402-step">
+        <div class="x402-num">01</div>
+        <div class="x402-label">INTENT</div>
+        <div class="x402-sub">Agent cr&eacute;e<br>un mandat</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">02</div>
+        <div class="x402-label" style="color:var(--purple2)">CART</div>
+        <div class="x402-sub">Panier sign&eacute;<br>items + prix</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">03</div>
+        <div class="x402-label" style="color:var(--gold)">PAY</div>
+        <div class="x402-sub">Paiement<br>on-chain</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">04</div>
+        <div class="x402-label" style="color:var(--green)">DELIVER</div>
+        <div class="x402-sub">Service<br>livr&eacute;</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x2295; Cr&eacute;er un Intent Mandate</div>
+          <span class="badge gray">Auth requise</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Montant max USDC</label>
+              <input class="form-input" id="ap2-max-amount" type="number" value="1000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">TTL (secondes)</label>
+              <input class="form-input" id="ap2-ttl" type="number" value="3600">
+            </div>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="ap2CreateIntent()">Cr&eacute;er Intent Mandate</button>
+          <div id="ap2-intent-result" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; Statistiques AP2</div>
+          <button class="panel-action" onclick="loadAP2Stats()">Actualiser</button>
+        </div>
+        <div class="panel-body" id="ap2-stats-display">
+          <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ══ PAGE: LOGS ══ -->
+  <div class="page" id="page-logs">
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">▤ Console backend</div>
+          <div style="display:flex;gap:8px">
+            <button class="panel-action" onclick="clearLogs()">Vider</button>
+            <button class="panel-action" onclick="testEndpoints()">Tester tout</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="console" id="console-output">
+            <div class="log-line"><span class="log-ts">—</span><span class="log-info">MAXIA Dashboard V11 initialisé</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Endpoints API</div>
+        </div>
+        <div class="panel-body">
+          <div style="display:flex;flex-direction:column;gap:6px" id="endpoint-list">
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /health</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/health','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/marketplace/listings</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/marketplace/listings','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/subscriptions/plans</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/subscriptions/plans','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/data/datasets</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/data/datasets','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/gpu/tiers</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/gpu/tiers','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">POST /api/auth/nonce</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/auth/nonce','POST',{wallet:'test'})">Test</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const API = '';
+let walletAddr = null;
+let orderSide  = 'BUY';
+
+// ── Navigation ──
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent = el.textContent.trim();
+  // Auto-load data
+  if (name === 'marketplace') loadListings();
+  if (name === 'exchange')    { loadTokens(); }
+  if (name === 'data')        loadDatasets();
+  if (name === 'base')        loadBaseInfo();
+  if (name === 'kite')        loadKiteInfo();
+  if (name === 'ap2')         { loadAP2Info(); loadAP2Stats(); }
+  if (name === 'subscriptions') loadSubRevenue();
+}
+
+// ── Toast ──
+function toast(msg, type) {
+  type = type || 'info';
+  const t = document.getElementById('toast');
+  t.className = 'show ' + type;
+  t.innerHTML = (type === 'ok' ? '✅' : type === 'err' ? '❌' : 'ℹ️') + ' ' + msg;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', 3500);
+}
+
+// ── Console log ──
+function clog(msg, lvl) {
+  lvl = lvl || 'info';
+  const el = document.getElementById('console-output');
+  const ts = new Date().toTimeString().slice(0, 8);
+  el.innerHTML += `<div class="log-line"><span class="log-ts">${ts}</span><span class="log-${lvl}">${msg}</span></div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── API helper ──
+async function api(path, opts) {
+  opts = opts || {};
+  try {
+    const r = await fetch(API + path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+    const data = await r.json();
+    return { ok: r.ok, status: r.status, data };
+  } catch(e) {
+    return { ok: false, status: 0, data: { detail: e.message } };
+  }
+}
+
+// ── Health check ──
+async function checkHealth() {
+  const r = await api('/health');
+  const el = document.getElementById('health-display');
+  if (r.ok) {
+    const d = r.data;
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge green">ONLINE</span>
+          <span class="mono" style="font-size:11px">v${d.version || '10.0.0'}</span>
+        </div>
+        ${(d.articles || d.features || []).map(f =>
+          `<div style="display:flex;align-items:center;gap:6px;font-size:12px">
+            <span style="color:var(--green)">✓</span> ${f}
+          </div>`
+        ).join('')}
+      </div>`;
+    document.querySelector('.pill.online').innerHTML = '<span class="status-dot" style="width:5px;height:5px;margin:0"></span> Backend OK';
+    clog('Health OK — MAXIA V11 en ligne', 'ok');
+  } else {
+    el.innerHTML = `<div style="color:var(--red);font-family:var(--font-mono);font-size:12px;line-height:2">
+      ❌ Backend inaccessible<br>
+      <span style="color:var(--muted)">Erreur: ${r.data.detail || r.status}</span><br><br>
+      <span style="color:var(--gold)">Solutions :</span><br>
+      1. Lancez DEMARRER_MAXIA.bat<br>
+      2. Attendez 10 secondes<br>
+      3. Rechargez cette page (F5)<br><br>
+      <a href="/docs" style="color:var(--cyan)">/docs</a> · 
+      <a href="/health" style="color:var(--cyan)">/health</a>
+    </div>`;
+    clog('Backend inaccessible: ' + (r.data.detail || r.status), 'err');
+  }
+}
+
+// ── SOL Price ──
+async function loadSolPrice() {
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', {mode:'cors'});
+    const d = await r.json();
+    const price = d?.solana?.usd;
+    if (price) document.getElementById('sol-price').textContent = '$' + price.toFixed(2);
+  } catch(e) {
+    document.getElementById('sol-price').textContent = '—';
+  }
+}
+
+// ── Load Listings ──
+async function loadListings() {
+  const r = await api('/api/marketplace/listings');
+  const el = document.getElementById('listings-container');
+  document.getElementById('mkt-listings').textContent = r.ok ? (r.data.length || 0) : '?';
+  if (r.ok && r.data.length > 0) {
+    el.innerHTML = r.data.map(s => `
+      <div class="service-card">
+        <div class="service-icon" style="background:rgba(124,107,248,.1)">🤖</div>
+        <div class="service-body">
+          <div class="service-name">${s.name || s.id}</div>
+          <div class="service-desc">${s.description || 'Service IA MAXIA'}</div>
+          <div class="service-footer">
+            <span class="service-price">${s.priceUsdc} USDC</span>
+            <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${s.type || 'AI'}</span>
+            <span class="badge green">★ ${s.rating || 5}</span>
+          </div>
+        </div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">◎</div>
+      <div>Aucun service listé</div>
+      <div style="font-size:11px;margin-top:4px">Les agents IA peuvent lister leurs services ici</div>
+    </div>`;
+  }
+}
+
+// ── Load Tokens ──
+async function loadTokens() {
+  const r = await api('/api/exchange/tokens');
+  const tb = document.getElementById('tokens-body');
+  if (r.ok && r.data?.length > 0) {
+    tb.innerHTML = r.data.map(t => `
+      <tr>
+        <td><strong>${t.symbol}</strong> <span style="color:var(--muted);font-size:10px">${t.name}</span></td>
+        <td class="addr">${t.mint?.slice(0,8)}...</td>
+        <td style="font-family:var(--font-mono);color:var(--gold)">${t.price?.toFixed(4) || '—'}</td>
+        <td style="font-family:var(--font-mono)">${t.volume24h?.toFixed(0) || '0'}</td>
+        <td><button class="btn btn-cyan btn-sm" onclick="selectToken('${t.mint}','${t.symbol}')">Trader</button></td>
+      </tr>`).join('');
+  } else {
+    tb.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Aucun token listé sur la bourse</td></tr>`;
+  }
+}
+
+function selectToken(mint, symbol) {
+  document.getElementById('ex-mint').value = mint;
+  toast('Token sélectionné : ' + symbol, 'info');
+}
+
+// ── Load Datasets ──
+async function loadDatasets() {
+  const r = await api('/api/data/datasets');
+  const el = document.getElementById('datasets-list');
+  if (r.ok && r.data?.length > 0) {
+    el.innerHTML = r.data.map(d => `
+      <div class="tier-card">
+        <div class="tier-header">
+          <div><div class="tier-name">${d.name}</div><div style="font-size:10px;color:var(--muted)">${d.category} · ${d.sizeMb} MB · ${d.format}</div></div>
+          <span style="font-family:var(--font-mono);font-weight:700;color:var(--gold)">${d.priceUsdc} USDC</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">${d.description || ''}</div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">Aucun dataset disponible</div>`;
+  }
+}
+
+// ── Sub Revenue ──
+async function loadSubRevenue() {
+  const r = await api('/api/subscriptions/revenue');
+  if (r.ok) document.getElementById('sub-revenue').textContent = r.data.total_usdc?.toFixed(2) + ' USDC';
+}
+
+// ── Activity ──
+async function loadActivity() {
+  const tb = document.getElementById('activity-table');
+  const r = await api('/api/activity');
+  if (r.ok && r.data && r.data.length > 0) {
+    const typeMap = {gpu_auction:'GPU Auction',subscription:'Abonnement',data_purchase:'Data',marketplace:'Marketplace',exchange:'Exchange'};
+    const colorMap = {gpu_auction:'gold',subscription:'purple',data_purchase:'cyan',marketplace:'green',exchange:'cyan'};
+    tb.innerHTML = r.data.map(a => {
+      const label = typeMap[a.purpose] || a.purpose;
+      const color = colorMap[a.purpose] || 'green';
+      const ago   = Math.round((Date.now()/1000 - (a.created_at||0)) / 60);
+      const time  = ago < 60 ? 'il y a ' + ago + 'm' : 'il y a ' + Math.round(ago/60) + 'h';
+      const w     = a.wallet || '';
+      return '<tr>' +
+        '<td><span class="badge ' + color + '">' + label + '</span></td>' +
+        '<td class="mono" style="font-size:11px">' + w.slice(0,6) + '...' + w.slice(-4) + '</td>' +
+        '<td style="font-family:var(--font-mono);color:var(--green);font-weight:700">' + parseFloat(a.amount_usdc||0).toFixed(2) + ' <span style=\"color:var(--muted)\">USDC</span></td>' +
+        '<td><span class="badge green">confirmed</span></td>' +
+        '<td style="color:var(--muted);font-size:11px">' + time + '</td>' +
+        '</tr>';
+    }).join('');
+  } else {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px"><div style="font-size:24px;margin-bottom:8px">◎</div><div>Aucune transaction pour le moment</div><div style="font-size:10px;font-family:var(--font-mono);margin-top:4px;color:var(--muted2)">Les transactions apparaitront ici en temps reel</div></td></tr>';
+  }
+}
+
+// ── Dashboard stats ──
+async function loadDashboardStats() {
+  checkHealth();
+  loadActivity();
+  // ── API Publique page ──
+  async function loadPublicAPI() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-publicapi').classList.add('active');
+    const r = await fetch('/api/public/marketplace-stats');
+    const d = await r.json();
+    const r2 = await fetch('/api/public/services');
+    const s = await r2.json();
+    const main = document.querySelector('.main');
+    main.innerHTML = `
+      <div class="topbar"><h2>API Publique — Marketplace IA-a-IA</h2></div>
+      <div class="content" style="padding:24px">
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-label">Agents inscrits</div><div class="stat-value">${d.registered_agents}</div></div>
+          <div class="stat-card"><div class="stat-label">Services listes</div><div class="stat-value">${d.services_listed}</div></div>
+          <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value">${d.total_transactions}</div></div>
+          <div class="stat-card"><div class="stat-label">Volume total</div><div class="stat-value">${d.total_volume_usdc.toFixed(2)} USDC</div></div>
+        </div>
+        <div class="panel"><div class="panel-header">Services disponibles (${s.total})</div><div class="panel-body">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>
+            ${s.services.map(sv => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + sv.name + '</td><td>' + sv.type + '</td><td>' + sv.price_usdc + ' USDC</td><td>' + sv.provider + '</td></tr>').join('')}
+          </table>
+        </div></div>
+        <div class="panel" style="margin-top:16px"><div class="panel-header">Documentation API</div><div class="panel-body">
+          <p style="color:var(--muted);font-size:13px">Base URL: <code style="color:var(--purple)">/api/public/</code></p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Endpoints sans auth: /services, /prices, /docs, /gpu/tiers, /gpu/compare</p>
+          <p style="margin-top:4px;color:var(--muted);font-size:13px">Endpoints avec API Key: /register, /buy, /sell, /buy-external, /gpu/rent</p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Commission: 5% Bronze → 1% Or → 0.1% Baleine</p>
+        </div></div>
+      </div>`;
+  }
+
+  // ── Essaim page ──
+  async function loadSwarmStats() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-swarm').classList.add('active');
+    const r = await fetch('/api/swarm/stats');
+    const d = await r.json();
+    const r2 = await fetch('/api/swarm/niches');
+    const niches = await r2.json();
+    const main = document.querySelector('.main');
+    main.innerHTML = `
+      <div class="topbar"><h2>Essaim IA — Clones Specialises</h2></div>
+      <div class="content" style="padding:24px">
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-label">Clones actifs</div><div class="stat-value">${d.active_clones}</div></div>
+          <div class="stat-card"><div class="stat-label">Revenu total</div><div class="stat-value">${d.total_revenue.toFixed(2)} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Royalties Reine</div><div class="stat-value">${d.total_royalties.toFixed(2)} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Royalty %</div><div class="stat-value">${d.royalty_pct}%</div></div>
+        </div>
+        <div class="panel"><div class="panel-header">Niches disponibles</div><div class="panel-body">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <tr style="color:var(--muted);text-align:left"><th style="padding:8px">Clone</th><th>Niche</th><th>Prix</th><th>Statut</th></tr>
+            ${niches.map(n => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + n.name + '</td><td>' + n.niche + '</td><td>$' + n.price + '/req</td><td style="color:' + (n.available ? 'var(--green)' : 'var(--muted)') + '">' + (n.available ? 'Disponible' : 'Actif') + '</td></tr>').join('')}
+          </table>
+        </div></div>
+      </div>`;
+  }
+
+  // ── Escrow page ──
+  async function loadEscrowStats() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-escrow').classList.add('active');
+    const r = await fetch('/api/escrow/stats');
+    const d = await r.json();
+    const main = document.querySelector('.main');
+    main.innerHTML = `
+      <div class="topbar"><h2>Escrow — Paiements Securises</h2></div>
+      <div class="content" style="padding:24px">
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-label">Total Escrows</div><div class="stat-value">${d.total_escrows}</div></div>
+          <div class="stat-card"><div class="stat-label">Verrouilles</div><div class="stat-value">${d.locked_usdc} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Liberes</div><div class="stat-value green">${d.released_usdc} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Rembourses</div><div class="stat-value">${d.refunded}</div></div>
+        </div>
+        <div class="panel"><div class="panel-header">Informations</div><div class="panel-body">
+          <p style="color:var(--muted);font-size:13px">Programme: <code style="color:var(--purple)">${d.program_id}</code></p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Wallet Escrow: <code style="color:var(--green)">${d.escrow_wallet}</code></p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">On-chain: ${d.on_chain ? 'Smart contract deploye' : 'Mode wallet intermediaire (smart contract en attente)'}</p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Timeout: 72h — remboursement automatique si service non livre</p>
+        </div></div>
+      </div>`;
+  }
+
+  // ── Actions Tokenisees ──
+  async function loadStocks() {
+    try {
+      const r = await fetch('/api/public/stocks');
+      const d = await r.json();
+      document.getElementById('stocks-count').textContent = d.total || 0;
+      const tb = document.getElementById('stocks-body');
+      if (d.stocks && d.stocks.length > 0) {
+        tb.innerHTML = d.stocks.map(s => {
+          const changeColor = s.change_24h_pct > 0 ? 'var(--green)' : s.change_24h_pct < 0 ? '#FF4560' : 'var(--muted)';
+          const changeSign = s.change_24h_pct > 0 ? '+' : '';
+          return '<tr>' +
+            '<td style="font-weight:600">' + s.name + '</td>' +
+            '<td>' + s.symbol + '</td>' +
+            '<td style="color:var(--muted)">' + s.sector + '</td>' +
+            '<td style="color:var(--purple)">' + s.xstock + '</td>' +
+            '<td style="font-family:var(--font-mono)">$' + (s.price_usd || 0).toFixed(2) + '</td>' +
+            '<td style="color:' + changeColor + ';font-family:var(--font-mono)">' + changeSign + (s.change_24h_pct || 0).toFixed(2) + '%</td>' +
+            '</tr>';
+        }).join('');
+      } else {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucune action disponible</td></tr>';
+      }
+    } catch(e) {
+      console.error('loadStocks error:', e);
+    }
+  }
+
+  async function loadStockStats() {
+    try {
+      const r = await fetch('/api/stocks/stats');
+      const d = await r.json();
+      document.getElementById('ss-trades').textContent = d.total_trades || 0;
+      document.getElementById('ss-volume').textContent = (d.total_volume_usdc || 0).toFixed(2);
+      document.getElementById('ss-commission').textContent = (d.total_commission_usdc || 0).toFixed(4);
+      document.getElementById('ss-holders').textContent = d.unique_holders || 0;
+    } catch(e) {}
+  }
+
+  // Charger les stocks quand on ouvre la page exchange
+  const origShowPage = window.showPage || function(){};
+  const _origShowPage = showPage;
+  const _showPagePatched = function(page, el) {
+    _origShowPage(page, el);
+    if (page === 'exchange') {
+      loadStocks();
+      loadStockStats();
+    }
+  };
+  showPage = _showPagePatched;
+
+  // Charger stats reelles depuis l'API
+  const [statsR, listingsR, auctionsR] = await Promise.all([
+    api('/api/stats'),
+    api('/api/marketplace/listings'),
+    api('/api/gpu/auctions/active'),
+  ]);
+
+  // Volume 24h
+  const vol = statsR.ok ? (statsR.data.volume_24h || 0) : 0;
+  document.getElementById('vol24').textContent = vol.toFixed(2) + ' USDC';
+  if (!statsR.ok) clog('⚠️ /api/stats: ' + (statsR.data.detail || statsR.status), 'warn');
+
+  const svc = listingsR.ok ? (Array.isArray(listingsR.data) ? listingsR.data.length : 0) : 0;
+  document.getElementById('svc-count').textContent = svc;
+  if (!listingsR.ok) clog('⚠️ /api/marketplace/listings: ' + (listingsR.data.detail || listingsR.status), 'warn');
+
+  const rev = statsR.ok ? (statsR.data.total_revenue || 0) : 0;
+  document.getElementById('rev-total').textContent = rev.toFixed(2) + ' USDC';
+
+  const gpu = auctionsR.ok ? (Array.isArray(auctionsR.data) ? auctionsR.data.length : 0) : 0;
+  document.getElementById('gpu-count').textContent = gpu;
+
+  // Wallets — vrais soldes via Helius
+  loadWalletBalances();
+}
+
+async function loadWalletBalances() {
+  const RPC = 'https://mainnet.helius-rpc.com/?api-key=6cbe9da7-b436-4be9-b63f-e7244eb1e8cf';
+  const TREASURY = 'FiYWC9NGUdCbRdNftajVDTpY3siQQUtcaHk58ZvEAE4h';
+  const ESCROW   = '2bx7cMeEPSd9icdEHL2d6wVBSinsRm2g6Wd3Avm5BzGX';
+  const USDC     = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+  async function getSolBalance(addr) {
+    try {
+      const r = await fetch(RPC, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0',id:1,method:'getBalance',params:[addr]}) });
+      const d = await r.json();
+      return ((d.result?.value || 0) / 1e9).toFixed(4);
+    } catch { return '0.0000'; }
+  }
+
+  async function getUsdcBalance(addr) {
+    try {
+      const r = await fetch(RPC, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0',id:1,method:'getTokenAccountsByOwner',
+          params:[addr,{mint:USDC},{encoding:'jsonParsed'}]}) });
+      const d = await r.json();
+      const accounts = d.result?.value || [];
+      if (!accounts.length) return '0.00';
+      const amt = accounts[0].account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0;
+      return parseFloat(amt).toFixed(2);
+    } catch { return '0.00'; }
+  }
+
+  const [tSol, tUsdc, eSol, eUsdc] = await Promise.all([
+    getSolBalance(TREASURY), getUsdcBalance(TREASURY),
+    getSolBalance(ESCROW),   getUsdcBalance(ESCROW),
+  ]);
+  document.getElementById('treasury-sol').textContent  = tSol + ' SOL';
+  document.getElementById('treasury-usdc').textContent = tUsdc + ' USDC';
+  document.getElementById('escrow-sol').textContent    = eSol + ' SOL';
+  document.getElementById('escrow-usdc').textContent   = eUsdc + ' USDC';
+}
+
+function animateValue(id, from, to, suffix) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const dur = 800, steps = 40;
+  let i = 0;
+  const step = (to - from) / steps;
+  const t = setInterval(() => {
+    i++;
+    const val = Math.round(from + step * i);
+    el.textContent = val.toLocaleString('fr') + suffix;
+    if (i >= steps) clearInterval(t);
+  }, dur / steps);
+}
+
+// ── Wallet ──
+async function connectWallet() {
+  const btn = document.getElementById('wallet-btn');
+  if (walletAddr) {
+    walletAddr = null;
+    btn.textContent = '◎ Connecter Phantom';
+    btn.className = 'btn-wallet';
+    toast('Wallet déconnecté', 'info');
+    return;
+  }
+  if (!window.solana?.isPhantom) {
+    const btn = document.getElementById('wallet-btn');
+    btn.textContent = '⚠️ Phantom requis';
+    setTimeout(() => { btn.textContent = '◎ Connecter Phantom'; btn.className = 'btn-wallet'; }, 3000);
+    toast('Phantom non détecté — installez phantom.app', 'err');
+    setTimeout(() => window.open('https://phantom.app', '_blank'), 800);
+    return;
+  }
+  try {
+    const resp = await window.solana.connect();
+    walletAddr = resp.publicKey.toString();
+    btn.textContent = '◎ ' + walletAddr.slice(0, 6) + '...' + walletAddr.slice(-4);
+    btn.className = 'btn-wallet connected';
+    toast('Wallet connecté : ' + walletAddr.slice(0, 8) + '...', 'ok');
+    // Mise à jour référral code
+    document.getElementById('ref-code').textContent = walletAddr.slice(0, 8).toUpperCase() + 'MAXIA';
+    clog('Wallet connecté : ' + walletAddr, 'ok');
+  } catch(e) {
+    toast('Connexion annulée', 'err');
+  }
+}
+
+// ── Exchange ──
+function setSide(side) {
+  orderSide = side;
+  const buyBtn  = document.getElementById('side-buy');
+  const sellBtn = document.getElementById('side-sell');
+  if (side === 'BUY') {
+    buyBtn.style.background  = 'rgba(0,230,118,.15)';
+    buyBtn.style.color       = 'var(--green)';
+    sellBtn.style.background = 'transparent';
+    sellBtn.style.color      = 'var(--muted)';
+  } else {
+    sellBtn.style.background = 'rgba(255,69,96,.15)';
+    sellBtn.style.color      = 'var(--red)';
+    buyBtn.style.background  = 'transparent';
+    buyBtn.style.color       = 'var(--muted)';
+  }
+}
+
+async function placeOrder() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  clog('Placement ordre...', 'info');
+  const mint  = document.getElementById('ex-mint').value.trim();
+  const qty   = parseFloat(document.getElementById('ex-qty').value);
+  const price = parseFloat(document.getElementById('ex-price').value);
+  if (!mint || !qty || !price) { toast('Remplissez tous les champs', 'err'); return; }
+  toast('Ordre ' + orderSide + ' enregistré (simulation — connexion escrow requise)', 'info');
+  clog(`Ordre ${orderSide} — ${qty} @ ${price} USDC (${mint.slice(0,8)}...)`, 'info');
+}
+
+// ── Commands ──
+async function sendCommand() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const sid    = document.getElementById('cmd-service').value.trim();
+  const amount = document.getElementById('cmd-amount').value;
+  const prompt = document.getElementById('cmd-prompt').value.trim();
+  if (!sid || !prompt) { toast('Remplissez le service et le prompt', 'err'); return; }
+  toast('Commande soumise (simulation — tx Solana requise en production)', 'ok');
+  clog(`Commande → ${sid} | ${amount} USDC | ${prompt.slice(0,40)}...`, 'info');
+}
+
+// ── Auction ──
+async function createAuction() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const tier  = document.getElementById('gpu-tier').value;
+  const hours = parseFloat(document.getElementById('gpu-hours').value);
+  toast('Enchère GPU créée (simulation)', 'ok');
+  clog(`Enchère GPU: ${tier} × ${hours}h`, 'ok');
+}
+
+// ── Dataset ──
+async function listDataset() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const name = document.getElementById('ds-name').value.trim();
+  if (!name) { toast('Nom du dataset requis', 'err'); return; }
+  toast('Dataset listé (simulation)', 'ok');
+}
+
+// ── Test endpoints ──
+async function testEndpoint(path, method, body) {
+  clog(`Test ${method} ${path}...`, 'info');
+  const opts = { method };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await api(path, opts);
+  if (r.ok) {
+    clog(`✓ ${path} → ${r.status} OK`, 'ok');
+    toast(path + ' → OK', 'ok');
+  } else {
+    clog(`✗ ${path} → ${r.status} ${JSON.stringify(r.data).slice(0,80)}`, r.status === 422 ? 'warn' : 'err');
+  }
+}
+
+async function testEndpoints() {
+  clog('=== Test de tous les endpoints ===', 'info');
+  const endpoints = [
+    ['/health', 'GET'],
+    ['/api/marketplace/listings', 'GET'],
+    ['/api/subscriptions/plans', 'GET'],
+    ['/api/data/datasets', 'GET'],
+    ['/api/gpu/tiers', 'GET'],
+  ];
+  for (const [path, method] of endpoints) {
+    await testEndpoint(path, method);
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function clearLogs() {
+  document.getElementById('console-output').innerHTML = 
+    '<div class="log-line"><span class="log-ts">—</span><span class="log-info">Console vidée</span></div>';
+}
+
+function loadOrderBook() {
+  document.getElementById('orderbook-body').innerHTML =
+    '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Aucun ordre ouvert</td></tr>';
+}
+
+function saveX402Prices() { toast('Config x402 sauvegardée (simulation)', 'ok'); }
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded', () => {
+  // Small delay so backend finishes initializing
+  setTimeout(() => {
+    loadDashboardStats();
+    loadSolPrice();
+  }, 300);
+  setInterval(loadSolPrice, 60000);
+  // Block number simulation
+  let block = 280000000 + Math.floor(Math.random() * 100000);
+  document.getElementById('block-num').textContent = block.toLocaleString();
+  setInterval(() => {
+    block += Math.floor(Math.random() * 3) + 1;
+    document.getElementById('block-num').textContent = block.toLocaleString();
+  }, 2000);
+});
+
+// ── Base (Art.13) ──
+async function loadBaseInfo() {
+  const r = await api('/api/base/info');
+  if (r.ok) {
+    document.getElementById('base-usdc-addr').textContent = r.data.usdcContract || '—';
+    document.getElementById('base-treasury-addr').textContent = r.data.treasury || 'Non configuré';
+  }
+}
+
+async function verifyBaseTx() {
+  const hash = document.getElementById('base-tx-hash').value.trim();
+  if (!hash) { toast('Entrez un TX hash', 'err'); return; }
+  const el = document.getElementById('base-verify-result');
+  el.innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+  const r = await api('/api/base/verify', { method: 'POST', body: JSON.stringify({ tx_hash: hash }) });
+  if (r.ok && r.data.valid) {
+    el.innerHTML = '<div class="badge green">✓ Transaction valide</div><div style="font-size:11px;color:var(--muted);margin-top:6px">Block: ' + (r.data.blockNumber||'—') + ' | Gas: ' + (r.data.gasUsed||'—') + '</div>';
+    toast('Transaction Base vérifiée', 'ok');
+  } else {
+    el.innerHTML = '<div class="badge red">✗ ' + (r.data.error || r.data.detail || 'Erreur') + '</div>';
+  }
+}
+
+async function verifyBaseUsdc() {
+  const hash = document.getElementById('base-usdc-tx').value.trim();
+  if (!hash) { toast('Entrez un TX hash', 'err'); return; }
+  const el = document.getElementById('base-usdc-result');
+  el.innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+  const r = await api('/api/base/verify-usdc', { method: 'POST', body: JSON.stringify({ tx_hash: hash }) });
+  if (r.ok && r.data.valid) {
+    const t = r.data.usdcTransfer || {};
+    el.innerHTML = '<div class="badge green">✓ USDC Transfer vérifié</div><div style="font-size:11px;color:var(--muted);margin-top:6px">' + (t.amount_usdc||0).toFixed(2) + ' USDC</div>';
+  } else {
+    el.innerHTML = '<div class="badge red">✗ ' + (r.data.error || 'Erreur') + '</div>';
+  }
+}
+
+// ── Kite AI (Art.14) ──
+async function loadKiteInfo() {
+  const r = await api('/api/kite/info');
+  if (r.ok) {
+    document.getElementById('kite-agent-id').textContent = r.data.agentId || '—';
+    document.getElementById('kite-api-ok').textContent = r.data.apiConfigured ? '✓ Oui' : '✗ Non';
+    document.getElementById('kite-api-ok').style.color = r.data.apiConfigured ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+async function kiteRegister() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  toast('Enregistrement agent Kite AI... (simulation)', 'info');
+  clog('Kite AI: enregistrement agent ' + document.getElementById('kite-agent-name').value, 'info');
+}
+
+async function kiteDiscover() {
+  const r = await api('/api/kite/discover');
+  const el = document.getElementById('kite-services-list');
+  if (r.ok && r.data && r.data.length > 0) {
+    el.innerHTML = r.data.map(s => '<div class="tier-card"><div class="tier-header"><div class="tier-name">' + s.name + '</div><span class="badge cyan">' + (s.category||'ai') + '</span></div></div>').join('');
+  } else {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🪁</div>Aucun service Kite trouvé<div style="font-size:10px;margin-top:4px">Configurez KITE_API_KEY dans .env</div></div>';
+  }
+}
+
+async function kiteVerify() {
+  const id = document.getElementById('kite-verify-id').value.trim();
+  if (!id) { toast('Entrez un Agent ID', 'err'); return; }
+  const r = await api('/api/kite/verify-agent/' + id);
+  const el = document.getElementById('kite-verify-result');
+  if (r.ok) {
+    const v = r.data.verified;
+    el.innerHTML = '<span class="badge ' + (v ? 'green' : 'red') + '">' + (v ? '✓ Vérifié' : '✗ Non vérifié') + '</span> <span style="font-size:11px;color:var(--muted)">' + (r.data.name || id) + '</span>';
+  } else {
+    el.innerHTML = '<span class="badge red">Erreur</span>';
+  }
+}
+
+// ── AP2 (Art.15) ──
+async function loadAP2Info() {
+  const r = await api('/api/ap2/info');
+  if (r.ok) {
+    document.getElementById('ap2-version').textContent = r.data.ap2Version || '—';
+    document.getElementById('ap2-agent').textContent = r.data.agentId || '—';
+    document.getElementById('ap2-mandates').textContent = r.data.activeMandates || 0;
+    document.getElementById('ap2-payments').textContent = r.data.completedPayments || 0;
+  }
+}
+
+async function loadAP2Stats() {
+  const r = await api('/api/ap2/stats');
+  const el = document.getElementById('ap2-stats-display');
+  if (r.ok) {
+    el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Mandats actifs</div><div style="font-size:24px;font-weight:800;color:var(--purple2)">' + (r.data.activeMandates||0) + '</div></div>' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Paiements</div><div style="font-size:24px;font-weight:800;color:var(--green)">' + (r.data.completedPayments||0) + '</div></div>' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Volume USDC</div><div style="font-size:24px;font-weight:800;color:var(--gold)">' + (r.data.totalVolumeUsdc||0).toFixed(2) + '</div></div>' +
+      '</div>';
+  }
+}
+
+async function ap2CreateIntent() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  toast('Intent Mandate créé (simulation — auth requise en production)', 'ok');
+  clog('AP2: Intent Mandate créé, max=' + document.getElementById('ap2-max-amount').value + ' USDC', 'ok');
+}
+
+</script>
+</body>
+</html>
