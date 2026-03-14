@@ -31,13 +31,21 @@ import asyncio, json, time, os
 from datetime import datetime, date
 
 # ══════════════════════════════════════════
-# CONFIGURATION
+# CONFIGURATION — read from config.py if available, else os.getenv
 # ══════════════════════════════════════════
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
-TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
+def _cfg(name, default=""):
+    """Read from config.py first, then os.getenv."""
+    try:
+        import config
+        return getattr(config, name, os.getenv(name, default))
+    except ImportError:
+        return os.getenv(name, default)
+
+GROQ_API_KEY = _cfg("GROQ_API_KEY")
+ANTHROPIC_API_KEY = _cfg("ANTHROPIC_API_KEY")
+DISCORD_WEBHOOK_URL = _cfg("DISCORD_WEBHOOK_URL")
+TWITTER_API_KEY = _cfg("TWITTER_API_KEY")
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
 SONNET_MODEL = "claude-sonnet-4-20250514"
@@ -602,7 +610,7 @@ RADAR_VOLUME_SURGE = 0.40   # +40% volume = surge
 async def radar_scan(memory: Memory) -> list:
     """Market Pulse : scanne prix + detecte tendances via Helius DAS."""
     alerts = []
-    helius_key = os.getenv("HELIUS_API_KEY", "")
+    helius_key = _cfg("HELIUS_API_KEY")
     if not helius_key:
         return alerts
 
@@ -886,8 +894,8 @@ async def failover_send_alert(message: str):
 # MICRO WALLET — Petty Cash pour experimentations
 # ══════════════════════════════════════════
 
-MICRO_WALLET_ADDRESS = os.getenv("MICRO_WALLET_ADDRESS", "")
-MICRO_WALLET_PRIVKEY = os.getenv("MICRO_WALLET_PRIVKEY", "")
+MICRO_WALLET_ADDRESS = _cfg("MICRO_WALLET_ADDRESS")
+MICRO_WALLET_PRIVKEY = _cfg("MICRO_WALLET_PRIVKEY")
 MICRO_MAX_PER_TX = 0.01       # SOL max par transaction
 MICRO_MAX_PER_DAY = 0.05      # SOL max par jour
 MICRO_ALERT_LOW = 0.02        # SOL — alerte si solde bas
@@ -1173,9 +1181,9 @@ async def web_designer_deploy_config(config: dict, memory: Memory) -> dict:
 # DEPLOYER — Genere et deploie des pages web
 # ══════════════════════════════════════════
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-GITHUB_ORG = os.getenv("GITHUB_ORG", "MAXIA-AI")
-GITHUB_REPO = os.getenv("GITHUB_REPO", "site")
+GITHUB_TOKEN = _cfg("GITHUB_TOKEN")
+GITHUB_ORG = _cfg("GITHUB_ORG", "MAXIA-AI")
+GITHUB_REPO = _cfg("GITHUB_REPO", "site")
 GITHUB_BRANCH = "main"
 
 # Pages que le CEO peut creer automatiquement

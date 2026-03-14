@@ -1,0 +1,4 @@
+Invoke-WebRequest -Method POST -Uri "https://web-production-29007.up.railway.app/api/admin/seed-services"
+
+
+Invoke-WebRequest -Method POST -Uri "https://web-production-29007.up.railway.app/api/admin/seed-datasets"

@@ -145,7 +145,9 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "MaxEli20152022*+")
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(key: str = ""):
-    if key != ADMIN_KEY:
+    import urllib.parse
+    decoded_key = urllib.parse.unquote_plus(key)
+    if decoded_key != ADMIN_KEY and key != ADMIN_KEY:
         return HTMLResponse(
             "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
             "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
@@ -153,7 +155,15 @@ async def serve_dashboard(key: str = ""):
         )
     if FRONTEND_INDEX.exists():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>MAXIA</h1><p>Dashboard introuvable.</p>")
+    # Fallback: try alternative paths
+    alt_paths = [
+        Path("/opt/maxia/frontend/index.html"),
+        Path(__file__).parent / "index.html",
+    ]
+    for p in alt_paths:
+        if p.exists():
+            return HTMLResponse(p.read_text(encoding="utf-8"))
+    return HTMLResponse(f"<h1>MAXIA</h1><p>Dashboard introuvable. Paths checked: {FRONTEND_INDEX}, {alt_paths}</p>")
 
 
 @app.get("/health")

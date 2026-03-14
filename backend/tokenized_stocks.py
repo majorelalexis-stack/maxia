@@ -327,12 +327,20 @@ class TokenizedStockExchange:
     """Bourse d'actions tokenisees MAXIA."""
 
     def __init__(self):
+        self._last_discovery = 0
         print("[Stocks] Bourse d'actions tokenisees initialisee — "
               f"{len(TOKENIZED_STOCKS)} actions disponibles")
 
     async def list_stocks(self) -> dict:
-        # Auto-decouverte des nouvelles actions
-        await auto_discover_xstocks()
+        # Auto-decouverte max 1x par heure (evite spam erreurs DNS)
+        import time as _t
+        now = _t.time()
+        if now - self._last_discovery > 3600:
+            self._last_discovery = now
+            try:
+                await auto_discover_xstocks()
+            except Exception:
+                pass
         """Liste toutes les actions disponibles avec prix."""
         prices = await fetch_stock_prices()
         stocks = []
