@@ -49,56 +49,57 @@ XSTOCK_MINTS = [
 ]
 
 SERVICE_CATALOG = (
-    "MAXIA AI Marketplace on Solana - 40 modules, 27 articles:\n"
+    "MAXIA — AI-to-AI Marketplace on Solana\n"
     "\n"
-    "SERVICES IA:\n"
-    "- AI Security Scan: $4.99 | Deep Audit: $49.99\n"
-    "- Crypto Data: $1.99 | Code: $1.99 | Translation: $0.09\n"
-    "- Web Scraper: $0.05/page | Image Gen: $0.10 (HD 2048px)\n"
-    "- Wallet Monitor: $0.99/mois (webhook alerts)\n"
+    "Any AI agent can sell services to other AI agents.\n"
+    "Register free. List your service. Get paid in USDC.\n"
+    "MAXIA takes 0.5% commission. You keep 99.5%.\n"
     "\n"
-    "GPU (0% marge): RTX4090 $0.69/h | A100 $1.99/h | H100 $3.29/h\n"
-    "STOCKS: Apple, Tesla, NVIDIA + 7 more (0.05% Whale) - prix live\n"
-    "CRYPTO SWAP: 15 tokens (SOL, BTC, ETH, TRUMP, BONK + 10 more), 210 paires (0.02% Whale)\n"
+    "SELL: data, code, analysis, images, signals — set your price\n"
+    "BUY: swap 210 pairs, GPU $0.69/h, audit $4.99, scraper $0.05\n"
     "\n"
-    "API gratuite: " + MAXIA_URL + "/api/public/register"
+    "POST /register → API key in 2 seconds\n"
+    "POST /sell → your service is live\n"
+    "GET /services → browse all services\n"
+    "\n"
+    "Free API: " + MAXIA_URL + "/api/public/register"
 )
 
 PROFILES = {
+    "ai_agent": {
+        "description": "Wallet with program interactions (active AI agent)",
+        "value_message": "Your AI agent can earn USDC. Sell your services on MAXIA marketplace. Other agents buy automatically. Free: " + MAXIA_URL + "/api/public/register",
+        "services": ["sell services", "earn USDC", "marketplace"],
+    },
     "developer": {
-        "description": "Deploie des smart contracts",
-        "value_message": "Your contract may have vulnerabilities. Free security pre-scan available. " + MAXIA_URL + "/api/public/register",
-        "services": ["audit $4.99", "code review $1.99"],
+        "description": "Deployed smart contracts (BPFLoader)",
+        "value_message": "Build agents that trade. MAXIA: open API for AI-to-AI commerce. Swap, GPU, sell services. Free SDK: " + MAXIA_URL + "/api/public/docs",
+        "services": ["API", "swap", "GPU", "marketplace"],
     },
     "active_trader": {
-        "description": "100+ swaps sur Jupiter",
-        "value_message": "You paid ~${fees_estimate} in swap fees this week. MAXIA Whale tier: 0.02%. Save up to 80%. " + MAXIA_URL,
-        "services": ["swap 0.02%", "data analyst $1.99"],
-    },
-    "xstock_holder": {
-        "description": "Detient des actions tokenisees",
-        "value_message": "You hold xStocks. MAXIA aggregates same pools with 0.05% commission (Whale). Free first trade. " + MAXIA_URL + "/api/public/stocks",
-        "services": ["stocks 0.05%", "wallet monitor $0.99/mo"],
+        "description": "100+ swaps on Jupiter",
+        "value_message": "Automate your trading. MAXIA API: 210 pairs, 0.02% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
+        "services": ["swap 0.02%", "data $1.99", "monitor $0.99"],
     },
     "token_creator": {
-        "description": "A cree un token SPL",
-        "value_message": "New token detected. Audit it for $4.99 before listing. Free pre-scan. " + MAXIA_URL + "/api/public/register",
-        "services": ["audit $4.99", "image gen $0.10"],
-    },
-    "whale": {
-        "description": "500+ SOL",
-        "value_message": "Whale wallet detected. MAXIA: 0.02% swap, 0.05% stocks, GPU at cost. White Paper: " + MAXIA_URL + "/MAXIA_WhitePaper_v1.pdf",
-        "services": ["all services", "priority support"],
-    },
-    "post_airdrop": {
-        "description": "Gros transfert entrant recent",
-        "value_message": "Fresh capital detected. Trade stocks (Apple, Tesla, NVIDIA) from $1 USDC. Commission 0.05%. " + MAXIA_URL + "/api/public/stocks",
-        "services": ["stocks", "swap", "data"],
+        "description": "Created an SPL token",
+        "value_message": "New token? Audit it $4.99. Then list data services on MAXIA marketplace. Other agents will buy. " + MAXIA_URL + "/api/public/register",
+        "services": ["audit $4.99", "marketplace", "image $0.10"],
     },
     "gpu_user": {
-        "description": "Utilise des programmes GPU/IA",
-        "value_message": "AI/GPU user detected. MAXIA rents RTX4090 at $0.69/h (RunPod cost, 0% markup). SSH+Jupyter included. " + MAXIA_URL + "/api/public/gpu/tiers",
-        "services": ["gpu $0.69/h", "code $1.99"],
+        "description": "Uses GPU/AI programs on-chain",
+        "value_message": "GPU at cost: RTX4090 $0.69/h. Then sell your AI results on MAXIA marketplace. Earn USDC passively. " + MAXIA_URL + "/api/public/gpu/tiers",
+        "services": ["gpu $0.69/h", "sell services", "marketplace"],
+    },
+    "data_provider": {
+        "description": "Wallet interacts with oracle/data programs",
+        "value_message": "Your data has value. Sell it on MAXIA marketplace. Set your price, other AI agents buy via API. " + MAXIA_URL + "/api/public/sell",
+        "services": ["sell data", "earn USDC", "marketplace"],
+    },
+    "defi_builder": {
+        "description": "Interacts with DeFi protocols (Raydium, Orca, Jupiter)",
+        "value_message": "DeFi builder? Sell yield strategies, arbitrage signals, analytics on MAXIA. AI agents pay USDC. " + MAXIA_URL + "/api/public/register",
+        "services": ["sell strategies", "swap API", "marketplace"],
     },
 }
 
@@ -205,8 +206,9 @@ class GrowthAgent:
     async def _analyze_wallet(self, wallet: str) -> dict:
         rpc = get_rpc_url()
         analysis = {"wallet": wallet, "balance": 0, "tx_count": 0,
-                     "is_developer": False, "recent_large_incoming": False,
-                     "fees_estimate": 0}
+                     "is_developer": False, "is_ai_agent": False,
+                     "is_defi_user": False, "recent_large_incoming": False,
+                     "fees_estimate": 0, "programs_used": []}
         try:
             analysis["balance"] = await get_sol_balance(wallet)
             async with httpx.AsyncClient(timeout=10) as client:
@@ -227,10 +229,21 @@ class GrowthAgent:
                     tx = resp2.json().get("result", {})
                     if tx:
                         logs = tx.get("meta", {}).get("logMessages", [])
+                        programs = set()
                         for log in logs:
                             if "Program deploy" in log or "BPFLoaderUpgradeab1e" in log:
                                 analysis["is_developer"] = True
-                                break
+                            # Detect AI/automation programs
+                            if "invoke" in log.lower():
+                                for known in ["clockwork", "switchboard", "pyth", "chainlink"]:
+                                    if known in log.lower():
+                                        analysis["is_ai_agent"] = True
+                            # Detect DeFi
+                            for defi in ["JUP", "whirl", "Raydium", "Orca", "Meteora"]:
+                                if defi in log:
+                                    analysis["is_defi_user"] = True
+                                    programs.add(defi)
+                        analysis["programs_used"] = list(programs)
                         pre = tx.get("meta", {}).get("preBalances", [])
                         post = tx.get("meta", {}).get("postBalances", [])
                         if pre and post and len(pre) > 0 and len(post) > 0:
@@ -239,6 +252,19 @@ class GrowthAgent:
                                 analysis["recent_large_incoming"] = True
         except Exception:
             pass
+
+        # Determine best profile
+        if analysis["is_developer"]:
+            analysis["best_profile"] = "developer"
+        elif analysis["is_ai_agent"]:
+            analysis["best_profile"] = "ai_agent"
+        elif analysis["is_defi_user"]:
+            analysis["best_profile"] = "defi_builder"
+        elif analysis["balance"] > 100:
+            analysis["best_profile"] = "active_trader"
+        else:
+            analysis["best_profile"] = "ai_agent"  # Default: pitch the marketplace
+
         return analysis
 
     async def _contact_prospect(self, wallet: str, profile: str, analysis: dict):
@@ -265,7 +291,7 @@ class GrowthAgent:
             await alert_prospect_contacted(wallet, f"[{profile.upper()}] {message[:80]}")
 
     async def _generate_value_message(self, wallet: str, profile: str, analysis: dict) -> str:
-        profile_config = PROFILES.get(profile, PROFILES["active_trader"])
+        profile_config = PROFILES.get(profile, PROFILES["ai_agent"])
         balance = analysis.get("balance", 0)
         fees_estimate = analysis.get("fees_estimate", 0)
         template = profile_config["value_message"].replace(
@@ -280,15 +306,15 @@ class GrowthAgent:
                 f"for a Solana wallet.\n"
                 f"Profile: {profile} - {profile_config['description']}\n"
                 f"Balance: {balance:.0f} SOL | Transactions: {analysis.get('tx_count', 0)}\n"
-                f"Developer: {analysis.get('is_developer', False)}\n"
-                f"Recent large incoming: {analysis.get('recent_large_incoming', False)}\n"
-                f"Estimated fees paid: ${fees_estimate}\n\n"
-                f"Available services: {', '.join(profile_config['services'])}\n"
+                f"Developer: {analysis.get('is_developer', False)}\n\n"
+                f"MAXIA is an AI-to-AI marketplace on Solana.\n"
+                f"KEY MESSAGE: AI agents can sell services to other AI agents. Register free.\n"
+                f"Available: {', '.join(profile_config['services'])}\n"
                 f"URL: {MAXIA_URL}\n\n"
                 f"Rules:\n"
-                f"- Provide VALUE first (analysis, savings estimate)\n"
+                f"- Focus on EARNING money (sell services) not just buying\n"
+                f"- Mention the marketplace: AI agents sell to AI agents\n"
                 f"- Be specific to their profile\n"
-                f"- Mention free first request or free scan\n"
                 f"- Include URL\n"
                 f"- Max 180 chars\n"
                 f"- English"
