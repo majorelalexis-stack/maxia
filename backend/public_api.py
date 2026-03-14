@@ -129,8 +129,8 @@ async def get_prices():
     return {
         "services": {
             "ai_security_scan": {"price": 4.99, "unit": "per scan"},
-            "crypto_data_analyst": {"price": 1.99, "unit": "per query"},
-            "code_engineer": {"price": 1.99, "unit": "per task"},
+            "crypto_data_analyst": {"price": 2.99, "unit": "per query"},
+            "code_engineer": {"price": 3.99, "unit": "per task"},
             "universal_translator": {"price": 0.09, "unit": "per request"},
             "deep_security_audit": {"price": 49.99, "unit": "per audit"},
         },
@@ -276,8 +276,8 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
 
     # Determiner le prix
     prices = {
-        "audit": 4.99, "data": 1.99, "code": 1.99,
-        "text": 0.09, "audit_deep": 49.99,
+        "audit": 9.99, "data": 2.99, "code": 3.99,
+        "text": 0.19, "audit_deep": 49.99,
     }
     price = prices.get(service_type, 1.99)
 
@@ -616,12 +616,12 @@ async def discover_services(
 
     # Also include MAXIA native services
     maxia_native = [
-        {"service_id": "maxia-audit", "name": "AI Security Audit", "type": "code", "price_usdc": 4.99, "seller": "MAXIA", "rating": 5, "description": "Smart contract vulnerability scanner"},
-        {"service_id": "maxia-code", "name": "Code Generation", "type": "code", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "Python, Rust, JS, Solidity. Production-ready"},
-        {"service_id": "maxia-data", "name": "Crypto Data Analyst", "type": "data", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "DeFi analytics, whale tracking, predictions"},
+        {"service_id": "maxia-audit", "name": "AI Security Audit", "type": "code", "price_usdc": 9.99, "seller": "MAXIA", "rating": 5, "description": "Smart contract vulnerability scanner"},
+        {"service_id": "maxia-code", "name": "Code Generation", "type": "code", "price_usdc": 3.99, "seller": "MAXIA", "rating": 5, "description": "Python, Rust, JS, Solidity. Production-ready"},
+        {"service_id": "maxia-data", "name": "Crypto Data Analyst", "type": "data", "price_usdc": 2.99, "seller": "MAXIA", "rating": 5, "description": "DeFi analytics, whale tracking, predictions"},
         {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Scrape any URL, structured JSON output"},
         {"service_id": "maxia-image", "name": "Image Generation", "type": "media", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "FLUX.1, up to 2048x2048 HD"},
-        {"service_id": "maxia-translate", "name": "Universal Translator", "type": "text", "price_usdc": 0.09, "seller": "MAXIA", "rating": 5, "description": "50+ languages, context-aware"},
+        {"service_id": "maxia-translate", "name": "Universal Translator", "type": "text", "price_usdc": 0.19, "seller": "MAXIA", "rating": 5, "description": "50+ languages, context-aware"},
     ]
     for ns in maxia_native:
         searchable = f"{ns['name']} {ns['description']} {ns['type']}".lower()
@@ -679,8 +679,8 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     if is_native:
         # Execute MAXIA native service via Groq
         result_text = await _execute_native_service(service_id, prompt)
-        price = {"maxia-audit": 4.99, "maxia-code": 1.99, "maxia-data": 1.99,
-                 "maxia-scraper": 0.05, "maxia-image": 0.10, "maxia-translate": 0.09}.get(service_id, 1.99)
+        price = {"maxia-audit": 9.99, "maxia-code": 3.99, "maxia-data": 2.99,
+                 "maxia-scraper": 0.05, "maxia-image": 0.10, "maxia-translate": 0.19}.get(service_id, 1.99)
         volume = buyer.get("volume_30d", 0)
         commission_bps = get_commission_bps(volume)
         commission = price * commission_bps / 10000
