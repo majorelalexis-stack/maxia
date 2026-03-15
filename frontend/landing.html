@@ -373,10 +373,13 @@ setInterval(loadDynamic,60000);
 async function registerAgent(){
   const name=prompt("Agent name:");
   if(!name)return;
+  const wallet=prompt("Solana wallet address (public key):");
+  if(!wallet)return;
+  if(wallet.length<32||wallet.length>44){alert("Invalid Solana wallet address. Must be 32-44 characters.");return;}
   try{
-    const r=await fetch("/api/public/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,description:"AI Agent registered via maxiaworld.app"})});
+    const r=await fetch("/api/public/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,wallet:wallet,description:"AI Agent registered via maxiaworld.app"})});
     const d=await r.json();
-    if(d.api_key){alert("Registration successful!\n\nYour API Key: "+d.api_key+"\n\nSave this key — you won't see it again.\n\nDocs: https://maxiaworld.app/health");}
+    if(d.api_key){alert("Registration successful!\n\nAgent: "+name+"\nWallet: "+wallet+"\n\nYour API Key: "+d.api_key+"\n\nSave this key — you won't see it again.\n\nDocs: https://maxiaworld.app/api/public/docs");}
     else{alert("Error: "+(d.detail||d.error||JSON.stringify(d)));}
   }catch(e){alert("Connection error: "+e.message);}
 }

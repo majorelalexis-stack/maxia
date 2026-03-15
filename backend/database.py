@@ -76,6 +76,32 @@ DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS disputes ("
     "dispute_id TEXT PRIMARY KEY, data TEXT NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE TABLE IF NOT EXISTS agents ("
+    "api_key TEXT PRIMARY KEY, name TEXT NOT NULL, wallet TEXT NOT NULL,"
+    "description TEXT DEFAULT '', tier TEXT DEFAULT 'BRONZE',"
+    "volume_30d REAL DEFAULT 0, total_spent REAL DEFAULT 0,"
+    "total_earned REAL DEFAULT 0, services_listed INTEGER DEFAULT 0,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE INDEX IF NOT EXISTS idx_agents_wallet ON agents(wallet);"
+
+    "CREATE TABLE IF NOT EXISTS agent_services ("
+    "id TEXT PRIMARY KEY, agent_api_key TEXT NOT NULL, agent_name TEXT NOT NULL,"
+    "agent_wallet TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL,"
+    "type TEXT DEFAULT 'text', price_usdc REAL NOT NULL,"
+    "endpoint TEXT DEFAULT '', status TEXT DEFAULT 'active',"
+    "rating REAL DEFAULT 5.0, sales INTEGER DEFAULT 0,"
+    "listed_at INTEGER DEFAULT (strftime('%s','now')),"
+    "FOREIGN KEY (agent_api_key) REFERENCES agents(api_key));"
+
+    "CREATE INDEX IF NOT EXISTS idx_services_status ON agent_services(status);"
+
+    "CREATE TABLE IF NOT EXISTS marketplace_tx ("
+    "tx_id TEXT PRIMARY KEY, buyer TEXT NOT NULL, seller TEXT NOT NULL,"
+    "service TEXT NOT NULL, price_usdc REAL NOT NULL,"
+    "commission_usdc REAL NOT NULL, seller_gets_usdc REAL NOT NULL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
 )
 
 class Database:
@@ -239,5 +265,81 @@ class Database:
     async def get_all_disputes(self):
         rows = await self._db.execute_fetchall("SELECT data FROM disputes")
         return [json.loads(r["data"]) for r in rows]
+
+    # ── Marketplace: Agents ──
+
+    async def save_agent(self, agent: dict):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO agents(api_key,name,wallet,description,tier,volume_30d,total_spent,total_earned,services_listed) VALUES(?,?,?,?,?,?,?,?,?)",
+            (agent["api_key"], agent["name"], agent["wallet"], agent.get("description", ""),
+             agent.get("tier", "BRONZE"), agent.get("volume_30d", 0),
+             agent.get("total_spent", 0), agent.get("total_earned", 0),
+             agent.get("services_listed", 0)))
+        await self._db.commit()
+
+    async def get_agent(self, api_key: str):
+        row = await self._db.execute_fetchone("SELECT * FROM agents WHERE api_key=?", (api_key,))
+        return dict(row) if row else None
+
+    async def get_all_agents(self):
+        rows = await self._db.execute_fetchall("SELECT * FROM agents ORDER BY created_at DESC")
+        return [dict(r) for r in rows]
+
+    async def update_agent(self, api_key: str, updates: dict):
+        sets = ", ".join(f"{k}=?" for k in updates.keys())
+        vals = list(updates.values()) + [api_key]
+        await self._db.execute(f"UPDATE agents SET {sets} WHERE api_key=?", vals)
+        await self._db.commit()
+
+    async def count_agents(self):
+        row = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agents")
+        return row["c"] if row else 0
+
+    # ── Marketplace: Services ──
+
+    async def save_service(self, service: dict):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO agent_services(id,agent_api_key,agent_name,agent_wallet,name,description,type,price_usdc,endpoint,status,rating,sales) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (service["id"], service["agent_api_key"], service["agent_name"], service["agent_wallet"],
+             service["name"], service["description"], service.get("type", "text"),
+             service["price_usdc"], service.get("endpoint", ""), service.get("status", "active"),
+             service.get("rating", 5.0), service.get("sales", 0)))
+        await self._db.commit()
+
+    async def get_services(self, status="active"):
+        rows = await self._db.execute_fetchall(
+            "SELECT * FROM agent_services WHERE status=? ORDER BY rating DESC, sales DESC", (status,))
+        return [dict(r) for r in rows]
+
+    async def get_service(self, service_id: str):
+        row = await self._db.execute_fetchone("SELECT * FROM agent_services WHERE id=?", (service_id,))
+        return dict(row) if row else None
+
+    async def update_service(self, service_id: str, updates: dict):
+        sets = ", ".join(f"{k}=?" for k in updates.keys())
+        vals = list(updates.values()) + [service_id]
+        await self._db.execute(f"UPDATE agent_services SET {sets} WHERE id=?", vals)
+        await self._db.commit()
+
+    # ── Marketplace: Transactions ──
+
+    async def save_marketplace_tx(self, tx: dict):
+        await self._db.execute(
+            "INSERT INTO marketplace_tx(tx_id,buyer,seller,service,price_usdc,commission_usdc,seller_gets_usdc) VALUES(?,?,?,?,?,?,?)",
+            (tx["tx_id"], tx["buyer"], tx["seller"], tx["service"],
+             tx["price_usdc"], tx["commission_usdc"], tx["seller_gets_usdc"]))
+        await self._db.commit()
+
+    async def get_marketplace_stats(self):
+        agents = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agents")
+        services = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agent_services WHERE status='active'")
+        txs = await self._db.execute_fetchone("SELECT COUNT(*) as c, COALESCE(SUM(price_usdc),0) as vol, COALESCE(SUM(commission_usdc),0) as comm FROM marketplace_tx")
+        return {
+            "agents_registered": agents["c"] if agents else 0,
+            "services_listed": services["c"] if services else 0,
+            "total_transactions": txs["c"] if txs else 0,
+            "total_volume_usdc": txs["vol"] if txs else 0,
+            "total_commission_usdc": txs["comm"] if txs else 0,
+        }
 
 db = Database()

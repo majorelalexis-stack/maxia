@@ -23,6 +23,33 @@ router = APIRouter(prefix="/api/public", tags=["public-api"])
 _registered_agents: dict = {}   # api_key -> agent info
 _agent_services: list = []      # services listes par des IA externes
 _transactions: list = []        # historique des transactions
+_db_loaded: bool = False
+
+
+async def _load_from_db():
+    """Load agents and services from SQLite on first access."""
+    global _db_loaded
+    if _db_loaded:
+        return
+    _db_loaded = True
+    try:
+        from database import db
+        agents = await db.get_all_agents()
+        for a in agents:
+            _registered_agents[a["api_key"]] = {
+                "api_key": a["api_key"], "name": a["name"], "wallet": a["wallet"],
+                "description": a.get("description", ""), "tier": a.get("tier", "BRONZE"),
+                "volume_30d": a.get("volume_30d", 0), "total_spent": a.get("total_spent", 0),
+                "total_earned": a.get("total_earned", 0), "services_listed": a.get("services_listed", 0),
+                "requests_today": 0, "registered_at": a.get("created_at", 0),
+            }
+        services = await db.get_services()
+        for s in services:
+            _agent_services.append(dict(s))
+        if agents or services:
+            print(f"[PublicAPI] Loaded from DB: {len(agents)} agents, {len(services)} services")
+    except Exception as e:
+        print(f"[PublicAPI] DB load error: {e}")
 
 # ── Groq client ──
 groq_client = None
@@ -72,6 +99,7 @@ def _get_agent(api_key: str) -> dict:
 @router.get("/services")
 async def list_services():
     """Liste tous les services disponibles (MAXIA + IA externes). Gratuit, sans auth."""
+    await _load_from_db()
     try:
         from database import db
         maxia_services = await db.get_listings()
@@ -199,7 +227,8 @@ async def api_docs():
 
 @router.post("/register")
 async def register_agent(req: dict):
-    """Inscription gratuite pour les IA. Retourne une API key."""
+    """Inscription gratuite pour les IA. Retourne une API key. Persiste dans SQLite."""
+    await _load_from_db()
     name = req.get("name", "").strip()
     wallet = req.get("wallet", "").strip()
     description = req.get("description", "")
@@ -231,6 +260,13 @@ async def register_agent(req: dict):
         "services_listed": 0,
     }
     _registered_agents[api_key] = agent
+
+    # Persister dans SQLite
+    try:
+        from database import db
+        await db.save_agent(agent)
+    except Exception as e:
+        print(f"[PublicAPI] DB save agent error: {e}")
 
     # Alerte Discord
     try:
@@ -366,6 +402,7 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
 @router.post("/sell")
 async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Lister un service a vendre sur MAXIA. Commission prelevee sur chaque vente."""
+    await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
@@ -405,6 +442,14 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     _agent_services.append(service)
     agent["services_listed"] += 1
 
+    # Persist to SQLite
+    try:
+        from database import db
+        await db.save_service(service)
+        await db.update_agent(x_api_key, {"services_listed": agent["services_listed"]})
+    except Exception as e:
+        print(f"[PublicAPI] DB save service error: {e}")
+
     print(f"[PublicAPI] Nouveau service: {name} par {agent['name']} @ {price_usdc} USDC")
 
     return {
@@ -425,6 +470,7 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 @router.post("/buy-from-agent")
 async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Acheter un service d'une autre IA. MAXIA prend sa commission."""
+    await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
@@ -549,6 +595,7 @@ async def my_earnings(x_api_key: str = Header(None, alias="X-API-Key")):
 @router.get("/marketplace-stats")
 async def marketplace_stats():
     """Statistiques globales de la marketplace."""
+    await _load_from_db()
     total_volume = sum(t.get("price_usdc", 0) for t in _transactions)
     total_commission = sum(t.get("commission_usdc", 0) for t in _transactions)
     return {
@@ -583,6 +630,7 @@ async def discover_services(
       GET /discover?capability=audit&max_price=10
       GET /discover?agent_type=data&min_rating=4
     """
+    await _load_from_db()
     results = []
     capability_lower = capability.lower()
 
@@ -654,6 +702,7 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
 
     Body: {"service_id": "xxx", "prompt": "your request", "payment_tx": "optional"}
     """
+    await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
@@ -720,6 +769,7 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
         "seller_gets_usdc": seller_gets, "timestamp": int(time.time()),
     }
     _transactions.append(tx)
+    await _save_tx_to_db(tx, buyer)
     buyer["volume_30d"] += price
     buyer["total_spent"] += price
     service["sales"] += 1
@@ -802,6 +852,27 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
         return await asyncio.to_thread(_call)
     except Exception as e:
         return f"Execution error: {e}"
+
+
+async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
+    """Persist transaction + update agent stats in SQLite."""
+    try:
+        from database import db
+        await db.save_marketplace_tx(tx)
+        if buyer:
+            await db.update_agent(buyer.get("api_key", ""), {
+                "volume_30d": buyer.get("volume_30d", 0),
+                "total_spent": buyer.get("total_spent", 0),
+            })
+        if seller_key:
+            seller = _registered_agents.get(seller_key)
+            if seller:
+                await db.update_agent(seller_key, {
+                    "total_earned": seller.get("total_earned", 0),
+                    "volume_30d": seller.get("volume_30d", 0),
+                })
+    except Exception as e:
+        print(f"[PublicAPI] DB tx save error: {e}")
 
 
 # ── Utilitaire ──
