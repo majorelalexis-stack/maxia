@@ -108,6 +108,11 @@ class Database:
     def __init__(self):
         self._db = None
 
+    async def _fetchone(self, sql, params=()):
+        """Compat: fetchone via fetchall."""
+        rows = await self._db.execute_fetchall(sql, params)
+        return rows[0] if rows else None
+
     async def connect(self):
         self._db = await aiosqlite.connect(DB_PATH)
         self._db.row_factory = aiosqlite.Row
@@ -160,7 +165,7 @@ class Database:
         return eid
 
     async def get_escrow_by_order(self, order_id):
-        row = await self._db.execute_fetchone("SELECT * FROM escrow WHERE order_id=? AND status='locked'", (order_id,))
+        row = await self._fetchone("SELECT * FROM escrow WHERE order_id=? AND status='locked'", (order_id,))
         return dict(row) if row else None
 
     async def release_escrow(self, escrow_id):
@@ -174,12 +179,12 @@ class Database:
         await self._db.commit()
 
     async def tx_already_processed(self, tx_sig):
-        row = await self._db.execute_fetchone("SELECT 1 FROM transactions WHERE tx_signature=?", (tx_sig,))
+        row = await self._fetchone("SELECT 1 FROM transactions WHERE tx_signature=?", (tx_sig,))
         return row is not None
 
     async def get_agent_volume_30d(self, wallet):
         cutoff = int(time.time()) - 30 * 86400
-        row = await self._db.execute_fetchone(
+        row = await self._fetchone(
             "SELECT COALESCE(SUM(amount_usdc),0) AS total FROM transactions WHERE wallet=? AND created_at>=?",
             (wallet, cutoff))
         return float(row["total"]) if row else 0.0
@@ -189,7 +194,7 @@ class Database:
         await self._db.commit()
 
     async def get_auction(self, auction_id):
-        row = await self._db.execute_fetchone("SELECT data FROM auctions WHERE auction_id=?", (auction_id,))
+        row = await self._fetchone("SELECT data FROM auctions WHERE auction_id=?", (auction_id,))
         return json.loads(row["data"]) if row else None
 
     async def update_auction(self, auction_id, updates):
@@ -214,11 +219,11 @@ class Database:
         now = int(time.time())
         cutoff = now - 86400
         try:
-            r1 = await self._db.execute_fetchone(
+            r1 = await self._fetchone(
                 "SELECT COALESCE(SUM(amount_usdc),0) AS vol FROM transactions WHERE created_at>=?", (cutoff,))
-            r2 = await self._db.execute_fetchone(
+            r2 = await self._fetchone(
                 "SELECT COALESCE(SUM(amount_usdc),0) AS rev FROM transactions")
-            r3 = await self._db.execute_fetchone("SELECT COUNT(*) AS cnt FROM listings")
+            r3 = await self._fetchone("SELECT COUNT(*) AS cnt FROM listings")
             return {
                 "volume_24h": float(r1["vol"]) if r1 else 0.0,
                 "total_revenue": float(r2["rev"]) if r2 else 0.0,
@@ -243,7 +248,7 @@ class Database:
         await self._db.commit()
 
     async def get_stake(self, wallet: str):
-        row = await self._db.execute_fetchone(
+        row = await self._fetchone(
             "SELECT data FROM stakes WHERE wallet=? ORDER BY created_at DESC LIMIT 1", (wallet,))
         return json.loads(row["data"]) if row else None
 
@@ -258,7 +263,7 @@ class Database:
         await self._db.commit()
 
     async def get_dispute(self, dispute_id: str):
-        row = await self._db.execute_fetchone(
+        row = await self._fetchone(
             "SELECT data FROM disputes WHERE dispute_id=?", (dispute_id,))
         return json.loads(row["data"]) if row else None
 
@@ -278,7 +283,7 @@ class Database:
         await self._db.commit()
 
     async def get_agent(self, api_key: str):
-        row = await self._db.execute_fetchone("SELECT * FROM agents WHERE api_key=?", (api_key,))
+        row = r = await self._db.execute_fetchall("SELECT * FROM agents WHERE api_key=?", (api_key,)); row = r[0] if r else None
         return dict(row) if row else None
 
     async def get_all_agents(self):
@@ -292,8 +297,8 @@ class Database:
         await self._db.commit()
 
     async def count_agents(self):
-        row = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agents")
-        return row["c"] if row else 0
+        rows = await self._db.execute_fetchall("SELECT COUNT(*) as c FROM agents")
+        return rows[0]["c"] if rows else 0
 
     # ── Marketplace: Services ──
 
@@ -312,8 +317,8 @@ class Database:
         return [dict(r) for r in rows]
 
     async def get_service(self, service_id: str):
-        row = await self._db.execute_fetchone("SELECT * FROM agent_services WHERE id=?", (service_id,))
-        return dict(row) if row else None
+        rows = await self._db.execute_fetchall("SELECT * FROM agent_services WHERE id=?", (service_id,))
+        return dict(rows[0]) if rows else None
 
     async def update_service(self, service_id: str, updates: dict):
         sets = ", ".join(f"{k}=?" for k in updates.keys())
@@ -331,12 +336,15 @@ class Database:
         await self._db.commit()
 
     async def get_marketplace_stats(self):
-        agents = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agents")
-        services = await self._db.execute_fetchone("SELECT COUNT(*) as c FROM agent_services WHERE status='active'")
-        txs = await self._db.execute_fetchone("SELECT COUNT(*) as c, COALESCE(SUM(price_usdc),0) as vol, COALESCE(SUM(commission_usdc),0) as comm FROM marketplace_tx")
+        rows = await self._db.execute_fetchall("SELECT COUNT(*) as c FROM agents")
+        agents_count = rows[0]["c"] if rows else 0
+        rows = await self._db.execute_fetchall("SELECT COUNT(*) as c FROM agent_services WHERE status='active'")
+        services_count = rows[0]["c"] if rows else 0
+        rows = await self._db.execute_fetchall("SELECT COUNT(*) as c, COALESCE(SUM(price_usdc),0) as vol, COALESCE(SUM(commission_usdc),0) as comm FROM marketplace_tx")
+        txs = rows[0] if rows else {}
         return {
-            "agents_registered": agents["c"] if agents else 0,
-            "services_listed": services["c"] if services else 0,
+            "agents_registered": agents_count,
+            "services_listed": services_count,
             "total_transactions": txs["c"] if txs else 0,
             "total_volume_usdc": txs["vol"] if txs else 0,
             "total_commission_usdc": txs["comm"] if txs else 0,
