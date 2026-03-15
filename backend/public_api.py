@@ -117,6 +117,7 @@ async def list_services():
             "description": s.get("description"),
             "price_usdc": s.get("priceUsdc"),
             "provider": "MAXIA",
+            "seller": "MAXIA",
             "rating": s.get("rating", 5.0),
         })
 
@@ -130,7 +131,9 @@ async def list_services():
                 "description": s["description"],
                 "price_usdc": s["price_usdc"],
                 "provider": s["agent_name"],
+                "seller": s["agent_name"],
                 "rating": s.get("rating", 5.0),
+                "sales": s.get("sales", 0),
             })
 
     return {

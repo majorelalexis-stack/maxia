@@ -1504,18 +1504,27 @@ async function loadSolPrice() {
 async function loadListings() {
   const r = await api('/api/public/services');
   const el = document.getElementById('listings-container');
-  document.getElementById('mkt-listings').textContent = r.ok ? (r.data.length || 0) : '?';
-  if (r.ok && r.data.length > 0) {
-    el.innerHTML = r.data.map(s => `
+  
+  // Handle both array and {services:[...]} response formats
+  let services = [];
+  if (r.ok) {
+    if (Array.isArray(r.data)) services = r.data;
+    else if (r.data && r.data.services) services = r.data.services;
+    else if (r.data && Array.isArray(r.data.agents)) services = r.data.agents;
+  }
+  
+  document.getElementById('mkt-listings').textContent = services.length || 0;
+  if (services.length > 0) {
+    el.innerHTML = services.map(s => `
       <div class="service-card">
-        <div class="service-icon" style="background:rgba(124,107,248,.1)">${s.seller ? '🤖' : '⚡'}</div>
+        <div class="service-icon" style="background:rgba(124,107,248,.1)">${(s.seller && s.seller !== 'MAXIA') ? '🤖' : '⚡'}</div>
         <div class="service-body">
-          <div class="service-name">${s.name || s.id} ${s.seller ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
+          <div class="service-name">${s.name || s.id} ${(s.seller && s.seller !== 'MAXIA') ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
           <div class="service-desc">${s.description || 'Service IA'}</div>
           <div class="service-footer">
-            <span class="service-price">${s.price_usdc || s.priceUsdc} USDC</span>
+            <span class="service-price">${s.price_usdc || s.priceUsdc || '?'} USDC</span>
             <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${s.type || 'AI'}</span>
-            ${s.seller ? '<span style="font-size:10px;color:var(--muted)">by ' + s.seller + '</span>' : ''}
+            ${(s.seller && s.seller !== 'MAXIA') ? '<span style="font-size:10px;color:var(--muted)">by ' + s.seller + '</span>' : ''}
             <span class="badge green">★ ${s.rating || 5}</span>
           </div>
         </div>
@@ -1531,9 +1540,10 @@ async function loadListings() {
   try {
     const ms = await api('/api/public/marketplace-stats');
     if (ms.ok && ms.data) {
-      document.getElementById('mkt-listings').textContent = ms.data.services_listed || 0;
-      if (document.getElementById('mkt-agents')) document.getElementById('mkt-agents').textContent = ms.data.agents_registered || 0;
+      document.getElementById('mkt-listings').textContent = ms.data.services_listed || services.length || 0;
+      if (document.getElementById('mkt-agents')) document.getElementById('mkt-agents').textContent = ms.data.registered_agents || 0;
       if (document.getElementById('mkt-revenue')) document.getElementById('mkt-revenue').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+      if (document.getElementById('mkt-txs')) document.getElementById('mkt-txs').textContent = ms.data.total_transactions || 0;
     }
   } catch(e){}
 }
@@ -1752,22 +1762,32 @@ async function loadDashboardStats() {
   showPage = _showPagePatched;
 
   // Charger stats reelles depuis l'API
-  const [statsR, listingsR, auctionsR] = await Promise.all([
+  const [statsR, listingsR, auctionsR, mktR] = await Promise.all([
     api('/api/stats'),
-    api('/api/marketplace/listings'),
+    api('/api/public/services'),
     api('/api/gpu/auctions/active'),
+    api('/api/public/marketplace-stats'),
   ]);
 
-  // Volume 24h
-  const vol = statsR.ok ? (statsR.data.volume_24h || 0) : 0;
+  // Marketplace stats
+  const mktVol = mktR.ok ? (mktR.data.total_volume_usdc || 0) : 0;
+  const mktRev = mktR.ok ? (mktR.data.total_commission_usdc || 0) : 0;
+  const mktAgents = mktR.ok ? (mktR.data.registered_agents || 0) : 0;
+  const mktTxs = mktR.ok ? (mktR.data.total_transactions || 0) : 0;
+
+  // Volume 24h (classic + marketplace)
+  const vol = (statsR.ok ? (statsR.data.volume_24h || 0) : 0) + mktVol;
   document.getElementById('vol24').textContent = vol.toFixed(2) + ' USDC';
   if (!statsR.ok) clog('⚠️ /api/stats: ' + (statsR.data.detail || statsR.status), 'warn');
 
-  const svc = listingsR.ok ? (Array.isArray(listingsR.data) ? listingsR.data.length : 0) : 0;
-  document.getElementById('svc-count').textContent = svc;
-  if (!listingsR.ok) clog('⚠️ /api/marketplace/listings: ' + (listingsR.data.detail || listingsR.status), 'warn');
+  // Services count (MAXIA + external agents)
+  const svcData = listingsR.ok ? listingsR.data : {};
+  const svcList = svcData.services || svcData;
+  const svc = Array.isArray(svcList) ? svcList.length : (svcData.total || 0);
+  document.getElementById('svc-count').textContent = svc || mktAgents;
 
-  const rev = statsR.ok ? (statsR.data.total_revenue || 0) : 0;
+  // Revenue (classic + marketplace commission)
+  const rev = (statsR.ok ? (statsR.data.total_revenue || 0) : 0) + mktRev;
   document.getElementById('rev-total').textContent = rev.toFixed(2) + ' USDC';
 
   const gpu = auctionsR.ok ? (Array.isArray(auctionsR.data) ? auctionsR.data.length : 0) : 0;
