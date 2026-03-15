@@ -11,3 +11,4 @@ python-multipart==0.0.9
 groq>=0.9.0
 solana>=0.32.0
 solders>=0.20.0
+tweepy>=4.14

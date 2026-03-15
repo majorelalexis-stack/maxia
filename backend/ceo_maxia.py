@@ -1594,6 +1594,13 @@ class CEOMaxia:
                 print(f"[CEO] RADAR spike {token} — GHOST-WRITER tweet + DEPLOYER blog")
                 tweet = await ghost_write("tweet", f"{token} is pumping! Trade it on MAXIA with lowest fees.", "twitter")
                 if tweet and not tweet.get("blocked"):
+                    # Post to Twitter
+                    try:
+                        from twitter_bot import post_tweet
+                        tweet_text = tweet.get("contenu", tweet.get("content", f"{token} trending on Solana. Trade on MAXIA: {MAXIA_URL}"))
+                        await post_tweet(tweet_text)
+                    except Exception as e:
+                        print(f"[CEO] Twitter post error: {e}")
                     self.memory.log_decision("vert", f"Tweet auto: {token} spike", "RADAR", "GHOST-WRITER")
                 # Blog post si c'est une categorie entiere
                 if alert.get("category"):
@@ -1604,6 +1611,12 @@ class CEOMaxia:
             elif alert.get("type") == "category_surge":
                 cat = alert.get("category", "")
                 print(f"[CEO] RADAR surge {cat} — DEPLOYER blog auto")
+                # Tweet about category surge
+                try:
+                    from twitter_bot import post_tweet
+                    await post_tweet(f"{cat.upper()} tokens surging on Solana. AI agents trade them on MAXIA marketplace. {MAXIA_URL}")
+                except Exception:
+                    pass
                 await self.deploy_blog(
                     f"Why {cat.upper()} Tokens Are Surging Right Now",
                     f"Market analysis: {cat} category up {alert.get('change',0):.0%}. How AI agents can profit using MAXIA.",

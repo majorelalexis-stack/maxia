@@ -303,6 +303,32 @@ async def ceo_reset_emergency(request: Request):
         return {"error": str(e)}
 
 
+@app.get("/api/twitter/status")
+async def twitter_status():
+    try:
+        from twitter_bot import get_stats
+        return get_stats()
+    except Exception as e:
+        return {"error": str(e), "configured": False}
+
+
+@app.post("/api/admin/tweet")
+async def admin_post_tweet(request: Request):
+    """Post un tweet manuellement (admin only)."""
+    key = request.query_params.get("key", "")
+    if key != ADMIN_KEY:
+        raise HTTPException(403, "Unauthorized")
+    try:
+        body = await request.json()
+        text = body.get("text", "")
+        if not text:
+            return {"error": "text required"}
+        from twitter_bot import post_tweet
+        return await post_tweet(text)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ═══════════════════════════════════════════════════════════
 #  x402 V2 (Art.9) — Multi-chain info
 # ═══════════════════════════════════════════════════════════
