@@ -599,14 +599,27 @@ async def my_earnings(x_api_key: str = Header(None, alias="X-API-Key")):
 async def marketplace_stats():
     """Statistiques globales de la marketplace."""
     await _load_from_db()
-    total_volume = sum(t.get("price_usdc", 0) for t in _transactions)
-    total_commission = sum(t.get("commission_usdc", 0) for t in _transactions)
+
+    # Read from DB first (persisted data survives restarts)
+    db_stats = {}
+    try:
+        from database import db
+        db_stats = await db.get_marketplace_stats()
+    except Exception:
+        pass
+
+    # Memory stats
+    mem_vol = sum(t.get("price_usdc", 0) for t in _transactions)
+    mem_comm = sum(t.get("commission_usdc", 0) for t in _transactions)
+    mem_txs = len(_transactions)
+
+    # Use the higher of DB or memory
     return {
-        "registered_agents": len(_registered_agents),
-        "services_listed": len([s for s in _agent_services if s["status"] == "active"]),
-        "total_transactions": len(_transactions),
-        "total_volume_usdc": total_volume,
-        "total_commission_usdc": total_commission,
+        "registered_agents": max(len(_registered_agents), db_stats.get("agents_registered", 0)),
+        "services_listed": max(len([s for s in _agent_services if s.get("status") == "active"]), db_stats.get("services_listed", 0)),
+        "total_transactions": max(mem_txs, db_stats.get("total_transactions", 0)),
+        "total_volume_usdc": max(mem_vol, db_stats.get("total_volume_usdc", 0)),
+        "total_commission_usdc": max(mem_comm, db_stats.get("total_commission_usdc", 0)),
         "commission_tiers": {
             "bronze": "5% (0-500 USDC)",
             "or": "1% (500-5000 USDC)",
