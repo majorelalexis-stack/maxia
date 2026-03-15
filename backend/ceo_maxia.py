@@ -533,8 +533,73 @@ class Memory:
 
 
 # ══════════════════════════════════════════
-# WATCHDOG — Validation + Self-Healing
+# WATCHDOG — Validation + Self-Healing + Health Check
 # ══════════════════════════════════════════
+
+HEALTH_ENDPOINTS = {
+    "landing": "/",
+    "health": "/health",
+    "agent_card": "/.well-known/agent.json",
+    "services": "/api/public/services",
+    "discover": "/api/public/discover?capability=test",
+    "prices": "/api/public/crypto/prices",
+    "marketplace_stats": "/api/public/marketplace-stats",
+    "ceo_status": "/api/ceo/status",
+    "twitter_status": "/api/twitter/status",
+    "swap_quote": "/api/public/crypto/quote?from_token=SOL&to_token=USDC&amount=1",
+    "stocks": "/api/public/stocks",
+    "gpu_tiers": "/api/public/gpu/tiers",
+    "docs": "/api/public/docs",
+}
+
+
+async def watchdog_health_check() -> dict:
+    """Test ALL endpoints and return status report."""
+    import httpx
+    results = {}
+    ok_count = 0
+    fail_count = 0
+
+    async with httpx.AsyncClient(timeout=10, verify=False) as client:
+        for name, endpoint in HEALTH_ENDPOINTS.items():
+            try:
+                r = await client.get(f"http://127.0.0.1:8000{endpoint}")
+                is_ok = r.status_code == 200
+                results[name] = {
+                    "status": "OK" if is_ok else f"HTTP {r.status_code}",
+                    "ok": is_ok,
+                }
+                if is_ok:
+                    ok_count += 1
+                else:
+                    fail_count += 1
+            except Exception as e:
+                results[name] = {"status": f"ERROR: {str(e)[:80]}", "ok": False}
+                fail_count += 1
+
+    report = {
+        "total": len(HEALTH_ENDPOINTS),
+        "ok": ok_count,
+        "failed": fail_count,
+        "endpoints": results,
+    }
+
+    # Alert on Discord if failures
+    if fail_count > 0:
+        failed_list = [f"❌ {n}: {r['status']}" for n, r in results.items() if not r["ok"]]
+        try:
+            from alerts import alert_system
+            await alert_system(
+                f"⚠️ WATCHDOG: {fail_count} endpoints DOWN",
+                f"{ok_count}/{len(HEALTH_ENDPOINTS)} OK\n" + "\n".join(failed_list)
+            )
+        except Exception:
+            pass
+    else:
+        print(f"[WATCHDOG] Health check: {ok_count}/{len(HEALTH_ENDPOINTS)} OK ✓")
+
+    return report
+
 
 async def watchdog_check_service(service: str) -> bool:
     endpoints = {
@@ -1565,6 +1630,19 @@ class CEOMaxia:
 
     async def _tactique(self):
         print(f"\n[CEO] === TACTIQUE #{self._cycle} ===")
+        
+        # WATCHDOG health check (every cycle)
+        try:
+            health = await watchdog_health_check()
+            self.memory.update_agent("WATCHDOG", {
+                "status": "actif",
+                "last_check": health.get("ok", 0),
+                "total": health.get("total", 0),
+                "failed": health.get("failed", 0),
+            })
+        except Exception as e:
+            print(f"[CEO] WATCHDOG health check error: {e}")
+
         data = await collect()
         self.memory.log_kpi(data)
 

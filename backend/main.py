@@ -312,6 +312,16 @@ async def twitter_status():
         return {"error": str(e), "configured": False}
 
 
+@app.get("/api/watchdog/health")
+async def watchdog_health():
+    """Run health check on all endpoints."""
+    try:
+        from ceo_maxia import watchdog_health_check
+        return await watchdog_health_check()
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/api/admin/tweet")
 async def admin_post_tweet(request: Request):
     """Post un tweet manuellement (admin only)."""
