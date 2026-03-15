@@ -1631,17 +1631,20 @@ class CEOMaxia:
     async def _tactique(self):
         print(f"\n[CEO] === TACTIQUE #{self._cycle} ===")
         
-        # WATCHDOG health check (every cycle)
-        try:
-            health = await watchdog_health_check()
-            self.memory.update_agent("WATCHDOG", {
-                "status": "actif",
-                "last_check": health.get("ok", 0),
-                "total": health.get("total", 0),
-                "failed": health.get("failed", 0),
-            })
-        except Exception as e:
-            print(f"[CEO] WATCHDOG health check error: {e}")
+        # WATCHDOG health check (skip first 2 cycles — server still starting)
+        if self._cycle >= 3:
+            try:
+                health = await watchdog_health_check()
+                self.memory.update_agent("WATCHDOG", {
+                    "status": "actif",
+                    "last_check": health.get("ok", 0),
+                    "total": health.get("total", 0),
+                    "failed": health.get("failed", 0),
+                })
+            except Exception as e:
+                print(f"[CEO] WATCHDOG health check error: {e}")
+        else:
+            print(f"[CEO] WATCHDOG skipped (cycle {self._cycle}, waiting for startup)")
 
         data = await collect()
         self.memory.log_kpi(data)

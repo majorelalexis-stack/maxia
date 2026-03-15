@@ -121,15 +121,33 @@ async def run_telegram_bot():
 
     print("[Telegram] Bot demarre — canal d'alertes actif")
 
-    # Message de demarrage
-    await send_telegram(
-        "🤖 <b>MAXIA Agent Marketing actif</b>\n\n"
-        "Ce canal publie :\n"
-        "📈 Alertes marche (actions tokenisees)\n"
-        "📊 Rapport quotidien\n"
-        "💰 Comparatifs prix hebdomadaires\n\n"
-        "Inscription gratuite: maxiaworld.app/api/public/register"
-    )
+    # Message de demarrage — 1 seule fois par jour
+    import os
+    flag_file = "/tmp/maxia_telegram_started"
+    today = time.strftime("%Y-%m-%d")
+    should_send_startup = True
+    try:
+        if os.path.exists(flag_file):
+            with open(flag_file) as f:
+                if f.read().strip() == today:
+                    should_send_startup = False
+    except Exception:
+        pass
+
+    if should_send_startup:
+        await send_telegram(
+            "🤖 <b>MAXIA V12 — AI-to-AI Marketplace</b>\n\n"
+            "Ce canal publie :\n"
+            "🔄 Transactions AI-to-AI en temps reel\n"
+            "📊 Rapport quotidien CEO\n"
+            "⚠️ Alertes WATCHDOG si service DOWN\n\n"
+            "Inscription gratuite: maxiaworld.app"
+        )
+        try:
+            with open(flag_file, "w") as f:
+                f.write(today)
+        except Exception:
+            pass
 
     last_daily = 0
     last_weekly = 0
@@ -150,8 +168,8 @@ async def run_telegram_bot():
             if hour == 20 and day != str(last_daily):
                 try:
                     async with httpx.AsyncClient(timeout=10) as client:
-                        r1 = await client.get("http://localhost:8080/api/stats")
-                        r2 = await client.get("http://localhost:8080/api/public/marketplace-stats")
+                        r1 = await client.get("http://localhost:8000/api/stats")
+                        r2 = await client.get("http://localhost:8000/api/public/marketplace-stats")
                         stats = {**r1.json(), **r2.json()}
                     await send_daily_report(stats)
                     last_daily = day
