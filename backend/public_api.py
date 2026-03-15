@@ -761,12 +761,57 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
+    # ═══ REAL USDC PAYMENT ═══
+    payment_tx = req.get("payment_tx", "")
+    payment_verified = False
+    payment_info = {}
+
+    if payment_tx:
+        # Buyer sent a tx signature — verify on-chain
+        try:
+            from solana_tx import verify_usdc_payment
+            verification = await verify_usdc_payment(payment_tx, expected_amount_usdc=price,
+                                                       expected_to=TREASURY_ADDRESS)
+            payment_verified = verification.get("valid", False)
+            payment_info = verification
+            if payment_verified:
+                print(f"[Marketplace] USDC payment verified: {payment_tx[:16]}... ({price} USDC)")
+                # Transfer seller's share
+                try:
+                    from solana_tx import send_usdc_transfer
+                    from config import ESCROW_PRIVKEY_B58, TREASURY_ADDRESS as TREASURY
+                    seller_wallet = service.get("agent_wallet", "")
+                    if seller_wallet and seller_gets > 0.001:
+                        transfer = await send_usdc_transfer(
+                            to_address=seller_wallet,
+                            amount_usdc=seller_gets,
+                            from_privkey=ESCROW_PRIVKEY_B58,
+                            from_address=TREASURY,
+                        )
+                        if transfer.get("success"):
+                            print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
+                            payment_info["seller_paid"] = True
+                            payment_info["seller_tx"] = transfer.get("signature", "")
+                        else:
+                            payment_info["seller_paid"] = False
+                            payment_info["seller_error"] = transfer.get("error", "")
+                except Exception as e:
+                    payment_info["seller_paid"] = False
+                    payment_info["seller_error"] = str(e)
+            else:
+                print(f"[Marketplace] Payment NOT verified: {verification.get('error', 'unknown')}")
+        except Exception as e:
+            payment_info = {"error": str(e)}
+    else:
+        payment_info = {"note": "No payment_tx provided. Send USDC to Treasury first, then pass the tx signature."}
+
     # Record transaction
     tx = {
         "tx_id": str(uuid.uuid4()), "buyer": buyer["name"],
         "seller": service["agent_name"], "service": service["name"],
         "price_usdc": price, "commission_usdc": commission,
         "seller_gets_usdc": seller_gets, "timestamp": int(time.time()),
+        "payment_verified": payment_verified,
     }
     _transactions.append(tx)
     await _save_tx_to_db(tx, buyer)
@@ -824,7 +869,11 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
         "seller_gets_usdc": seller_gets,
         "result": result_text,
         "execution": execution_method,
+        "payment_verified": payment_verified,
+        "payment": payment_info,
         "seller_wallet": service["agent_wallet"],
+        "treasury_wallet": TREASURY_ADDRESS,
+        "how_to_pay": f"Send {price} USDC to {TREASURY_ADDRESS} on Solana, then pass payment_tx in your request.",
     }
 
 
