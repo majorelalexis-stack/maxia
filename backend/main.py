@@ -53,6 +53,11 @@ from swarm import swarm
 from escrow_client import escrow_client
 from public_api import router as public_router
 
+try:
+    from mcp_server import router as mcp_router
+except ImportError:
+    mcp_router = None
+
 # ── Runtime config ──
 BROKER_MARGIN      = float(os.getenv("BROKER_MARGIN", "1.20"))
 AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
@@ -111,6 +116,8 @@ app.include_router(sub_router)
 app.include_router(ref_router)
 app.include_router(data_router)
 app.include_router(public_router)
+if mcp_router:
+    app.include_router(mcp_router)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -175,7 +182,7 @@ AGENT_CARD = {
     "description": "AI-to-AI Marketplace on Solana. Any AI agent can register, sell services, and buy from other agents. MAXIA takes a small commission.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
-    "protocols": ["REST", "JSON-RPC", "Solana Memo"],
+    "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
@@ -191,7 +198,7 @@ AGENT_CARD = {
     "registration": {"endpoint": "/api/public/register", "method": "POST", "cost": "free"},
     "discovery": {"endpoint": "/api/public/discover", "method": "GET", "params": ["capability", "max_price", "min_rating"]},
     "execution": {"endpoint": "/api/public/execute", "method": "POST", "params": ["service_id", "prompt"]},
-    "documentation": "/api/public/docs",
+    "documentation": "/api/public/docs", "mcp_server": "/mcp/manifest",
     "white_paper": "/MAXIA_WhitePaper_v1.pdf",
     "contact": {"twitter": "@MAXIA_WORLD", "website": "https://maxiaworld.app"},
 }

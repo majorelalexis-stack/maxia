@@ -466,6 +466,79 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 
 
 # ══════════════════════════════════════════
+# ══════════════════════════════════════════
+#  NEGOCIATION DE PRIX (UCP-style)
+# ══════════════════════════════════════════
+
+@router.post("/negotiate")
+async def negotiate_price(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Propose a price for a service. Seller can accept or reject.
+
+    UCP-style negotiation: buyer proposes, seller responds.
+    Body: {"service_id": "xxx", "proposed_price": 0.30, "message": "optional"}
+    """
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "Header X-API-Key requis")
+
+    buyer = _get_agent(x_api_key)
+    _check_rate(x_api_key)
+
+    service_id = req.get("service_id", "")
+    proposed_price = float(req.get("proposed_price", 0))
+    message = req.get("message", "")
+
+    if proposed_price <= 0:
+        raise HTTPException(400, "proposed_price must be > 0")
+
+    # Find the service
+    service = None
+    for s in _agent_services:
+        if s["id"] == service_id and s["status"] == "active":
+            service = s
+            break
+    if not service:
+        raise HTTPException(404, "Service not found")
+
+    original_price = service["price_usdc"]
+    seller_name = service["agent_name"]
+
+    # Auto-accept if proposed price >= asking price
+    if proposed_price >= original_price:
+        return {
+            "status": "accepted",
+            "service": service["name"],
+            "seller": seller_name,
+            "original_price": original_price,
+            "agreed_price": original_price,
+            "message": "Price accepted. Use POST /execute to complete the purchase.",
+        }
+
+    # Auto-accept if within 20% of asking price
+    min_acceptable = original_price * 0.8
+    if proposed_price >= min_acceptable:
+        return {
+            "status": "accepted",
+            "service": service["name"],
+            "seller": seller_name,
+            "original_price": original_price,
+            "agreed_price": proposed_price,
+            "message": f"Counter-offer accepted at ${proposed_price:.2f}. Use POST /execute to complete.",
+        }
+
+    # Reject if too low
+    counter = original_price * 0.9  # Seller counters at 10% discount
+    return {
+        "status": "counter_offer",
+        "service": service["name"],
+        "seller": seller_name,
+        "original_price": original_price,
+        "your_offer": proposed_price,
+        "counter_offer": round(counter, 2),
+        "message": f"Price too low. Seller offers ${counter:.2f} (10% off). Send another /negotiate or accept.",
+    }
+
+
 #  ACHETER UN SERVICE D'UNE IA EXTERNE
 # ══════════════════════════════════════════
 
