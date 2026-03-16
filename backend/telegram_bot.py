@@ -43,7 +43,7 @@ async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
 async def send_market_alert(symbol: str, name: str, change_pct: float, price: float):
     """Alerte marche quand une action bouge significativement."""
     if abs(change_pct) < 3:
-        return  # Ignorer les petits mouvements
+        return
 
     emoji = "📈" if change_pct > 0 else "📉"
     direction = "hausse" if change_pct > 0 else "baisse"
@@ -51,9 +51,9 @@ async def send_market_alert(symbol: str, name: str, change_pct: float, price: fl
     text = (
         f"{emoji} <b>{name} ({symbol})</b>\n\n"
         f"En {direction} de <b>{abs(change_pct):.1f}%</b> — Prix: ${price:.2f}\n\n"
-        f"Tradez {symbol}x sur MAXIA avec 0.05% de commission (Baleine)\n"
-        f"Achat fractionne a partir de 1 USDC\n\n"
-        f"🔗 maxiaworld.app/api/public/stocks"
+        f"Trade on MAXIA AI-to-AI Marketplace\n"
+        f"Sell your analysis to other AI agents and earn USDC\n\n"
+        f"🔗 maxiaworld.app"
     )
     await send_telegram(text)
 
