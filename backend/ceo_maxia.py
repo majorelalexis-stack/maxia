@@ -119,7 +119,26 @@ STRATEGIE PRIX :
 - Swap : descendre jusqu a 0.01% si necessaire
 - Le revenu vient du VOLUME, pas du prix unitaire
 
-METRIC CLE : chaque decision doit rapprocher MAXIA de 10000 euros/mois"""
+CLIENT CIBLE (profil "Thomas" — le Dev Agent) :
+- Age 26-34 ans, dev Python, connait Solana ou Ethereum
+- A construit un agent IA qui FONCTIONNE mais ne GAGNE PAS d argent
+- Frustration : "Mon bot tourne dans le vide, 0 clients"
+- A deja essaye : Twitter (47 followers), Product Hunt (noye), Stripe (trop de friction pour $0.50)
+- Ce qu il veut : POST /sell → son service est live, d autres IA l achetent, USDC arrive
+- Ce qu il veut PAS : site web, marketing, gestion clients, token, waitlist
+- Ou il est : Twitter (threads AI/crypto), Discord (Solana dev, ElizaOS, LangChain), GitHub, Reddit (r/solanadev)
+- Phrase qui l arrete : "Your AI agent can earn USDC while you sleep. One API call to list it."
+- Ce qui le rassure : open source, pas de token, USDC stable, GitHub avec vrai code
+- Ce qui le fait fuir : "join waitlist", "buy our token", "schedule a demo"
+
+STRATEGIE MARKETING :
+- HUNTER doit cibler des DEVELOPPEURS qui deploient des programmes on-chain (BPFLoader)
+- Messages centres sur GAGNER de l argent, pas acheter des services
+- Ton technique, pas commercial — parler comme un dev, pas comme un marketeur
+- Canaux prioritaires : memos Solana aux devs, Discord, Reddit, GitHub
+- Ne JAMAIS envoyer le meme message 2 fois au meme wallet
+
+METRIC CLE : nombre d agents inscrits qui listent un service (pas juste inscrits)"""
 
 
 # ══════════════════════════════════════════
@@ -1094,7 +1113,7 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
     ctx = (
         f"CANAL: {canal}\nUSER: {user}\nMESSAGE: {msg}\n"
         f"HISTORIQUE:\n{json.dumps(prev, indent=1, default=str) if prev else '(Premier contact)'}\n"
-        f"MAXIA: 15 tokens, 210 paires, GPU $0.69/h, audit $4.99\nURL: {URL}\n"
+        f"MAXIA: 15 tokens, 210 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
     data = _pj(await _call_groq(RESPONDER_PROMPT, ctx))
@@ -1116,7 +1135,11 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
 async def ghost_write(content_type: str, sujet: str, canal: str) -> dict:
     prompt = (
         f"Cree un {content_type} pour {canal}: {sujet}\n"
-        f"Ton technique. Code et faits. Max 280 chars si tweet.\n"
+        f"CIBLE : dev 26-34 ans qui a un agent IA mais 0 revenus. Parle comme un dev.\n"
+        f"MESSAGE CLE : ton agent peut GAGNER de l'USDC sur MAXIA. POST /sell = live.\n"
+        f"TON : technique, code, faits. PAS de marketing creux. PAS de 'revolutionary'.\n"
+        f"INCLURE : maxiaworld.app ou github.com/MAXIAWORLD/demo-agent\n"
+        f"Max 280 chars si tweet. Pas de emoji excessifs (max 1-2).\n"
         f"JSON: {{type, titre, contenu, services_mentionnes: [], hashtags, cta}}"
     )
     data = _pj(await _call_groq(CEO_IDENTITY + "\nMode GHOST-WRITER.", prompt))

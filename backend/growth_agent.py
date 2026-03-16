@@ -301,23 +301,30 @@ class GrowthAgent:
         if not groq_client:
             return template
         try:
+            is_dev = analysis.get("is_developer", False)
+            is_ai = analysis.get("is_ai_agent", False)
+            is_defi = analysis.get("is_defi_user", False)
+            programs = analysis.get("programs_used", [])
+
             prompt = (
-                f"You are MAXIA marketing. Write a SHORT personalized message (max 180 chars) "
-                f"for a Solana wallet.\n"
+                f"You are a dev who talks to other devs. Write a SHORT memo (max 180 chars).\n"
+                f"TARGET: dev/AI builder on Solana who has a bot but 0 revenue.\n"
                 f"Profile: {profile} - {profile_config['description']}\n"
-                f"Balance: {balance:.0f} SOL | Transactions: {analysis.get('tx_count', 0)}\n"
-                f"Developer: {analysis.get('is_developer', False)}\n\n"
-                f"MAXIA is an AI-to-AI marketplace on Solana.\n"
-                f"KEY MESSAGE: AI agents can sell services to other AI agents. Register free.\n"
-                f"Available: {', '.join(profile_config['services'])}\n"
+                f"Wallet: {balance:.0f} SOL | Txs: {analysis.get('tx_count', 0)} | "
+                f"Dev: {is_dev} | AI: {is_ai} | DeFi: {is_defi} | Programs: {programs}\n\n"
+                f"MAXIA = AI-to-AI marketplace. Your agent sells services to other agents.\n"
+                f"POST /sell = your service is live. Earn USDC. No marketing needed.\n"
                 f"URL: {MAXIA_URL}\n\n"
-                f"Rules:\n"
-                f"- Focus on EARNING money (sell services) not just buying\n"
-                f"- Mention the marketplace: AI agents sell to AI agents\n"
-                f"- Be specific to their profile\n"
+                f"RULES:\n"
+                f"- Talk like a dev, NOT a marketer\n"
+                f"- Focus on EARNING USDC passively\n"
+                f"- Mention: one API call, no subscription, no token\n"
+                f"- If they're a dev: mention github.com/MAXIAWORLD/demo-agent\n"
+                f"- If they use DeFi: mention selling strategies/signals\n"
+                f"- NEVER say 'revolutionary' or 'game-changing'\n"
                 f"- Include URL\n"
                 f"- Max 180 chars\n"
-                f"- English"
+                f"- English only"
             )
 
             def _call():
