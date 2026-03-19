@@ -307,6 +307,12 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 </div></body></html>""")
 
 
+# Google Search Console verification
+@app.get("/googleTpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM.html", response_class=HTMLResponse, include_in_schema=False)
+async def google_verification():
+    return HTMLResponse("google-site-verification: googleTpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM.html")
+
+
 @app.get("/health")
 async def health():
     return {

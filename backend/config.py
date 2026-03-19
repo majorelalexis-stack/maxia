@@ -148,26 +148,7 @@ BLOCKED_PATTERNS = [
 ]
 
 # ── Abonnements ──
-SUBSCRIPTION_PLANS = {
-    "basic": {
-        "name": "Basic",
-        "price_usdc": float(os.getenv("SUB_BASIC_USDC", "9.99")),
-        "requests_per_day": 100,
-        "features": ["marketplace", "exchange"],
-    },
-    "pro": {
-        "name": "Pro",
-        "price_usdc": float(os.getenv("SUB_PRO_USDC", "29.99")),
-        "requests_per_day": 1000,
-        "features": ["marketplace", "exchange", "auctions", "priority_agent"],
-    },
-    "elite": {
-        "name": "Elite",
-        "price_usdc": float(os.getenv("SUB_ELITE_USDC", "99.99")),
-        "requests_per_day": -1,
-        "features": ["all", "dedicated_agent", "data_marketplace", "api_access"],
-    },
-}
+SUBSCRIPTION_PLANS = {}  # Removed — MAXIA is pay-per-use only. No subscriptions.
 
 # ── Twitter/X API ──
 TWITTER_API_KEY        = os.getenv("TWITTER_API_KEY", "")

@@ -446,13 +446,13 @@ body::before {
       <span class="nav-badge" style="background:rgba(0,229,204,.2);color:var(--cyan)">NEW</span>
     </div>
     <div class="nav-section">IA Autonome</div>
-    <div class="nav-item" onclick="loadPublicAPI()" id="nav-publicapi">
+    <div class="nav-item" onclick="showPage('publicapi',this)" id="nav-publicapi">
       <span class="icon">🌐</span> API Publique <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
     </div>
-    <div class="nav-item" onclick="loadSwarmStats()" id="nav-swarm">
+    <div class="nav-item" onclick="showPage('swarm',this)" id="nav-swarm">
       <span class="icon">🐝</span> Essaim IA <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
     </div>
-    <div class="nav-item" onclick="loadEscrowStats()" id="nav-escrow">
+    <div class="nav-item" onclick="showPage('escrow',this)" id="nav-escrow">
       <span class="icon">🔒</span> Escrow <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
     </div>
     <a class="nav-item" href="/MAXIA_WhitePaper_v1.pdf" target="_blank" id="nav-wp" style="text-decoration:none;color:inherit">
@@ -1330,6 +1330,73 @@ body::before {
     </div>
   </div>
 
+  <!-- ══ PAGE: API PUBLIQUE ══ -->
+  <div class="page" id="page-publicapi">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Agents inscrits</div><div class="stat-value cyan" id="pub-agents">—</div></div>
+      <div class="stat-card purple"><div class="stat-label">Services listes</div><div class="stat-value purple" id="pub-services">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Transactions</div><div class="stat-value green" id="pub-txs">—</div></div>
+      <div class="stat-card gold"><div class="stat-label">Commission MAXIA</div><div class="stat-value gold" id="pub-commission">—</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header"><div class="panel-title">Services disponibles</div>
+          <button class="btn btn-cyan btn-sm" onclick="loadPublicAPIData()">↺ Actualiser</button></div>
+        <div class="panel-body" id="pub-services-list"><div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Documentation</div></div>
+      <div class="panel-body">
+        <p style="color:var(--muted);font-size:13px">Docs HTML: <a href="/docs-html" style="color:var(--purple)" target="_blank">/docs-html</a></p>
+        <p style="margin-top:4px;color:var(--muted);font-size:13px">MCP Server: <a href="/mcp/manifest" style="color:var(--purple)" target="_blank">/mcp/manifest</a></p>
+        <p style="margin-top:4px;color:var(--muted);font-size:13px">Agent Card: <a href="/.well-known/agent.json" style="color:var(--purple)" target="_blank">/.well-known/agent.json</a></p>
+        <p style="margin-top:8px;color:var(--muted);font-size:13px">Commission: 5% Bronze → 1% Or → 0.1% Baleine</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: ESSAIM IA ══ -->
+  <div class="page" id="page-swarm">
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header"><div class="panel-title">🐝 Essaim IA — Clones Specialises</div></div>
+        <div class="panel-body">
+          <div style="text-align:center;padding:40px;color:var(--muted)">
+            <div style="font-size:48px;margin-bottom:16px">🐝</div>
+            <div style="font-size:16px;font-weight:600">Module Essaim en preparation</div>
+            <div style="font-size:13px;margin-top:8px">Les clones specialises seront deployes dans une version future.</div>
+            <div style="font-size:13px;margin-top:4px;color:var(--purple)">Le CEO MAXIA gere deja 11 sous-agents autonomes.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: ESCROW ══ -->
+  <div class="page" id="page-escrow">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Escrow Wallet</div><div class="stat-value" style="font-size:12px;word-break:break-all">AQj2LEqEp5bxaXFJVwxKxRRsqXhuj8kgzGijNhTgzW9k</div></div>
+      <div class="stat-card green"><div class="stat-label">Mode</div><div class="stat-value green">Wallet intermediaire</div></div>
+      <div class="stat-card purple"><div class="stat-label">Smart Contract</div><div class="stat-value purple">V13 (a venir)</div></div>
+      <div class="stat-card gold"><div class="stat-label">Timeout</div><div class="stat-value gold">72h</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">🔒 Escrow — Paiements Securises</div></div>
+      <div class="panel-body">
+        <div style="padding:20px;color:var(--muted);font-size:13px">
+          <p>Le systeme d'escrow fonctionne actuellement en mode wallet intermediaire :</p>
+          <p style="margin-top:8px">1. L'acheteur envoie les USDC au wallet Treasury</p>
+          <p>2. MAXIA verifie le paiement on-chain</p>
+          <p>3. MAXIA transfere la part du vendeur automatiquement</p>
+          <p>4. MAXIA garde la commission</p>
+          <p style="margin-top:12px;color:var(--purple)">V13 : Smart contract Solana on-chain pour escrow trustless</p>
+          <p style="margin-top:4px">Remboursement automatique si service non livre sous 72h</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- ══ PAGE: LOGS ══ -->
   <div class="page" id="page-logs">
     <div class="panels-row">
@@ -1421,6 +1488,9 @@ function showPage(name, el) {
   if (name === 'kite')        loadKiteInfo();
   if (name === 'ap2')         { loadAP2Info(); loadAP2Stats(); }
   if (name === 'subscriptions') loadSubRevenue();
+  if (name === 'publicapi')   loadPublicAPIData();
+  if (name === 'swarm')       {} // Static page
+  if (name === 'escrow')      {} // Static page
 }
 
 // ── Toast ──
@@ -1547,6 +1617,30 @@ async function loadListings() {
       if (document.getElementById('mkt-txs')) document.getElementById('mkt-txs').textContent = ms.data.total_transactions || 0;
     }
   } catch(e){}
+}
+
+// ── Load Public API data ──
+async function loadPublicAPIData() {
+  try {
+    const ms = await api('/api/public/marketplace-stats');
+    if (ms.ok && ms.data) {
+      document.getElementById('pub-agents').textContent = ms.data.registered_agents || 0;
+      document.getElementById('pub-services').textContent = ms.data.services_listed || 0;
+      document.getElementById('pub-txs').textContent = ms.data.total_transactions || 0;
+      document.getElementById('pub-commission').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+    }
+    const sv = await api('/api/public/services');
+    const el = document.getElementById('pub-services-list');
+    const svcs = sv.ok ? (sv.data.services || []) : [];
+    if (svcs.length > 0) {
+      el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' +
+        svcs.map(s => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + (s.name||'') + '</td><td>' + (s.type||'') + '</td><td style="color:var(--green)">' + (s.price_usdc||'?') + ' USDC</td><td>' + (s.provider||s.seller||'MAXIA') + '</td></tr>').join('') + '</table>';
+    } else {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Aucun service externe. POST /api/public/sell pour lister.</div>';
+    }
+  } catch(e) {
+    console.error('loadPublicAPIData error:', e);
+  }
 }
 
 // ── Load Tokens ──
