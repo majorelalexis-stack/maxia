@@ -244,3 +244,176 @@ class RunPodClient:
 
 # Instance globale
 runpod_client = RunPodClient()
+
+
+# ══════════════════════════════════════════
+# LIVE GPU PRICING & AVAILABILITY
+# ══════════════════════════════════════════
+
+_gpu_price_cache: dict = {}
+_gpu_cache_ts: float = 0
+_GPU_CACHE_TTL = 300  # 5 minutes
+
+# Extended GPU map with all models
+GPU_FULL_MAP = {
+    "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "vram": 24, "category": "consumer"},
+    "a100_80":   {"runpod_id": "NVIDIA A100 80GB PCIe", "vram": 80, "category": "datacenter"},
+    "h100_sxm5": {"runpod_id": "NVIDIA H100 SXM5", "vram": 80, "category": "datacenter"},
+    "h200":      {"runpod_id": "NVIDIA H200 SXM", "vram": 141, "category": "datacenter"},
+    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "vram": 48, "category": "datacenter"},
+    "l40s":      {"runpod_id": "NVIDIA L40S", "vram": 48, "category": "datacenter"},
+    "rtx3090":   {"runpod_id": "NVIDIA GeForce RTX 3090", "vram": 24, "category": "consumer"},
+    "4xa100":    {"runpod_id": "NVIDIA A100 80GB PCIe", "vram": 320, "category": "multi", "gpu_count": 4},
+}
+
+# Competitor pricing (manually updated, March 2026)
+COMPETITOR_PRICES = {
+    "rtx4090": {
+        "runpod_community": 0.69, "runpod_secure": 0.74,
+        "aws": None, "gcp": None, "lambda": 0.75, "vast_ai": 0.40,
+    },
+    "a100_80": {
+        "runpod_community": 1.64, "runpod_secure": 1.79,
+        "aws": 4.10, "gcp": 3.67, "lambda": 1.29, "vast_ai": 0.90,
+    },
+    "h100_sxm5": {
+        "runpod_community": 2.49, "runpod_secure": 2.69,
+        "aws": 32.77, "gcp": 12.00, "lambda": 2.49, "vast_ai": 2.20,
+    },
+    "h200": {
+        "runpod_community": 3.99, "runpod_secure": 4.31,
+        "aws": None, "gcp": None, "lambda": 3.99, "vast_ai": None,
+    },
+    "a6000": {
+        "runpod_community": 0.79, "runpod_secure": 0.99,
+        "aws": None, "gcp": None, "lambda": 0.80, "vast_ai": 0.50,
+    },
+    "l40s": {
+        "runpod_community": 0.99, "runpod_secure": 1.14,
+        "aws": 1.84, "gcp": 1.70, "lambda": 0.99, "vast_ai": 0.85,
+    },
+}
+
+
+async def fetch_live_gpu_prices() -> dict:
+    """Fetch real-time GPU pricing and availability from RunPod GraphQL API."""
+    import time as _time
+    global _gpu_price_cache, _gpu_cache_ts
+
+    if _time.time() - _gpu_cache_ts < _GPU_CACHE_TTL and _gpu_price_cache:
+        return _gpu_price_cache
+
+    if not RUNPOD_API_KEY:
+        return {}
+
+    query = """
+    query {
+        gpuTypes {
+            id
+            displayName
+            memoryInGb
+            secureCloud
+            communityCloud
+            lowestPrice {
+                minimumBidPrice
+                uninterruptablePrice
+            }
+        }
+    }
+    """
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                BASE_URL,
+                headers={"Authorization": f"Bearer {RUNPOD_API_KEY}"},
+                json={"query": query},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                gpu_types = data.get("data", {}).get("gpuTypes", [])
+                prices = {}
+                for gpu in gpu_types:
+                    name = gpu.get("displayName", "")
+                    lowest = gpu.get("lowestPrice", {})
+                    prices[name] = {
+                        "display_name": name,
+                        "vram_gb": gpu.get("memoryInGb", 0),
+                        "secure_cloud": gpu.get("secureCloud", False),
+                        "community_cloud": gpu.get("communityCloud", False),
+                        "min_price": lowest.get("minimumBidPrice", 0),
+                        "on_demand_price": lowest.get("uninterruptablePrice", 0),
+                        "available": gpu.get("secureCloud", False) or gpu.get("communityCloud", False),
+                    }
+                _gpu_price_cache = prices
+                _gpu_cache_ts = _time.time()
+                print(f"[RunPod] Live prices fetched: {len(prices)} GPU types")
+                return prices
+    except Exception as e:
+        print(f"[RunPod] Live pricing error: {e}")
+
+    return {}
+
+
+async def get_gpu_tiers_live() -> dict:
+    """Get all GPU tiers with live pricing, availability, and competitor comparison."""
+    live_prices = await fetch_live_gpu_prices()
+
+    tiers = []
+    for tier_id, info in GPU_FULL_MAP.items():
+        runpod_name = info["runpod_id"]
+
+        # Try to find live price
+        live = live_prices.get(runpod_name, {})
+        if live:
+            price = live.get("on_demand_price", 0)
+            available = live.get("available", False)
+            source = "runpod_live"
+        else:
+            # Fallback to competitor prices
+            comp = COMPETITOR_PRICES.get(tier_id, {})
+            price = comp.get("runpod_secure", comp.get("runpod_community", 0))
+            available = True  # Assume available if no live data
+            source = "cached"
+
+        # Get competitor comparison
+        competitors = COMPETITOR_PRICES.get(tier_id, {})
+        comparison = {}
+        for provider, comp_price in competitors.items():
+            if comp_price and comp_price > 0 and provider != "runpod_community" and provider != "runpod_secure":
+                savings = round((1 - price / comp_price) * 100, 0) if comp_price > price else 0
+                comparison[provider] = {
+                    "price": comp_price,
+                    "savings_pct": savings,
+                }
+
+        gpu_count = info.get("gpu_count", 1)
+        tiers.append({
+            "id": tier_id,
+            "label": runpod_name.replace("NVIDIA ", ""),
+            "vram_gb": info["vram"],
+            "gpu_count": gpu_count,
+            "category": info["category"],
+            "price_per_hour_usdc": round(price, 2),
+            "available": available,
+            "source": source,
+            "maxia_markup": "0%",
+            "competitors": comparison,
+        })
+
+    # Sort by price
+    tiers.sort(key=lambda x: x["price_per_hour_usdc"])
+
+    # Calculate cheapest for each category
+    cheapest_overall = min(tiers, key=lambda x: x["price_per_hour_usdc"]) if tiers else {}
+
+    return {
+        "gpu_count": len(tiers),
+        "tiers": tiers,
+        "provider": "RunPod (via MAXIA)",
+        "maxia_markup": "0% — same price as RunPod, pay with USDC",
+        "cheapest": cheapest_overall.get("label", ""),
+        "updated": int(time.time()),
+        "advantage": "Pay with USDC on Solana. No RunPod account needed. AI agents can rent via API.",
+    }
+

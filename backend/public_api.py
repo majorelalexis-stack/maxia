@@ -1146,25 +1146,68 @@ async def public_wallet_analysis(address: str = ""):
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():
-    """Liste les GPU disponibles avec prix en temps reel. Sans auth."""
-    from config import GPU_TIERS, BROKER_MARGIN
-    tiers = []
-    for gpu in GPU_TIERS:
-        price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
-        tiers.append({
-            "id": gpu["id"],
-            "label": gpu["label"],
-            "vram_gb": gpu["vram_gb"],
-            "price_per_hour_usdc": price,
-            "pricing": "prix coutant RunPod (0% marge MAXIA)",
-            "commission": "Dynamique: 5% Bronze → 1% Or → 0.1% Baleine",
-            "payment": "USDC sur Solana",
-        })
+    """Liste les GPU disponibles avec prix live, disponibilite et comparaison concurrents."""
+    try:
+        from runpod_client import get_gpu_tiers_live
+        return await get_gpu_tiers_live()
+    except Exception as e:
+        # Fallback to static config
+        from config import GPU_TIERS, BROKER_MARGIN
+        tiers = []
+        for gpu in GPU_TIERS:
+            price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
+            tiers.append({
+                "id": gpu["id"],
+                "label": gpu["label"],
+                "vram_gb": gpu["vram_gb"],
+                "price_per_hour_usdc": price,
+                "available": True,
+                "source": "fallback",
+                "maxia_markup": "0%",
+            })
+        return {
+            "gpu_count": len(tiers),
+            "tiers": tiers,
+            "provider": "RunPod (via MAXIA)",
+            "error": str(e),
+        }
+
+
+@router.get("/gpu/compare")
+async def public_gpu_compare(gpu: str = "h100_sxm5"):
+    """Compare GPU prices across providers. Shows MAXIA vs AWS vs GCP vs Lambda vs Vast.ai.
+
+    Example: /gpu/compare?gpu=h100_sxm5
+    """
+    from runpod_client import COMPETITOR_PRICES, GPU_FULL_MAP
+    info = GPU_FULL_MAP.get(gpu)
+    prices = COMPETITOR_PRICES.get(gpu)
+    if not info or not prices:
+        available = list(COMPETITOR_PRICES.keys())
+        return {"error": f"GPU '{gpu}' not found. Available: {available}"}
+
+    maxia_price = prices.get("runpod_secure", prices.get("runpod_community", 0))
+    comparison = []
+    for provider, price in prices.items():
+        if price and price > 0:
+            savings = round((1 - maxia_price / price) * 100, 1) if price > maxia_price else 0
+            more_expensive = round((maxia_price / price - 1) * 100, 1) if price < maxia_price else 0
+            comparison.append({
+                "provider": provider,
+                "price_per_hour": price,
+                "vs_maxia": f"{savings}% cheaper" if savings > 0 else f"{more_expensive}% more" if more_expensive > 0 else "same",
+            })
+
+    comparison.sort(key=lambda x: x["price_per_hour"])
+
     return {
-        "gpu_count": len(tiers),
-        "tiers": tiers,
-        "provider": "RunPod (via MAXIA)",
-        "advantage": "Payez en USDC sur Solana. Pas besoin de compte RunPod. Commission la plus basse du marche.",
+        "gpu": gpu,
+        "label": info["runpod_id"].replace("NVIDIA ", ""),
+        "vram_gb": info["vram"],
+        "maxia_price": maxia_price,
+        "maxia_markup": "0%",
+        "comparison": comparison,
+        "note": "MAXIA charges 0% markup. Same price as RunPod but payable in USDC on Solana.",
     }
 
 
