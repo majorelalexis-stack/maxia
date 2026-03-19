@@ -40,6 +40,13 @@ BASE_CHAIN_ID         = 8453
 BASE_USDC_CONTRACT    = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 TREASURY_ADDRESS_BASE = os.getenv("TREASURY_ADDRESS_BASE", "")
 
+# ── Ethereum Mainnet (grosses transactions uniquement) ──
+ETH_RPC              = os.getenv("ETH_RPC", "https://eth.llamarpc.com")
+ETH_CHAIN_ID         = 1
+ETH_USDC_CONTRACT    = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+TREASURY_ADDRESS_ETH = os.getenv("TREASURY_ADDRESS_ETH", "")
+ETH_MIN_TX_USDC      = float(os.getenv("ETH_MIN_TX_USDC", "10"))  # min $10 sur ETH (gas fees)
+
 # ── Kite AI ──
 KITE_API_URL  = os.getenv("KITE_API_URL", "https://api.gokite.ai/v1")
 KITE_API_KEY  = os.getenv("KITE_API_KEY", "")
@@ -53,7 +60,7 @@ AP2_SIGNING_KEY = os.getenv("AP2_SIGNING_KEY", "")
 
 # ── x402 ──
 X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
-SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet"]
+SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
     "/api/data/datasets":       0.10,

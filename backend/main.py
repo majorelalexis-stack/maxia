@@ -359,7 +359,7 @@ async def health():
             "12-Data", "13-Base-L2", "14-KiteAI", "15-AP2",
             "16-DynamicPricing", "17-CrossChain", "18-ReputationStaking", "19-ScaleOut", "20-CloneSwarm", "21-EscrowOnChain", "22-PublicAPI-IA", "23-StockExchange", "24-CryptoSwap", "25-WebScraper", "26-ImageGen", "27-WalletMonitor",
         ],
-        "networks": ["solana-mainnet", "base-mainnet", "kite-mainnet"],
+        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "kite-mainnet"],
         "protocols": ["x402-v2", "ap2", "kite-air"],
     }
 
@@ -881,6 +881,37 @@ async def verify_base_tx(req: BaseVerifyRequest):
 @app.post("/api/base/verify-usdc")
 async def verify_base_usdc(req: BaseVerifyRequest):
     return await verify_usdc_transfer_base(req.tx_hash, req.expected_amount_raw)
+
+
+# ═══════════════════════════════════════════════════════════
+#  ETHEREUM — Mainnet (grosses transactions)
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/ethereum/info")
+async def ethereum_info():
+    from config import ETH_RPC, ETH_CHAIN_ID, ETH_USDC_CONTRACT, TREASURY_ADDRESS_ETH, ETH_MIN_TX_USDC
+    return {
+        "network": "ethereum-mainnet",
+        "chainId": ETH_CHAIN_ID,
+        "rpc": ETH_RPC,
+        "usdcContract": ETH_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_ETH,
+        "minTransactionUsdc": ETH_MIN_TX_USDC,
+        "status": "active" if TREASURY_ADDRESS_ETH else "not_configured",
+        "note": "Ethereum mainnet for large transactions only (high gas fees). Use Solana or Base for small amounts.",
+    }
+
+
+@app.post("/api/ethereum/verify")
+async def verify_eth_tx(req: BaseVerifyRequest):
+    from eth_verifier import verify_eth_transaction
+    return await verify_eth_transaction(req.tx_hash, req.expected_to)
+
+
+@app.post("/api/ethereum/verify-usdc")
+async def verify_eth_usdc(req: BaseVerifyRequest):
+    from eth_verifier import verify_usdc_transfer_eth
+    return await verify_usdc_transfer_eth(req.tx_hash, req.expected_amount_raw)
 
 
 # ═══════════════════════════════════════════════════════════

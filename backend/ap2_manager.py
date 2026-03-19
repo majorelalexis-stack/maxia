@@ -171,8 +171,8 @@ class AP2Manager:
             "ap2Version": "1.0",
             "agentId": AP2_AGENT_ID,
             "platform": "maxia",
-            "supportedNetworks": ["solana-mainnet", "base-mainnet"],
-            "supportedCurrencies": ["USDC", "SOL"],
+            "supportedNetworks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet"],
+            "supportedCurrencies": ["USDC", "SOL", "ETH"],
             "capabilities": [
                 "ai_inference", "gpu_compute", "data_marketplace",
                 "code_audit", "image_generation",
@@ -230,6 +230,16 @@ class AP2Manager:
                     tx_hash=payment_payload,
                     expected_amount_raw=int(expected * 1e6) if expected else None,
                     expected_recipient=TREASURY_ADDRESS_BASE,
+                )
+                result["txHash"] = payment_payload
+                return result
+            if "ethereum" in network:
+                from eth_verifier import verify_usdc_transfer_eth
+                from config import TREASURY_ADDRESS_ETH
+                result = await verify_usdc_transfer_eth(
+                    tx_hash=payment_payload,
+                    expected_amount_raw=int(expected * 1e6) if expected else None,
+                    expected_recipient=TREASURY_ADDRESS_ETH,
                 )
                 result["txHash"] = payment_payload
                 return result
