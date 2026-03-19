@@ -1686,14 +1686,14 @@ class CEOMaxia:
         # ORACLE scan (off-chain — social listening)
         oracle_trends = await oracle_scan_trends(self.memory)
 
-        # RAG — indexer les nouvelles decisions
+        # Vector Memory — indexer les nouvelles decisions
         try:
-            from ceo_rag import rag
+            from ceo_vector_memory import vector_memory
             for dec in self.memory._data.get("decisions", [])[-3:]:
-                rag.index_decision(dec)
+                vector_memory.store_decision(dec)
             for conv in self.memory._data.get("conversations", [])[-3:]:
-                rag.index_conversation(conv)
-        except ImportError:
+                vector_memory.store_conversation(conv)
+        except Exception:
             pass
 
         # MICRO wallet status
@@ -1749,10 +1749,10 @@ class CEOMaxia:
         # RAG — rechercher le contexte pertinent
         rag_context = ""
         try:
-            from ceo_rag import rag
+            from ceo_vector_memory import vector_memory
             if data.get("erreurs"):
-                rag_context = rag.search_context(" ".join(str(e) for e in data["erreurs"][:2]), 3)
-        except ImportError:
+                rag_context = vector_memory.search_context(" ".join(str(e) for e in data["erreurs"][:2]), 3)
+        except Exception:
             pass
 
         ctx = self.memory.ctx("tactique")

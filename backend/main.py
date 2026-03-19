@@ -483,6 +483,27 @@ async def ceo_ask(request: Request):
         return {"error": str(e)}
 
 
+@app.get("/api/ceo/memory")
+async def ceo_memory_stats():
+    """Get CEO vector memory statistics."""
+    try:
+        from ceo_vector_memory import vector_memory
+        return vector_memory.stats()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/memory/search")
+async def ceo_memory_search(q: str = "", collection: str = ""):
+    """Search CEO memory. Example: /api/ceo/memory/search?q=whale+conversion"""
+    try:
+        from ceo_vector_memory import vector_memory
+        results = vector_memory.search(q, collection=collection or None, max_results=5)
+        return {"query": q, "results": results}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/api/admin/tweet")
 async def admin_post_tweet(request: Request):
     """Post un tweet manuellement (admin only)."""
