@@ -98,33 +98,16 @@ def _get_agent(api_key: str) -> dict:
 
 @router.get("/services")
 async def list_services():
-    """Liste tous les services disponibles (MAXIA + IA externes). Gratuit, sans auth."""
+    """Liste tous les services disponibles. Priorité aux agents externes. MAXIA en fallback uniquement."""
     await _load_from_db()
-    try:
-        from database import db
-        maxia_services = await db.get_listings()
-    except Exception:
-        maxia_services = []
 
-    all_services = []
+    external_services = []
+    maxia_fallback = []
 
-    # Services MAXIA
-    for s in maxia_services:
-        all_services.append({
-            "id": s.get("id"),
-            "name": s.get("name"),
-            "type": s.get("type"),
-            "description": s.get("description"),
-            "price_usdc": s.get("priceUsdc"),
-            "provider": "MAXIA",
-            "seller": "MAXIA",
-            "rating": s.get("rating", 5.0),
-        })
-
-    # Services d'IA externes
+    # Services d'IA externes (prioritaire)
     for s in _agent_services:
         if s.get("status") == "active":
-            all_services.append({
+            external_services.append({
                 "id": s["id"],
                 "name": s["name"],
                 "type": s["type"],
@@ -134,46 +117,81 @@ async def list_services():
                 "seller": s["agent_name"],
                 "rating": s.get("rating", 5.0),
                 "sales": s.get("sales", 0),
+                "source": "external_agent",
             })
+
+    # Capabilities with external coverage
+    external_caps = set()
+    for s in external_services:
+        for word in (s.get("name", "") + " " + s.get("type", "")).lower().split():
+            external_caps.add(word)
+
+    # MAXIA fallback — only shown if no external agent covers the capability
+    fallback_services = [
+        {"id": "maxia_audit", "name": "AI Security Audit", "type": "security", "description": "AI-powered code audit. Fallback — seeking external providers.", "price_usdc": 9.99, "capability": "audit"},
+        {"id": "maxia_code", "name": "Code Generation", "type": "code", "description": "Code generation via LLM. Fallback — seeking external providers.", "price_usdc": 3.99, "capability": "code"},
+        {"id": "maxia_data", "name": "Data Analysis", "type": "data", "description": "Crypto data analysis. Fallback — seeking external providers.", "price_usdc": 2.99, "capability": "data"},
+        {"id": "maxia_translate", "name": "Translation", "type": "text", "description": "Multi-language translation. Fallback — seeking external providers.", "price_usdc": 0.19, "capability": "translation"},
+        {"id": "maxia_image", "name": "Image Generation", "type": "media", "description": "HD image generation. Fallback — seeking external providers.", "price_usdc": 0.05, "capability": "image"},
+        {"id": "maxia_scraper", "name": "Web Scraper", "type": "data", "description": "Web page extraction. Fallback — seeking external providers.", "price_usdc": 0.02, "capability": "scraper"},
+    ]
+
+    for fb in fallback_services:
+        cap = fb["capability"]
+        has_external = any(cap in (s.get("name", "") + s.get("type", "")).lower() for s in external_services)
+        if not has_external:
+            maxia_fallback.append({
+                "id": fb["id"],
+                "name": fb["name"],
+                "type": fb["type"],
+                "description": fb["description"],
+                "price_usdc": fb["price_usdc"],
+                "provider": "MAXIA (fallback)",
+                "seller": "MAXIA",
+                "rating": 4.0,
+                "source": "maxia_fallback",
+                "note": "Seeking external providers. List your service: POST /sell",
+            })
+
+    all_services = external_services + maxia_fallback
 
     return {
         "total": len(all_services),
+        "external_agents": len(external_services),
+        "maxia_fallback": len(maxia_fallback),
         "services": all_services,
+        "message": "MAXIA is a pure marketplace. External agents are prioritized. List your service: POST /api/public/sell",
         "commission_info": {
             "bronze": "5% (0-500 USDC/mois)",
             "or": "1% (500-5000 USDC/mois)",
             "baleine": "0.1% (5000+ USDC/mois)",
         },
-        "registration": "POST /api/public/register (gratuit)",
     }
 
 
 @router.get("/prices")
 async def get_prices():
-    """Prix en temps reel, ajustes par le Dynamic Pricing."""
-    try:
-        from dynamic_pricing import get_pricing_status
-        pricing = get_pricing_status()
-    except Exception:
-        pricing = {"enabled": False}
-
+    """Prix en temps reel. Pay per use only — no packs, no subscription."""
     return {
-        "services": {
-            "ai_security_scan": {"price": 4.99, "unit": "per scan"},
-            "crypto_data_analyst": {"price": 2.99, "unit": "per query"},
-            "code_engineer": {"price": 3.99, "unit": "per task"},
-            "universal_translator": {"price": 0.09, "unit": "per request"},
-            "deep_security_audit": {"price": 49.99, "unit": "per audit"},
+        "model": "pay_per_use",
+        "note": "MAXIA is a pure marketplace. Prices set by external sellers. Free services available via API.",
+        "free_services": {
+            "sentiment": "/sentiment?token=BTC",
+            "trending": "/trending",
+            "fear_greed": "/fear-greed",
+            "defi_yield": "/defi/best-yield?asset=USDC",
+            "token_risk": "/token-risk?address=X",
+            "wallet_analysis": "/wallet-analysis?address=X",
+            "crypto_prices": "/crypto/prices",
+            "gpu_compare": "/gpu/compare?gpu=h100_sxm5",
         },
-        "packs": {
-            "starter_10": {"price": 9.99, "requests": 10, "discount": "20%"},
-            "pro_50": {"price": 39.99, "requests": 50, "discount": "35%"},
-            "unlimited_monthly": {"price": 79.99, "period": "30 days"},
+        "gpu_pricing": "See /gpu/tiers — 0% markup, RunPod at cost",
+        "marketplace_commission": {
+            "bronze": "5% (0-500 USDC/mois)",
+            "or": "1% (500-5000 USDC/mois)",
+            "baleine": "0.1% (5000+ USDC/mois)",
         },
-        "commission_tiers": pricing.get("current_tiers", []),
-        "dynamic_pricing": pricing.get("enabled", False),
-        "currency": "USDC",
-        "payment_methods": ["x402", "ap2", "direct_usdc", "kite"],
+        "currency": "USDC on Solana",
     }
 
 
