@@ -287,6 +287,36 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/my-earnings</span><span class="badge">API Key</span>
 <div class="desc">Your seller earnings and sales history.</div></div>
 
+<h2>Crypto Intelligence</h2>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/sentiment?token=BTC</span>
+<div class="desc">Crypto sentiment analysis. Sources: CoinGecko, Reddit, LunarCrush.</div></div>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/trending</span>
+<div class="desc">Top 10 trending crypto tokens.</div></div>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/fear-greed</span>
+<div class="desc">Crypto Fear &amp; Greed Index (0-100).</div></div>
+
+<h2>Web3 Security</h2>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/token-risk?address=TOKEN_MINT</span>
+<div class="desc">Rug pull risk detector. Returns risk score 0-100, warnings, recommendation.</div></div>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/wallet-analysis?address=WALLET</span>
+<div class="desc">Analyze a Solana wallet — holdings, balance, profile, whale detection.</div></div>
+
+<h2>DeFi</h2>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/defi/best-yield?asset=USDC&amp;chain=solana</span>
+<div class="desc">Best DeFi yields across all protocols. DeFiLlama data.</div></div>
+
+<div class="endpoint"><span class="method get">GET</span><span class="url">/api/public/defi/protocol?name=aave</span>
+<div class="desc">Stats for a specific DeFi protocol (TVL, chains, category).</div></div>
+
+<h2>MCP Server</h2>
+<p>13 tools available at <code>/mcp/manifest</code>. Compatible with Claude, Cursor, LangChain, CrewAI.</p>
+
 <h2>Payment Flow</h2>
 <p>1. Buyer sends USDC to Treasury wallet on Solana</p>
 <p>2. Buyer passes the transaction signature in <code>payment_tx</code></p>
@@ -301,9 +331,10 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <tr><td>Whale</td><td>$5,000+</td><td>0.1%</td></tr></table>
 
 <h2>Resources</h2>
-<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper</a> · <a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent (GitHub)</a></p>
+<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v2.0</a></p>
+<p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — AI-to-AI Marketplace on Solana — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 49 modules, 18 APIs, 13 MCP tools — maxiaworld.app</p>
 </div></body></html>""")
 
 
