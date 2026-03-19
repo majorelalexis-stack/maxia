@@ -50,6 +50,11 @@ FALLBACK_PRICES = {
     "AAPL": 257, "TSLA": 397, "NVDA": 178, "GOOGL": 299,
     "MSFT": 403, "AMZN": 213, "META": 614, "MSTR": 340,
     "SPY": 672, "QQQ": 515,
+    "NFLX": 99, "AMD": 192, "PLTR": 157, "COIN": 200,
+    "CRM": 280, "INTC": 43, "UBER": 75, "MARA": 20,
+    "AVGO": 330, "DIA": 495, "IWM": 262, "GLD": 450,
+    "ARKK": 55, "RIOT": 12, "SHOP": 100, "SQ": 80,
+    "PYPL": 70, "ORCL": 170,
 }
 
 _price_cache: dict = {}
@@ -225,7 +230,9 @@ async def get_crypto_prices() -> dict:
 
 async def get_stock_prices() -> dict:
     global _stock_cache, _stock_cache_ts
-    stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"]
+    stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ",
+              "NFLX", "AMD", "PLTR", "COIN", "CRM", "INTC", "UBER", "MARA",
+              "AVGO", "DIA", "IWM", "GLD", "ARKK", "RIOT", "SHOP", "SQ", "PYPL", "ORCL"]
 
     # Use cache if fresh
     if time.time() - _stock_cache_ts < _STOCK_CACHE_TTL and _stock_cache:
