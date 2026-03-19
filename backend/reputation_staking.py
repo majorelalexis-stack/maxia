@@ -17,9 +17,14 @@ class ReputationStaking:
             return {"success": False, "error": f"Minimum {STAKING_MIN_USDC} USDC requis"}
 
         from solana_verifier import verify_transaction
-        tx_ok = await verify_transaction(tx_signature, wallet)
-        if not tx_ok:
-            return {"success": False, "error": "Transaction invalide"}
+        from config import TREASURY_ADDRESS
+        tx_result = await verify_transaction(
+            tx_signature=tx_signature,
+            expected_amount_usdc=amount_usdc,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            return {"success": False, "error": f"Transaction invalide: {tx_result.get('error', 'verification echouee')}"}
 
         stake_info = {
             "stakeId": str(uuid.uuid4()),

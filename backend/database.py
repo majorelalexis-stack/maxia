@@ -77,6 +77,13 @@ DB_SCHEMA = (
     "dispute_id TEXT PRIMARY KEY, data TEXT NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
+    "CREATE TABLE IF NOT EXISTS escrow_records ("
+    "escrow_id TEXT PRIMARY KEY, buyer TEXT NOT NULL, seller TEXT NOT NULL,"
+    "status TEXT DEFAULT 'locked', data TEXT NOT NULL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE INDEX IF NOT EXISTS idx_escrow_status ON escrow_records(status);"
+
     "CREATE TABLE IF NOT EXISTS agents ("
     "api_key TEXT PRIMARY KEY, name TEXT NOT NULL, wallet TEXT NOT NULL,"
     "description TEXT DEFAULT '', tier TEXT DEFAULT 'BRONZE',"

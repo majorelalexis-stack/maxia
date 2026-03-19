@@ -59,8 +59,11 @@ async def x402_middleware(request: Request, call_next):
             result = await x402_verify_payment_base(pay_header, price)
         else:
             from solana_verifier import verify_transaction
-            ok = await verify_transaction(pay_header)
-            result = {"valid": ok}
+            result = await verify_transaction(
+                tx_signature=pay_header,
+                expected_amount_usdc=price,
+                expected_recipient=TREASURY_ADDRESS,
+            )
 
         if not result.get("valid"):
             return JSONResponse(

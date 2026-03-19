@@ -166,25 +166,13 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
 
 async def verify_usdc_payment(tx_signature: str, expected_amount_usdc: float = 0,
                                 expected_to: str = "") -> dict:
-    rpc = get_rpc_url()
-    try:
-        payload = {
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getTransaction",
-            "params": [tx_signature, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-        }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
-        result = data.get("result")
-        if not result:
-            return {"valid": False, "error": "Transaction introuvable"}
-        meta = result.get("meta", {})
-        if meta.get("err"):
-            return {"valid": False, "error": f"Transaction echouee: {meta['err']}"}
-        return {"valid": True, "signature": tx_signature}
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
+    """Verifie un paiement USDC avec montant et destinataire via solana_verifier."""
+    from solana_verifier import verify_transaction
+    return await verify_transaction(
+        tx_signature=tx_signature,
+        expected_amount_usdc=expected_amount_usdc,
+        expected_recipient=expected_to,
+    )
 
 
 async def check_wallet_activity(wallet_address: str, min_sol: float = 0.1) -> dict:

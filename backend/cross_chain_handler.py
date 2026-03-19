@@ -79,12 +79,8 @@ class CrossChainHandler:
         if not bridge:
             return {"error": "Bridge introuvable"}
 
-        # SECURITE CRITIQUE : Verifier que les fonds sont REELLEMENT arrives
-        # sur le wallet Solana treasury avant de valider
-        from solana_verifier import verify_transaction
-        from solana_tx import get_sol_balance
-
         # Verifier le solde actuel de la treasury
+        from solana_tx import get_sol_balance
         balance = await get_sol_balance(TREASURY_ADDRESS)
 
         bridge["treasury_balance_check"] = balance
@@ -101,12 +97,17 @@ class CrossChainHandler:
         if not bridge:
             return {"success": False, "error": "Bridge introuvable"}
 
-        # VERIFIER ON-CHAIN que les fonds sont arrives
+        # VERIFIER ON-CHAIN que les fonds sont arrives au treasury avec le bon montant
         from solana_verifier import verify_transaction
-        tx_ok = await verify_transaction(tx_signature)
+        expected_amount = float(bridge.get("estimatedOutput", 0)) / 1e6 if bridge.get("estimatedOutput") else 0
+        tx_result = await verify_transaction(
+            tx_signature=tx_signature,
+            expected_amount_usdc=expected_amount * 0.95,  # 5% slippage tolerance pour bridge
+            expected_recipient=TREASURY_ADDRESS,
+        )
 
-        if not tx_ok:
-            return {"success": False, "error": "Transaction non verifiee on-chain — fonds non recus"}
+        if not tx_result.get("valid"):
+            return {"success": False, "error": f"Transaction non verifiee: {tx_result.get('error', 'fonds non recus')}"}
 
         bridge["status"] = "confirmed"
         bridge["txSignature"] = tx_signature

@@ -114,8 +114,9 @@ class AP2Manager:
     # ── Outgoing AP2 ──
 
     async def pay_external(self, service_url: str, amount_usdc: float,
-                           user_wallet: str,
+                           user_wallet: str, from_privkey: str = "",
                            purpose: str = "ai_service") -> dict:
+        """Paiement AP2 sortant avec vraie transaction on-chain."""
         intent = self.create_intent_mandate(
             user_wallet=user_wallet,
             max_amount=amount_usdc * 1.1,
@@ -128,6 +129,24 @@ class AP2Manager:
         )
         if "error" in cart:
             return {"success": False, **cart}
+
+        # Creer une vraie transaction USDC on-chain
+        tx_signature = ""
+        if from_privkey:
+            from solana_tx import send_usdc_transfer
+            tx_result = await send_usdc_transfer(
+                to_address=user_wallet,
+                amount_usdc=amount_usdc,
+                from_privkey=from_privkey,
+                from_address=user_wallet,
+            )
+            if not tx_result.get("success"):
+                return {"success": False, "error": f"Transaction echouee: {tx_result.get('error')}"}
+            tx_signature = tx_result.get("signature", "")
+
+        if not tx_signature:
+            return {"success": False, "error": "Cle privee requise pour creer une transaction reelle"}
+
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
@@ -136,12 +155,12 @@ class AP2Manager:
                         "ap2Version": "1.0",
                         "intentMandate": intent,
                         "cartMandate": cart,
-                        "paymentPayload": f"signed_tx_{uuid.uuid4().hex[:16]}",
+                        "paymentPayload": tx_signature,
                         "network": "solana-mainnet",
                     },
                 )
                 data = resp.json()
-            return {"success": resp.status_code in (200, 201), "response": data}
+            return {"success": resp.status_code in (200, 201), "txSignature": tx_signature, "response": data}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -175,7 +194,9 @@ class AP2Manager:
     # ── Internal ──
 
     def _sign(self, data: dict) -> str:
-        key = (AP2_SIGNING_KEY or "maxia-default-key").encode()
+        if not AP2_SIGNING_KEY:
+            raise ValueError("AP2_SIGNING_KEY requis pour signer les mandats AP2")
+        key = AP2_SIGNING_KEY.encode()
         payload = json.dumps(data, sort_keys=True, default=str).encode()
         return hmac.new(key, payload, hashlib.sha256).hexdigest()
 
@@ -194,12 +215,24 @@ class AP2Manager:
         try:
             if "solana" in network:
                 from solana_verifier import verify_transaction
-                ok = await verify_transaction(payment_payload)
-                return {"valid": ok, "txHash": payment_payload}
+                from config import TREASURY_ADDRESS
+                result = await verify_transaction(
+                    tx_signature=payment_payload,
+                    expected_amount_usdc=expected,
+                    expected_recipient=TREASURY_ADDRESS,
+                )
+                result["txHash"] = payment_payload
+                return result
             if "base" in network:
-                from base_verifier import verify_base_transaction
-                result = await verify_base_transaction(payment_payload)
-                return {**result, "txHash": payment_payload}
+                from base_verifier import verify_usdc_transfer_base
+                from config import TREASURY_ADDRESS_BASE
+                result = await verify_usdc_transfer_base(
+                    tx_hash=payment_payload,
+                    expected_amount_raw=int(expected * 1e6) if expected else None,
+                    expected_recipient=TREASURY_ADDRESS_BASE,
+                )
+                result["txHash"] = payment_payload
+                return result
             return {"valid": False, "error": f"Unsupported network: {network}"}
         except Exception as e:
             return {"valid": False, "error": str(e)}

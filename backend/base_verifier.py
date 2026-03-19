@@ -39,9 +39,14 @@ async def verify_base_transaction(tx_hash: str, expected_to: str = None) -> dict
     return {"valid": False, "error": "Verification failed after retries"}
 
 
-async def verify_usdc_transfer_base(tx_hash: str, expected_amount_raw: int = None) -> dict:
-    """Verify a USDC ERC-20 Transfer event on Base."""
-    receipt = await verify_base_transaction(tx_hash)
+async def verify_usdc_transfer_base(tx_hash: str, expected_amount_raw: int = None,
+                                     expected_recipient: str = None) -> dict:
+    """Verify a USDC ERC-20 Transfer event on Base with recipient + amount check."""
+    if not expected_recipient:
+        from config import TREASURY_ADDRESS_BASE
+        expected_recipient = TREASURY_ADDRESS_BASE
+
+    receipt = await verify_base_transaction(tx_hash, expected_to=None)
     if not receipt.get("valid"):
         return receipt
 
@@ -64,14 +69,27 @@ async def verify_usdc_transfer_base(tx_hash: str, expected_amount_raw: int = Non
                 amount = int(log.get("data", "0x0"), 16)
                 from_addr = "0x" + topics[1][-40:]
                 to_addr = "0x" + topics[2][-40:]
+
+                # Verifier le destinataire
+                if expected_recipient and to_addr.lower() != expected_recipient.lower():
+                    return {
+                        "valid": False,
+                        "error": f"Recipient mismatch: {to_addr} != {expected_recipient}",
+                    }
+
+                # Verifier le montant
+                if expected_amount_raw and amount < expected_amount_raw:
+                    return {
+                        "valid": False,
+                        "error": f"Insufficient: {amount / 1e6:.2f} USDC < {expected_amount_raw / 1e6:.2f} USDC",
+                    }
+
                 receipt["usdcTransfer"] = {
                     "from": from_addr,
                     "to": to_addr,
                     "amount_raw": amount,
                     "amount_usdc": amount / 1e6,
                 }
-                if expected_amount_raw and amount < expected_amount_raw:
-                    return {"valid": False, "error": f"Insufficient: {amount} < {expected_amount_raw}"}
                 return receipt
         return {"valid": False, "error": "No USDC transfer found in logs"}
     except Exception as e:

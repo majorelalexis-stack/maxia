@@ -86,6 +86,8 @@ async def broadcast_all(msg: dict):
 async def lifespan(app: FastAPI):
     await db.connect()
     reputation_staking.set_db(db)
+    escrow_client.set_db(db)
+    await escrow_client._load_from_db()
     agent_worker.set_broadcast(broadcast_all)
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
     # V10.1: Lancer le scheduler qui coordonne brain + growth_agent + agent_worker
@@ -608,14 +610,31 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     cid = str(uuid.uuid4())
     _ws_clients[cid] = ws
+    authenticated_wallet = None
     try:
         while True:
             msg = await ws.receive_json()
             if msg.get("type") == "AUTH":
                 wallet = msg.get("wallet", "")
-                if wallet:
-                    agent_worker.register_external_agent(wallet)
-                await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
+                signature = msg.get("signature", "")
+                nonce = msg.get("nonce", "")
+                if wallet and signature and nonce:
+                    # Verifier la signature ed25519
+                    try:
+                        from nacl.signing import VerifyKey
+                        import base58 as b58
+                        message = f"MAXIA login: {nonce}".encode()
+                        pub_bytes = b58.b58decode(wallet)
+                        vk = VerifyKey(pub_bytes)
+                        sig_bytes = bytes.fromhex(signature) if len(signature) == 128 else b58.b58decode(signature)
+                        vk.verify(message, sig_bytes)
+                        authenticated_wallet = wallet
+                        agent_worker.register_external_agent(wallet)
+                        await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
+                    except Exception as e:
+                        await ws.send_json({"type": "AUTH_FAILED", "error": f"Signature invalide: {e}"})
+                else:
+                    await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
             elif msg.get("type") == "PING":
                 await ws.send_json({"type": "PONG", "timestamp": int(time.time() * 1000)})
     except WebSocketDisconnect:
@@ -636,12 +655,29 @@ async def auction_ws(ws: WebSocket):
         while True:
             msg = await ws.receive_json()
             if msg.get("type") == "AUTH":
-                wallet = msg.get("wallet", "")
-                auction_manager.set_wallet(cid, wallet)
-                agent_worker.register_external_agent(wallet)
+                _wallet = msg.get("wallet", "")
+                _sig = msg.get("signature", "")
+                _nonce = msg.get("nonce", "")
+                if _wallet and _sig and _nonce:
+                    try:
+                        from nacl.signing import VerifyKey
+                        import base58 as b58
+                        message = f"MAXIA login: {_nonce}".encode()
+                        pub_bytes = b58.b58decode(_wallet)
+                        vk = VerifyKey(pub_bytes)
+                        sig_bytes = bytes.fromhex(_sig) if len(_sig) == 128 else b58.b58decode(_sig)
+                        vk.verify(message, sig_bytes)
+                        wallet = _wallet
+                        auction_manager.set_wallet(cid, wallet)
+                        agent_worker.register_external_agent(wallet)
+                        await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
+                    except Exception as e:
+                        await ws.send_json({"type": "AUTH_FAILED", "error": f"Signature invalide: {e}"})
+                else:
+                    await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
             elif msg.get("type") == "PLACE_BID":
                 if not wallet:
-                    await ws.send_json({"type": "ERROR", "payload": {"reason": "AUTH requis."}})
+                    await ws.send_json({"type": "ERROR", "payload": {"reason": "AUTH requis — envoyez wallet + signature + nonce."}})
                     continue
                 res = await auction_manager.place_bid(
                     msg["auctionId"], float(msg.get("bidUsdc", 0)), wallet)
@@ -686,13 +722,20 @@ async def create_command(req: CommandRequest, wallet: str = Depends(require_auth
     check_content_safety(req.prompt, "prompt")
     if await db.tx_already_processed(req.tx_signature):
         raise HTTPException(400, "Transaction deja utilisee.")
-    if not await verify_transaction(req.tx_signature, wallet):
-        raise HTTPException(400, "Transaction Solana invalide.")
+    # Verification complete: montant + destinataire
+    tx_result = await verify_transaction(
+        tx_signature=req.tx_signature,
+        expected_amount_usdc=req.amount_usdc,
+        expected_recipient=TREASURY_ADDRESS,
+    )
+    if not tx_result.get("valid"):
+        raise HTTPException(400, f"Transaction invalide: {tx_result.get('error', 'verification echouee')}")
     cmd = {
         "commandId": str(uuid.uuid4()), "serviceId": req.service_id,
         "buyerWallet": wallet, "txSignature": req.tx_signature,
         "prompt": req.prompt, "status": "pending",
         "createdAt": int(time.time()),
+        "verified_amount": tx_result.get("amount_usdc", 0),
     }
     await db.save_command(cmd)
     await db.record_transaction(wallet, req.tx_signature, req.amount_usdc, "marketplace")
@@ -750,11 +793,17 @@ async def create_auction_rest(req: AuctionCreateRequest, wallet: str = Depends(r
 async def settle_auction(req: AuctionSettleRequest):
     if await db.tx_already_processed(req.tx_signature):
         raise HTTPException(400, "Transaction deja traitee.")
-    if not await verify_transaction(req.tx_signature, req.winner):
-        raise HTTPException(400, "Transaction invalide.")
     auction = await db.get_auction(req.auction_id)
     if not auction:
         raise HTTPException(404, "Enchere introuvable.")
+    # Verification complete: montant + destinataire
+    tx_result = await verify_transaction(
+        tx_signature=req.tx_signature,
+        expected_amount_usdc=auction.get("currentBid", 0),
+        expected_recipient=TREASURY_ADDRESS,
+    )
+    if not tx_result.get("valid"):
+        raise HTTPException(400, f"Transaction invalide: {tx_result.get('error', 'verification echouee')}")
     instance = await runpod.rent_gpu(auction["gpuTierId"], auction["durationHours"])
     if not instance.get("success"):
         raise HTTPException(502, f"RunPod: {instance.get('error')}")

@@ -1,4 +1,4 @@
-"""MAXIA Art.21 V11 — Escrow Smart Contract Client (Solana on-chain)"""
+"""MAXIA Art.21 V12 — Escrow Client (wallet-based avec persistance DB)"""
 import uuid, time, json, asyncio
 import httpx
 import base58
@@ -7,43 +7,69 @@ from config import (
 )
 from alerts import alert_system, alert_error
 
-# Le programme ID du smart contract (a remplacer apres deploiement)
-ESCROW_PROGRAM_ID = "MAXiAEscrowProgram1111111111111111111111111"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-
-try:
-    from solana.rpc.async_api import AsyncClient
-    from solders.keypair import Keypair
-    from solders.pubkey import Pubkey
-    SOLANA_AVAILABLE = True
-except ImportError:
-    SOLANA_AVAILABLE = False
 
 
 class EscrowClient:
     """
-    Client Python pour interagir avec le smart contract escrow MAXIA.
-    Gere la creation, confirmation et resolution des escrows on-chain.
+    Escrow wallet-based: les USDC sont verouilles sur le wallet escrow
+    et liberes au seller apres confirmation du buyer.
+    Persistance en DB pour survivre aux redemarrages.
     """
 
     def __init__(self):
-        self._escrows: dict = {}  # local cache
-        self._program_deployed = False
-        print(f"[EscrowClient] Initialise (programme: {ESCROW_PROGRAM_ID[:16]}...)")
+        self._db = None
+        self._escrows: dict = {}  # cache local, synchronise avec DB
+        print(f"[EscrowClient] Initialise (wallet: {ESCROW_ADDRESS[:16]}...)" if ESCROW_ADDRESS else "[EscrowClient] ATTENTION: ESCROW_ADDRESS non configure")
+
+    def set_db(self, db):
+        self._db = db
+
+    async def _load_from_db(self):
+        """Charge les escrows actifs depuis la DB au demarrage."""
+        if not self._db:
+            return
+        try:
+            rows = await self._db._db.execute_fetchall(
+                "SELECT data FROM escrow_records WHERE status='locked'")
+            for row in rows:
+                escrow = json.loads(row["data"])
+                self._escrows[escrow["escrowId"]] = escrow
+            print(f"[EscrowClient] {len(self._escrows)} escrows actifs charges depuis DB")
+        except Exception:
+            pass  # Table pas encore creee
+
+    async def _save_escrow(self, escrow: dict):
+        """Persiste un escrow en DB."""
+        self._escrows[escrow["escrowId"]] = escrow
+        if self._db:
+            try:
+                await self._db._db.execute(
+                    "INSERT OR REPLACE INTO escrow_records(escrow_id, buyer, seller, status, data) VALUES(?,?,?,?,?)",
+                    (escrow["escrowId"], escrow["buyer"], escrow["seller"],
+                     escrow["status"], json.dumps(escrow)))
+                await self._db._db.commit()
+            except Exception as e:
+                print(f"[EscrowClient] Erreur sauvegarde DB: {e}")
 
     async def create_escrow(self, buyer_wallet: str, seller_wallet: str,
                              amount_usdc: float, service_id: str,
                              tx_signature: str, timeout_hours: int = 72) -> dict:
         """
-        Cree un escrow — verrouille les USDC du buyer.
-        En attendant le deploiement du smart contract,
-        utilise le wallet escrow comme intermediaire.
+        Cree un escrow — verifie que les USDC ont ete envoyes au wallet escrow.
         """
+        if not ESCROW_ADDRESS:
+            return {"success": False, "error": "ESCROW_ADDRESS non configure"}
+
         escrow_id = str(uuid.uuid4())
 
-        # Verifier la transaction de paiement
-        from solana_tx import verify_usdc_payment
-        pay_ok = await verify_usdc_payment(tx_signature, amount_usdc, ESCROW_ADDRESS)
+        # Verifier la transaction de paiement avec montant + destinataire
+        from solana_verifier import verify_transaction
+        pay_ok = await verify_transaction(
+            tx_signature=tx_signature,
+            expected_amount_usdc=amount_usdc,
+            expected_recipient=ESCROW_ADDRESS,
+        )
         if not pay_ok.get("valid"):
             return {"success": False, "error": f"Paiement non verifie: {pay_ok.get('error')}"}
 
@@ -59,9 +85,10 @@ class EscrowClient:
             "createdAt": int(time.time()),
             "timeoutAt": int(time.time()) + timeout_hours * 3600,
             "timeoutHours": timeout_hours,
-            "onChain": self._program_deployed,
+            "verified_amount": pay_ok.get("amount_usdc", 0),
+            "verified_from": pay_ok.get("from", ""),
         }
-        self._escrows[escrow_id] = escrow
+        await self._save_escrow(escrow)
 
         print(f"[EscrowClient] Escrow cree: {amount_usdc} USDC | {buyer_wallet[:8]}... -> {seller_wallet[:8]}...")
         await alert_system(
@@ -98,6 +125,7 @@ class EscrowClient:
             escrow["status"] = "released"
             escrow["releasedAt"] = int(time.time())
             escrow["releaseTx"] = result.get("signature", "")
+            await self._save_escrow(escrow)
             print(f"[EscrowClient] Released: {escrow['amount_usdc']} USDC -> {escrow['seller'][:8]}...")
             await alert_system(
                 "Escrow libere",
@@ -132,6 +160,7 @@ class EscrowClient:
         if result.get("success"):
             escrow["status"] = "refunded"
             escrow["refundedAt"] = int(time.time())
+            await self._save_escrow(escrow)
             print(f"[EscrowClient] Refunded: {escrow['amount_usdc']} USDC -> {escrow['buyer'][:8]}...")
             return {"success": True, **escrow}
         return {"success": False, "error": f"Refund echoue: {result.get('error')}"}
@@ -157,6 +186,7 @@ class EscrowClient:
             escrow["status"] = "released" if release_to_seller else "refunded"
             escrow["resolvedAt"] = int(time.time())
             escrow["resolvedTo"] = "seller" if release_to_seller else "buyer"
+            await self._save_escrow(escrow)
             return {"success": True, **escrow}
         return {"success": False, "error": f"Resolution echouee: {result.get('error')}"}
 
@@ -174,8 +204,6 @@ class EscrowClient:
             "released": len(released),
             "released_usdc": sum(e["amount_usdc"] for e in released),
             "refunded": len(refunded),
-            "program_id": ESCROW_PROGRAM_ID,
-            "on_chain": self._program_deployed,
             "escrow_wallet": ESCROW_ADDRESS,
         }
 

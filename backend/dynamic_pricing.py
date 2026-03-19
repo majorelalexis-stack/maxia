@@ -66,6 +66,8 @@ def _apply_adjustments():
     """Applique l'ajustement aux COMMISSION_TIERS (in-place)."""
     base_rates = [500, 100, 10]  # BRONZE, OR, BALEINE (valeurs de base)
     for i, tier in enumerate(COMMISSION_TIERS):
+        if i >= len(base_rates):
+            break
         adjusted = base_rates[i] + _current_adjustment_bps
         adjusted = max(DYNAMIC_PRICING_MIN_BPS, min(DYNAMIC_PRICING_MAX_BPS, adjusted))
         tier["rate_bps"] = adjusted
