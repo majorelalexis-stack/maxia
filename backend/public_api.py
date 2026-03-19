@@ -1619,6 +1619,13 @@ async def stock_compare_fees():
     return stock_exchange.compare_fees()
 
 
+@router.get("/stocks/fees")
+async def stock_fees():
+    """Alias de /stocks/compare-fees."""
+    from tokenized_stocks import stock_exchange
+    return stock_exchange.compare_fees()
+
+
 @router.get("/stocks/stats")
 async def stock_stats():
     """Statistiques de la bourse. Sans auth."""
