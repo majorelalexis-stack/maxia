@@ -232,38 +232,53 @@ async def get_prices(symbols: list = None) -> dict:
     helius_prices = await _fetch_helius_prices()
     prices.update(helius_prices)
 
-    # Source 2: Jupiter Price API pour les tokens manquants
-    missing_mints = {sym: mint for sym, mint in TOKEN_MINTS.items()
-                     if sym not in prices and not sym.isupper() or sym not in prices}
-    # Filter to only crypto tokens (not stocks)
+    # Source 2: CoinGecko pour les tokens manquants
     stock_syms = {"AAPL","TSLA","NVDA","GOOGL","MSFT","AMZN","META","MSTR","SPY","QQQ",
                   "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
                   "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
-    missing_crypto = {s: m for s, m in TOKEN_MINTS.items() if s not in prices and s not in stock_syms}
+    missing_crypto = [s for s in TOKEN_MINTS if s not in prices and s not in stock_syms]
     if missing_crypto:
-        try:
-            mint_ids = ",".join(missing_crypto.values())
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"https://api.jup.ag/price/v2?ids={mint_ids}",
-                )
-                if resp.status_code == 200:
-                    jup_data = resp.json().get("data", {})
-                    mint_to_sym = {m: s for s, m in missing_crypto.items()}
-                    for mint_addr, price_data in jup_data.items():
-                        sym = mint_to_sym.get(mint_addr, "")
-                        if sym and price_data and price_data.get("price"):
-                            prices[sym] = {
-                                "price": round(float(price_data["price"]), 6),
-                                "source": "jupiter",
-                                "name": FALLBACK_PRICES.get(sym, sym),
-                                "mint": mint_addr,
-                            }
-                    if any(s in prices for s in missing_crypto):
-                        jup_count = sum(1 for s in missing_crypto if s in prices)
-                        print(f"[PriceOracle] Jupiter: {jup_count} additional prices fetched")
-        except Exception as e:
-            print(f"[PriceOracle] Jupiter Price API error: {e}")
+        # Map symbols to CoinGecko IDs
+        SYM_TO_COINGECKO = {
+            "SOL": "solana", "USDC": "usd-coin", "USDT": "tether", "BONK": "bonk",
+            "JUP": "jupiter-exchange-solana", "RAY": "raydium", "WIF": "dogwifcoin",
+            "RENDER": "render-token", "HNT": "helium", "TRUMP": "official-trump",
+            "PYTH": "pyth-network", "W": "wormhole", "ETH": "ethereum", "BTC": "bitcoin",
+            "ORCA": "orca", "JTO": "jito-governance-token", "TNSR": "tensor",
+            "MEW": "cat-in-a-dogs-world", "POPCAT": "popcat", "MOBILE": "helium-mobile",
+            "MNDE": "marinade", "MSOL": "msol", "JITOSOL": "jito-staked-sol",
+            "BSOL": "blazestake-staked-sol", "DRIFT": "drift-protocol",
+            "KMNO": "kamino", "PENGU": "pudgy-penguins", "AI16Z": "ai16z",
+            "FARTCOIN": "fartcoin", "GRASS": "grass", "ZEUS": "zeus-network",
+            "NOSOL": "nosana", "SAMO": "samoyedcoin", "STEP": "step-finance",
+            "BOME": "book-of-meme", "SLERF": "slerf", "MPLX": "metaplex",
+            "INF": "infinity-by-sanctum", "PNUT": "peanut-the-squirrel",
+            "GOAT": "goatseus-maximus",
+        }
+        cg_ids = [SYM_TO_COINGECKO[s] for s in missing_crypto if s in SYM_TO_COINGECKO]
+        if cg_ids:
+            try:
+                ids_str = ",".join(cg_ids)
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.get(
+                        f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd"
+                    )
+                    if resp.status_code == 200:
+                        cg_data = resp.json()
+                        cg_id_to_sym = {v: k for k, v in SYM_TO_COINGECKO.items()}
+                        for cg_id, price_data in cg_data.items():
+                            sym = cg_id_to_sym.get(cg_id, "")
+                            if sym and price_data.get("usd"):
+                                prices[sym] = {
+                                    "price": round(float(price_data["usd"]), 6),
+                                    "source": "coingecko",
+                                    "mint": TOKEN_MINTS.get(sym, ""),
+                                }
+                        cg_count = sum(1 for s in missing_crypto if s in prices)
+                        if cg_count:
+                            print(f"[PriceOracle] CoinGecko: {cg_count} additional prices fetched")
+            except Exception as e:
+                print(f"[PriceOracle] CoinGecko error: {e}")
 
     # Source 3: Fallback pour tout ce qui manque encore
     for sym, fb_price in FALLBACK_PRICES.items():
