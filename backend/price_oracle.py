@@ -232,7 +232,40 @@ async def get_prices(symbols: list = None) -> dict:
     helius_prices = await _fetch_helius_prices()
     prices.update(helius_prices)
 
-    # Source 2: Fallback pour tout ce qui manque
+    # Source 2: Jupiter Price API pour les tokens manquants
+    missing_mints = {sym: mint for sym, mint in TOKEN_MINTS.items()
+                     if sym not in prices and not sym.isupper() or sym not in prices}
+    # Filter to only crypto tokens (not stocks)
+    stock_syms = {"AAPL","TSLA","NVDA","GOOGL","MSFT","AMZN","META","MSTR","SPY","QQQ",
+                  "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
+                  "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
+    missing_crypto = {s: m for s, m in TOKEN_MINTS.items() if s not in prices and s not in stock_syms}
+    if missing_crypto:
+        try:
+            mint_ids = ",".join(missing_crypto.values())
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"https://api.jup.ag/price/v2?ids={mint_ids}",
+                )
+                if resp.status_code == 200:
+                    jup_data = resp.json().get("data", {})
+                    mint_to_sym = {m: s for s, m in missing_crypto.items()}
+                    for mint_addr, price_data in jup_data.items():
+                        sym = mint_to_sym.get(mint_addr, "")
+                        if sym and price_data and price_data.get("price"):
+                            prices[sym] = {
+                                "price": round(float(price_data["price"]), 6),
+                                "source": "jupiter",
+                                "name": FALLBACK_PRICES.get(sym, sym),
+                                "mint": mint_addr,
+                            }
+                    if any(s in prices for s in missing_crypto):
+                        jup_count = sum(1 for s in missing_crypto if s in prices)
+                        print(f"[PriceOracle] Jupiter: {jup_count} additional prices fetched")
+        except Exception as e:
+            print(f"[PriceOracle] Jupiter Price API error: {e}")
+
+    # Source 3: Fallback pour tout ce qui manque encore
     for sym, fb_price in FALLBACK_PRICES.items():
         if sym not in prices:
             prices[sym] = {"price": fb_price, "source": "fallback"}
