@@ -462,13 +462,16 @@ async def ceo_ask(request: Request):
         message = body.get("message", body.get("text", ""))
         if not message:
             return {"error": "message required"}
-        from ceo_maxia import ceo, respond
-        result = await respond("api", "founder", message, ceo.memory)
+        from ceo_maxia import _call_groq, CEO_IDENTITY
+        raw = await _call_groq(
+            CEO_IDENTITY + "\nTu reponds au FONDATEUR de MAXIA. Sois direct, concis, strategique. Reponds en francais.",
+            message,
+            max_tokens=500,
+        )
         return {
             "success": True,
             "from": "CEO MAXIA",
-            "response": result.get("reponse", result.get("response", str(result))),
-            "intention": result.get("intention", ""),
+            "response": raw,
         }
     except Exception as e:
         return {"error": str(e)}
