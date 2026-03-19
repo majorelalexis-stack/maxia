@@ -462,17 +462,23 @@ async def ceo_ask(request: Request):
         message = body.get("message", body.get("text", ""))
         if not message:
             return {"error": "message required"}
-        from ceo_maxia import _call_groq, CEO_IDENTITY
-        raw = await _call_groq(
-            CEO_IDENTITY + "\nTu reponds au FONDATEUR de MAXIA. Sois direct, concis, strategique. Reponds en francais.",
-            message,
+        from groq import Groq
+        c = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+        resp = c.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": (
+                    "Tu es le CEO de MAXIA, un marketplace AI-to-AI sur Solana (maxiaworld.app). "
+                    "Tu geres 11 sous-agents, le marketing, le WATCHDOG, et la strategie. "
+                    "Tu reponds au FONDATEUR. Sois direct, concis, strategique. "
+                    "Reponds en texte simple, PAS en JSON. En francais."
+                )},
+                {"role": "user", "content": message},
+            ],
             max_tokens=500,
         )
-        return {
-            "success": True,
-            "from": "CEO MAXIA",
-            "response": raw,
-        }
+        raw = resp.choices[0].message.content
+        return {"success": True, "from": "CEO MAXIA", "response": raw}
     except Exception as e:
         return {"error": str(e)}
 
