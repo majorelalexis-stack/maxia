@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MAXIA — AI Marketplace on Solana</title>
+<title>MAXIA — AI Marketplace on Solana + Base + Ethereum</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -398,7 +398,7 @@ body::before {
 <aside class="sidebar">
   <div class="logo">
     <div class="logo-mark">⚡ MAXIA <span></span></div>
-    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE · V12</div>
+    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE + ETHEREUM · V12</div>
   </div>
   <nav class="nav">
     <div class="nav-section">Vue d'ensemble</div>
@@ -431,6 +431,10 @@ body::before {
     <div class="nav-item" onclick="showPage('base',this)">
       <span class="icon">⬡</span> Base (Coinbase L2)
       <span class="nav-badge" style="background:rgba(0,82,255,.2);color:#0052FF">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('ethereum',this)">
+      <span class="icon">⟠</span> Ethereum Mainnet
+      <span class="nav-badge" style="background:rgba(98,126,234,.2);color:#627EEA">NEW</span>
     </div>
     <div class="nav-item" onclick="showPage('kite',this)">
       <span class="icon">🪁</span> Kite AI
@@ -552,7 +556,7 @@ body::before {
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title">◎ Wallets MAXIA</div>
-        <span class="badge cyan">Solana Mainnet</span>
+        <span class="badge cyan">Solana Mainnet</span> <span class="badge purple">Base L2</span> <span class="badge gold">Ethereum</span>
       </div>
       <div class="panel-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -667,7 +671,7 @@ body::before {
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat-card">
         <div class="stat-label">Actions disponibles</div>
-        <div class="stat-value purple" id="stocks-count">10</div>
+        <div class="stat-value purple" id="stocks-count">28</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Commission min</div>
@@ -747,8 +751,8 @@ body::before {
       </div>
       <div class="stat-card purple">
         <div class="stat-label">GPU disponibles</div>
-        <div class="stat-value purple">3</div>
-        <div class="stat-sub">RTX4090 · A100 · H100</div>
+        <div class="stat-value purple">8</div>
+        <div class="stat-sub">RTX4090 · A100 · H100 + 5 tiers</div>
       </div>
     </div>
     <div class="panels-row">
@@ -1113,6 +1117,20 @@ body::before {
               <td><span class="badge purple">Solana</span></td>
               <td><span class="addr">FiYWC9...</span></td>
               <td><span class="badge cyan">Nouveau</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/base/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">variable</span></td>
+              <td><span class="badge" style="background:rgba(0,82,255,.1);color:#0052FF;border:1px solid rgba(0,82,255,.2)">Base L2</span></td>
+              <td><span class="addr">0x1a2b...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/ethereum/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">min 10 USDC</span></td>
+              <td><span class="badge gold">Ethereum</span></td>
+              <td><span class="addr">0x3c4d...</span></td>
+              <td><span class="badge green">Actif</span></td>
             </tr>
           </tbody>
         </table>
