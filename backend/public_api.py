@@ -1073,6 +1073,76 @@ async def defi_chains():
 
 
 # ══════════════════════════════════════════
+#  SENTIMENT ANALYSIS
+# ══════════════════════════════════════════
+
+@router.get("/sentiment")
+async def public_sentiment(token: str = "BTC"):
+    """Get crypto sentiment analysis. Free, no auth.
+    
+    Sources: CoinGecko community data, Reddit activity, LunarCrush (optional).
+    Examples: /sentiment?token=BTC, /sentiment?token=SOL
+    """
+    try:
+        from sentiment_analyzer import get_sentiment
+        return await get_sentiment(token)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/trending")
+async def public_trending():
+    """Get trending crypto tokens."""
+    try:
+        from sentiment_analyzer import get_trending
+        return {"trending": await get_trending()}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/fear-greed")
+async def public_fear_greed():
+    """Get crypto Fear & Greed Index."""
+    try:
+        from web3_services import get_fear_greed_index
+        return await get_fear_greed_index()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════
+#  WEB3 AI SERVICES
+# ══════════════════════════════════════════
+
+@router.get("/token-risk")
+async def public_token_risk(address: str = ""):
+    """Analyze rug pull risk for a Solana token. Free, no auth.
+    
+    Returns risk score (0-100), warnings, recommendation.
+    Example: /token-risk?address=TOKEN_MINT_ADDRESS
+    """
+    if not address:
+        return {"error": "address parameter required"}
+    try:
+        from web3_services import analyze_token_risk
+        return await analyze_token_risk(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/wallet-analysis")
+async def public_wallet_analysis(address: str = ""):
+    """Analyze a Solana wallet — holdings, activity, profile. Free, no auth."""
+    if not address:
+        return {"error": "address parameter required"}
+    try:
+        from web3_services import analyze_wallet
+        return await analyze_wallet(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():

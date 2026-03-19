@@ -103,6 +103,49 @@ MCP_TOOLS = [
         },
     },
     {
+        "name": "maxia_sentiment",
+        "description": "Get crypto sentiment analysis for any token. Sources: CoinGecko, Reddit, LunarCrush.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "description": "Token symbol: BTC, ETH, SOL, BONK, etc."},
+            },
+            "required": ["token"],
+        },
+    },
+    {
+        "name": "maxia_token_risk",
+        "description": "Analyze rug pull risk for a Solana token. Returns risk score 0-100 and warnings.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Solana token mint address"},
+            },
+            "required": ["address"],
+        },
+    },
+    {
+        "name": "maxia_wallet_analysis",
+        "description": "Analyze a Solana wallet — holdings, balance, profile classification.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Solana wallet address"},
+            },
+            "required": ["address"],
+        },
+    },
+    {
+        "name": "maxia_trending",
+        "description": "Get trending crypto tokens right now.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "maxia_fear_greed",
+        "description": "Get the crypto Fear & Greed Index.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
         "name": "maxia_defi_yield",
         "description": "Find the best DeFi yields for any asset across all protocols. Data from DeFiLlama.",
         "inputSchema": {
@@ -221,6 +264,26 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.get("/api/public/crypto/prices")
             return r.json()
 
+        elif name == "maxia_sentiment":
+            r = await client.get("/api/public/sentiment", params={"token": args.get("token", "BTC")})
+            return r.json()
+
+        elif name == "maxia_token_risk":
+            r = await client.get("/api/public/token-risk", params={"address": args.get("address", "")})
+            return r.json()
+
+        elif name == "maxia_wallet_analysis":
+            r = await client.get("/api/public/wallet-analysis", params={"address": args.get("address", "")})
+            return r.json()
+
+        elif name == "maxia_trending":
+            r = await client.get("/api/public/trending")
+            return r.json()
+
+        elif name == "maxia_fear_greed":
+            r = await client.get("/api/public/fear-greed")
+            return r.json()
+
         elif name == "maxia_defi_yield":
             r = await client.get("/api/public/defi/best-yield", params={
                 "asset": args.get("asset", "USDC"),
@@ -254,5 +317,5 @@ async def mcp_manifest():
             "header": "X-API-Key",
             "register_url": f"{MAXIA_URL}/api/public/register",
         },
-        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi"],
+        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi", "sentiment", "token-risk", "wallet-analysis", "trending", "fear-greed"],
     }

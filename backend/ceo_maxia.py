@@ -569,6 +569,11 @@ HEALTH_ENDPOINTS = {
     "stocks": "/api/public/stocks",
     "gpu_tiers": "/api/public/gpu/tiers",
     "docs": "/api/public/docs",
+    "defi": "/api/public/defi/best-yield?asset=USDC&limit=1",
+    "sentiment": "/api/public/sentiment?token=BTC",
+    "fear_greed": "/api/public/fear-greed",
+    "mcp": "/mcp/",
+    "docs_html": "/docs-html",
 }
 
 
