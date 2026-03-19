@@ -420,6 +420,30 @@ async def twitter_status():
         return {"error": str(e), "configured": False}
 
 
+@app.get("/api/reddit/status")
+async def reddit_status():
+    try:
+        from reddit_bot import get_stats
+        return get_stats()
+    except Exception as e:
+        return {"error": str(e), "configured": False}
+
+
+@app.post("/api/admin/reddit-post")
+async def admin_reddit_post(request: Request, key: str = ""):
+    """Manually post to Reddit. Admin only."""
+    if key != ADMIN_KEY:
+        raise HTTPException(403, "Invalid key")
+    body = await request.json()
+    subreddit = body.get("subreddit", "solanadev")
+    title = body.get("title", "")
+    text = body.get("text", "")
+    if not title or not text:
+        return {"error": "title and text required"}
+    from reddit_bot import post_to_reddit
+    return await post_to_reddit(subreddit, title, text)
+
+
 @app.get("/api/watchdog/health")
 async def watchdog_health():
     """Run health check on all endpoints."""
