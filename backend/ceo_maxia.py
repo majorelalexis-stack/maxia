@@ -1116,8 +1116,11 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
         f"MAXIA: 15 tokens, 210 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
-    data = _pj(await _call_groq(RESPONDER_PROMPT, ctx))
-    if not data or data.get("intention") == "spam":
+    raw = await _call_groq(RESPONDER_PROMPT, ctx)
+    data = _pj(raw)
+    if not data and raw:
+        data = {"intention": "conversation", "reponse": raw, "alerte_fondateur": False}
+    if not data:
         return {"intention": "spam", "reponse": "", "alerte_fondateur": False}
 
     memory.log_conversation(canal, user, msg, data.get("reponse", ""), data.get("intention", ""))
