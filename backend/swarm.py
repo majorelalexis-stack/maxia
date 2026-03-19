@@ -37,50 +37,85 @@ if GROQ_API_KEY:
 
 # ── Niches predefinies que MAXIA peut detecter et exploiter ──
 NICHE_TEMPLATES = {
-    "gpu_render": {
-        "name": "MAXIA-GPU-Render",
-        "description": "GPU rendering for 3D artists, YouTubers, game devs",
-        "target_keywords": ["render", "blender", "3d", "animation", "video"],
-        "base_price_usdc": 0.49,
+    "sentiment": {
+        "name": "MAXIA-SentimentBot",
+        "description": "Real-time crypto sentiment analysis. Multi-source: CoinGecko, Reddit, social data.",
+        "target_keywords": ["sentiment", "social", "analysis", "bullish", "bearish"],
+        "base_price_usdc": 0.10,
         "commission_bps": 300,
         "marketing_lang": "en",
-        "marketing_pitch": "AI-powered GPU rendering. 40% cheaper than Render Network. Instant USDC settlement.",
+        "marketing_pitch": "AI sentiment analysis for any crypto token. Multi-source. $0.10 per query.",
+        "niche_id": "sentiment",
     },
-    "data_trading": {
-        "name": "MAXIA-Data-Trading",
-        "description": "Real-time DeFi/crypto trading data and signals",
-        "target_keywords": ["defi", "trading", "signals", "data", "analytics"],
-        "base_price_usdc": 0.99,
-        "commission_bps": 200,
+    "defi_yield": {
+        "name": "MAXIA-YieldBot",
+        "description": "DeFi yield scanner. Best APY across all protocols via DeFiLlama.",
+        "target_keywords": ["defi", "yield", "apy", "farming", "lending"],
+        "base_price_usdc": 0.0,
+        "commission_bps": 0,
         "marketing_lang": "en",
-        "marketing_pitch": "Institutional-grade DeFi data. On-chain analytics via x402. Pay per query.",
+        "marketing_pitch": "Find the best DeFi yields for any asset. All chains. Free.",
+        "niche_id": "defi_yield",
+    },
+    "wallet_scan": {
+        "name": "MAXIA-WalletScanner",
+        "description": "Solana wallet analyzer. Holdings, profile, whale detection, DeFi activity.",
+        "target_keywords": ["wallet", "holdings", "whale", "analysis", "portfolio"],
+        "base_price_usdc": 0.10,
+        "commission_bps": 300,
+        "marketing_lang": "en",
+        "marketing_pitch": "Analyze any Solana wallet. Holdings, profile, whale detection. $0.10 per scan.",
+        "niche_id": "wallet_scan",
+    },
+    "rug_detector": {
+        "name": "MAXIA-RugDetector",
+        "description": "Rug pull risk detector. Risk score 0-100 for any Solana token.",
+        "target_keywords": ["rug", "scam", "risk", "audit", "token"],
+        "base_price_usdc": 0.10,
+        "commission_bps": 300,
+        "marketing_lang": "en",
+        "marketing_pitch": "Detect rug pulls before they happen. Risk score 0-100. $0.10 per check.",
+        "niche_id": "rug_detector",
     },
     "code_audit": {
-        "name": "MAXIA-Code-Audit",
-        "description": "Automated smart contract security audits",
+        "name": "MAXIA-AuditBot",
+        "description": "Automated smart contract security audits powered by AI",
         "target_keywords": ["audit", "security", "smart contract", "solidity", "rust"],
         "base_price_usdc": 4.99,
         "commission_bps": 150,
         "marketing_lang": "en",
         "marketing_pitch": "AI smart contract auditor. Find vulns in seconds. Cheaper than manual audits.",
+        "niche_id": "code_audit",
     },
-    "image_gen": {
-        "name": "MAXIA-Creative",
-        "description": "AI image generation and prompt engineering",
-        "target_keywords": ["image", "art", "creative", "nft", "design"],
-        "base_price_usdc": 0.29,
-        "commission_bps": 400,
+    "data_trading": {
+        "name": "MAXIA-DataBot",
+        "description": "Real-time DeFi/crypto trading data, signals and market analysis",
+        "target_keywords": ["defi", "trading", "signals", "data", "analytics"],
+        "base_price_usdc": 0.50,
+        "commission_bps": 200,
         "marketing_lang": "en",
-        "marketing_pitch": "AI art generation on Solana. Pay per image with USDC. No subscription needed.",
+        "marketing_pitch": "Crypto trading data and signals. On-chain analytics. Pay per query.",
+        "niche_id": "data_trading",
     },
     "translation": {
-        "name": "MAXIA-Translate",
+        "name": "MAXIA-TranslateBot",
         "description": "Professional AI translation (50+ languages)",
         "target_keywords": ["translate", "language", "localization", "i18n"],
-        "base_price_usdc": 0.19,
+        "base_price_usdc": 0.05,
         "commission_bps": 350,
         "marketing_lang": "en",
-        "marketing_pitch": "AI translation API. 50+ languages. Pay per request via x402. Sub-second response.",
+        "marketing_pitch": "AI translation. 50+ languages. $0.05 per request.",
+        "niche_id": "translation",
+    },
+    "code_gen": {
+        "name": "MAXIA-CoderBot",
+        "description": "AI code generation. Python, Rust, JavaScript, Solidity.",
+        "target_keywords": ["code", "generate", "python", "rust", "javascript"],
+        "base_price_usdc": 0.50,
+        "commission_bps": 200,
+        "marketing_lang": "en",
+        "marketing_pitch": "AI code generation for any language. $0.50 per task.",
+        "niche_id": "code_gen",
     },
 }
 
@@ -105,6 +140,10 @@ class Clone:
         # Wallet autonome (genere ou assigne)
         self.wallet_address = ""
         self.wallet_privkey = ""
+
+        # Marketplace registration
+        self.api_key = ""
+        self.service_id = ""
 
         # Stats
         self.status = "created"  # created | deploying | active | paused | stopped
@@ -343,6 +382,11 @@ class Swarm:
     async def run_monitor(self):
         """Boucle de surveillance de l'essaim. Tourne toutes les 5 min."""
         print("[Swarm] Moniteur demarre")
+
+        # Auto-deploy all bots on first run
+        await asyncio.sleep(30)  # Wait for server startup
+        await self.auto_deploy_all()
+
         while True:
             try:
                 active = [c for c in self._clones.values() if c.status == "active"]
@@ -359,6 +403,121 @@ class Swarm:
                 print(f"[Swarm] Monitor err: {e}")
 
             await asyncio.sleep(300)
+
+    async def auto_deploy_all(self):
+        """Deploy all niche bots as INTERNAL execution engines. NOT visible on marketplace."""
+        print("[Swarm] Deploying internal execution bots (invisible to marketplace)...")
+
+        for niche_id, template in NICHE_TEMPLATES.items():
+            existing = [c for c in self._clones.values() if c.niche == niche_id and c.status == "active"]
+            if existing:
+                continue
+
+            try:
+                clone_id = str(uuid.uuid4())[:8]
+                clone = Clone(clone_id, niche_id, template)
+                clone.status = "active"
+                self._clones[clone_id] = clone
+                print(f"[Swarm] ✓ {template['name']} ready (internal fallback)")
+            except Exception as e:
+                print(f"[Swarm] Deploy error {niche_id}: {e}")
+
+        active = len([c for c in self._clones.values() if c.status == "active"])
+        print(f"[Swarm] {active} internal bots ready as fallback execution engines")
+
+    async def _register_bot(self, template: dict) -> dict:
+        """Register a bot agent on MAXIA marketplace."""
+        try:
+            async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+                r = await client.post("/api/public/register", json={
+                    "name": template["name"],
+                    "wallet": "internal",
+                    "description": template["description"],
+                })
+                if r.status_code == 200:
+                    return r.json()
+        except Exception as e:
+            print(f"[Swarm] Register error: {e}")
+        return {}
+
+    async def _list_service(self, api_key: str, template: dict) -> dict:
+        """List a bot's service on the marketplace."""
+        try:
+            # Determine service type from niche
+            type_map = {
+                "gpu_render": "compute",
+                "data_trading": "data",
+                "code_audit": "security",
+                "image_gen": "media",
+                "translation": "text",
+                "sentiment": "data",
+                "defi_yield": "data",
+                "wallet_scan": "security",
+            }
+            svc_type = type_map.get(template.get("niche_id", ""), "data")
+
+            async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+                r = await client.post("/api/public/sell",
+                    headers={"X-API-Key": api_key},
+                    json={
+                        "name": template["name"],
+                        "description": template["description"] + " | Powered by MAXIA Swarm",
+                        "price_usdc": template["base_price_usdc"],
+                        "type": svc_type,
+                        "endpoint": "",  # Internal execution via Groq
+                    })
+                if r.status_code == 200:
+                    return r.json()
+        except Exception as e:
+            print(f"[Swarm] List service error: {e}")
+        return {}
+
+    async def execute_for_buyer(self, niche: str, prompt: str) -> str:
+        """Execute a swarm bot's service for a buyer."""
+        template = NICHE_TEMPLATES.get(niche)
+        if not template:
+            return f"Unknown niche: {niche}"
+
+        # Use Groq to execute the service
+        if not groq_client:
+            return "AI service temporarily unavailable"
+
+        system_prompt = (
+            f"You are {template['name']}, a specialized AI bot.\n"
+            f"Specialty: {template['description']}\n"
+            f"Respond with a detailed, professional analysis.\n"
+            f"Be specific, use data when possible.\n"
+            f"Max 300 words."
+        )
+
+        try:
+            import asyncio
+
+            def _call():
+                resp = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=500,
+                    temperature=0.7,
+                )
+                return resp.choices[0].message.content.strip()
+
+            result = await asyncio.get_event_loop().run_in_executor(None, _call)
+
+            # Track revenue for the clone
+            for clone in self._clones.values():
+                if clone.niche == niche and clone.status == "active":
+                    clone.total_requests += 1
+                    clone.total_revenue += template["base_price_usdc"]
+                    clone.queen_royalties_paid += template["base_price_usdc"] * QUEEN_ROYALTY_PCT / 100
+                    break
+
+            return result
+        except Exception as e:
+            return f"Execution error: {e}"
 
     # ── Stats ──
 

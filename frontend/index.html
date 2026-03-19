@@ -1361,18 +1361,16 @@ body::before {
 
   <!-- ══ PAGE: ESSAIM IA ══ -->
   <div class="page" id="page-swarm">
-    <div class="panels-row">
-      <div class="panel" style="grid-column:1/-1">
-        <div class="panel-header"><div class="panel-title">🐝 Essaim IA — Clones Specialises</div></div>
-        <div class="panel-body">
-          <div style="text-align:center;padding:40px;color:var(--muted)">
-            <div style="font-size:48px;margin-bottom:16px">🐝</div>
-            <div style="font-size:16px;font-weight:600">Module Essaim en preparation</div>
-            <div style="font-size:13px;margin-top:8px">Les clones specialises seront deployes dans une version future.</div>
-            <div style="font-size:13px;margin-top:4px;color:var(--purple)">Le CEO MAXIA gere deja 11 sous-agents autonomes.</div>
-          </div>
-        </div>
-      </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Bots actifs</div><div class="stat-value cyan" id="swarm-active">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Revenu total</div><div class="stat-value green" id="swarm-revenue">—</div></div>
+      <div class="stat-card purple"><div class="stat-label">Royalties Reine</div><div class="stat-value purple" id="swarm-royalties">—</div></div>
+      <div class="stat-card gold"><div class="stat-label">Requetes</div><div class="stat-value gold" id="swarm-requests">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">🐝 Bots Specialises sur le Marketplace</div>
+        <button class="btn btn-cyan btn-sm" onclick="loadSwarmData()">↺ Actualiser</button></div>
+      <div class="panel-body" id="swarm-bots-list"><div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div></div>
     </div>
   </div>
 
@@ -1512,7 +1510,7 @@ function showPage(name, el) {
   if (name === 'ap2')         { loadAP2Info(); loadAP2Stats(); }
   if (name === 'subscriptions') loadSubRevenue();
   if (name === 'publicapi')   loadPublicAPIData();
-  if (name === 'swarm')       {} // Static page
+  if (name === 'swarm')       loadSwarmData();
   if (name === 'escrow')      {} // Static page
   if (name === 'ceochat')     {} // Chat page - no data to load
 }
@@ -1641,6 +1639,27 @@ async function loadListings() {
       if (document.getElementById('mkt-txs')) document.getElementById('mkt-txs').textContent = ms.data.total_transactions || 0;
     }
   } catch(e){}
+}
+
+// ── Swarm Data ──
+async function loadSwarmData() {
+  try {
+    const r = await api('/api/swarm/stats');
+    if (r.ok && r.data) {
+      document.getElementById('swarm-active').textContent = r.data.active_clones || 0;
+      document.getElementById('swarm-revenue').textContent = '$' + (r.data.total_revenue || 0).toFixed(2);
+      document.getElementById('swarm-royalties').textContent = '$' + (r.data.total_royalties || 0).toFixed(2);
+      document.getElementById('swarm-requests').textContent = r.data.total_requests || 0;
+      const el = document.getElementById('swarm-bots-list');
+      const clones = r.data.clones || [];
+      if (clones.length > 0) {
+        el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Bot</th><th>Niche</th><th>Prix</th><th>Requetes</th><th>Revenu</th><th>Status</th></tr>' +
+          clones.map(c => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-weight:600">' + (c.name||'') + '</td><td>' + (c.niche||'') + '</td><td style="color:var(--green)">$' + (c.base_price||0) + '</td><td>' + (c.total_requests||0) + '</td><td style="color:var(--green)">$' + (c.total_revenue||0).toFixed(2) + '</td><td style="color:' + (c.status==='active' ? 'var(--green)' : 'var(--muted)') + '">' + (c.status||'') + '</td></tr>').join('') + '</table>';
+      } else {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Bots en cours de deploiement... Actualisez dans 1 minute.</div>';
+      }
+    }
+  } catch(e) { console.error('loadSwarmData:', e); }
 }
 
 // ── CEO Chat ──
