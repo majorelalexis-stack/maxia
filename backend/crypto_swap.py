@@ -73,6 +73,107 @@ SUPPORTED_TOKENS = {
         "mint": "hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux",
         "name": "Helium", "decimals": 8, "logo": "",
     },
+    # ── V12: Ajout massif de tokens ──
+    "JTO": {
+        "mint": "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+        "name": "Jito", "decimals": 9, "logo": "",
+    },
+    "TNSR": {
+        "mint": "TNSRxcUxoT9xBG3de7PiJyTDYu7kskLqcpddxnEJAS6",
+        "name": "Tensor", "decimals": 9, "logo": "",
+    },
+    "MEW": {
+        "mint": "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5",
+        "name": "cat in a dogs world", "decimals": 5, "logo": "",
+    },
+    "POPCAT": {
+        "mint": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+        "name": "Popcat", "decimals": 9, "logo": "",
+    },
+    "MOBILE": {
+        "mint": "mb1eu7TzEc71KxDpsmsKoucSSuuoGLv1drys1oP2jh6",
+        "name": "Helium Mobile", "decimals": 6, "logo": "",
+    },
+    "MNDE": {
+        "mint": "MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey",
+        "name": "Marinade", "decimals": 9, "logo": "",
+    },
+    "MSOL": {
+        "mint": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+        "name": "Marinade Staked SOL", "decimals": 9, "logo": "",
+    },
+    "JITOSOL": {
+        "mint": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+        "name": "Jito Staked SOL", "decimals": 9, "logo": "",
+    },
+    "BSOL": {
+        "mint": "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+        "name": "BlazeStake Staked SOL", "decimals": 9, "logo": "",
+    },
+    "DRIFT": {
+        "mint": "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7",
+        "name": "Drift Protocol", "decimals": 6, "logo": "",
+    },
+    "KMNO": {
+        "mint": "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS",
+        "name": "Kamino", "decimals": 6, "logo": "",
+    },
+    "PENGU": {
+        "mint": "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+        "name": "Pudgy Penguins", "decimals": 6, "logo": "",
+    },
+    "AI16Z": {
+        "mint": "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
+        "name": "ai16z", "decimals": 9, "logo": "",
+    },
+    "FARTCOIN": {
+        "mint": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+        "name": "Fartcoin", "decimals": 6, "logo": "",
+    },
+    "GRASS": {
+        "mint": "Grass7B4RdKfBCjTKgSqnXkqjwiGvQyFbuSCUJr3XXjs",
+        "name": "Grass", "decimals": 9, "logo": "",
+    },
+    "ZEUS": {
+        "mint": "ZEUS1aR7aX8DFFJf5QjWj2ftDDdNTroMNGo8YoQm3Gq",
+        "name": "Zeus Network", "decimals": 6, "logo": "",
+    },
+    "NOSOL": {
+        "mint": "nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7",
+        "name": "Nosana", "decimals": 6, "logo": "",
+    },
+    "SAMO": {
+        "mint": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+        "name": "Samoyedcoin", "decimals": 9, "logo": "",
+    },
+    "STEP": {
+        "mint": "StepAscQoEioFxxWGnh2sLBDFp9d8rvKz2Yp39iDpyT",
+        "name": "Step Finance", "decimals": 9, "logo": "",
+    },
+    "BOME": {
+        "mint": "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+        "name": "BOOK OF MEME", "decimals": 6, "logo": "",
+    },
+    "SLERF": {
+        "mint": "7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3",
+        "name": "SLERF", "decimals": 9, "logo": "",
+    },
+    "MPLX": {
+        "mint": "METAewgxyPbgwsseH8T16a39CQ5VyVxZi9zXiDPY18m",
+        "name": "Metaplex", "decimals": 6, "logo": "",
+    },
+    "INF": {
+        "mint": "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",
+        "name": "Infinity (Sanctum)", "decimals": 9, "logo": "",
+    },
+    "PNUT": {
+        "mint": "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+        "name": "Peanut the Squirrel", "decimals": 6, "logo": "",
+    },
+    "GOAT": {
+        "mint": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+        "name": "Goatseus Maximus", "decimals": 6, "logo": "",
+    },
 }
 
 # Commission concurrence (mis a jour dynamiquement)
