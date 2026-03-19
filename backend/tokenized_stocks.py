@@ -329,7 +329,7 @@ async def auto_discover_xstocks() -> list:
     try:
         # 1. Scanner Jupiter verified tokens avec tag "tokenized-stock" ou "xstock"
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://tokens.jup.ag/tokens?tags=verified")
+            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
             if resp.status_code == 200:
                 tokens = resp.json()
                 for token in tokens:
@@ -365,7 +365,7 @@ async def auto_discover_xstocks() -> list:
     # 2. Scanner Jupiter pour les tokens Backed (bTokens) via tags
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://tokens.jup.ag/tokens?tags=verified")
+            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
             if resp.status_code == 200:
                 all_tokens = resp.json()
                 for bt in all_tokens:
@@ -395,7 +395,7 @@ async def auto_discover_xstocks() -> list:
     # Note: Ondo n'a pas d'API publique — on detecte via Jupiter token list
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://tokens.jup.ag/tokens?tags=verified")
+            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
             if resp.status_code == 200:
                 all_tokens = resp.json()
                 for ot in all_tokens:
