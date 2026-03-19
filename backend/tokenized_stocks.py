@@ -362,59 +362,64 @@ async def auto_discover_xstocks() -> list:
     except Exception as e:
         print(f"[Stocks] Auto-discovery error: {e}")
 
-    # 2. Scanner les tokens Backed Finance directement
+    # 2. Scanner Jupiter pour les tokens Backed (bTokens) via tags
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.backed.fi/v1/tokens", headers={"Accept": "application/json"})
+            resp = await client.get("https://tokens.jup.ag/tokens?tags=verified")
             if resp.status_code == 200:
-                backed_tokens = resp.json()
-                if isinstance(backed_tokens, list):
-                    for bt in backed_tokens:
-                        sym = bt.get("symbol", "").rstrip("X").upper()
-                        if sym and sym not in TOKENIZED_STOCKS:
-                            chain_data = bt.get("chains", {}).get("solana", {})
-                            mint = chain_data.get("address", "") if chain_data else ""
+                all_tokens = resp.json()
+                for bt in all_tokens:
+                    sym_raw = bt.get("symbol", "")
+                    name = bt.get("name", "").lower()
+                    # Detecter les Backed tokens (prefixe b, nom contient "backed")
+                    if ("backed" in name or sym_raw.startswith("b") and "stock" in name):
+                        sym = sym_raw.lstrip("b").rstrip("X").upper()
+                        if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
                             new_stock = {
                                 "name": bt.get("name", sym),
                                 "symbol": sym,
-                                "xstock_symbol": bt.get("symbol", f"{sym}X"),
+                                "xstock_symbol": sym_raw,
                                 "ondo_symbol": f"{sym}on",
-                                "sector": bt.get("category", "Auto-discovered"),
-                                "mint_xstock": mint,
+                                "sector": "Auto-discovered (Backed)",
+                                "mint_xstock": bt.get("address", ""),
                                 "mint_ondo": "",
-                                "logo": bt.get("logo", ""),
+                                "logo": bt.get("logoURI", ""),
                             }
                             TOKENIZED_STOCKS[sym] = new_stock
-                            discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": mint})
+                            discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": bt.get("address", "")})
                             print(f"[Stocks] Backed discovered: {sym}")
     except Exception as e:
-        print(f"[Stocks] Backed API error: {e}")
+        print(f"[Stocks] Backed scan error: {e}")
 
-    # 3. Scanner Ondo Global Markets
+    # 3. Scanner Jupiter pour les tokens Ondo (suffix ON ou ondo dans le nom)
+    # Note: Ondo n'a pas d'API publique — on detecte via Jupiter token list
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.ondo.finance/v1/tokens", headers={"Accept": "application/json"})
+            resp = await client.get("https://tokens.jup.ag/tokens?tags=verified")
             if resp.status_code == 200:
-                ondo_tokens = resp.json()
-                if isinstance(ondo_tokens, list):
-                    for ot in ondo_tokens:
-                        sym = ot.get("underlying", "").upper()
-                        if sym and sym not in TOKENIZED_STOCKS:
+                all_tokens = resp.json()
+                for ot in all_tokens:
+                    sym_raw = ot.get("symbol", "")
+                    name = ot.get("name", "").lower()
+                    if "ondo" in name or (sym_raw.endswith("ON") and len(sym_raw) >= 4 and
+                            any(kw in name for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta", "tokenized"])):
+                        sym = sym_raw.rstrip("on").rstrip("ON").upper()
+                        if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
                             new_stock = {
                                 "name": ot.get("name", sym),
                                 "symbol": sym,
                                 "xstock_symbol": f"{sym}X",
-                                "ondo_symbol": ot.get("symbol", f"{sym}on"),
-                                "sector": ot.get("category", "Auto-discovered"),
+                                "ondo_symbol": sym_raw,
+                                "sector": "Auto-discovered (Ondo)",
                                 "mint_xstock": "",
                                 "mint_ondo": ot.get("address", ""),
-                                "logo": ot.get("logo", ""),
+                                "logo": ot.get("logoURI", ""),
                             }
                             TOKENIZED_STOCKS[sym] = new_stock
                             discovered.append({"symbol": sym, "name": ot.get("name", "")})
                             print(f"[Stocks] Ondo discovered: {sym}")
     except Exception as e:
-        print(f"[Stocks] Ondo API error: {e}")
+        print(f"[Stocks] Ondo scan error: {e}")
 
     _discovery_cache = discovered
     _discovery_ts = time.time()
