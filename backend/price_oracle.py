@@ -303,7 +303,10 @@ async def get_price(symbol: str) -> float:
 
 
 async def get_crypto_prices() -> dict:
-    cryptos = ["SOL", "USDC", "USDT", "BONK", "JUP", "RAY", "WIF", "RENDER", "HNT", "TRUMP", "PYTH", "W", "ETH", "BTC", "ORCA"]
+    stock_syms = {"AAPL","TSLA","NVDA","GOOGL","MSFT","AMZN","META","MSTR","SPY","QQQ",
+                  "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
+                  "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
+    cryptos = [s for s in TOKEN_MINTS if s not in stock_syms]
     return await get_prices(cryptos)
 
 
