@@ -460,6 +460,35 @@ async def reddit_status():
         return {"error": str(e), "configured": False}
 
 
+@app.get("/api/outreach/status")
+async def outreach_status():
+    """Get agent outreach bot statistics."""
+    try:
+        from agent_outreach import get_stats
+        return get_stats()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/admin/outreach-now")
+async def admin_outreach_now(key: str = ""):
+    """Manually trigger an outreach cycle. Admin only."""
+    if key != ADMIN_KEY:
+        raise HTTPException(403, "Invalid key")
+    from agent_outreach import run_outreach_cycle
+    return await run_outreach_cycle()
+
+
+@app.get("/MAXIA_DOCS.md")
+async def serve_rag_docs():
+    """Serve RAG-optimized documentation for LLM ingestion."""
+    import pathlib
+    doc_path = pathlib.Path(__file__).parent.parent / "frontend" / "MAXIA_DOCS.md"
+    if doc_path.exists():
+        return FileResponse(str(doc_path), media_type="text/markdown")
+    return {"error": "docs not found"}
+
+
 @app.post("/api/admin/reddit-post")
 async def admin_reddit_post(request: Request, key: str = ""):
     """Manually post to Reddit. Admin only."""

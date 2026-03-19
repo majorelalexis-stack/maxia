@@ -30,6 +30,11 @@ try:
 except ImportError:
     run_reddit_bot = _noop
 
+try:
+    from agent_outreach import run_outreach_bot
+except ImportError:
+    run_outreach_bot = _noop
+
 
 class Scheduler:
     def __init__(self):
@@ -58,6 +63,7 @@ class Scheduler:
             asyncio.create_task(run_telegram_bot()),
             asyncio.create_task(run_twitter_bot()),
             asyncio.create_task(run_reddit_bot()),
+            asyncio.create_task(run_outreach_bot()),
             asyncio.create_task(run_monitor_loop()),
             asyncio.create_task(self._health_monitor(brain, growth_agent)),
         ]
