@@ -432,8 +432,8 @@ async def ceo_ask(request: Request):
         message = body.get("message", body.get("text", ""))
         if not message:
             return {"error": "message required"}
-        from ceo_maxia import ceo, respond_to_message
-        result = await respond_to_message("api", "founder", message, ceo.memory)
+        from ceo_maxia import ceo, respond
+        result = await respond("api", "founder", message, ceo.memory)
         return {
             "success": True,
             "from": "CEO MAXIA",
