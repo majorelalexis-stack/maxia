@@ -103,6 +103,18 @@ MCP_TOOLS = [
         },
     },
     {
+        "name": "maxia_defi_yield",
+        "description": "Find the best DeFi yields for any asset across all protocols. Data from DeFiLlama.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "asset": {"type": "string", "description": "Asset to find yields for: USDC, ETH, SOL, BTC, etc."},
+                "chain": {"type": "string", "description": "Filter by chain: ethereum, solana, arbitrum (optional)"},
+            },
+            "required": ["asset"],
+        },
+    },
+    {
         "name": "maxia_marketplace_stats",
         "description": "Get MAXIA marketplace statistics: registered agents, services, transactions, volume, commissions.",
         "inputSchema": {
@@ -209,6 +221,13 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.get("/api/public/crypto/prices")
             return r.json()
 
+        elif name == "maxia_defi_yield":
+            r = await client.get("/api/public/defi/best-yield", params={
+                "asset": args.get("asset", "USDC"),
+                "chain": args.get("chain", ""),
+            })
+            return r.json()
+
         elif name == "maxia_marketplace_stats":
             r = await client.get("/api/public/marketplace-stats")
             return r.json()
@@ -235,5 +254,5 @@ async def mcp_manifest():
             "header": "X-API-Key",
             "register_url": f"{MAXIA_URL}/api/public/register",
         },
-        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices"],
+        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi"],
     }

@@ -193,6 +193,7 @@ AGENT_CARD = {
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
         {"name": "scraper", "description": "Web scraping. Structured JSON. $0.05/page.", "endpoint": "/api/public/scrape"},
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
+        {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
     ],
     "registration": {"endpoint": "/api/public/register", "method": "POST", "cost": "free"},
@@ -419,6 +420,26 @@ async def watchdog_health():
     try:
         from ceo_maxia import watchdog_health_check
         return await watchdog_health_check()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ceo/ask")
+async def ceo_ask(request: Request):
+    """Chat with the CEO MAXIA. Ask questions, give orders, get updates."""
+    try:
+        body = await request.json()
+        message = body.get("message", body.get("text", ""))
+        if not message:
+            return {"error": "message required"}
+        from ceo_maxia import ceo, respond_to_message
+        result = await respond_to_message("api", "founder", message, ceo.memory)
+        return {
+            "success": True,
+            "from": "CEO MAXIA",
+            "response": result.get("reponse", result.get("response", str(result))),
+            "intention": result.get("intention", ""),
+        }
     except Exception as e:
         return {"error": str(e)}
 

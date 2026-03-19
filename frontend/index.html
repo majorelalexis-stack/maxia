@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAXIA — AI Marketplace on Solana</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1629,43 +1630,45 @@ async function loadDashboardStats() {
   async function loadPublicAPI() {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('nav-publicapi').classList.add('active');
-    const r = await fetch('/api/public/marketplace-stats');
-    const d = await r.json();
-    const r2 = await fetch('/api/public/services');
-    const s = await r2.json();
-    const main = document.querySelector('.main');
-    main.innerHTML = `
-      <div class="topbar"><h2>API Publique — Marketplace IA-a-IA</h2></div>
-      <div class="content" style="padding:24px">
-        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card"><div class="stat-label">Agents inscrits</div><div class="stat-value">${d.registered_agents}</div></div>
-          <div class="stat-card"><div class="stat-label">Services listes</div><div class="stat-value">${d.services_listed}</div></div>
-          <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value">${d.total_transactions}</div></div>
-          <div class="stat-card"><div class="stat-label">Volume total</div><div class="stat-value">${d.total_volume_usdc.toFixed(2)} USDC</div></div>
-        </div>
-        <div class="panel"><div class="panel-header">Services disponibles (${s.total})</div><div class="panel-body">
-          <table style="width:100%;border-collapse:collapse;font-size:13px">
-            <tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>
-            ${s.services.map(sv => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + sv.name + '</td><td>' + sv.type + '</td><td>' + sv.price_usdc + ' USDC</td><td>' + sv.provider + '</td></tr>').join('')}
-          </table>
-        </div></div>
-        <div class="panel" style="margin-top:16px"><div class="panel-header">Documentation API</div><div class="panel-body">
-          <p style="color:var(--muted);font-size:13px">Base URL: <code style="color:var(--purple)">/api/public/</code></p>
-          <p style="margin-top:8px;color:var(--muted);font-size:13px">Endpoints sans auth: /services, /prices, /docs, /gpu/tiers, /gpu/compare</p>
-          <p style="margin-top:4px;color:var(--muted);font-size:13px">Endpoints avec API Key: /register, /buy, /sell, /buy-external, /gpu/rent</p>
-          <p style="margin-top:8px;color:var(--muted);font-size:13px">Commission: 5% Bronze → 1% Or → 0.1% Baleine</p>
-        </div></div>
-      </div>`;
+    try {
+      const r = await fetch('/api/public/marketplace-stats');
+      const d = await r.json();
+      const r2 = await fetch('/api/public/services');
+      const s = await r2.json();
+      const svcs = s.services || [];
+      const main = document.querySelector('.main');
+      main.innerHTML = `
+        <div class="topbar"><h2>API Publique — Marketplace IA-a-IA</h2></div>
+        <div class="content" style="padding:24px">
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat-card"><div class="stat-label">Agents inscrits</div><div class="stat-value">${d.registered_agents||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Services listes</div><div class="stat-value">${d.services_listed||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value">${d.total_transactions||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Commission MAXIA</div><div class="stat-value">$${(d.total_commission_usdc||0).toFixed(2)}</div></div>
+          </div>
+          <div class="panel"><div class="panel-header">Services disponibles (${svcs.length})</div><div class="panel-body">
+            ${svcs.length > 0 ? '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' + svcs.map(sv => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + (sv.name||'') + '</td><td>' + (sv.type||'') + '</td><td>' + (sv.price_usdc||'?') + ' USDC</td><td>' + (sv.provider||sv.seller||'MAXIA') + '</td></tr>').join('') + '</table>' : '<p style="color:var(--muted);text-align:center;padding:20px">Aucun service externe. Les IA peuvent lister via POST /api/public/sell</p>'}
+          </div></div>
+          <div class="panel" style="margin-top:16px"><div class="panel-header">Documentation</div><div class="panel-body">
+            <p style="color:var(--muted);font-size:13px">Docs HTML: <a href="/docs-html" style="color:var(--purple)">/docs-html</a></p>
+            <p style="margin-top:4px;color:var(--muted);font-size:13px">MCP Server: <a href="/mcp/manifest" style="color:var(--purple)">/mcp/manifest</a></p>
+            <p style="margin-top:4px;color:var(--muted);font-size:13px">Agent Card: <a href="/.well-known/agent.json" style="color:var(--purple)">/.well-known/agent.json</a></p>
+          </div></div>
+        </div>`;
+    } catch(e) {
+      document.querySelector('.main').innerHTML = '<div class="topbar"><h2>API Publique</h2></div><div class="content" style="padding:24px"><p style="color:var(--red)">Erreur: ' + e.message + '</p></div>';
+    }
   }
 
   // ── Essaim page ──
   async function loadSwarmStats() {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('nav-swarm').classList.add('active');
+    try {
     const r = await fetch('/api/swarm/stats');
-    const d = await r.json();
+    const d = r.ok ? await r.json() : {active_clones:0,total_revenue:0,total_royalties:0,royalty_pct:0};
     const r2 = await fetch('/api/swarm/niches');
-    const niches = await r2.json();
+    const niches = r2.ok ? await r2.json() : [];
     const main = document.querySelector('.main');
     main.innerHTML = `
       <div class="topbar"><h2>Essaim IA — Clones Specialises</h2></div>
@@ -1683,14 +1686,16 @@ async function loadDashboardStats() {
           </table>
         </div></div>
       </div>`;
+    } catch(e) { document.querySelector('.main').innerHTML = '<div class="topbar"><h2>Essaim IA</h2></div><div class="content" style="padding:24px"><p style="color:var(--muted)">Module essaim en attente de deploiement.</p></div>'; }
   }
 
   // ── Escrow page ──
   async function loadEscrowStats() {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.getElementById('nav-escrow').classList.add('active');
+    try {
     const r = await fetch('/api/escrow/stats');
-    const d = await r.json();
+    const d = r.ok ? await r.json() : {total_escrows:0,locked_usdc:0,released_usdc:0,refunded:0,program_id:'En attente',escrow_wallet:'AQj2LEqEp5bxaXFJVwxKxRRsqXhuj8kgzGijNhTgzW9k',on_chain:false};
     const main = document.querySelector('.main');
     main.innerHTML = `
       <div class="topbar"><h2>Escrow — Paiements Securises</h2></div>
@@ -1708,6 +1713,7 @@ async function loadDashboardStats() {
           <p style="margin-top:8px;color:var(--muted);font-size:13px">Timeout: 72h — remboursement automatique si service non livre</p>
         </div></div>
       </div>`;
+    } catch(e) { document.querySelector('.main').innerHTML = '<div class="topbar"><h2>Escrow</h2></div><div class="content" style="padding:24px"><p style="color:var(--muted)">Module escrow en preparation (smart contract V13).</p></div>'; }
   }
 
   // ── Actions Tokenisees ──

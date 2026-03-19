@@ -1026,6 +1026,53 @@ def _get_tier_name(volume: float) -> str:
 # ══════════════════════════════════════════
 #  LOCATION GPU (prix coutant + commission)
 # ══════════════════════════════════════════
+#  DEFI — Yield Scanner (DeFiLlama)
+# ══════════════════════════════════════════
+
+@router.get("/defi/best-yield")
+async def defi_best_yield(asset: str = "USDC", chain: str = "", min_tvl: float = 100000, limit: int = 10):
+    """Find the best DeFi yields for an asset. Free, no auth.
+
+    Examples:
+      GET /defi/best-yield?asset=USDC
+      GET /defi/best-yield?asset=ETH&chain=ethereum&limit=5
+      GET /defi/best-yield?asset=SOL&chain=solana
+    """
+    try:
+        from defi_scanner import get_best_yields
+        yields = await get_best_yields(asset, chain, min_tvl, limit)
+        return {
+            "asset": asset,
+            "chain": chain or "all",
+            "results": len(yields),
+            "yields": yields,
+            "source": "DeFiLlama",
+        }
+    except Exception as e:
+        return {"error": str(e), "yields": []}
+
+
+@router.get("/defi/protocol")
+async def defi_protocol(name: str = "aave"):
+    """Get stats for a specific DeFi protocol."""
+    try:
+        from defi_scanner import get_protocol_stats
+        return await get_protocol_stats(name)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/defi/chains")
+async def defi_chains():
+    """Get TVL by blockchain."""
+    try:
+        from defi_scanner import get_chain_tvl
+        return await get_chain_tvl()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():
