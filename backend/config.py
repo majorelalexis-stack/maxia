@@ -127,10 +127,10 @@ def get_commission_bps(volume_30d: float) -> int:
 # ── GPU Tiers ──
 GPU_TIERS = [
     {"id": "rtx4090",   "label": "RTX 4090",     "vram_gb": 24,  "base_price_per_hour": 0.69},
-    {"id": "a100_80",   "label": "A100 80GB",    "vram_gb": 80,  "base_price_per_hour": 1.99},
-    {"id": "h100_sxm5", "label": "H100 SXM5",    "vram_gb": 80,  "base_price_per_hour": 3.29},
+    {"id": "a100_80",   "label": "A100 80GB",    "vram_gb": 80,  "base_price_per_hour": 1.79},
+    {"id": "h100_sxm5", "label": "H100 SXM5",    "vram_gb": 80,  "base_price_per_hour": 2.69},
     {"id": "a6000",     "label": "RTX A6000",    "vram_gb": 48,  "base_price_per_hour": 0.99},
-    {"id": "4xa100",    "label": "4x A100 80GB", "vram_gb": 320, "base_price_per_hour": 7.49},
+    {"id": "4xa100",    "label": "4x A100 80GB", "vram_gb": 320, "base_price_per_hour": 7.16},
 ]
 
 # ── Securite Art.1 ──

@@ -44,19 +44,76 @@ TOKEN_MINTS = {
 }
 
 FALLBACK_PRICES = {
-    "SOL": 119, "USDC": 1.0, "USDT": 1.0, "BONK": 0.000025,
+    "SOL": 139, "USDC": 1.0, "USDT": 1.0, "BONK": 0.000025,
     "JUP": 0.72, "RAY": 2.5, "WIF": 1.18, "RENDER": 7.5,
-    "HNT": 3.92, "TRUMP": 2.87, "PYTH": 0.058, "W": 0.10, "ETH": 2400, "BTC": 80000, "ORCA": 1.50,
-    "AAPL": 260, "TSLA": 407, "NVDA": 185, "GOOGL": 307,
-    "MSFT": 403, "AMZN": 212, "META": 651, "MSTR": 340,
-    "SPY": 585, "QQQ": 515,
+    "HNT": 3.92, "TRUMP": 2.87, "PYTH": 0.058, "W": 0.10, "ETH": 3119, "BTC": 90613, "ORCA": 1.50,
+    "AAPL": 257, "TSLA": 397, "NVDA": 178, "GOOGL": 299,
+    "MSFT": 403, "AMZN": 213, "META": 614, "MSTR": 340,
+    "SPY": 672, "QQQ": 515,
 }
 
 _price_cache: dict = {}
 _cache_ts: float = 0
 _CACHE_TTL = 30
 
-print("[PriceOracle] Initialise — Helius DAS API + fallback")
+# Stock prices cache (separate, longer TTL)
+_stock_cache: dict = {}
+_stock_cache_ts: float = 0
+_STOCK_CACHE_TTL = 120  # 2 minutes
+
+print("[PriceOracle] Initialise — Helius DAS API + Yahoo Finance + fallback")
+
+
+async def _fetch_yahoo_stock_prices() -> dict:
+    """Fetch real-time stock prices from Yahoo Finance (free, no API key)."""
+    stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"]
+    prices = {}
+    try:
+        import httpx
+        # Yahoo Finance v8 API (free, no key needed)
+        symbols = ",".join(stocks)
+        url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=1d&interval=1d"
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0",
+            })
+            if resp.status_code == 200:
+                data = resp.json()
+                for sym, info in data.items():
+                    try:
+                        close = info.get("close", [])
+                        prev = info.get("previousClose", 0)
+                        price = close[-1] if close else info.get("regularMarketPrice", 0)
+                        if price and price > 0:
+                            change_pct = ((price - prev) / prev * 100) if prev else 0
+                            prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"[PriceOracle] Yahoo Finance error: {e}")
+
+    # Fallback: try v7 quote API if v8 fails
+    if not prices:
+        try:
+            import httpx
+            symbols = ",".join(stocks)
+            url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for q in data.get("quoteResponse", {}).get("result", []):
+                        sym = q.get("symbol", "")
+                        price = q.get("regularMarketPrice", 0)
+                        change = q.get("regularMarketChangePercent", 0)
+                        if sym and price:
+                            prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
+        except Exception as e2:
+            print(f"[PriceOracle] Yahoo v7 error: {e2}")
+
+    if prices:
+        print(f"[PriceOracle] Yahoo Finance: {len(prices)} stock prices live")
+    return prices
 
 
 async def _fetch_helius_prices() -> dict:
@@ -167,5 +224,32 @@ async def get_crypto_prices() -> dict:
 
 
 async def get_stock_prices() -> dict:
+    global _stock_cache, _stock_cache_ts
     stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"]
-    return await get_prices(stocks)
+
+    # Use cache if fresh
+    if time.time() - _stock_cache_ts < _STOCK_CACHE_TTL and _stock_cache:
+        return _stock_cache
+
+    # Try Yahoo Finance first (real-time, free)
+    yahoo_prices = await _fetch_yahoo_stock_prices()
+    if yahoo_prices and len(yahoo_prices) >= 5:
+        result = {}
+        for sym in stocks:
+            if sym in yahoo_prices:
+                result[sym] = yahoo_prices[sym]
+            else:
+                result[sym] = {"price": FALLBACK_PRICES.get(sym, 0), "change": 0, "source": "fallback"}
+        _stock_cache = result
+        _stock_cache_ts = time.time()
+        return result
+
+    # Fallback to Helius DAS (may not work for stocks)
+    helius_prices = await get_prices(stocks)
+    if helius_prices:
+        _stock_cache = helius_prices
+        _stock_cache_ts = time.time()
+        return helius_prices
+
+    # Final fallback
+    return {s: {"price": FALLBACK_PRICES.get(s, 0), "change": 0, "source": "fallback"} for s in stocks}
