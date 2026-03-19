@@ -1187,6 +1187,8 @@ async def execute(decisions: list, memory: Memory):
         await alert_rouge("Emergency Stop actif", "Toutes les decisions sont bloquees. Revenue: $0. Reset manuel requis.", deadline_h=1)
         return
 
+    from ceo_executor import execute_decision
+
     for dec in decisions:
         action = dec.get("action", "")
         cible = dec.get("cible", "")
@@ -1204,6 +1206,17 @@ async def execute(decisions: list, memory: Memory):
 
         if cible == "FONDATEUR" and prio == "haute":
             await alert_rouge(action[:80], action, deadline_h=2)
+
+        # Actually execute the decision
+        try:
+            result = await execute_decision(dec, memory)
+            if result.get("executed"):
+                print(f"[CEO] EXECUTED: {cible} -> {result.get('detail', 'ok')}")
+            else:
+                reason = result.get("reason", "unknown")
+                print(f"[CEO] NOT EXECUTED: {cible} -> {reason}")
+        except Exception as e:
+            print(f"[CEO] Execution error for {cible}: {e}")
 
 
 # ══════════════════════════════════════════

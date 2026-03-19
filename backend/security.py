@@ -23,12 +23,21 @@ def check_content_safety(text: str, field_name: str = "content") -> None:
             raise HTTPException(400, f"ART.1 — Contenu interdit detecte dans {field_name}")
 
 
-# ── Rate limiting (in-memory, par IP) avec nettoyage automatique ──
+# ── Rate limiting (Redis-backed with in-memory fallback) ──
 
 _rate_store: dict = defaultdict(list)
 RATE_LIMIT = 60
 RATE_WINDOW = 60
 _RATE_STORE_MAX_KEYS = 10000
+
+# Redis client reference — set via set_redis_client() at startup
+_redis_client = None
+
+
+def set_redis_client(client):
+    """Inject the Redis client for rate limiting. Called from lifespan."""
+    global _redis_client
+    _redis_client = client
 
 
 def _cleanup_rate_store():
@@ -39,15 +48,31 @@ def _cleanup_rate_store():
         del _rate_store[ip]
 
 
-def check_rate_limit(request: Request) -> None:
-    """Rate limit simple par IP. 60 req/min."""
+async def check_rate_limit_async(request: Request) -> None:
+    """Async rate limit — uses Redis if available, else in-memory fallback."""
     ip = request.client.host if request.client else "unknown"
+    if _redis_client is not None and _redis_client.is_connected:
+        allowed = await _redis_client.rate_limit_check(ip, RATE_LIMIT, RATE_WINDOW)
+        if not allowed:
+            raise HTTPException(429, "Rate limit depasse. Reessayez dans 1 minute.")
+        return
+    # Fallback: in-memory (sync path)
+    _check_rate_limit_memory(ip)
+
+
+def check_rate_limit(request: Request) -> None:
+    """Synchronous rate limit fallback (in-memory only). 60 req/min."""
+    ip = request.client.host if request.client else "unknown"
+    _check_rate_limit_memory(ip)
+
+
+def _check_rate_limit_memory(ip: str) -> None:
+    """In-memory sliding window rate check."""
     now = time.time()
     _rate_store[ip] = [t for t in _rate_store[ip] if t > now - RATE_WINDOW]
     if len(_rate_store[ip]) >= RATE_LIMIT:
         raise HTTPException(429, "Rate limit depasse. Reessayez dans 1 minute.")
     _rate_store[ip].append(now)
-    # Nettoyage periodique pour eviter fuite memoire
     if len(_rate_store) > _RATE_STORE_MAX_KEYS:
         _cleanup_rate_store()
 

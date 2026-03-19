@@ -13,3 +13,5 @@ solana>=0.32.0
 solders>=0.20.0
 tweepy>=4.14
 chromadb
+asyncpg>=0.29.0
+redis[hiredis]>=5.0.0

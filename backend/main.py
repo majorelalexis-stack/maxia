@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Core imports ──
-from database import db
+from database import db, create_database
 from auth import router as auth_router, require_auth
 from auction_manager import AuctionManager
 from agent_worker import agent_worker
@@ -25,7 +25,8 @@ from models import (
 )
 from runpod_client import RunPodClient
 from solana_verifier import verify_transaction
-from security import check_content_safety, check_rate_limit
+from security import check_content_safety, check_rate_limit, set_redis_client
+from redis_client import redis_client
 from config import (
     GPU_TIERS, get_commission_bps,
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE,
@@ -84,21 +85,46 @@ async def broadcast_all(msg: dict):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await db.connect()
+    # V12: Redis connect (graceful fallback to in-memory)
+    from config import REDIS_URL
+    await redis_client.connect(REDIS_URL)
+    set_redis_client(redis_client)
+
+    # V12: Database factory — PostgreSQL if DATABASE_URL set, else SQLite
+    import database as _db_mod
+    db_instance = await create_database()
+    # Patch the module-level singleton so all imports see the new instance
+    _db_mod.db = db_instance
+    # Also patch our local reference
+    global db
+    db = db_instance
+
     reputation_staking.set_db(db)
     escrow_client.set_db(db)
     await escrow_client._load_from_db()
     agent_worker.set_broadcast(broadcast_all)
+
+    # V12: Init new modules (API keys, SLA, webhooks)
+    from api_keys import ensure_tables as ensure_api_keys_tables
+    from webhook_dispatcher import ensure_tables as ensure_webhook_tables, retry_worker
+    from sla_manager import ensure_tables as ensure_sla_tables
+    await ensure_api_keys_tables(db)
+    await ensure_webhook_tables(db)
+    await ensure_sla_tables(db)
+
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
-    # V10.1: Lancer le scheduler qui coordonne brain + growth_agent + agent_worker
     t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
     t3 = asyncio.create_task(swarm.run_monitor())
-    print("[MAXIA] V12 demarre — Art.1-15 + Agent Autonome | Solana + Base + KiteAI + x402V2 + AP2")
+    t4 = asyncio.create_task(retry_worker(db))  # V12: webhook retry worker
+    print("[MAXIA] V12 demarre — Art.1-15 + Agent Autonome | Solana + Base + Ethereum + KiteAI + x402V2 + AP2")
+    print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
     yield
     t1.cancel()
     scheduler.stop()
     t3.cancel()
+    t4.cancel()
     await db.disconnect()
+    await redis_client.close()
 
 
 # ── App ──
@@ -120,6 +146,10 @@ app.include_router(data_router)
 app.include_router(public_router)
 if mcp_router:
     app.include_router(mcp_router)
+
+# V12: Analytics dashboard
+from analytics import router as analytics_router
+app.include_router(analytics_router)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"

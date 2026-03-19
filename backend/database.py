@@ -1,5 +1,5 @@
 """MAXIA Database V9 - SQLite async"""
-import json, time, aiosqlite
+import json, time, os, aiosqlite
 from pathlib import Path
 
 DB_PATH = str(Path(__file__).parent / "maxia.db")
@@ -357,4 +357,53 @@ class Database:
             "total_commission_usdc": txs["comm"] if txs else 0,
         }
 
+    # ── Analytics (V12) ──
+
+    async def get_volume_timeseries(self, period_hours: int = 168, granularity_hours: int = 1):
+        """Return volume bucketed by granularity over the given period."""
+        now = int(time.time())
+        cutoff = now - period_hours * 3600
+        gran = granularity_hours * 3600
+        rows = await self._db.execute_fetchall(
+            "SELECT (created_at / ?) * ? AS bucket, COALESCE(SUM(amount_usdc),0) AS volume, COUNT(*) AS tx_count "
+            "FROM transactions WHERE created_at >= ? GROUP BY bucket ORDER BY bucket",
+            (gran, gran, cutoff))
+        return [{"timestamp": r["bucket"], "volume_usdc": float(r["volume"]),
+                 "tx_count": r["tx_count"]} for r in rows]
+
+    async def get_top_agents(self, limit: int = 10, period_days: int = 30):
+        """Return top agents by volume in the given period."""
+        cutoff = int(time.time()) - period_days * 86400
+        rows = await self._db.execute_fetchall(
+            "SELECT a.api_key, a.name, a.wallet, a.tier, "
+            "COALESCE(SUM(t.amount_usdc),0) AS volume "
+            "FROM agents a LEFT JOIN transactions t ON t.wallet = a.wallet AND t.created_at >= ? "
+            "GROUP BY a.api_key, a.name, a.wallet, a.tier "
+            "ORDER BY volume DESC LIMIT ?",
+            (cutoff, limit))
+        return [dict(r) for r in rows]
+
+    async def get_revenue_breakdown(self, period_days: int = 30):
+        """Return revenue grouped by purpose over the given period."""
+        cutoff = int(time.time()) - period_days * 86400
+        rows = await self._db.execute_fetchall(
+            "SELECT purpose, COALESCE(SUM(amount_usdc),0) AS total, COUNT(*) AS tx_count "
+            "FROM transactions WHERE created_at >= ? GROUP BY purpose ORDER BY total DESC",
+            (cutoff,))
+        return [{"purpose": r["purpose"], "total_usdc": float(r["total"]),
+                 "tx_count": r["tx_count"]} for r in rows]
+
+
 db = Database()
+
+
+async def create_database():
+    """Factory: returns a PostgresDatabase if DATABASE_URL is set, else SQLite Database."""
+    database_url = os.getenv("DATABASE_URL", "")
+    if database_url.startswith("postgres"):
+        from database_pg import PostgresDatabase
+        db_instance = PostgresDatabase(database_url)
+    else:
+        db_instance = Database()
+    await db_instance.connect()
+    return db_instance

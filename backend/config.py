@@ -162,3 +162,9 @@ TWITTER_API_KEY        = os.getenv("TWITTER_API_KEY", "")
 TWITTER_API_SECRET     = os.getenv("TWITTER_API_SECRET", "")
 TWITTER_ACCESS_TOKEN   = os.getenv("TWITTER_ACCESS_TOKEN", "")
 TWITTER_ACCESS_SECRET  = os.getenv("TWITTER_ACCESS_SECRET", "")
+
+# ── V12: PostgreSQL + Redis ──
+DATABASE_URL         = os.getenv("DATABASE_URL", "")           # postgresql://...
+REDIS_URL            = os.getenv("REDIS_URL", "")              # redis://localhost:6379/0
+ACCEPTED_CURRENCIES  = ["USDC", "SOL", "ETH"]
+CURRENCY_SLIPPAGE_PCT = float(os.getenv("CURRENCY_SLIPPAGE_PCT", "2"))
