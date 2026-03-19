@@ -146,7 +146,7 @@ class GrowthAgent:
             except Exception as e:
                 print(f"[GrowthAgent] Erreur: {e}")
                 await alert_error("GrowthAgent", str(e))
-            await asyncio.sleep(1800)
+            await asyncio.sleep(14400)  # 4 heures (economie tokens)
 
     def stop(self):
         self._running = False

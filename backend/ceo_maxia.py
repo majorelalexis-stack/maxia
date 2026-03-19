@@ -1576,7 +1576,7 @@ class CEOMaxia:
 
             except Exception as e:
                 print(f"[CEO] Error #{self._cycle}: {e}")
-            await asyncio.sleep(3600)
+            await asyncio.sleep(10800)  # 3 heures (economie tokens Groq)
 
     def stop(self):
         self._running = False
