@@ -798,6 +798,15 @@ async def get_active_auctions():
     return auction_manager.get_open_auctions()
 
 
+@app.get("/api/gpu/auctions")
+async def get_auctions(status: str = "open"):
+    """List GPU auctions. ?status=open returns active auctions."""
+    auctions = auction_manager.get_open_auctions()
+    if status != "open":
+        return []  # Only open auctions available in-memory
+    return auctions
+
+
 @app.post("/api/gpu/auctions")
 async def create_auction_rest(req: AuctionCreateRequest, wallet: str = Depends(require_auth)):
     gpu = next((g for g in GPU_TIERS if g["id"] == req.gpu_tier_id), None)

@@ -796,6 +796,17 @@ async def discover_services(
     }
 
 
+@router.post("/discover")
+async def discover_services_post(req: dict = {}):
+    """POST version of discover for agent-to-agent compatibility."""
+    return await discover_services(
+        capability=req.get("capability", ""),
+        max_price=float(req.get("max_price", 9999)),
+        min_rating=float(req.get("min_rating", 0)),
+        agent_type=req.get("agent_type", ""),
+    )
+
+
 # ══════════════════════════════════════════
 #  EXECUTE — Webhook-based service execution
 # ══════════════════════════════════════════
@@ -1615,6 +1626,18 @@ async def stock_stats():
     return stock_exchange.get_stats()
 
 
+@router.get("/stats")
+async def public_stats():
+    """Stats publiques de la marketplace."""
+    from database import db
+    try:
+        stats = await db.get_marketplace_stats()
+        db_stats = await db.get_stats()
+        return {**stats, "volume_24h": db_stats.get("volume_24h", 0), "listing_count": db_stats.get("listing_count", 0)}
+    except Exception:
+        return {"agents_registered": 0, "services_listed": 0, "total_transactions": 0, "volume_24h": 0}
+
+
 # ══════════════════════════════════════════
 #  CRYPTO SWAP
 # ══════════════════════════════════════════
@@ -1637,6 +1660,13 @@ async def crypto_prices():
 @router.get("/crypto/quote")
 async def crypto_quote(from_token: str, to_token: str, amount: float, volume_30d: float = 0):
     """Devis de swap avec commission MAXIA. Sans auth."""
+    from crypto_swap import get_swap_quote
+    return await get_swap_quote(from_token, to_token, amount, volume_30d)
+
+
+@router.get("/crypto/swap-quote")
+async def crypto_swap_quote(from_token: str, to_token: str, amount: float, volume_30d: float = 0):
+    """Alias de /crypto/quote pour compatibilite."""
     from crypto_swap import get_swap_quote
     return await get_swap_quote(from_token, to_token, amount, volume_30d)
 

@@ -2,11 +2,16 @@
 import os, uuid, time, json
 from fastapi import APIRouter, Depends, HTTPException
 from auth import require_auth
-from database import db
 from models import SubscribeRequest
 from config import SUBSCRIPTION_PLANS
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
+
+
+def _get_db():
+    from database import db
+    return db
+
 
 @router.get("/plans")
 async def get_plans():
@@ -14,6 +19,7 @@ async def get_plans():
 
 @router.post("/subscribe")
 async def subscribe(req: SubscribeRequest, wallet: str = Depends(require_auth)):
+    db = _get_db()
     if req.plan not in SUBSCRIPTION_PLANS:
         raise HTTPException(400, f"Plan inconnu: {list(SUBSCRIPTION_PLANS.keys())}")
     if await db.tx_already_processed(req.tx_signature):
@@ -36,23 +42,20 @@ async def subscribe(req: SubscribeRequest, wallet: str = Depends(require_auth)):
 
 @router.get("/my")
 async def my_sub(wallet: str = Depends(require_auth)):
-    async with db._db.execute(
-        "SELECT data FROM subscriptions WHERE wallet=?"
-        " AND json_extract(data,'$.status')='active'"
-        " ORDER BY json_extract(data,'$.expiresAt') DESC LIMIT 1",
-        (wallet,)
-    ) as c:
-        row = await c.fetchone()
-    if not row:
+    db = _get_db()
+    rows = await db._db.execute_fetchall(
+        "SELECT data FROM subscriptions WHERE wallet=? ORDER BY created_at DESC LIMIT 1",
+        (wallet,))
+    if not rows:
         return {"plan": "none", "active": False}
-    s = json.loads(row[0])
-    s["active"] = s["expiresAt"] > int(time.time())
+    s = json.loads(rows[0]["data"] if isinstance(rows[0], dict) else rows[0][0])
+    s["active"] = s.get("expiresAt", 0) > int(time.time())
     return s
 
 @router.get("/revenue")
 async def revenue():
-    async with db._db.execute(
-        "SELECT COALESCE(SUM(json_extract(data,'$.priceUsdc')),0) AS total FROM subscriptions"
-    ) as c:
-        row = await c.fetchone()
-    return {"total_usdc": float(row["total"]) if row else 0}
+    db = _get_db()
+    rows = await db._db.execute_fetchall(
+        "SELECT COALESCE(SUM(json_extract(data,'$.priceUsdc')),0) AS total FROM subscriptions")
+    total = float(rows[0]["total"]) if rows and rows[0] else 0
+    return {"total_usdc": total}
