@@ -302,7 +302,8 @@ async def rate_limit_headers_middleware(request, call_next):
     ip = request.client.host if request.client else "unknown"
 
     # Burst protection — bloque les DDoS (>20 req/2s)
-    if not check_burst_limit(ip):
+    # Exempter localhost (watchdog interne fait ~18 req en rafale)
+    if ip not in ("127.0.0.1", "::1") and not check_burst_limit(ip):
         ban_remaining = get_burst_ban_remaining(ip)
         from starlette.responses import JSONResponse
         return JSONResponse(

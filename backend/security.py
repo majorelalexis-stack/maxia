@@ -158,6 +158,7 @@ _FREE_PATH_KEYWORDS = [
     "prices", "candles", "leaderboard", "templates", "trending",
     "fear-greed", "stocks", "gpu/tiers", "sentiment", "token-risk",
     "wallet-analysis", "defi", "sla", "clone/stats",
+    "mcp", "docs-html", "docs",
 ]
 
 _smart_rate_info: dict = defaultdict(dict)
