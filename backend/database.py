@@ -273,14 +273,15 @@ class Database:
         return [json.loads(r["data"]) for r in rows]
 
     async def save_dispute(self, dispute: dict):
+        dispute_id = dispute.get("id", dispute.get("disputeId", ""))
         await self._db.execute(
-            "INSERT OR REPLACE INTO disputes(dispute_id,data) VALUES(?,?)",
-            (dispute["disputeId"], json.dumps(dispute)))
+            "INSERT OR REPLACE INTO disputes(id,data) VALUES(?,?)",
+            (dispute_id, json.dumps(dispute)))
         await self._db.commit()
 
     async def get_dispute(self, dispute_id: str):
         row = await self._fetchone(
-            "SELECT data FROM disputes WHERE dispute_id=?", (dispute_id,))
+            "SELECT data FROM disputes WHERE id=?", (dispute_id,))
         return json.loads(row["data"]) if row else None
 
     async def get_all_disputes(self):

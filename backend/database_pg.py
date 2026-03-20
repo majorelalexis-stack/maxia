@@ -517,19 +517,20 @@ class PostgresDatabase:
 
     # ── Stock Portfolio ──
 
-    async def get_stock_portfolio(self, api_key: str, symbol: str = None):
-        if symbol:
-            row = await self._fetchone(
-                "SELECT * FROM stock_portfolios WHERE api_key=$1 AND symbol=$2", (api_key, symbol))
-            return dict(row) if row else None
+    async def get_stock_portfolio(self, api_key: str) -> dict:
+        """Matches database.py: returns {symbol: shares} dict."""
         rows = await self._fetchall(
-            "SELECT * FROM stock_portfolios WHERE api_key=$1", (api_key,))
-        return [dict(r) for r in rows]
+            "SELECT symbol, shares FROM stock_portfolios WHERE api_key=$1 AND shares>0", (api_key,))
+        return {r["symbol"]: float(r["shares"]) for r in rows}
 
-    async def get_all_stock_portfolios(self, symbol: str):
+    async def get_all_stock_portfolios(self) -> dict:
+        """Matches database.py: returns {api_key: {symbol: shares}} dict."""
         rows = await self._fetchall(
-            "SELECT * FROM stock_portfolios WHERE symbol=$1", (symbol,))
-        return [dict(r) for r in rows]
+            "SELECT api_key, symbol, shares FROM stock_portfolios WHERE shares>0")
+        portfolios: dict = {}
+        for r in rows:
+            portfolios.setdefault(r["api_key"], {})[r["symbol"]] = float(r["shares"])
+        return portfolios
 
     async def save_stock_holding(self, api_key: str, symbol: str, shares: float):
         await self._execute(
@@ -538,12 +539,11 @@ class PostgresDatabase:
                ON CONFLICT(api_key, symbol) DO UPDATE SET shares=$3""",
             (api_key, symbol, shares))
 
-    async def get_stock_trades(self, trade_id: str = None):
-        if trade_id:
-            row = await self._fetchone("SELECT * FROM stock_trades WHERE trade_id=$1", (trade_id,))
-            return dict(row) if row else None
-        rows = await self._fetchall("SELECT * FROM stock_trades ORDER BY created_at DESC LIMIT 50")
-        return [dict(r) for r in rows]
+    async def get_stock_trades(self, limit: int = 100) -> list:
+        """Matches database.py: returns list of trade dicts."""
+        rows = await self._fetchall(
+            "SELECT data FROM stock_trades ORDER BY created_at DESC LIMIT $1", (limit,))
+        return [json.loads(r["data"]) for r in rows]
 
     async def save_stock_trade(self, trade: dict):
         await self._execute(

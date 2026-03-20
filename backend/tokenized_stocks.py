@@ -297,9 +297,9 @@ TOKENIZED_STOCKS = {
 # ── Commission dynamique pour les actions (plus basse que les services) ──
 STOCK_COMMISSION_TIERS = {
     "BRONZE": {"min_volume": 0, "max_volume": 1000, "bps": 50},       # 0.5%
-    "ARGENT": {"min_volume": 1000, "max_volume": 5000, "bps": 20},    # 0.2%
-    "OR": {"min_volume": 5000, "max_volume": 25000, "bps": 10},       # 0.1%
-    "BALEINE": {"min_volume": 25000, "max_volume": 999999999, "bps": 5},  # 0.05%
+    "SILVER": {"min_volume": 1000, "max_volume": 5000, "bps": 20},    # 0.2%
+    "GOLD": {"min_volume": 5000, "max_volume": 25000, "bps": 10},     # 0.1%
+    "WHALE": {"min_volume": 25000, "max_volume": 999999999, "bps": 5}, # 0.05%
 }
 
 # Commissions concurrents (pour comparaison et ajustement)

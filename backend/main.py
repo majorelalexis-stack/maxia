@@ -1,4 +1,4 @@
-"""MAXIA Backend V10 — Art.1 to Art.15 (Solana + Base + KiteAI + x402V2 + AP2)"""
+"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (Solana + Base + Ethereum + 17 AI Agents)"""
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -161,9 +161,10 @@ async def lifespan(app: FastAPI):
         print(f"[MAXIA] Infra features init error: {e}")
 
     # V12: DB backup
+    t_backup = None
     try:
         from db_backup import run_backup_scheduler
-        asyncio.create_task(run_backup_scheduler())
+        t_backup = asyncio.create_task(run_backup_scheduler())
     except Exception as e:
         print(f"[MAXIA] DB backup init error: {e}")
 
@@ -188,7 +189,7 @@ async def lifespan(app: FastAPI):
                     print(f"[Disputes] Worker error: {e}")
             await asyncio.sleep(3600)  # check every hour
 
-    asyncio.create_task(_dispute_auto_resolve_worker())
+    t_dispute = asyncio.create_task(_dispute_auto_resolve_worker())
 
     # V12: Start task queue worker
     try:
@@ -248,12 +249,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     # Cancel all background tasks
-    for t in [t1, t3, t4, t5]:
+    for t in [t1, t2, t3, t4, t5]:
         try:
             t.cancel()
         except Exception:
             pass
-    for t in [t_health, t6, t7]:
+    for t in [t_health, t6, t7, t_backup, t_dispute]:
         try:
             if t:
                 t.cancel()
@@ -1640,7 +1641,7 @@ async def agent_stats(wallet: str):
     except Exception:
         volume = 0.0
     bps = get_commission_bps(volume)
-    tiers = [{"name": "BALEINE", "min": 5000}, {"name": "OR", "min": 500}, {"name": "BRONZE", "min": 0}]
+    tiers = [{"name": "WHALE", "min": 5000}, {"name": "GOLD", "min": 500}, {"name": "BRONZE", "min": 0}]
     tier = next((t["name"] for t in tiers if volume >= t["min"]), "BRONZE")
     return {"wallet": wallet, "volume30d": volume, "commissionBps": bps, "tier": tier}
 

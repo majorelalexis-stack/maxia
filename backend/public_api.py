@@ -107,8 +107,8 @@ def _check_safety(text: str, field: str = "content"):
 
 RATE_LIMITS_BY_TIER = {
     "BRONZE": 100,    # free tier
-    "OR": 1000,       # $500+ volume
-    "BALEINE": 10000, # $5000+ volume
+    "GOLD": 1000,      # $500+ volume
+    "WHALE": 10000,    # $5000+ volume
 }
 
 
@@ -1477,9 +1477,9 @@ async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
 
 def _get_tier_name(volume: float) -> str:
     if volume >= 5000:
-        return "BALEINE"
+        return "WHALE"
     if volume >= 500:
-        return "OR"
+        return "GOLD"
     return "BRONZE"
 
 

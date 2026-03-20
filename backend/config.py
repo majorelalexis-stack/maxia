@@ -1,4 +1,4 @@
-"""MAXIA Config V11 — Configuration centralisee + Dynamic Pricing + Bridge + Staking"""
+"""MAXIA Config V12 — Configuration centralisee + Dynamic Pricing + Bridge + Staking + 17 Agents"""
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -129,8 +129,8 @@ RAILWAY_API_TOKEN         = os.getenv("RAILWAY_API_TOKEN", "")
 # ── Commissions (base — ajustables par Dynamic Pricing) ──
 COMMISSION_TIERS = [
     {"name": "BRONZE",  "min_volume": 0,    "max_volume": 500,  "rate_bps": 500},
-    {"name": "OR",      "min_volume": 500,  "max_volume": 5000, "rate_bps": 100},
-    {"name": "BALEINE", "min_volume": 5000, "max_volume": None, "rate_bps": 10},
+    {"name": "GOLD",    "min_volume": 500,  "max_volume": 5000, "rate_bps": 100},
+    {"name": "WHALE",   "min_volume": 5000, "max_volume": None, "rate_bps": 10},
 ]
 
 def get_commission_bps(volume_30d: float) -> int:

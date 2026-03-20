@@ -189,9 +189,9 @@ COMPETITOR_FEES = {
 # Commission MAXIA par palier (toujours <= au concurrent le moins cher + slippage)
 SWAP_COMMISSION_TIERS = {
     "BRONZE":  {"min_volume": 0,     "max_volume": 1000,   "bps": 15},   # 0.15%
-    "ARGENT":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 8},    # 0.08%
-    "OR":      {"min_volume": 5000,  "max_volume": 25000,  "bps": 5},    # 0.05%
-    "BALEINE": {"min_volume": 25000, "max_volume": float("inf"), "bps": 2},  # 0.02%
+    "SILVER":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 8},    # 0.08%
+    "GOLD":    {"min_volume": 5000,  "max_volume": 25000,  "bps": 5},    # 0.05%
+    "WHALE":   {"min_volume": 25000, "max_volume": float("inf"), "bps": 2},  # 0.02%
 }
 
 # Cache prix
