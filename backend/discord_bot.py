@@ -7,7 +7,7 @@ Regles :
 - Max 3 reponses/jour par serveur
 - Art.1 sur tout le contenu
 """
-import asyncio, time, re
+import asyncio, time, re, json
 import httpx
 from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL
 
@@ -86,6 +86,41 @@ _server_responses: dict = {}  # server_id -> {date: count}
 MAX_RESPONSES_PER_SERVER = 3
 
 _running = False
+_bot_user_id = ""  # Set at READY event
+
+
+async def _ask_ceo(message: str, user: str = "discord_user") -> str:
+    """Envoie un message au CEO MAXIA et retourne sa reponse."""
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "http://127.0.0.1:8000/api/ceo/ask",
+                json={"message": message},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("response", data.get("error", "Erreur CEO"))
+            return f"Erreur API: {resp.status_code}"
+    except Exception as e:
+        return f"CEO indisponible: {e}"
+
+
+async def _send_discord_message(channel_id: str, content: str):
+    """Envoie un message sur Discord (split si > 2000 chars)."""
+    if not DISCORD_BOT_TOKEN:
+        return
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+    headers = {
+        "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    # Discord limit: 2000 chars
+    chunks = [content[i:i+1900] for i in range(0, len(content), 1900)]
+    async with httpx.AsyncClient(timeout=10) as client:
+        for chunk in chunks:
+            resp = await client.post(url, headers=headers, json={"content": chunk})
+            if resp.status_code not in (200, 201):
+                print(f"[DiscordBot] Erreur envoi {resp.status_code}: {resp.text[:100]}")
 
 
 def _check_rate_limit(server_id: str) -> bool:
@@ -130,126 +165,183 @@ def _detect_topic(message_text: str) -> str:
 
 
 async def respond_to_message(channel_id: str, topic: str):
-    """Envoie une reponse utile sur Discord."""
-    if not DISCORD_BOT_TOKEN:
-        return
-
+    """Envoie une reponse utile sur Discord (templates mots-cles)."""
     response = RESPONSE_TEMPLATES.get(topic, "")
     if not response:
         return
-
-    try:
-        url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-        headers = {
-            "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
-            "Content-Type": "application/json",
-        }
-        payload = {"content": response}
-
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code in (200, 201):
-                print(f"[DiscordBot] Repondu sur topic: {topic}")
-            else:
-                print(f"[DiscordBot] Erreur {resp.status_code}: {resp.text[:100]}")
-    except Exception as e:
-        print(f"[DiscordBot] Erreur envoi: {e}")
+    await _send_discord_message(channel_id, response)
+    print(f"[DiscordBot] Repondu sur topic: {topic}")
 
 
 async def run_discord_bot():
     """Boucle principale du bot Discord via Gateway WebSocket."""
-    global _running
+    global _running, _bot_user_id
     _running = True
 
     if not DISCORD_BOT_TOKEN:
         print("[DiscordBot] Token absent — bot desactive")
         return
 
-    print("[DiscordBot] Bot demarre — mode reponse intelligente (zero spam)")
-
-    import websockets
+    print("[DiscordBot] Bot demarre — mode reponse intelligente + CEO chat")
 
     gateway_url = "wss://gateway.discord.gg/?v=10&encoding=json"
-    heartbeat_interval = 41250
     sequence = None
+    resume_url = None
+    session_id = None
 
     while _running:
         try:
-            async with websockets.connect(gateway_url) as ws:
-                # Recevoir Hello
-                hello = json.loads(await ws.recv())
-                heartbeat_interval = hello["d"]["heartbeat_interval"]
+            import websockets
+            url = resume_url or gateway_url
+            async with websockets.connect(url, close_timeout=10, ping_interval=None) as ws:
+                # Recevoir Hello (op 10)
+                hello_raw = await asyncio.wait_for(ws.recv(), timeout=15)
+                hello = json.loads(hello_raw)
+                if hello.get("op") != 10:
+                    print(f"[DiscordBot] Expected Hello (op10), got op{hello.get('op')}")
+                    await asyncio.sleep(5)
+                    continue
+                heartbeat_interval = hello["d"]["heartbeat_interval"] / 1000
 
-                # Identifier
-                identify = {
-                    "op": 2,
-                    "d": {
-                        "token": DISCORD_BOT_TOKEN,
-                        "intents": 512 | 32768,  # GUILD_MESSAGES + MESSAGE_CONTENT
-                        "properties": {
-                            "os": "linux",
-                            "browser": "maxia",
-                            "device": "maxia",
+                # Identifier ou Resume
+                if session_id and sequence is not None and resume_url:
+                    await ws.send(json.dumps({
+                        "op": 6,
+                        "d": {"token": DISCORD_BOT_TOKEN, "session_id": session_id, "seq": sequence},
+                    }))
+                    print("[DiscordBot] Resume envoyee")
+                else:
+                    await ws.send(json.dumps({
+                        "op": 2,
+                        "d": {
+                            "token": DISCORD_BOT_TOKEN,
+                            "intents": 512 | 4096 | 32768,  # GUILD_MESSAGES + DIRECT_MESSAGES + MESSAGE_CONTENT
+                            "properties": {"os": "linux", "browser": "maxia", "device": "maxia"},
                         },
-                    },
-                }
-                await ws.send(json.dumps(identify))
+                    }))
 
-                # Heartbeat task
+                # Heartbeat task avec gestion erreurs
+                _hb_ack = True
+
                 async def heartbeat():
+                    nonlocal _hb_ack
                     while _running:
-                        await asyncio.sleep(heartbeat_interval / 1000)
-                        await ws.send(json.dumps({"op": 1, "d": sequence}))
+                        await asyncio.sleep(heartbeat_interval)
+                        if not _hb_ack:
+                            print("[DiscordBot] Heartbeat ACK manque — reconnexion")
+                            await ws.close(4000)
+                            return
+                        _hb_ack = False
+                        try:
+                            await ws.send(json.dumps({"op": 1, "d": sequence}))
+                        except Exception:
+                            return
 
                 hb_task = asyncio.create_task(heartbeat())
 
-                # Ecouter les messages
+                # Ecouter les events
                 while _running:
                     try:
-                        raw = await asyncio.wait_for(ws.recv(), timeout=60)
-                        event = json.loads(raw)
-
-                        if event.get("op") == 0:
-                            sequence = event.get("s")
-                            event_type = event.get("t")
-
-                            if event_type == "MESSAGE_CREATE":
-                                data = event.get("d", {})
-                                # Ignorer nos propres messages
-                                if data.get("author", {}).get("bot"):
-                                    continue
-
-                                content = data.get("content", "")
-                                channel_id = data.get("channel_id", "")
-                                guild_id = data.get("guild_id", "")
-
-                                # Detecter si c'est une question pertinente
-                                topic = _detect_topic(content)
-                                if topic and _check_rate_limit(guild_id):
-                                    print(f"[DiscordBot] Question detectee ({topic}): {content[:60]}...")
-                                    await respond_to_message(channel_id, topic)
-                                    _increment_rate(guild_id)
-
-                        elif event.get("op") == 7:
-                            # Reconnect requested
-                            break
-
+                        raw = await asyncio.wait_for(ws.recv(), timeout=heartbeat_interval + 10)
                     except asyncio.TimeoutError:
                         continue
                     except Exception as e:
-                        print(f"[DiscordBot] Message error: {e}")
+                        print(f"[DiscordBot] Recv error: {e}")
                         break
+
+                    event = json.loads(raw)
+                    op = event.get("op")
+
+                    # Heartbeat ACK
+                    if op == 11:
+                        _hb_ack = True
+                        continue
+
+                    # Heartbeat request from Discord
+                    if op == 1:
+                        await ws.send(json.dumps({"op": 1, "d": sequence}))
+                        continue
+
+                    # Reconnect requested
+                    if op == 7:
+                        print("[DiscordBot] Reconnect demandee par Discord")
+                        break
+
+                    # Invalid session
+                    if op == 9:
+                        print("[DiscordBot] Session invalide — reset")
+                        session_id = None
+                        resume_url = None
+                        sequence = None
+                        await asyncio.sleep(3)
+                        break
+
+                    # Dispatch (op 0)
+                    if op == 0:
+                        sequence = event.get("s")
+                        event_type = event.get("t")
+
+                        if event_type == "READY":
+                            d = event.get("d", {})
+                            _bot_user_id = d.get("user", {}).get("id", "")
+                            session_id = d.get("session_id", "")
+                            resume_url = d.get("resume_gateway_url", "")
+                            if resume_url and "?" not in resume_url:
+                                resume_url += "?v=10&encoding=json"
+                            bot_name = d.get("user", {}).get("username", "?")
+                            guilds = len(d.get("guilds", []))
+                            print(f"[DiscordBot] Ready — {bot_name} (ID:{_bot_user_id}) — {guilds} serveurs")
+
+                        elif event_type == "RESUMED":
+                            print("[DiscordBot] Session resumed OK")
+
+                        elif event_type == "MESSAGE_CREATE":
+                            data = event.get("d", {})
+                            if data.get("author", {}).get("bot"):
+                                continue
+
+                            content = data.get("content", "")
+                            channel_id = data.get("channel_id", "")
+                            guild_id = data.get("guild_id")
+                            is_dm = not guild_id
+                            is_mention = _bot_user_id and f"<@{_bot_user_id}>" in content
+                            user_name = data.get("author", {}).get("username", "unknown")
+
+                            # === DM ou Mention → CEO MAXIA ===
+                            if is_dm or is_mention:
+                                clean_msg = content
+                                if _bot_user_id:
+                                    clean_msg = clean_msg.replace(f"<@{_bot_user_id}>", "").strip()
+                                if not clean_msg:
+                                    await _send_discord_message(channel_id,
+                                        "Je suis le CEO de MAXIA. Pose-moi une question ou donne-moi un ordre.")
+                                    continue
+
+                                print(f"[DiscordBot] {'DM' if is_dm else 'Mention'} de {user_name}: {clean_msg[:60]}...")
+                                try:
+                                    ceo_response = await _ask_ceo(clean_msg, user_name)
+                                    await _send_discord_message(channel_id, ceo_response)
+                                except Exception as e:
+                                    print(f"[DiscordBot] CEO response error: {e}")
+                                    await _send_discord_message(channel_id, f"Erreur CEO: {e}")
+                                continue
+
+                            # === Serveur: detection mots-cles ===
+                            topic = _detect_topic(content)
+                            if topic and _check_rate_limit(guild_id):
+                                print(f"[DiscordBot] Question detectee ({topic}): {content[:60]}...")
+                                await respond_to_message(channel_id, topic)
+                                _increment_rate(guild_id)
 
                 hb_task.cancel()
 
         except Exception as e:
             print(f"[DiscordBot] Connection error: {e}")
-            await asyncio.sleep(30)
+
+        if _running:
+            await asyncio.sleep(5)
 
 
 def stop():
     global _running
     _running = False
-
-
-import json

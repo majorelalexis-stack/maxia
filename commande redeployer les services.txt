@@ -2,3 +2,17 @@ Invoke-WebRequest -Method POST -Uri "https://web-production-29007.up.railway.app
 
 
 Invoke-WebRequest -Method POST -Uri "https://web-production-29007.up.railway.app/api/admin/seed-datasets"
+
+
+
+ Option 1 : Même dossier (je retrouve ma mémoire)
+
+  Ouvre un terminal dans C:\Users\Mini pc\Desktop\MAXIA V12 et tape :
+  claude
+  Je retrouverai tout — qui tu es, le projet, le VPS, les erreurs à éviter.
+
+  Option 2 : Depuis n'importe où
+
+  cd "C:\Users\Mini pc\Desktop\MAXIA V12" && claude
+
+  C'est tout. Tant que tu es dans le dossier MAXIA V12, je me souviens de tout.

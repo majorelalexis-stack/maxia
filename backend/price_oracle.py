@@ -1,16 +1,80 @@
-"""MAXIA Price Oracle V11 — Prix live via Helius DAS API
+"""MAXIA Price Oracle V12 — Prix live via Helius DAS API
 
 Utilise l API Helius DAS (getAsset) sur le meme endpoint RPC
-pour recuperer les prix des tokens. Fonctionne car Helius RPC
-est autorise par Railway.
+pour recuperer les prix des tokens.
 
 Strategie:
-1. Helius DAS getAsset (meme domaine que RPC) -> prix live
-2. Fallback mars 2026 si echec
+1. Helius DAS getAsset (parallel batches) -> prix live
+2. CoinGecko pour les tokens manquants
+3. Fallback mars 2026 si echec
+
+Optimisations V12:
+- Parallel fetch (50 tokens en ~1s au lieu de 7.5s)
+- Circuit breaker (coupe apres 3 echecs, retry apres 60s)
+- Connection pool HTTP partage
 """
 import asyncio, time
 import httpx
 from config import get_rpc_url, HELIUS_API_KEY
+
+
+# ── Circuit Breaker ──
+
+class CircuitBreaker:
+    """Coupe les appels apres N echecs consecutifs. Retry apres cooldown."""
+
+    def __init__(self, name: str, max_failures: int = 3, cooldown_s: int = 60):
+        self.name = name
+        self.max_failures = max_failures
+        self.cooldown_s = cooldown_s
+        self._failures = 0
+        self._open_until = 0  # timestamp
+
+    @property
+    def is_open(self) -> bool:
+        if self._failures < self.max_failures:
+            return False
+        if time.time() > self._open_until:
+            # Half-open: allow one retry
+            self._failures = self.max_failures - 1
+            return False
+        return True
+
+    def record_success(self):
+        self._failures = 0
+
+    def record_failure(self):
+        self._failures += 1
+        if self._failures >= self.max_failures:
+            self._open_until = time.time() + self.cooldown_s
+            print(f"[CircuitBreaker] {self.name} OPEN — {self._failures} failures, retry in {self.cooldown_s}s")
+
+    def get_status(self) -> dict:
+        return {
+            "name": self.name,
+            "state": "open" if self.is_open else "closed",
+            "failures": self._failures,
+            "max": self.max_failures,
+        }
+
+
+_cb_helius = CircuitBreaker("helius", max_failures=3, cooldown_s=60)
+_cb_coingecko = CircuitBreaker("coingecko", max_failures=3, cooldown_s=120)
+_cb_yahoo = CircuitBreaker("yahoo", max_failures=3, cooldown_s=120)
+
+# ── Shared HTTP client pool ──
+_http_pool: httpx.AsyncClient = None
+
+
+async def _get_http() -> httpx.AsyncClient:
+    """Retourne un client HTTP partage (connection pooling)."""
+    global _http_pool
+    if _http_pool is None or _http_pool.is_closed:
+        _http_pool = httpx.AsyncClient(
+            timeout=10,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _http_pool
 
 # Token mints pour getAsset
 TOKEN_MINTS = {
@@ -90,129 +154,125 @@ FALLBACK_PRICES = {
 
 _price_cache: dict = {}
 _cache_ts: float = 0
-_CACHE_TTL = 30
+_CACHE_TTL = 60  # 1 minute (etait 30s — reduire les appels API)
 
 # Stock prices cache (separate, longer TTL)
 _stock_cache: dict = {}
 _stock_cache_ts: float = 0
-_STOCK_CACHE_TTL = 120  # 2 minutes
+_STOCK_CACHE_TTL = 180  # 3 minutes (etait 2 — Yahoo rate limit)
 
-print("[PriceOracle] Initialise — Helius DAS API + Yahoo Finance + fallback")
+# Per-symbol cache pour eviter les refetch inutiles
+_symbol_cache: dict = {}  # {symbol: {"price": ..., "ts": ..., "source": ...}}
+_SYMBOL_CACHE_TTL = 45  # secondes — cache individuel par symbole
+
+# Stats compteur (pour monitoring)
+_cache_stats = {"hits": 0, "misses": 0}
+
+print("[PriceOracle] Initialise — Helius DAS API + Yahoo Finance + CoinGecko + fallback (cache 60s)")
 
 
 async def _fetch_yahoo_stock_prices() -> dict:
     """Fetch real-time stock prices from Yahoo Finance (free, no API key)."""
+    if _cb_yahoo.is_open:
+        return {}
     stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"]
     prices = {}
     try:
-        import httpx
+        client = await _get_http()
         # Yahoo Finance v8 API (free, no key needed)
         symbols = ",".join(stocks)
         url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=1d&interval=1d"
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0",
-            })
-            if resp.status_code == 200:
-                data = resp.json()
-                for sym, info in data.items():
-                    try:
-                        close = info.get("close", [])
-                        prev = info.get("previousClose", 0)
-                        price = close[-1] if close else info.get("regularMarketPrice", 0)
-                        if price and price > 0:
-                            change_pct = ((price - prev) / prev * 100) if prev else 0
-                            prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
-                    except Exception:
-                        pass
+        resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 200:
+            data = resp.json()
+            for sym, info in data.items():
+                try:
+                    close = info.get("close", [])
+                    prev = info.get("previousClose", 0)
+                    price = close[-1] if close else info.get("regularMarketPrice", 0)
+                    if price and price > 0:
+                        change_pct = ((price - prev) / prev * 100) if prev else 0
+                        prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
+                except Exception:
+                    pass
     except Exception as e:
         print(f"[PriceOracle] Yahoo Finance error: {e}")
 
     # Fallback: try v7 quote API if v8 fails
     if not prices:
         try:
-            import httpx
+            client = await _get_http()
             symbols = ",".join(stocks)
             url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-                if resp.status_code == 200:
-                    data = resp.json()
-                    for q in data.get("quoteResponse", {}).get("result", []):
-                        sym = q.get("symbol", "")
-                        price = q.get("regularMarketPrice", 0)
-                        change = q.get("regularMarketChangePercent", 0)
-                        if sym and price:
-                            prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            if resp.status_code == 200:
+                data = resp.json()
+                for q in data.get("quoteResponse", {}).get("result", []):
+                    sym = q.get("symbol", "")
+                    price = q.get("regularMarketPrice", 0)
+                    change = q.get("regularMarketChangePercent", 0)
+                    if sym and price:
+                        prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
         except Exception as e2:
             print(f"[PriceOracle] Yahoo v7 error: {e2}")
 
     if prices:
+        _cb_yahoo.record_success()
         print(f"[PriceOracle] Yahoo Finance: {len(prices)} stock prices live")
+    else:
+        _cb_yahoo.record_failure()
     return prices
 
 
+async def _fetch_one_helius(client: httpx.AsyncClient, rpc: str, sym: str, mint: str) -> tuple:
+    """Fetch un seul token via Helius. Retourne (sym, price_dict) ou (sym, None)."""
+    try:
+        payload = {"jsonrpc": "2.0", "id": 1, "method": "getAsset", "params": {"id": mint}}
+        resp = await client.post(rpc, json=payload)
+        data = resp.json()
+        result = data.get("result", {})
+        if result:
+            token_info = result.get("token_info", {})
+            price_info = token_info.get("price_info", {})
+            price = price_info.get("price_per_token", 0)
+            if price and price > 0:
+                return (sym, {"price": round(float(price), 6), "source": "helius_das"})
+    except Exception:
+        pass
+    return (sym, None)
+
+
 async def _fetch_helius_prices() -> dict:
-    """Recupere les prix via Helius DAS API (getAsset) sur le meme domaine RPC."""
+    """Recupere les prix via Helius DAS API — parallel batches de 10."""
+    if _cb_helius.is_open:
+        print("[PriceOracle] Helius circuit breaker OPEN — skipping")
+        return {}
+
     rpc = get_rpc_url()
     if not rpc:
         return {}
 
     prices = {}
+    client = await _get_http()
+    items = list(TOKEN_MINTS.items())
 
-    # Methode 1: getAsset pour chaque token (DAS API sur meme endpoint)
-    for sym, mint in TOKEN_MINTS.items():
-        try:
-            payload = {
-                "jsonrpc": "2.0", "id": 1,
-                "method": "getAsset",
-                "params": {"id": mint},
-            }
-            async with httpx.AsyncClient(timeout=8) as client:
-                resp = await client.post(rpc, json=payload)
-                data = resp.json()
+    # Fetch en batches paralleles de 10
+    BATCH_SIZE = 10
+    for i in range(0, len(items), BATCH_SIZE):
+        batch = items[i:i + BATCH_SIZE]
+        tasks = [_fetch_one_helius(client, rpc, sym, mint) for sym, mint in batch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, tuple) and result[1] is not None:
+                prices[result[0]] = result[1]
+        # Petit delai entre batches pour pas surcharger
+        if i + BATCH_SIZE < len(items):
+            await asyncio.sleep(0.1)
 
-            result = data.get("result", {})
-            if result:
-                # Helius getAsset retourne token_info.price_info
-                token_info = result.get("token_info", {})
-                price_info = token_info.get("price_info", {})
-                price = price_info.get("price_per_token", 0)
-
-                if price and price > 0:
-                    prices[sym] = {"price": round(float(price), 6), "source": "helius_das"}
-                    continue
-
-                # Aussi checker content.links.image pour verifier que c est le bon token
-                # Si pas de prix dans getAsset, essayer la methode 2
-        except Exception:
-            pass
-        await asyncio.sleep(0.15)
-
-    # Methode 2: Pour SOL specifiquement, utiliser getBalance d un gros compte
-    # et comparer avec le prix connu. Ou lire un pool Raydium/Orca.
-    # Plus simple: utiliser Helius /v0/tokens/metadata endpoint
-    if "SOL" not in prices and HELIUS_API_KEY:
-        try:
-            # Helius a un endpoint REST specifique pour les prix
-            url = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
-            # Essayer getAsset avec le wrapped SOL
-            payload = {
-                "jsonrpc": "2.0", "id": 1,
-                "method": "getAsset",
-                "params": {"id": "So11111111111111111111111111111111111111112"},
-            }
-            async with httpx.AsyncClient(timeout=8) as client:
-                resp = await client.post(url, json=payload)
-                data = resp.json()
-            result = data.get("result", {})
-            ti = result.get("token_info", {})
-            pi = ti.get("price_info", {})
-            price = pi.get("price_per_token", 0)
-            if price and price > 0:
-                prices["SOL"] = {"price": round(float(price), 6), "source": "helius_das"}
-        except Exception:
-            pass
+    if prices:
+        _cb_helius.record_success()
+    else:
+        _cb_helius.record_failure()
 
     return prices
 
@@ -256,28 +316,32 @@ async def get_prices(symbols: list = None) -> dict:
             "GOAT": "goatseus-maximus",
         }
         cg_ids = [SYM_TO_COINGECKO[s] for s in missing_crypto if s in SYM_TO_COINGECKO]
-        if cg_ids:
+        if cg_ids and not _cb_coingecko.is_open:
             try:
                 ids_str = ",".join(cg_ids)
-                async with httpx.AsyncClient(timeout=10) as client:
-                    resp = await client.get(
-                        f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd"
-                    )
-                    if resp.status_code == 200:
-                        cg_data = resp.json()
-                        cg_id_to_sym = {v: k for k, v in SYM_TO_COINGECKO.items()}
-                        for cg_id, price_data in cg_data.items():
-                            sym = cg_id_to_sym.get(cg_id, "")
-                            if sym and price_data.get("usd"):
-                                prices[sym] = {
-                                    "price": round(float(price_data["usd"]), 6),
-                                    "source": "coingecko",
-                                    "mint": TOKEN_MINTS.get(sym, ""),
-                                }
-                        cg_count = sum(1 for s in missing_crypto if s in prices)
-                        if cg_count:
-                            print(f"[PriceOracle] CoinGecko: {cg_count} additional prices fetched")
+                client = await _get_http()
+                resp = await client.get(
+                    f"https://api.coingecko.com/api/v3/simple/price?ids={ids_str}&vs_currencies=usd"
+                )
+                if resp.status_code == 200:
+                    cg_data = resp.json()
+                    cg_id_to_sym = {v: k for k, v in SYM_TO_COINGECKO.items()}
+                    for cg_id, price_data in cg_data.items():
+                        sym = cg_id_to_sym.get(cg_id, "")
+                        if sym and price_data.get("usd"):
+                            prices[sym] = {
+                                "price": round(float(price_data["usd"]), 6),
+                                "source": "coingecko",
+                                "mint": TOKEN_MINTS.get(sym, ""),
+                            }
+                    cg_count = sum(1 for s in missing_crypto if s in prices)
+                    if cg_count:
+                        _cb_coingecko.record_success()
+                        print(f"[PriceOracle] CoinGecko: {cg_count} additional prices fetched")
+                else:
+                    _cb_coingecko.record_failure()
             except Exception as e:
+                _cb_coingecko.record_failure()
                 print(f"[PriceOracle] CoinGecko error: {e}")
 
     # Source 3: Fallback pour tout ce qui manque encore
@@ -298,8 +362,36 @@ async def get_prices(symbols: list = None) -> dict:
 
 
 async def get_price(symbol: str) -> float:
+    """Retourne le prix d'un symbole — utilise le cache par symbole d'abord."""
+    now = time.time()
+    cached = _symbol_cache.get(symbol)
+    if cached and now - cached.get("ts", 0) < _SYMBOL_CACHE_TTL:
+        _cache_stats["hits"] += 1
+        return cached.get("price", FALLBACK_PRICES.get(symbol, 0))
+    _cache_stats["misses"] += 1
     prices = await get_prices([symbol])
-    return prices.get(symbol, {}).get("price", FALLBACK_PRICES.get(symbol, 0))
+    result = prices.get(symbol, {})
+    price = result.get("price", FALLBACK_PRICES.get(symbol, 0))
+    _symbol_cache[symbol] = {"price": price, "ts": now, "source": result.get("source", "unknown")}
+    return price
+
+
+def get_cache_stats() -> dict:
+    """Retourne les stats du cache prix + circuit breakers."""
+    return {
+        "global_cache_age_s": round(time.time() - _cache_ts, 1) if _cache_ts else None,
+        "global_cache_size": len(_price_cache),
+        "symbol_cache_size": len(_symbol_cache),
+        "stock_cache_age_s": round(time.time() - _stock_cache_ts, 1) if _stock_cache_ts else None,
+        "hits": _cache_stats["hits"],
+        "misses": _cache_stats["misses"],
+        "hit_rate": f"{_cache_stats['hits'] / max(1, _cache_stats['hits'] + _cache_stats['misses']):.0%}",
+        "circuit_breakers": {
+            "helius": _cb_helius.get_status(),
+            "coingecko": _cb_coingecko.get_status(),
+            "yahoo": _cb_yahoo.get_status(),
+        },
+    }
 
 
 async def get_crypto_prices() -> dict:

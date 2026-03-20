@@ -448,6 +448,41 @@ _CACHE_TTL = 60  # 60 secondes
 # Historique trades
 _stock_trades: list = []
 _portfolios: dict = {}  # api_key -> {symbol: amount}
+_db_portfolios_loaded: bool = False
+
+
+async def _ensure_portfolios_loaded():
+    """Charge les portfolios depuis la DB au premier acces."""
+    global _db_portfolios_loaded, _portfolios, _stock_trades
+    if _db_portfolios_loaded:
+        return
+    _db_portfolios_loaded = True
+    try:
+        from database import db
+        _portfolios = await db.get_all_stock_portfolios()
+        _stock_trades = await db.get_stock_trades(500)
+        if _portfolios:
+            print(f"[Stocks] Loaded {len(_portfolios)} portfolios from DB")
+    except Exception as e:
+        print(f"[Stocks] DB load error: {e}")
+
+
+async def _persist_holding(api_key: str, symbol: str, shares: float):
+    """Persiste un holding en DB."""
+    try:
+        from database import db
+        await db.save_stock_holding(api_key, symbol, shares)
+    except Exception as e:
+        print(f"[Stocks] DB persist error: {e}")
+
+
+async def _persist_trade(trade: dict):
+    """Persiste un trade en DB."""
+    try:
+        from database import db
+        await db.save_stock_trade(trade)
+    except Exception as e:
+        print(f"[Stocks] DB trade persist error: {e}")
 
 
 def get_stock_commission_bps(volume_30d: float) -> int:
@@ -517,6 +552,7 @@ class TokenizedStockExchange:
               f"{len(TOKENIZED_STOCKS)} actions disponibles")
 
     async def list_stocks(self) -> dict:
+        await _ensure_portfolios_loaded()
         # Auto-decouverte max 1x par heure (evite spam erreurs DNS)
         import time as _t
         now = _t.time()
@@ -584,6 +620,7 @@ class TokenizedStockExchange:
                          buyer_wallet: str, symbol: str, amount_usdc: float,
                          buyer_volume_30d: float, payment_tx: str = "") -> dict:
         """Acheter des actions tokenisees."""
+        await _ensure_portfolios_loaded()
         symbol = symbol.upper()
         if symbol not in TOKENIZED_STOCKS:
             return {"success": False, "error": f"Action inconnue: {symbol}"}
@@ -646,6 +683,8 @@ class TokenizedStockExchange:
         _portfolios.setdefault(buyer_api_key, {})
         _portfolios[buyer_api_key].setdefault(symbol, 0)
         _portfolios[buyer_api_key][symbol] += shares
+        await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
+        await _persist_trade(trade)
 
         # Alerte Discord
         try:
@@ -666,6 +705,7 @@ class TokenizedStockExchange:
                           seller_wallet: str, symbol: str, shares: float,
                           seller_volume_30d: float) -> dict:
         """Vendre des actions tokenisees."""
+        await _ensure_portfolios_loaded()
         symbol = symbol.upper()
         if symbol not in TOKENIZED_STOCKS:
             return {"success": False, "error": f"Action inconnue: {symbol}"}
@@ -722,6 +762,8 @@ class TokenizedStockExchange:
 
         # Mettre a jour le portfolio
         _portfolios[seller_api_key][symbol] -= shares
+        await _persist_holding(seller_api_key, symbol, _portfolios[seller_api_key][symbol])
+        await _persist_trade(trade)
 
         try:
             from alerts import alert_revenue
@@ -737,8 +779,9 @@ class TokenizedStockExchange:
             "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
         }
 
-    def get_portfolio(self, api_key: str) -> dict:
+    async def get_portfolio(self, api_key: str) -> dict:
         """Portfolio de l'utilisateur."""
+        await _ensure_portfolios_loaded()
         portfolio = _portfolios.get(api_key, {})
         holdings = []
         total_value = 0

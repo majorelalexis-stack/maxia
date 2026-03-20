@@ -3,7 +3,7 @@ import os, time, uuid, asyncio
 import httpx
 from config import (
     LIFI_API_URL, BRIDGE_ENABLED, TREASURY_ADDRESS,
-    TREASURY_ADDRESS_BASE,
+    TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
 )
 
 
@@ -33,6 +33,15 @@ class CrossChainHandler:
         if not BRIDGE_ENABLED:
             return {"error": "Bridge desactive"}
 
+        # Pick the right treasury based on destination chain
+        dest_chain = to_chain.lower()
+        if dest_chain in ("ethereum", "eth", "1"):
+            to_address = TREASURY_ADDRESS_ETH
+        elif dest_chain in ("base", "8453"):
+            to_address = TREASURY_ADDRESS_BASE
+        else:
+            to_address = TREASURY_ADDRESS
+
         params = {
             "fromChain": from_chain,
             "toChain": to_chain,
@@ -40,7 +49,7 @@ class CrossChainHandler:
             "toToken": to_token,
             "fromAmount": amount,
             "fromAddress": from_address,
-            "toAddress": TREASURY_ADDRESS,
+            "toAddress": to_address,
             "slippage": "0.01",
         }
 
@@ -92,19 +101,39 @@ class CrossChainHandler:
         """
         Confirme un bridge UNIQUEMENT si la transaction est verifiee on-chain.
         Le client envoie la signature de la tx de reception.
+        Supporte verification sur Solana, Base, et Ethereum.
         """
         bridge = self._pending_bridges.get(bridge_id)
         if not bridge:
             return {"success": False, "error": "Bridge introuvable"}
 
-        # VERIFIER ON-CHAIN que les fonds sont arrives au treasury avec le bon montant
-        from solana_verifier import verify_transaction
+        to_chain = bridge.get("toChain", "solana").lower()
         expected_amount = float(bridge.get("estimatedOutput", 0)) / 1e6 if bridge.get("estimatedOutput") else 0
-        tx_result = await verify_transaction(
-            tx_signature=tx_signature,
-            expected_amount_usdc=expected_amount * 0.95,  # 5% slippage tolerance pour bridge
-            expected_recipient=TREASURY_ADDRESS,
-        )
+
+        if to_chain in ("ethereum", "eth", "1"):
+            # Verify on Ethereum mainnet
+            from eth_verifier import verify_usdc_transfer_eth
+            tx_result = await verify_usdc_transfer_eth(
+                tx_hash=tx_signature,
+                expected_amount_raw=int(expected_amount * 0.95 * 1e6),
+                expected_recipient=TREASURY_ADDRESS_ETH,
+            )
+        elif to_chain in ("base", "8453"):
+            # Verify on Base L2
+            from base_verifier import verify_usdc_transfer_base
+            tx_result = await verify_usdc_transfer_base(
+                tx_hash=tx_signature,
+                expected_amount_raw=int(expected_amount * 0.95 * 1e6),
+                expected_recipient=TREASURY_ADDRESS_BASE,
+            )
+        else:
+            # Default: verify on Solana
+            from solana_verifier import verify_transaction
+            tx_result = await verify_transaction(
+                tx_signature=tx_signature,
+                expected_amount_usdc=expected_amount * 0.95,
+                expected_recipient=TREASURY_ADDRESS,
+            )
 
         if not tx_result.get("valid"):
             return {"success": False, "error": f"Transaction non verifiee: {tx_result.get('error', 'fonds non recus')}"}
@@ -140,26 +169,19 @@ class CrossChainHandler:
         return {
             "enabled": BRIDGE_ENABLED,
             "routes": [
-                {
-                    "from": "ethereum",
-                    "to": "solana",
-                    "tokens": ["USDC", "ETH", "USDT"],
-                    "provider": "Li.Fi",
-                },
-                {
-                    "from": "base",
-                    "to": "solana",
-                    "tokens": ["USDC", "ETH"],
-                    "provider": "Li.Fi",
-                },
-                {
-                    "from": "arbitrum",
-                    "to": "solana",
-                    "tokens": ["USDC", "ETH"],
-                    "provider": "Li.Fi",
-                },
+                {"from": "ethereum", "to": "solana", "tokens": ["USDC", "ETH", "USDT"], "provider": "Li.Fi"},
+                {"from": "base", "to": "solana", "tokens": ["USDC", "ETH"], "provider": "Li.Fi"},
+                {"from": "arbitrum", "to": "solana", "tokens": ["USDC", "ETH"], "provider": "Li.Fi"},
+                {"from": "solana", "to": "ethereum", "tokens": ["USDC", "SOL"], "provider": "Li.Fi"},
+                {"from": "solana", "to": "base", "tokens": ["USDC", "SOL"], "provider": "Li.Fi"},
+                {"from": "base", "to": "ethereum", "tokens": ["USDC", "ETH"], "provider": "Li.Fi"},
+                {"from": "ethereum", "to": "base", "tokens": ["USDC", "ETH"], "provider": "Li.Fi"},
             ],
-            "destination_wallet": TREASURY_ADDRESS,
+            "treasury_wallets": {
+                "solana": TREASURY_ADDRESS,
+                "base": TREASURY_ADDRESS_BASE,
+                "ethereum": TREASURY_ADDRESS_ETH,
+            },
             "security": "On-chain verification required — no trust assumptions",
         }
 

@@ -110,6 +110,62 @@ async def check_and_alert_stocks():
         print(f"[Telegram] Stock check error: {e}")
 
 
+async def handle_telegram_updates():
+    """Poll for incoming messages and route to CEO."""
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    last_update_id = 0
+    print("[Telegram] Incoming message handler started")
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                params = {"offset": last_update_id + 1, "timeout": 20}
+                resp = await client.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", params=params)
+                if resp.status_code != 200:
+                    await asyncio.sleep(5)
+                    continue
+                data = resp.json()
+                for update in data.get("result", []):
+                    last_update_id = update["update_id"]
+                    msg = update.get("message", {})
+                    text = msg.get("text", "")
+                    chat_id = msg.get("chat", {}).get("id", "")
+                    user = msg.get("from", {}).get("first_name", "unknown")
+                    if not text or not chat_id:
+                        continue
+                    # Route to CEO
+                    try:
+                        ceo_response = await _ask_ceo(text, user)
+                        await _send_to_chat(chat_id, ceo_response)
+                    except Exception as e:
+                        await _send_to_chat(chat_id, f"Erreur: {e}")
+        except Exception as e:
+            print(f"[Telegram] Update error: {e}")
+        await asyncio.sleep(1)
+
+
+async def _ask_ceo(message: str, user: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post("http://127.0.0.1:8000/api/ceo/ask", json={"message": message})
+            if resp.status_code == 200:
+                return resp.json().get("response", "Erreur CEO")
+            return f"Erreur API: {resp.status_code}"
+    except Exception as e:
+        return f"CEO indisponible: {e}"
+
+
+async def _send_to_chat(chat_id, text: str):
+    if not TELEGRAM_BOT_TOKEN:
+        return
+    # Split long messages
+    chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
+    async with httpx.AsyncClient(timeout=10) as client:
+        for chunk in chunks:
+            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": chunk})
+
+
 async def run_telegram_bot():
     """Boucle principale du bot Telegram."""
     global _running
@@ -118,6 +174,9 @@ async def run_telegram_bot():
     if not TELEGRAM_BOT_TOKEN:
         print("[Telegram] Token absent — bot desactive")
         return
+
+    # Launch incoming message handler as concurrent task
+    asyncio.create_task(handle_telegram_updates())
 
     print("[Telegram] Bot demarre — canal d'alertes actif")
 

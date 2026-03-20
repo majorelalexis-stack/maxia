@@ -88,6 +88,23 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
         # Track orange executions
         if priorite == "ORANGE":
             _increment_count(cible)
+        # Auto-re-enable: si l'agent etait auto-disabled et que l'action reussit
+        if result.get("executed"):
+            # Auto-re-enable if agent was auto-disabled
+            if memory.is_agent_disabled(cible):
+                disabled_info = memory._data.get("disabled_agents", {}).get(cible, {})
+                if "Auto-disabled" in disabled_info.get("reason", ""):
+                    memory.enable_agent(cible)
+                    print(f"[CEO-Executor] AUTO-RE-ENABLE: {cible} (action succeeded)")
+            # Reset error count for this agent on success
+            agent_error_map = {"GHOST-WRITER": "ceo_executor_tweet", "HUNTER": "ceo_executor_prospect",
+                               "DEPLOYER": "ceo_executor_blog", "SCOUT": "ceo_executor_scout"}
+            err_source = agent_error_map.get(cible)
+            if err_source:
+                for err in memory._data.get("erreurs_recurrentes", []):
+                    if err["source"] == err_source and err.get("count", 0) > 0:
+                        err["count"] = 0
+                        err["auto_disabled"] = False
         return result
     except Exception as e:
         error_msg = f"Execution error for {cible}: {e}"
@@ -167,12 +184,62 @@ async def _route(cible: str, action: str, decision: dict, memory, db=None) -> di
         memory.save()
         return {"executed": True, "detail": f"TESTIMONIAL tasked: {action[:80]}"}
 
+    elif cible == "SCOUT":
+        if any(kw in action_lower for kw in ["scan", "search", "find", "discover"]):
+            return await execute_scout_scan(action, memory)
+        memory.update_agent("SCOUT", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"SCOUT tasked: {action[:80]}"}
+
     elif cible == "DEPLOYER":
         if any(kw in action_lower for kw in ["deploy", "blog", "github"]):
             return await execute_blog_deploy("MAXIA Deploy", action, memory)
         memory.update_agent("DEPLOYER", {"pending_action": action[:300], "from": "CEO"})
         memory.save()
         return {"executed": True, "detail": f"DEPLOYER tasked: {action[:80]}"}
+
+    elif cible == "NEGOTIATOR":
+        memory.update_agent("NEGOTIATOR", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"NEGOTIATOR tasked: {action[:80]}"}
+
+    elif cible == "COMPLIANCE":
+        # Check wallet si action contient une adresse
+        wallet = _extract_wallet(action)
+        if wallet:
+            try:
+                from ceo_maxia import compliance_check_wallet
+                result = await compliance_check_wallet(wallet, memory)
+                return {"executed": True, "detail": f"COMPLIANCE check: {wallet[:16]}... risk={result.get('risk', '?')}"}
+            except Exception as e:
+                return {"executed": False, "reason": f"COMPLIANCE error: {e}"}
+        memory.update_agent("COMPLIANCE", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"COMPLIANCE tasked: {action[:80]}"}
+
+    elif cible == "PARTNERSHIP":
+        if any(kw in action_lower for kw in ["contact", "outreach", "reach out", "pitch"]):
+            try:
+                from ceo_maxia import partnership_outreach
+                # Extraire le nom du partenaire
+                partner = _extract_quoted_text(action) or action.split()[-1]
+                result = await partnership_outreach(partner, "general", action, memory)
+                return {"executed": True, "detail": f"PARTNERSHIP outreach: {partner}"}
+            except Exception as e:
+                return {"executed": False, "reason": f"PARTNERSHIP error: {e}"}
+        memory.update_agent("PARTNERSHIP", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"PARTNERSHIP tasked: {action[:80]}"}
+
+    elif cible == "ANALYTICS":
+        memory.update_agent("ANALYTICS", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"ANALYTICS tasked: {action[:80]}"}
+
+    elif cible == "CRISIS-MANAGER":
+        memory.update_agent("CRISIS-MANAGER", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"CRISIS-MANAGER tasked: {action[:80]}"}
 
     elif cible == "FONDATEUR":
         # Never auto-execute for founder — always alert
@@ -196,12 +263,15 @@ async def _route(cible: str, action: str, decision: dict, memory, db=None) -> di
 
 async def execute_tweet(text: str, memory) -> dict:
     """Post a tweet via twitter_bot. Returns result dict."""
+    import uuid as _uuid
+    action_id = f"tweet_{_uuid.uuid4().hex[:8]}"
     try:
         from twitter_bot import post_tweet
         result = await post_tweet(text)
         if result.get("success"):
             memory.log_decision("VERT", f"Tweet posted: {text[:80]}", "auto-executed", "GHOST-WRITER")
-            return {"executed": True, "detail": f"Tweet posted (id:{result.get('tweet_id', '?')})"}
+            memory.log_action_with_tracking("GHOST-WRITER", "tweet", action_id, text[:100])
+            return {"executed": True, "detail": f"Tweet posted (id:{result.get('tweet_id', '?')})", "action_id": action_id}
         else:
             error = result.get("error", "unknown error")
             memory.log_error("ceo_executor_tweet", error)
@@ -225,6 +295,8 @@ async def execute_prospect_contact(wallet: str, message: str, canal: str, memory
     except Exception as e:
         print(f"[CEO-Executor] Security check skipped: {e}")
 
+    import uuid as _uuid
+    action_id = f"prospect_{_uuid.uuid4().hex[:8]}"
     try:
         from solana_tx import send_memo_transfer
         memo_text = message[:400] if message else f"Check out MAXIA — AI Marketplace on Solana. maxiaworld.app"
@@ -232,7 +304,8 @@ async def execute_prospect_contact(wallet: str, message: str, canal: str, memory
         if result.get("success"):
             memory.hunter_contact(converted=False)
             memory.log_decision("VERT", f"Prospect contacted: {wallet[:16]}...", "auto-executed", "HUNTER")
-            return {"executed": True, "detail": f"Memo sent to {wallet[:16]}..."}
+            memory.log_action_with_tracking("HUNTER", "prospect", action_id, f"wallet={wallet[:16]}")
+            return {"executed": True, "detail": f"Memo sent to {wallet[:16]}...", "action_id": action_id}
         else:
             error = result.get("error", "unknown")
             memory.log_error("ceo_executor_prospect", error)
@@ -261,7 +334,20 @@ async def execute_price_adjustment(service_id, adjustment_info: str, memory, db=
 
 
 async def execute_blog_deploy(title: str, content: str, memory) -> dict:
-    """Deploy a blog post via GitHub Pages or local fallback."""
+    """Deploy a blog post via GitHub Pages or local fallback. Offloaded to task queue."""
+    # Try to offload to task queue for non-blocking execution
+    try:
+        from ceo_maxia import task_queue
+        await task_queue.put(f"blog_{title[:20]}", _do_blog_deploy, title, content, memory)
+        return {"executed": True, "detail": f"Blog queued: {title[:60]}"}
+    except Exception:
+        pass
+    # Fallback: direct execution
+    return await _do_blog_deploy(title, content, memory)
+
+
+async def _do_blog_deploy(title: str, content: str, memory) -> dict:
+    """Actual blog deploy implementation."""
     import os
     blog_dir = os.path.join(os.path.dirname(__file__), "..", "blog")
     try:
@@ -275,9 +361,12 @@ async def execute_blog_deploy(title: str, content: str, memory) -> dict:
             f.write(f"*Published {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} by CEO MAXIA*\n\n")
             f.write(content)
 
+        import uuid as _uuid
+        action_id = f"blog_{_uuid.uuid4().hex[:8]}"
         memory.log_decision("VERT", f"Blog deployed: {title}", "auto-executed", "DEPLOYER")
+        memory.log_action_with_tracking("DEPLOYER", "blog", action_id, title[:100])
         print(f"[CEO-Executor] Blog saved: {filepath}")
-        return {"executed": True, "detail": f"Blog saved: {filename}"}
+        return {"executed": True, "detail": f"Blog saved: {filename}", "action_id": action_id}
     except Exception as e:
         memory.log_error("ceo_executor_blog", str(e))
         return {"executed": False, "reason": f"Blog deploy error: {e}"}
@@ -348,3 +437,31 @@ def _extract_canal(action: str) -> str:
     if "memo" in action_lower:
         return "solana_memo"
     return ""
+
+
+# ══════════════════════════════════════════
+# SCOUT executor
+# ══════════════════════════════════════════
+
+async def execute_scout_scan(action: str, memory) -> dict:
+    """Trigger a SCOUT scan on demand. Offloaded to task queue."""
+    try:
+        from ceo_maxia import task_queue
+        await task_queue.put("scout_scan", _do_scout_scan, memory)
+        return {"executed": True, "detail": "SCOUT scan queued"}
+    except Exception:
+        pass
+    return await _do_scout_scan(memory)
+
+
+async def _do_scout_scan(memory) -> dict:
+    try:
+        from scout_agent import scout_agent
+        agents = await scout_agent.scan_all_chains()
+        stats = scout_agent.get_stats()
+        memory.update_agent("SCOUT", stats)
+        memory.log_decision("VERT", f"SCOUT scan: {len(agents)} agents found", "auto-executed", "SCOUT")
+        return {"executed": True, "detail": f"SCOUT scan done: {len(agents)} AI agents discovered"}
+    except Exception as e:
+        memory.log_error("ceo_executor_scout", str(e))
+        return {"executed": False, "reason": f"SCOUT scan error: {e}"}

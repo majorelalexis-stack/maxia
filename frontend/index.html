@@ -7,6 +7,7 @@
 <title>MAXIA — AI Marketplace on Solana + Base + Ethereum</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
 :root {
   --bg:       #080A0F;
@@ -390,6 +391,10 @@ body::before {
   .panels-row.three { grid-template-columns: 1fr 1fr; }
 }
 </style>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3B82F6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
 <div class="shell">
@@ -472,7 +477,7 @@ body::before {
   </nav>
   <div class="sidebar-footer">
     <div><span class="status-dot"></span>Backend V12 en ligne</div>
-    <div style="margin-top:4px">Art. 1–22 actifs</div>
+    <div style="margin-top:4px">Art. 1–23 · 22 MCP · 90+ endpoints</div>
   </div>
 </aside>
 
@@ -604,6 +609,28 @@ body::before {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts temps réel -->
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◈ Volume 7j (horaire)</div>
+          <button class="panel-action" onclick="refreshCharts()">Actualiser</button>
+        </div>
+        <div class="panel-body">
+          <canvas id="chart-volume" height="220"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ SOL/USDC 24h</div>
+          <span class="badge cyan" id="sol-price-badge">—</span>
+        </div>
+        <div class="panel-body">
+          <canvas id="chart-sol" height="220"></canvas>
         </div>
       </div>
     </div>
@@ -2298,6 +2325,144 @@ async function ap2CreateIntent() {
   clog('AP2: Intent Mandate créé, max=' + document.getElementById('ap2-max-amount').value + ' USDC', 'ok');
 }
 
+// ── REAL-TIME CHARTS ──
+let volumeChart = null;
+let solChart = null;
+
+function createChartDefaults() {
+  Chart.defaults.color = '#6B7A9A';
+  Chart.defaults.borderColor = '#1E2840';
+  Chart.defaults.font.family = "'Space Mono', monospace";
+  Chart.defaults.font.size = 10;
+}
+
+async function loadVolumeChart() {
+  try {
+    const r = await api('/api/analytics/volume?period=168&granularity=1');
+    if (!r.ok || !r.data) return;
+    const points = r.data.timeseries || r.data;
+    if (!Array.isArray(points) || points.length === 0) return;
+    const labels = points.map(p => {
+      const d = new Date(p.timestamp || p.t || p.time);
+      return d.getHours() + 'h';
+    });
+    const values = points.map(p => p.volume || p.value || p.v || 0);
+    const ctx = document.getElementById('chart-volume');
+    if (!ctx) return;
+    if (volumeChart) volumeChart.destroy();
+    volumeChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Volume USDC',
+          data: values,
+          borderColor: '#7C6BF8',
+          backgroundColor: 'rgba(124,107,248,0.08)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D1017',
+            borderColor: '#7C6BF8',
+            borderWidth: 1,
+            titleFont: { family: "'Space Mono', monospace" },
+            bodyFont: { family: "'Space Mono', monospace" }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+          y: { grid: { color: '#1E2840' }, ticks: { callback: v => '$' + v.toLocaleString() } }
+        }
+      }
+    });
+  } catch(e) { console.warn('Volume chart error:', e); }
+}
+
+async function loadSolChart() {
+  try {
+    const r = await api('/api/public/crypto/candles?symbol=SOL&interval=1h&limit=24');
+    if (!r.ok || !r.data) return;
+    const candles = r.data.candles || r.data;
+    if (!Array.isArray(candles) || candles.length === 0) return;
+    const labels = candles.map(c => {
+      const d = new Date(c.timestamp || c.t || c.time || 0);
+      return d.getHours() + 'h';
+    });
+    const closes = candles.map(c => c.close || c.c || 0);
+    const lastPrice = closes[closes.length - 1];
+    const firstPrice = closes[0];
+    const change = firstPrice ? (((lastPrice - firstPrice) / firstPrice) * 100).toFixed(2) : 0;
+    const badge = document.getElementById('sol-price-badge');
+    if (badge) {
+      const color = change >= 0 ? 'green' : 'red';
+      badge.className = 'badge ' + color;
+      badge.textContent = '$' + lastPrice.toFixed(2) + ' (' + (change >= 0 ? '+' : '') + change + '%)';
+    }
+    const lineColor = change >= 0 ? '#00E676' : '#FF4560';
+    const ctx = document.getElementById('chart-sol');
+    if (!ctx) return;
+    if (solChart) solChart.destroy();
+    solChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'SOL/USDC',
+          data: closes,
+          borderColor: lineColor,
+          backgroundColor: (change >= 0) ? 'rgba(0,230,118,0.08)' : 'rgba(255,69,96,0.08)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D1017',
+            borderColor: '#00E5CC',
+            borderWidth: 1,
+            titleFont: { family: "'Space Mono', monospace" },
+            bodyFont: { family: "'Space Mono', monospace" }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+          y: { grid: { color: '#1E2840' }, ticks: { callback: v => '$' + v.toFixed(1) } }
+        }
+      }
+    });
+  } catch(e) { console.warn('SOL chart error:', e); }
+}
+
+function refreshCharts() {
+  createChartDefaults();
+  loadVolumeChart();
+  loadSolChart();
+}
+
+// Init charts on page load + auto-refresh every 60s
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(refreshCharts, 1500);
+  setInterval(refreshCharts, 60000);
+});
+
 </script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

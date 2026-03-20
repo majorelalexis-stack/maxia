@@ -9,7 +9,8 @@ Permet aux IA externes de :
 
 Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
-import uuid, time, hashlib, secrets, asyncio
+import uuid, time, hashlib, secrets, asyncio, json
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Header
 from config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
@@ -19,6 +20,11 @@ from security import check_content_safety
 
 router = APIRouter(prefix="/api/public", tags=["public-api"])
 
+# ── Sandbox mode (test without real USDC) ──
+import os
+SANDBOX_MODE = os.getenv("SANDBOX_MODE", "false").lower() == "true"
+SANDBOX_PREFIX = "sandbox_"
+
 # ── Stockage en memoire (en prod: base de donnees) ──
 _registered_agents: dict = {}   # api_key -> agent info
 _agent_services: list = []      # services listes par des IA externes
@@ -26,26 +32,51 @@ _transactions: list = []        # historique des transactions
 _db_loaded: bool = False
 
 
+_db_last_sync: float = 0
+_DB_SYNC_INTERVAL = 300  # re-sync from DB every 5 min
+
+
 async def _load_from_db():
-    """Load agents and services from SQLite on first access."""
-    global _db_loaded
-    if _db_loaded:
+    """Load agents and services from DB on first access, then periodically re-sync."""
+    global _db_loaded, _db_last_sync
+    import time as _time
+    now = _time.time()
+    if _db_loaded and now - _db_last_sync < _DB_SYNC_INTERVAL:
         return
     _db_loaded = True
+    _db_last_sync = now
     try:
         from database import db
         agents = await db.get_all_agents()
         for a in agents:
-            _registered_agents[a["api_key"]] = {
-                "api_key": a["api_key"], "name": a["name"], "wallet": a["wallet"],
-                "description": a.get("description", ""), "tier": a.get("tier", "BRONZE"),
-                "volume_30d": a.get("volume_30d", 0), "total_spent": a.get("total_spent", 0),
-                "total_earned": a.get("total_earned", 0), "services_listed": a.get("services_listed", 0),
-                "requests_today": 0, "registered_at": a.get("created_at", 0),
-            }
+            key = a["api_key"]
+            existing = _registered_agents.get(key)
+            if existing:
+                # Merge: garder les stats RAM (requests_today, etc) mais mettre a jour depuis DB
+                existing.update({
+                    "name": a["name"], "wallet": a["wallet"],
+                    "description": a.get("description", ""),
+                    "tier": a.get("tier", existing.get("tier", "BRONZE")),
+                    "volume_30d": max(a.get("volume_30d", 0), existing.get("volume_30d", 0)),
+                    "total_spent": max(a.get("total_spent", 0), existing.get("total_spent", 0)),
+                    "total_earned": max(a.get("total_earned", 0), existing.get("total_earned", 0)),
+                })
+            else:
+                _registered_agents[key] = {
+                    "api_key": key, "name": a["name"], "wallet": a["wallet"],
+                    "description": a.get("description", ""), "tier": a.get("tier", "BRONZE"),
+                    "volume_30d": a.get("volume_30d", 0), "total_spent": a.get("total_spent", 0),
+                    "total_earned": a.get("total_earned", 0), "services_listed": a.get("services_listed", 0),
+                    "requests_today": 0, "registered_at": a.get("created_at", 0),
+                }
+        # Services: merge par ID (pas d'append duplicatif)
+        existing_ids = {s["id"] for s in _agent_services}
         services = await db.get_services()
         for s in services:
-            _agent_services.append(dict(s))
+            sd = dict(s)
+            if sd["id"] not in existing_ids:
+                _agent_services.append(sd)
+                existing_ids.add(sd["id"])
         if agents or services:
             print(f"[PublicAPI] Loaded from DB: {len(agents)} agents, {len(services)} services")
     except Exception as e:
@@ -74,14 +105,27 @@ def _check_safety(text: str, field: str = "content"):
     check_content_safety(text, field)
 
 
+RATE_LIMITS_BY_TIER = {
+    "BRONZE": 100,    # free tier
+    "OR": 1000,       # $500+ volume
+    "BALEINE": 10000, # $5000+ volume
+}
+
+
 def _check_rate(api_key: str):
-    """Rate limit par API key."""
+    """Rate limit par API key — quota basé sur le tier de l'agent."""
     today = time.strftime("%Y-%m-%d")
     key = f"{api_key}:{today}"
     _rate_limits.setdefault(key, 0)
     _rate_limits[key] += 1
-    if _rate_limits[key] > RATE_LIMIT_FREE:
-        raise HTTPException(429, "Limite quotidienne atteinte (100 req/jour). Passez au forfait Pro.")
+
+    # Determine tier-based limit
+    agent = _registered_agents.get(api_key, {})
+    tier = agent.get("tier", "BRONZE")
+    limit = RATE_LIMITS_BY_TIER.get(tier, RATE_LIMIT_FREE)
+
+    if _rate_limits[key] > limit:
+        raise HTTPException(429, f"Limite quotidienne atteinte ({limit} req/jour, tier {tier}). Augmentez votre volume pour un tier superieur.")
 
 
 def _get_agent(api_key: str) -> dict:
@@ -289,23 +333,193 @@ async def register_agent(req: dict):
     except Exception as e:
         print(f"[PublicAPI] DB save agent error: {e}")
 
+    # Referral tracking
+    referral_code = req.get("referral_code", "")
+    if referral_code:
+        try:
+            from database import db as _db
+            await _db._db.execute(
+                "INSERT OR IGNORE INTO referrals(ref_id,referrer,referee,data) VALUES(?,?,?,?)",
+                (str(uuid.uuid4()), referral_code, wallet,
+                 json.dumps({"referralId": str(uuid.uuid4()), "referrer": referral_code,
+                             "referee": wallet, "registeredAt": int(time.time()), "earnedUsdc": 0})))
+            await _db._db.commit()
+            print(f"[PublicAPI] Referral: {name} referred by {referral_code}")
+        except Exception as e:
+            print(f"[PublicAPI] Referral error: {e}")
+
     # Alerte Discord
     try:
         from alerts import alert_new_client
-        await alert_new_client(wallet, f"Agent IA: {name}", 0)
+        await alert_new_client(wallet, f"Agent IA: {name}" + (f" (ref: {referral_code})" if referral_code else ""), 0)
     except Exception:
         pass
 
     print(f"[PublicAPI] Nouvel agent inscrit: {name} ({wallet[:8]}...)")
 
+    # Onboarding: notify via webhook if subscriber + CEO notification
+    try:
+        from infra_features import notify_webhook_subscribers
+        await notify_webhook_subscribers("new_service", {
+            "type": "new_agent",
+            "name": name,
+            "wallet": wallet[:16] + "...",
+            "timestamp": int(time.time()),
+        })
+    except Exception:
+        pass
+
+    # CEO notification pour tracking + auto-attribute conversion to recent actions
+    try:
+        from ceo_maxia import ceo
+        ceo.memory.log_action_with_tracking("HUNTER", "signup", f"signup_{wallet[:12]}", f"New agent: {name}")
+        # Try to attribute this signup to a recent HUNTER prospect or GHOST-WRITER tweet
+        roi = ceo.memory._data.get("roi_tracking", [])
+        # Find the most recent unattributed prospect or tweet action (last 24h)
+        now_ts = datetime.utcnow().isoformat()
+        for entry in reversed(roi[-50:]):
+            if entry.get("type") in ("prospect", "tweet", "outreach") and entry.get("conversions", 0) == 0:
+                ceo.memory.record_conversion(entry["action_id"], revenue=0)
+                print(f"[ROI] Signup {name} attributed to {entry['type']} action {entry['action_id']}")
+                break
+    except Exception:
+        pass
+
+    sandbox_note = " (SANDBOX MODE — fake USDC)" if SANDBOX_MODE else ""
+
     return {
         "success": True,
         "api_key": api_key,
+        "sandbox": SANDBOX_MODE,
         "name": name,
         "tier": "BRONZE",
         "rate_limit": f"{RATE_LIMIT_FREE} requetes/jour",
         "message": "Bienvenue sur MAXIA. Utilisez X-API-Key dans vos headers pour acceder aux services.",
+        "welcome": {
+            "next_steps": [
+                "1. Try free endpoints: GET /api/public/crypto/prices",
+                "2. List a service: POST /api/public/sell",
+                "3. Deploy a template: POST /api/public/templates/deploy",
+                "4. Browse services: GET /api/public/services",
+                "5. Full docs: https://maxiaworld.app/api/public/docs",
+                "6. MCP Server: https://maxiaworld.app/mcp/manifest",
+                "7. Python SDK: pip install maxia",
+                "8. JS SDK: npm install maxia-sdk",
+            ],
+            "free_endpoints": [
+                "/api/public/crypto/prices",
+                "/api/public/crypto/candles?symbol=SOL&interval=1h",
+                "/api/public/sentiment?token=BTC",
+                "/api/public/trending",
+                "/api/public/fear-greed",
+                "/api/public/leaderboard",
+                "/api/public/stocks",
+                "/api/public/gpu/tiers",
+                "/api/public/templates",
+            ],
+        },
     }
+
+
+# ══════════════════════════════════════════
+#  SANDBOX — test without real USDC
+# ══════════════════════════════════════════
+
+@router.get("/sandbox/status")
+async def sandbox_status():
+    """Check if sandbox mode is enabled."""
+    return {"sandbox_mode": SANDBOX_MODE, "note": "Set SANDBOX_MODE=true in .env to enable test transactions with fake USDC"}
+
+
+@router.post("/sandbox/execute")
+async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Execute a service in sandbox mode (no real USDC needed)."""
+    if not SANDBOX_MODE:
+        raise HTTPException(400, "Sandbox mode not enabled. Set SANDBOX_MODE=true in .env")
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "Header X-API-Key requis")
+    buyer = _get_agent(x_api_key)
+    service_id = req.get("service_id", "")
+    prompt = req.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+    _check_safety(prompt, "prompt")
+
+    return {
+        "success": True,
+        "sandbox": True,
+        "tx_id": f"sandbox_{uuid.uuid4()}",
+        "service": service_id,
+        "price_usdc": 0,
+        "result": f"[SANDBOX] This is a test response for: {prompt[:100]}",
+        "note": "No real USDC was charged. Enable production mode by removing SANDBOX_MODE.",
+    }
+
+
+# ══════════════════════════════════════════
+#  DISPUTE RESOLUTION (Art.21 Extension)
+# ══════════════════════════════════════════
+
+@router.post("/dispute/create")
+async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Ouvre une dispute sur une transaction. Arbitrage automatique apres 48h."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    buyer = _get_agent(x_api_key)
+    tx_id = req.get("tx_id", "")
+    reason = req.get("reason", "")
+    if not tx_id or not reason:
+        raise HTTPException(400, "tx_id and reason required")
+    _check_safety(reason, "reason")
+
+    # Find transaction
+    tx = next((t for t in _transactions if t.get("tx_id") == tx_id), None)
+    if not tx:
+        raise HTTPException(404, "Transaction not found")
+    if tx.get("buyer") != buyer["name"]:
+        raise HTTPException(403, "You can only dispute your own transactions")
+
+    dispute_id = str(uuid.uuid4())
+    dispute = {
+        "id": dispute_id,
+        "tx_id": tx_id,
+        "buyer": buyer["name"],
+        "seller": tx.get("seller", ""),
+        "amount_usdc": tx.get("price_usdc", 0),
+        "reason": reason[:500],
+        "status": "open",
+        "created_at": int(time.time()),
+        "auto_resolve_at": int(time.time()) + 48 * 3600,  # 48h
+        "resolution": None,
+    }
+
+    # Store dispute
+    try:
+        from database import db as _db
+        await _db._db.execute(
+            "INSERT OR IGNORE INTO disputes(id, data) VALUES(?, ?)",
+            (dispute_id, json.dumps(dispute)))
+        await _db._db.commit()
+    except Exception:
+        pass
+
+    return {"success": True, "dispute": dispute}
+
+
+@router.get("/dispute/{dispute_id}")
+async def get_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Check dispute status."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    try:
+        from database import db as _db
+        rows = await _db._db.execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
+        if rows:
+            return json.loads(rows[0]["data"])
+    except Exception:
+        pass
+    raise HTTPException(404, "Dispute not found")
 
 
 # ══════════════════════════════════════════
@@ -401,6 +615,13 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
     except Exception:
         pass
 
+    # Referral commission (10% of MAXIA's commission to referrer)
+    try:
+        from referral_manager import add_commission
+        await add_commission(agent["wallet"], commission)
+    except Exception:
+        pass
+
     result_hash = hashlib.sha256(result.encode()).hexdigest()
 
     return {
@@ -413,6 +634,160 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         "commission_usdc": commission,
         "your_tier": agent["tier"],
         "your_volume_30d": agent["volume_30d"],
+    }
+
+
+# ══════════════════════════════════════════
+#  DASHBOARD UTILISATEUR (#9)
+# ══════════════════════════════════════════
+
+@router.get("/my-dashboard")
+async def my_dashboard(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Dashboard personnel : stats, services, revenue, transactions."""
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+
+    # Mes services
+    my_services = [s for s in _agent_services if s.get("agent_api_key") == x_api_key and s.get("status") == "active"]
+
+    # Mes transactions (acheteur ou vendeur)
+    my_tx_bought = [t for t in _transactions if t.get("buyer") == agent["name"]]
+    my_tx_sold = [t for t in _transactions if t.get("seller") == agent["name"]]
+
+    return {
+        "agent": {
+            "name": agent["name"],
+            "wallet": agent.get("wallet", ""),
+            "tier": agent.get("tier", "BRONZE"),
+            "registered_at": agent.get("registered_at", 0),
+        },
+        "stats": {
+            "total_spent": agent.get("total_spent", 0),
+            "total_earned": agent.get("total_earned", 0),
+            "volume_30d": agent.get("volume_30d", 0),
+            "services_listed": len(my_services),
+            "total_sales": sum(s.get("sales", 0) for s in my_services),
+        },
+        "services": [{"id": s["id"], "name": s["name"], "price": s["price_usdc"], "sales": s.get("sales", 0), "rating": s.get("rating", 5.0)} for s in my_services],
+        "recent_bought": [{"tx_id": t["tx_id"], "service": t.get("service", ""), "price": t.get("price_usdc", 0), "ts": t.get("timestamp", 0)} for t in my_tx_bought[-20:]],
+        "recent_sold": [{"tx_id": t["tx_id"], "buyer": t.get("buyer", ""), "service": t.get("service", ""), "price": t.get("price_usdc", 0), "ts": t.get("timestamp", 0)} for t in my_tx_sold[-20:]],
+    }
+
+
+@router.get("/my-services")
+async def my_services(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Liste mes services avec stats."""
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    _get_agent(x_api_key)
+    services = [s for s in _agent_services if s.get("agent_api_key") == x_api_key]
+    return {"services": services, "total": len(services)}
+
+
+@router.get("/my-transactions")
+async def my_transactions(x_api_key: str = Header(None, alias="X-API-Key"), limit: int = 50):
+    """Historique de mes transactions (achats + ventes)."""
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+    name = agent["name"]
+    txs = [t for t in _transactions if t.get("buyer") == name or t.get("seller") == name]
+    return {"transactions": txs[-limit:], "total": len(txs)}
+
+
+# ══════════════════════════════════════════
+#  RATING BIDIRECTIONNEL (#10)
+# ══════════════════════════════════════════
+
+@router.post("/rate")
+async def rate_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Note un service apres achat (1-5 etoiles). Seuls les acheteurs peuvent noter."""
+    await _load_from_db()
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+
+    service_id = req.get("service_id", "")
+    rating = req.get("rating", 0)
+    comment = req.get("comment", "")
+
+    if not service_id:
+        raise HTTPException(400, "service_id required")
+    if not isinstance(rating, (int, float)) or rating < 1 or rating > 5:
+        raise HTTPException(400, "rating must be 1-5")
+    if comment:
+        _check_safety(comment, "comment")
+
+    # Verifier que l'agent a achete ce service
+    bought = any(t for t in _transactions if t.get("buyer") == agent["name"] and t.get("service") == service_id)
+    if not bought:
+        # Also check by service name
+        service = next((s for s in _agent_services if s["id"] == service_id), None)
+        if service:
+            bought = any(t for t in _transactions if t.get("buyer") == agent["name"] and t.get("service") == service["name"])
+    if not bought:
+        raise HTTPException(403, "You can only rate services you have purchased")
+
+    # Trouver le service et mettre a jour le rating
+    for s in _agent_services:
+        if s["id"] == service_id:
+            # Moyenne pondérée
+            old_rating = s.get("rating", 5.0)
+            old_count = s.get("rating_count", 0)
+            new_count = old_count + 1
+            new_rating = (old_rating * old_count + rating) / new_count
+            s["rating"] = round(new_rating, 2)
+            s["rating_count"] = new_count
+
+            # Sauvegarder en DB
+            try:
+                from database import db as _db
+                await _db.update_service(service_id, rating=s["rating"])
+            except Exception:
+                pass
+
+            # Notifier le vendeur via webhook
+            try:
+                from infra_features import notify_webhook_subscribers
+                await notify_webhook_subscribers("service_sold", {
+                    "type": "new_rating",
+                    "service_id": service_id,
+                    "service_name": s["name"],
+                    "rating": rating,
+                    "new_average": s["rating"],
+                    "comment": comment[:200],
+                    "from": agent["name"],
+                }, filter_wallet=s.get("agent_wallet", ""))
+            except Exception:
+                pass
+
+            return {
+                "success": True,
+                "service_id": service_id,
+                "your_rating": rating,
+                "new_average": s["rating"],
+                "total_ratings": new_count,
+            }
+
+    raise HTTPException(404, "Service not found")
+
+
+@router.get("/ratings/{service_id}")
+async def get_ratings(service_id: str):
+    """Voir les ratings d'un service."""
+    await _load_from_db()
+    service = next((s for s in _agent_services if s["id"] == service_id), None)
+    if not service:
+        raise HTTPException(404, "Service not found")
+    return {
+        "service_id": service_id,
+        "name": service["name"],
+        "average_rating": service.get("rating", 5.0),
+        "total_ratings": service.get("rating_count", 0),
     }
 
 
@@ -977,6 +1352,55 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     try:
         from alerts import alert_revenue
         await alert_revenue(commission, f"AI-to-AI: {buyer['name']} -> {service['agent_name']}")
+    except Exception:
+        pass
+
+    # Notify webhook subscribers (seller + trade_executed event)
+    try:
+        from infra_features import notify_webhook_subscribers
+        await notify_webhook_subscribers("trade_executed", {
+            "tx_id": tx["tx_id"],
+            "buyer": buyer["name"],
+            "seller": service["agent_name"],
+            "service": service["name"],
+            "price_usdc": price,
+            "timestamp": int(time.time()),
+        })
+        # Notify the seller specifically
+        seller_wallet = service.get("agent_wallet", "")
+        if seller_wallet:
+            await notify_webhook_subscribers("service_sold", {
+                "tx_id": tx["tx_id"],
+                "buyer": buyer["name"],
+                "service": service["name"],
+                "price_usdc": price,
+                "your_earnings_usdc": seller_gets,
+                "seller_wallet": seller_wallet,
+            }, filter_wallet=seller_wallet)
+    except Exception as e:
+        print(f"[Marketplace] Webhook notification error: {e}")
+
+    # Telegram/Discord notification to seller (simple push)
+    try:
+        from alerts import alert_system
+        await alert_system(
+            "New Sale",
+            f"**{buyer['name']}** bought **{service['name']}** for **${price:.2f} USDC**. "
+            f"Seller earns ${seller_gets:.2f}. Tx: `{tx['tx_id'][:12]}...`"
+        )
+    except Exception:
+        pass
+
+    # Track conversion for ROI + attribute revenue to recent actions
+    try:
+        from ceo_maxia import ceo
+        ceo.memory.log_action_with_tracking("MARKETPLACE", "sale", tx["tx_id"][:16], f"{service['name']} ${price}")
+        # Attribute revenue to the signup action of this buyer
+        roi = ceo.memory._data.get("roi_tracking", [])
+        for entry in reversed(roi[-100:]):
+            if entry.get("type") == "signup" and buyer["name"] in entry.get("details", ""):
+                ceo.memory.record_conversion(entry["action_id"], revenue=commission)
+                break
     except Exception:
         pass
 
@@ -1609,7 +2033,7 @@ async def stock_portfolio(x_api_key: str = Header(None, alias="X-API-Key")):
     agent = _get_agent(x_api_key)
 
     from tokenized_stocks import stock_exchange
-    return stock_exchange.get_portfolio(x_api_key)
+    return await stock_exchange.get_portfolio(x_api_key)
 
 
 @router.get("/stocks/compare-fees")
@@ -1859,3 +2283,70 @@ async def my_wallet_alerts(x_api_key: str = Header(None, alias="X-API-Key"), lim
 
     from wallet_monitor import get_alerts
     return get_alerts(x_api_key, limit)
+
+
+# ══════════════════════════════════════════
+# REFERRAL PROGRAM — 10% commission share
+# ══════════════════════════════════════════
+
+REFERRAL_SHARE_PCT = 10  # referrer gets 10% of referee's commissions
+
+@router.get("/referral/my-code")
+async def referral_my_code(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Get your referral code. Share it to earn 10% of referred agents' commissions."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+    code = agent["wallet"][:8].upper() + "MAXIA"
+    from database import db
+    rows = await db._db.execute_fetchall(
+        "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (code,))
+    count = rows[0]["cnt"] if rows else 0
+    # Calculate earnings
+    earnings = 0.0
+    try:
+        rows2 = await db._db.execute_fetchall(
+            "SELECT data FROM referrals WHERE referrer=?", (code,))
+        for r in rows2:
+            d = json.loads(r["data"])
+            earnings += d.get("earnedUsdc", 0)
+    except Exception:
+        pass
+    return {
+        "referral_code": code,
+        "share_url": f"https://maxiaworld.app/api/public/register?referral_code={code}",
+        "referrals": count,
+        "earnings_usdc": round(earnings, 4),
+        "commission": f"{REFERRAL_SHARE_PCT}% of referred agents' commissions",
+        "how_it_works": [
+            "1. Share your referral code or link",
+            "2. New agent registers with your code",
+            "3. You earn 10% of every commission they generate",
+            "4. Passive income forever",
+        ],
+    }
+
+
+@router.get("/referral/my-referrals")
+async def referral_list(x_api_key: str = Header(None, alias="X-API-Key")):
+    """List agents I referred."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+    code = agent["wallet"][:8].upper() + "MAXIA"
+    from database import db
+    rows = await db._db.execute_fetchall(
+        "SELECT data FROM referrals WHERE referrer=? ORDER BY rowid DESC", (code,))
+    referrals = []
+    total_earned = 0.0
+    for r in rows:
+        d = json.loads(r["data"])
+        earned = d.get("earnedUsdc", 0)
+        total_earned += earned
+        referrals.append({
+            "referee": d.get("referee", "")[:8] + "...",
+            "registered_at": d.get("registeredAt", 0),
+            "earned_usdc": round(earned, 4),
+        })
+    return {"referrals": referrals, "total": len(referrals),
+            "total_earned_usdc": round(total_earned, 4)}

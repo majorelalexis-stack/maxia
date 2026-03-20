@@ -220,6 +220,17 @@ class PostgresDatabase:
                     seller_gets_usdc DOUBLE PRECISION NOT NULL,
                     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
                 );
+
+                CREATE TABLE IF NOT EXISTS stock_portfolios (
+                    api_key TEXT NOT NULL, symbol TEXT NOT NULL, shares DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    updated_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT),
+                    PRIMARY KEY (api_key, symbol)
+                );
+
+                CREATE TABLE IF NOT EXISTS stock_trades (
+                    trade_id TEXT PRIMARY KEY, data TEXT NOT NULL,
+                    created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
+                );
             """)
 
     # ── Exchange: Tokens ──

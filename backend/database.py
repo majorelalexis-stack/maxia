@@ -61,6 +61,10 @@ DB_SCHEMA = (
     "referee TEXT NOT NULL, data TEXT NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
+    "CREATE TABLE IF NOT EXISTS disputes ("
+    "id TEXT PRIMARY KEY, data TEXT NOT NULL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
     "CREATE TABLE IF NOT EXISTS datasets ("
     "dataset_id TEXT PRIMARY KEY, seller TEXT NOT NULL, data TEXT NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
@@ -83,6 +87,15 @@ DB_SCHEMA = (
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE INDEX IF NOT EXISTS idx_escrow_status ON escrow_records(status);"
+
+    "CREATE TABLE IF NOT EXISTS stock_portfolios ("
+    "api_key TEXT NOT NULL, symbol TEXT NOT NULL, shares REAL NOT NULL DEFAULT 0,"
+    "updated_at INTEGER DEFAULT (strftime('%s','now')),"
+    "PRIMARY KEY (api_key, symbol));"
+
+    "CREATE TABLE IF NOT EXISTS stock_trades ("
+    "trade_id TEXT PRIMARY KEY, data TEXT NOT NULL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS agents ("
     "api_key TEXT PRIMARY KEY, name TEXT NOT NULL, wallet TEXT NOT NULL,"
@@ -327,6 +340,12 @@ class Database:
         rows = await self._db.execute_fetchall("SELECT * FROM agent_services WHERE id=?", (service_id,))
         return dict(rows[0]) if rows else None
 
+    async def get_service_by_name(self, name: str):
+        """Cherche un service par son nom (case-insensitive)."""
+        rows = await self._db.execute_fetchall(
+            "SELECT * FROM agent_services WHERE LOWER(name)=LOWER(?) AND status='active' LIMIT 1", (name,))
+        return dict(rows[0]) if rows else None
+
     async def update_service(self, service_id: str, updates: dict):
         sets = ", ".join(f"{k}=?" for k in updates.keys())
         vals = list(updates.values()) + [service_id]
@@ -356,6 +375,39 @@ class Database:
             "total_volume_usdc": txs["vol"] if txs else 0,
             "total_commission_usdc": txs["comm"] if txs else 0,
         }
+
+    # ── Stock Portfolios ──
+
+    async def save_stock_holding(self, api_key: str, symbol: str, shares: float):
+        await self._db.execute(
+            "INSERT INTO stock_portfolios(api_key,symbol,shares,updated_at) VALUES(?,?,?,strftime('%s','now')) "
+            "ON CONFLICT(api_key,symbol) DO UPDATE SET shares=?,updated_at=strftime('%s','now')",
+            (api_key, symbol, shares, shares))
+        await self._db.commit()
+
+    async def get_stock_portfolio(self, api_key: str) -> dict:
+        rows = await self._db.execute_fetchall(
+            "SELECT symbol, shares FROM stock_portfolios WHERE api_key=? AND shares>0", (api_key,))
+        return {r["symbol"]: float(r["shares"]) for r in rows}
+
+    async def get_all_stock_portfolios(self) -> dict:
+        rows = await self._db.execute_fetchall(
+            "SELECT api_key, symbol, shares FROM stock_portfolios WHERE shares>0")
+        portfolios: dict = {}
+        for r in rows:
+            portfolios.setdefault(r["api_key"], {})[r["symbol"]] = float(r["shares"])
+        return portfolios
+
+    async def save_stock_trade(self, trade: dict):
+        await self._db.execute(
+            "INSERT OR REPLACE INTO stock_trades(trade_id,data) VALUES(?,?)",
+            (trade["trade_id"], json.dumps(trade)))
+        await self._db.commit()
+
+    async def get_stock_trades(self, limit: int = 100) -> list:
+        rows = await self._db.execute_fetchall(
+            "SELECT data FROM stock_trades ORDER BY created_at DESC LIMIT ?", (limit,))
+        return [json.loads(r["data"]) for r in rows]
 
     # ── Analytics (V12) ──
 

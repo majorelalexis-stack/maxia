@@ -1,12 +1,15 @@
-"""MAXIA Growth Agent V11 — Agent Marketing Ultra-Cible
+"""MAXIA Growth Agent V12 — HUNTER : Prospection Humaine (profil "Thomas")
 
-Ciblage precis :
-  1. Developpeurs (deployProgram) -> audit
-  2. Traders Jupiter actifs -> swap MAXIA
-  3. Detenteurs xStocks -> bourse MAXIA
-  4. Createurs de tokens -> audit + marketing
-  5. Whales (500+ SOL) -> services premium
-  6. Wallets post-airdrop -> investissement
+Cible : devs humains qui ont un agent IA qui tourne mais ne gagne pas d'argent.
+  Profil Thomas : 26-34 ans, dev Python, connait Solana/Ethereum
+  Frustration : "Mon bot tourne dans le vide, 0 clients"
+  Ce qu'il veut : POST /sell -> son service est live, d'autres IA l'achetent, USDC arrive
+
+Canaux : on-chain (Solana memo), Twitter, Discord, Reddit, GitHub
+Focus : devs qui deploient des programmes, interagissent avec DeFi, ou operent des bots
+
+NOTE : La prospection IA-to-IA est geree par scout_agent.py (SCOUT).
+       Le HUNTER ne contacte QUE des humains (devs, traders, builders).
 
 Messages a valeur ajoutee :
   - Analyse du wallet AVANT d'envoyer le message
@@ -67,8 +70,8 @@ SERVICE_CATALOG = (
 
 PROFILES = {
     "ai_agent": {
-        "description": "Wallet with program interactions (active AI agent)",
-        "value_message": "Your AI agent can earn USDC. Sell your services on MAXIA marketplace. Other agents buy automatically. Free: " + MAXIA_URL + "/api/public/register",
+        "description": "Dev running an AI agent/bot on-chain (profil Thomas)",
+        "value_message": "Your bot runs but earns $0? List it on MAXIA: POST /sell = live. Other AI agents buy your service. USDC in your wallet. Free: " + MAXIA_URL + "/api/public/register",
         "services": ["sell services", "earn USDC", "marketplace"],
     },
     "developer": {
@@ -499,7 +502,7 @@ class GrowthAgent:
             "contacts_2x": contacts_2,
             "daily_spend": self._daily_spend,
             "profiles": list(PROFILES.keys()),
-            "mode": "ultra-cible (15 tokens, 210 paires, valeur ajoutee, zero spam)",
+            "mode": "HUNTER — prospection humaine (profil Thomas, devs agents IA)",
         }
 
 

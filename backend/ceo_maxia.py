@@ -5,12 +5,18 @@ Un seul agent, une seule memoire, 4 boucles, 7 sous-agents, 5 mecanismes interne
 
 SOUS-AGENTS :
   GHOST-WRITER   : Contenu, tweets, threads (valide par WATCHDOG avant publication)
-  HUNTER         : Prospection on-chain (auto-switch canal si <1%)
+  HUNTER         : Prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
+  SCOUT          : Prospection IA-to-IA sur Solana/Base/Ethereum (Olas, Fetch, ElizaOS, Virtuals)
   WATCHDOG       : Monitoring, validation, self-healing (propose des patchs)
   SOL-TREASURY   : Budget dynamique, gas, ROI, remboursements
   RESPONDER      : Repond a TOUS messages 24/7 (Twitter, Discord, Telegram, API)
   RADAR          : Intelligence on-chain predictive (detecte tendances en temps reel)
   TESTIMONIAL    : Sollicite feedback post-transaction, construit social proof
+  NEGOTIATOR     : Negociation automatique des prix (loyalty discount, bundles, contre-offres)
+  COMPLIANCE     : Verification AML/sanctions, screening wallets, validation transactions
+  PARTNERSHIP    : Detection et demarchage de partenariats strategiques (DEX, GPU, AI protocols)
+  ANALYTICS      : Metriques avancees (LTV, churn, funnel, health score, rapports hebdo)
+  CRISIS-MANAGER : Gestion automatique des crises (P0-P3, pause marketing, self-heal, retention)
 
 BOUCLES :
   1. TACTIQUE     (horaire)    — Groq    — decisions rapides
@@ -29,6 +35,125 @@ MECANISMES INTERNES :
 """
 import asyncio, json, time, os
 from datetime import datetime, date
+
+
+# ══════════════════════════════════════════
+# AGENT BUS — Communication inter-agents
+# ══════════════════════════════════════════
+
+class AgentBus:
+    """Bus de messages entre sous-agents. Permet la communication directe sans passer par le CEO."""
+
+    def __init__(self):
+        self._queue: list = []       # messages en attente
+        self._processed: list = []   # 100 derniers messages traites
+        self._subscribers: dict = {} # {agent_name: [callback_fn, ...]}
+        self._max_queue = 200
+        self._max_processed = 100
+
+    def send(self, sender: str, receiver: str, msg_type: str, data: dict):
+        """Envoie un message d'un agent a un autre."""
+        message = {
+            "ts": datetime.utcnow().isoformat(),
+            "sender": sender.upper(),
+            "receiver": receiver.upper(),
+            "type": msg_type,
+            "data": data,
+            "processed": False,
+        }
+        self._queue.append(message)
+        if len(self._queue) > self._max_queue:
+            self._queue = self._queue[-self._max_queue:]
+        print(f"[BUS] {sender} -> {receiver}: {msg_type}")
+
+    def broadcast(self, sender: str, msg_type: str, data: dict):
+        """Diffuse un message a tous les agents."""
+        self.send(sender, "*", msg_type, data)
+
+    def get_messages(self, agent: str, msg_type: str = None) -> list:
+        """Recupere les messages non traites pour un agent."""
+        agent = agent.upper()
+        msgs = [
+            m for m in self._queue
+            if not m["processed"] and (m["receiver"] == agent or m["receiver"] == "*")
+            and (msg_type is None or m["type"] == msg_type)
+        ]
+        return msgs
+
+    def ack(self, agent: str, msg_type: str = None):
+        """Marque les messages comme traites."""
+        agent = agent.upper()
+        for m in self._queue:
+            if not m["processed"] and (m["receiver"] == agent or m["receiver"] == "*"):
+                if msg_type is None or m["type"] == msg_type:
+                    m["processed"] = True
+                    self._processed.append(m)
+        # Nettoyer la queue
+        self._queue = [m for m in self._queue if not m["processed"]]
+        self._processed = self._processed[-self._max_processed:]
+
+    def get_stats(self) -> dict:
+        return {
+            "pending": len(self._queue),
+            "processed": len(self._processed),
+            "recent": self._processed[-5:] if self._processed else [],
+        }
+
+
+agent_bus = AgentBus()
+
+
+# ══════════════════════════════════════════
+# TASK QUEUE — async queue pour taches lourdes
+# ══════════════════════════════════════════
+
+class TaskQueue:
+    """Simple async task queue pour deporter les taches lourdes hors du cycle principal."""
+
+    def __init__(self, max_size: int = 100):
+        self._queue = asyncio.Queue(maxsize=max_size)
+        self._processed = 0
+        self._errors = 0
+        self._running = False
+
+    async def put(self, task_name: str, coro_fn, *args):
+        """Ajoute une tache a la queue."""
+        try:
+            self._queue.put_nowait((task_name, coro_fn, args))
+        except asyncio.QueueFull:
+            print(f"[TaskQueue] FULL — dropping {task_name}")
+
+    async def worker(self):
+        """Worker qui traite les taches en background."""
+        self._running = True
+        while self._running:
+            try:
+                task_name, coro_fn, args = await asyncio.wait_for(self._queue.get(), timeout=5)
+                try:
+                    await coro_fn(*args)
+                    self._processed += 1
+                except Exception as e:
+                    self._errors += 1
+                    print(f"[TaskQueue] Error in {task_name}: {e}")
+                self._queue.task_done()
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                break
+
+    def stop(self):
+        self._running = False
+
+    def get_stats(self) -> dict:
+        return {
+            "pending": self._queue.qsize(),
+            "processed": self._processed,
+            "errors": self._errors,
+        }
+
+
+task_queue = TaskQueue()
+
 
 # ══════════════════════════════════════════
 # CONFIGURATION — read from config.py if available, else os.getenv
@@ -57,6 +182,7 @@ PRODUCT = "AI Marketplace on Solana — swap 15 tokens 210 paires, stocks 10 act
 PHASE = "Pre-seed"
 VISION = "Devenir la couche d'intelligence liquide de l'ecosysteme Solana"
 URL = "maxiaworld.app"
+MAXIA_URL = "https://maxiaworld.app"
 
 BASE_BUDGET_VERT = 0.05
 BASE_BUDGET_ORANGE = 0.5
@@ -79,14 +205,20 @@ Phase : {PHASE} | Vision : {VISION}
 Fondateur : {FOUNDER_NAME} (autorite finale sur decisions rouges)
 URL : {URL}
 
-7 SOUS-AGENTS :
+13 SOUS-AGENTS :
 - GHOST-WRITER : contenu (JAMAIS publier sans validation WATCHDOG)
-- HUNTER : prospection (AUTO-SWITCH canal si <1% conversion)
+- HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA, canaux: Twitter/Discord/Reddit/GitHub)
+- SCOUT : prospection IA-to-IA sur 3 chains (Solana/Base/Ethereum) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring + validation + self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
 - RADAR : intelligence on-chain predictive (tendances, volumes)
 - TESTIMONIAL : feedback post-transaction, social proof
+- NEGOTIATOR : negocie les prix automatiquement (loyalty, bundles, contre-offres)
+- COMPLIANCE : verifie wallets/transactions (AML, sanctions OFAC, anti-fraude)
+- PARTNERSHIP : detecte et contacte des partenaires strategiques (DEX, protocols, GPU)
+- ANALYTICS : metriques avancees (LTV, churn, funnel, health score 0-100)
+- CRISIS-MANAGER : detecte et gere les crises (P0 critique -> P3 mineure)
 
 PROTOCOLE (Chain of Thought) :
 1. COLLECTE donnees sous-agents
@@ -142,8 +274,47 @@ METRIC CLE : nombre d agents inscrits qui listent un service (pas juste inscrits
 
 
 # ══════════════════════════════════════════
-# LLM CERVEAUX
+# LLM CERVEAUX + Cost Tracking
 # ══════════════════════════════════════════
+
+# Cost tracking (estimated costs per 1K tokens)
+_llm_costs = {
+    "calls": 0, "tokens_in": 0, "tokens_out": 0,
+    "cost_usd": 0.0,
+    "by_model": {},
+}
+
+# Approximate costs per 1K tokens (input/output)
+_MODEL_COSTS = {
+    "llama-3.3-70b-versatile": (0.0, 0.0),  # Groq free tier
+    "claude-sonnet-4-20250514": (0.003, 0.015),
+    "claude-opus-4-20250514": (0.015, 0.075),
+}
+
+
+def _track_llm_cost(model: str, tokens_in: int, tokens_out: int):
+    """Track LLM usage and estimated cost."""
+    _llm_costs["calls"] += 1
+    _llm_costs["tokens_in"] += tokens_in
+    _llm_costs["tokens_out"] += tokens_out
+    rates = _MODEL_COSTS.get(model, (0, 0))
+    cost = (tokens_in / 1000 * rates[0]) + (tokens_out / 1000 * rates[1])
+    _llm_costs["cost_usd"] += cost
+    _llm_costs.setdefault("by_model", {})
+    _llm_costs["by_model"].setdefault(model, {"calls": 0, "cost": 0})
+    _llm_costs["by_model"][model]["calls"] += 1
+    _llm_costs["by_model"][model]["cost"] = round(_llm_costs["by_model"][model]["cost"] + cost, 4)
+
+
+def get_llm_costs() -> dict:
+    return {
+        "total_calls": _llm_costs["calls"],
+        "total_tokens_in": _llm_costs["tokens_in"],
+        "total_tokens_out": _llm_costs["tokens_out"],
+        "estimated_cost_usd": round(_llm_costs["cost_usd"], 4),
+        "by_model": _llm_costs.get("by_model", {}),
+    }
+
 
 async def _call_groq(system: str, user: str, max_tokens: int = 1500) -> str:
     if not GROQ_API_KEY:
@@ -152,11 +323,16 @@ async def _call_groq(system: str, user: str, max_tokens: int = 1500) -> str:
         from groq import Groq
         c = Groq(api_key=GROQ_API_KEY)
         def _c():
-            return c.chat.completions.create(
+            resp = c.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 max_tokens=max_tokens, temperature=0.7,
-            ).choices[0].message.content.strip()
+            )
+            # Track tokens
+            usage = resp.usage
+            if usage:
+                _track_llm_cost(GROQ_MODEL, usage.prompt_tokens or 0, usage.completion_tokens or 0)
+            return resp.choices[0].message.content.strip()
         return await asyncio.to_thread(_c)
     except Exception as e:
         print(f"[CEO] Groq error: {e}")
@@ -175,6 +351,10 @@ async def _call_anthropic(model: str, system: str, user: str, max_tokens: int = 
                 json={"model": model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": user}]},
             )
             data = resp.json()
+            # Track Anthropic tokens
+            usage = data.get("usage", {})
+            if usage:
+                _track_llm_cost(model, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
             ct = data.get("content", [])
             return ct[0].get("text", "") if ct else ""
     except Exception as e:
@@ -265,11 +445,31 @@ class Memory:
             if not self._data.get("emergency_stop"):
                 self._data["emergency_stop"] = True
                 print("[CEO] ⛔ EMERGENCY STOP ACTIVE — trop de depenses sans revenu")
+        # Memory rotation — garder les listes a taille raisonnable
+        self._trim()
         try:
             with open(self._path, "w") as f:
                 json.dump(self._data, f, indent=2, default=str)
         except Exception as e:
             print(f"[CEO] Save error: {e}")
+
+    def _trim(self):
+        """Limite la taille de la memoire pour eviter les fichiers de plusieurs MB."""
+        limits = {
+            "decisions": 500, "rapports": 100, "strategies": 50, "expansions": 20,
+            "regles": 200, "lecons_cles": 100, "kpi": 500,
+            "conversations": 300, "testimonials": 200, "radar_alerts": 200,
+            "erreurs_recurrentes": 50, "patchs_proposes": 50,
+            "tendances_utilisateurs": 100, "produits": 50,
+        }
+        trimmed = False
+        for key, max_len in limits.items():
+            lst = self._data.get(key)
+            if isinstance(lst, list) and len(lst) > max_len:
+                self._data[key] = lst[-max_len:]
+                trimmed = True
+        if trimmed:
+            print("[CEO] Memory trimmed (rotation)")
 
     def check_emergency_stop(self) -> bool:
         """Si >5 decisions orange sans revenu, STOP tout."""
@@ -289,6 +489,133 @@ class Memory:
     def reset_emergency(self):
         self._data["emergency_stop"] = False
         self.save()
+
+    # ── Kill switch granulaire ──
+
+    def disable_agent(self, agent_name: str, reason: str = "manual"):
+        """Desactive un sous-agent specifique sans tout arreter."""
+        if "disabled_agents" not in self._data:
+            self._data["disabled_agents"] = {}
+        self._data["disabled_agents"][agent_name.upper()] = {
+            "disabled_at": datetime.utcnow().isoformat(),
+            "reason": reason,
+        }
+        self.save()
+        print(f"[CEO] Agent {agent_name} DISABLED: {reason}")
+
+    def enable_agent(self, agent_name: str):
+        """Reactive un sous-agent."""
+        disabled = self._data.get("disabled_agents", {})
+        if agent_name.upper() in disabled:
+            del disabled[agent_name.upper()]
+            self.save()
+            print(f"[CEO] Agent {agent_name} RE-ENABLED")
+
+    def is_agent_disabled(self, agent_name: str) -> bool:
+        """Verifie si un agent est desactive."""
+        return agent_name.upper() in self._data.get("disabled_agents", {})
+
+    def get_disabled_agents(self) -> dict:
+        return self._data.get("disabled_agents", {})
+
+    # ── ROI Tracking ──
+
+    def log_action_with_tracking(self, agent: str, action_type: str, action_id: str, details: str = ""):
+        """Log une action avec un ID unique pour tracker le ROI."""
+        if "roi_tracking" not in self._data:
+            self._data["roi_tracking"] = []
+        self._data["roi_tracking"].append({
+            "ts": datetime.utcnow().isoformat(),
+            "agent": agent,
+            "type": action_type,  # tweet, prospect, blog, outreach
+            "action_id": action_id,
+            "details": details[:200],
+            "conversions": 0,
+            "revenue": 0,
+        })
+        self._data["roi_tracking"] = self._data["roi_tracking"][-500:]
+
+    def record_conversion(self, action_id: str, revenue: float = 0):
+        """Enregistre une conversion liee a une action."""
+        for entry in reversed(self._data.get("roi_tracking", [])):
+            if entry.get("action_id") == action_id:
+                entry["conversions"] = entry.get("conversions", 0) + 1
+                entry["revenue"] = entry.get("revenue", 0) + revenue
+                self.save()
+                return True
+        return False
+
+    def get_roi_stats(self) -> dict:
+        """Retourne les stats ROI par agent et par type d'action."""
+        tracking = self._data.get("roi_tracking", [])
+        by_agent = {}
+        by_type = {}
+        for entry in tracking:
+            agent = entry.get("agent", "?")
+            atype = entry.get("type", "?")
+            by_agent.setdefault(agent, {"actions": 0, "conversions": 0, "revenue": 0})
+            by_agent[agent]["actions"] += 1
+            by_agent[agent]["conversions"] += entry.get("conversions", 0)
+            by_agent[agent]["revenue"] += entry.get("revenue", 0)
+            by_type.setdefault(atype, {"actions": 0, "conversions": 0, "revenue": 0})
+            by_type[atype]["actions"] += 1
+            by_type[atype]["conversions"] += entry.get("conversions", 0)
+            by_type[atype]["revenue"] += entry.get("revenue", 0)
+        return {"by_agent": by_agent, "by_type": by_type, "total_tracked": len(tracking)}
+
+    # ── A/B Testing ──
+
+    def create_ab_test(self, test_name: str, variant_a: str, variant_b: str):
+        """Cree un test A/B."""
+        if "ab_tests" not in self._data:
+            self._data["ab_tests"] = {}
+        self._data["ab_tests"][test_name] = {
+            "created": datetime.utcnow().isoformat(),
+            "variants": {
+                "A": {"content": variant_a, "impressions": 0, "conversions": 0},
+                "B": {"content": variant_b, "impressions": 0, "conversions": 0},
+            },
+            "status": "active",
+            "winner": None,
+        }
+        self.save()
+
+    def get_ab_variant(self, test_name: str) -> tuple:
+        """Retourne le variant a utiliser (round-robin). Returns (variant_key, content)."""
+        test = self._data.get("ab_tests", {}).get(test_name)
+        if not test or test.get("status") != "active":
+            return ("A", "")
+        variants = test["variants"]
+        # Choisir le variant avec le moins d'impressions
+        if variants["A"]["impressions"] <= variants["B"]["impressions"]:
+            variants["A"]["impressions"] += 1
+            return ("A", variants["A"]["content"])
+        else:
+            variants["B"]["impressions"] += 1
+            return ("B", variants["B"]["content"])
+
+    def record_ab_conversion(self, test_name: str, variant_key: str):
+        """Enregistre une conversion pour un variant."""
+        test = self._data.get("ab_tests", {}).get(test_name)
+        if not test:
+            return
+        test["variants"][variant_key]["conversions"] += 1
+        # Auto-declare winner apres 100 impressions chacun
+        a = test["variants"]["A"]
+        b = test["variants"]["B"]
+        if a["impressions"] >= 100 and b["impressions"] >= 100:
+            rate_a = a["conversions"] / max(1, a["impressions"])
+            rate_b = b["conversions"] / max(1, b["impressions"])
+            if rate_a > rate_b * 1.2:  # A gagne par >20%
+                test["winner"] = "A"
+                test["status"] = "completed"
+            elif rate_b > rate_a * 1.2:
+                test["winner"] = "B"
+                test["status"] = "completed"
+        self.save()
+
+    def get_ab_results(self) -> dict:
+        return self._data.get("ab_tests", {})
 
     # ── Logging ──
 
@@ -354,6 +681,22 @@ class Memory:
             existing["count"] = existing.get("count", 0) + count
             existing["last"] = datetime.utcnow().isoformat()
             existing["error"] = error[:200]
+            # Auto-learn: si une action echoue 3+ fois, ajouter une regle
+            if existing["count"] == 3:
+                regle = f"AUTO-LEARN: {source} a echoue 3 fois ({error[:60]}). Eviter cette action."
+                self.add_regle(regle)
+                print(f"[CEO] AUTO-LEARN: nouvelle regle creee pour {source}")
+            # Auto-disable: si une action echoue 5+ fois, bloquer l'agent concerne
+            if existing["count"] >= 5 and not existing.get("auto_disabled"):
+                # Extraire le nom de l'agent depuis la source
+                agent_name = source.replace("ceo_executor_", "").upper()
+                agent_map = {"TWEET": "GHOST-WRITER", "PROSPECT": "HUNTER", "BLOG": "DEPLOYER",
+                             "SCOUT": "SCOUT", "PRICE": "SOL-TREASURY"}
+                mapped = agent_map.get(agent_name, "")
+                if mapped and not self.is_agent_disabled(mapped):
+                    self.disable_agent(mapped, f"Auto-disabled: {source} failed {existing['count']} times")
+                    existing["auto_disabled"] = True
+                    print(f"[CEO] AUTO-DISABLE: {mapped} desactive apres {existing['count']} echecs")
         else:
             self._data["erreurs_recurrentes"].append({
                 "source": source, "error": error[:200], "count": count,
@@ -385,6 +728,16 @@ class Memory:
 
     def update_agent(self, name: str, status: dict):
         self._data["agents"][name] = {**status, "at": datetime.utcnow().isoformat()}
+
+    def update_okr(self, okr: dict):
+        """Met a jour les OKR (Objectives & Key Results)."""
+        self._data["okr"] = okr
+        self.save()
+
+    def update_roadmap(self, roadmap):
+        """Met a jour la roadmap."""
+        self._data["roadmap"] = roadmap
+        self.save()
 
     # ── Budget dynamique ──
 
@@ -1140,19 +1493,36 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
 # GHOST-WRITER avec validation WATCHDOG
 # ══════════════════════════════════════════
 
-async def ghost_write(content_type: str, sujet: str, canal: str) -> dict:
+async def ghost_write(content_type: str, sujet: str, canal: str, memory: "Memory" = None) -> dict:
+    # A/B testing : si un test est actif pour ce type de contenu, utiliser le variant
+    ab_variant_key = None
+    ab_test_name = f"ghost_{content_type}_{canal}"
+    extra_instruction = ""
+    if memory:
+        test = memory._data.get("ab_tests", {}).get(ab_test_name)
+        if test and test.get("status") == "active":
+            ab_variant_key, variant_content = memory.get_ab_variant(ab_test_name)
+            if variant_content:
+                extra_instruction = f"\nSTYLE OBLIGATOIRE: {variant_content}\n"
+                print(f"[GHOST-WRITER] A/B test actif: {ab_test_name} variant {ab_variant_key}")
+
     prompt = (
         f"Cree un {content_type} pour {canal}: {sujet}\n"
         f"CIBLE : dev 26-34 ans qui a un agent IA mais 0 revenus. Parle comme un dev.\n"
         f"MESSAGE CLE : ton agent peut GAGNER de l'USDC sur MAXIA. POST /sell = live.\n"
         f"TON : technique, code, faits. PAS de marketing creux. PAS de 'revolutionary'.\n"
         f"INCLURE : maxiaworld.app ou github.com/MAXIAWORLD/demo-agent\n"
+        f"{extra_instruction}"
         f"Max 280 chars si tweet. Pas de emoji excessifs (max 1-2).\n"
         f"JSON: {{type, titre, contenu, services_mentionnes: [], hashtags, cta}}"
     )
     data = _pj(await _call_groq(CEO_IDENTITY + "\nMode GHOST-WRITER.", prompt))
     if not data:
         return {}
+    # Tag le variant A/B pour tracking
+    if ab_variant_key:
+        data["ab_test"] = ab_test_name
+        data["ab_variant"] = ab_variant_key
     # Validation WATCHDOG
     for svc in data.get("services_mentionnes", []):
         if not await watchdog_check_service(svc):
@@ -1189,10 +1559,76 @@ async def execute(decisions: list, memory: Memory):
 
     from ceo_executor import execute_decision
 
+    VALID_CIBLES = {"GHOST-WRITER", "HUNTER", "SCOUT", "WATCHDOG", "SOL-TREASURY", "RESPONDER", "RADAR", "TESTIMONIAL", "DEPLOYER", "FONDATEUR", "NEGOTIATOR", "COMPLIANCE", "PARTNERSHIP", "ANALYTICS", "CRISIS-MANAGER"}
+    VAGUE_PATTERNS = ["maximiser", "ameliorer", "optimiser", "augmenter les", "renforcer", "assurer le", "garantir"]
+    CONCRETE_KW = ["tweet", "post", "switch", "contact", "deploy", "blog", "prix", "fee", "canal", "wallet", "scan", "check", "adjust", "send", "memo", "thread", "article"]
+
     for dec in decisions:
         action = dec.get("action", "")
-        cible = dec.get("cible", "")
+        cible = dec.get("cible", "").upper()
         prio = dec.get("priorite", "moyenne")
+
+        # Kill switch granulaire — skip les agents desactives
+        if cible and memory.is_agent_disabled(cible):
+            print(f"[CEO] Decision SKIPPED — {cible} est desactive")
+            continue
+
+        # Fix unknown cible — try to map it to closest valid one
+        if cible and cible not in VALID_CIBLES:
+            cible_map = {
+                "CEO": "WATCHDOG", "MAXIA": "WATCHDOG", "MARKETING": "GHOST-WRITER",
+                "CONTENT": "GHOST-WRITER", "PROSPECTION": "HUNTER", "BUDGET": "SOL-TREASURY",
+                "TREASURY": "SOL-TREASURY", "PRIX": "SOL-TREASURY", "MONITORING": "WATCHDOG",
+                "SOCIAL": "GHOST-WRITER", "TWITTER": "GHOST-WRITER", "DISCORD": "RESPONDER",
+                "TELEGRAM": "RESPONDER", "INTELLIGENCE": "RADAR", "FEEDBACK": "TESTIMONIAL",
+                "IA-PROSPECTION": "SCOUT", "AI-AGENTS": "SCOUT", "RECRUTEMENT-IA": "SCOUT",
+                "AGENTS": "SCOUT", "OLAS": "SCOUT", "AUTONOLAS": "SCOUT",
+                "PRIX": "NEGOTIATOR", "PRICING": "NEGOTIATOR", "NEGOCIATION": "NEGOTIATOR",
+                "AML": "COMPLIANCE", "SANCTIONS": "COMPLIANCE", "KYC": "COMPLIANCE", "FRAUDE": "COMPLIANCE",
+                "PARTENARIAT": "PARTNERSHIP", "PARTENAIRES": "PARTNERSHIP", "INTEGRATION": "PARTNERSHIP",
+                "METRIQUES": "ANALYTICS", "REPORTING": "ANALYTICS", "RAPPORT": "ANALYTICS", "KPI": "ANALYTICS",
+                "CRISE": "CRISIS-MANAGER", "INCIDENT": "CRISIS-MANAGER", "URGENCE": "CRISIS-MANAGER",
+            }
+            mapped = cible_map.get(cible)
+            if mapped:
+                print(f"[CEO] Cible '{cible}' remappee -> {mapped}")
+                cible = mapped
+                dec["cible"] = mapped
+            else:
+                print(f"[CEO] Decision REJETEE — cible inconnue: {cible}")
+                continue
+
+        # Translate vague actions into concrete ones via Groq re-prompt
+        if any(v in action.lower() for v in VAGUE_PATTERNS) and not any(kw in action.lower() for kw in CONCRETE_KW):
+            print(f"[CEO] Action vague detectee, re-prompt Groq: {action[:80]}")
+            try:
+                concrete = await _call_groq(
+                    "Tu es un assistant qui transforme des objectifs vagues en actions concretes pour un sous-agent.",
+                    f"Sous-agent cible: {cible}\n"
+                    f"Objectif vague: {action}\n\n"
+                    f"Transforme en UNE action concrete executable par {cible}.\n"
+                    f"Exemples d'actions concretes:\n"
+                    f"- GHOST-WRITER: 'tweet: MAXIA offre les frais les plus bas sur Solana'\n"
+                    f"- HUNTER: 'contact wallet ABC123 via solana_memo'\n"
+                    f"- SOL-TREASURY: 'adjust swap fee to 0.05%'\n"
+                    f"- WATCHDOG: 'check service swap health'\n"
+                    f"- DEPLOYER: 'deploy blog: Why MAXIA is cheapest'\n"
+                    f"- RADAR: 'scan trending tokens volume > 100k'\n"
+                    f"- RESPONDER: 'send welcome message to new users on discord'\n\n"
+                    f"Reponds UNIQUEMENT l'action concrete, rien d'autre. Pas de JSON, pas d'explication.",
+                    max_tokens=150,
+                )
+                if concrete and concrete.strip():
+                    concrete = concrete.strip().strip('"').strip("'")
+                    print(f"[CEO] Action concretisee: {concrete[:100]}")
+                    action = concrete
+                    dec["action"] = concrete
+                else:
+                    print(f"[CEO] Re-prompt echoue, action ignoree: {action[:80]}")
+                    continue
+            except Exception as e:
+                print(f"[CEO] Re-prompt Groq error: {e}, action ignoree")
+                continue
 
         # Verifier le budget avant execution
         if prio == "orange":
@@ -1547,6 +1983,562 @@ async def deployer_blog_post(titre: str, contenu_prompt: str, memory) -> dict:
 
 
 # ══════════════════════════════════════════
+# NEGOTIATOR — Negociation automatique des prix
+# ══════════════════════════════════════════
+
+async def negotiator_evaluate(buyer_agent: str, service: str, proposed_price: float, memory: Memory) -> dict:
+    """Evalue et negocie automatiquement une offre de prix d'un agent IA acheteur."""
+    # Recuperer le prix catalogue
+    catalog_price = 0
+    try:
+        from database import db as _db
+        svc = await _db.get_service_by_name(service)
+        if svc:
+            catalog_price = svc.get("price", 0)
+    except Exception:
+        pass
+
+    if catalog_price <= 0:
+        return {"accepted": False, "reason": "service_not_found", "counter_offer": None}
+
+    # Recuperer l'historique du buyer
+    buyer_history = [c for c in memory._data.get("conversations", []) if c.get("user") == buyer_agent]
+    buyer_txs = len(buyer_history)
+
+    # Regles de negociation
+    min_price = catalog_price * 0.70  # jamais en dessous de 70%
+    loyalty_discount = min(0.15, buyer_txs * 0.02)  # 2% par transaction passee, max 15%
+    fair_price = catalog_price * (1 - loyalty_discount)
+
+    if proposed_price >= fair_price:
+        memory.log_decision("vert", f"NEGOTIATOR: accepte {proposed_price} de {buyer_agent} pour {service}", "negociation", "NEGOTIATOR")
+        return {"accepted": True, "final_price": proposed_price, "discount": f"{loyalty_discount:.0%}", "reason": "price_ok"}
+
+    if proposed_price >= min_price:
+        # Contre-offre : prix moyen entre demande et catalogue
+        counter = round((proposed_price + fair_price) / 2, 4)
+        memory.log_decision("vert", f"NEGOTIATOR: contre-offre {counter} a {buyer_agent} (demande: {proposed_price})", "negociation", "NEGOTIATOR")
+        return {"accepted": False, "counter_offer": counter, "min_acceptable": min_price, "reason": "counter_offer", "loyalty_discount": f"{loyalty_discount:.0%}"}
+
+    # Prix trop bas — refus
+    return {"accepted": False, "counter_offer": fair_price, "reason": "too_low", "message": f"Minimum acceptable: ${min_price:.2f}. Your loyalty discount: {loyalty_discount:.0%}"}
+
+
+async def negotiator_bulk_deal(buyer_agent: str, services: list, memory: Memory) -> dict:
+    """Negociation de pack/bundle — remise volume automatique."""
+    total_catalog = 0
+    details = []
+    for svc_name in services:
+        try:
+            from database import db as _db
+            svc = await _db.get_service_by_name(svc_name)
+            price = svc.get("price", 0) if svc else 0
+            total_catalog += price
+            details.append({"service": svc_name, "unit_price": price})
+        except Exception:
+            details.append({"service": svc_name, "unit_price": 0, "error": "not_found"})
+
+    # Remise volume : 5% pour 2 services, 10% pour 3+, 15% pour 5+, 20% pour 10+
+    n = len(services)
+    if n >= 10:
+        discount = 0.20
+    elif n >= 5:
+        discount = 0.15
+    elif n >= 3:
+        discount = 0.10
+    elif n >= 2:
+        discount = 0.05
+    else:
+        discount = 0
+
+    bundle_price = round(total_catalog * (1 - discount), 4)
+    memory.log_decision("vert", f"NEGOTIATOR: bundle {n} services pour {buyer_agent}, remise {discount:.0%}", "negociation", "NEGOTIATOR")
+    return {
+        "services": details,
+        "total_catalog": total_catalog,
+        "discount": f"{discount:.0%}",
+        "bundle_price": bundle_price,
+        "savings": round(total_catalog - bundle_price, 4),
+    }
+
+
+# ══════════════════════════════════════════
+# COMPLIANCE — Verification reglementaire
+# ══════════════════════════════════════════
+
+# Wallets sanctionnes connus (OFAC SDN list — echantillon)
+SANCTIONED_PREFIXES = [
+    "4wJT", "HN7c", "FhVo",  # Tornado Cash tagged
+]
+
+async def compliance_check_wallet(wallet: str, memory: Memory) -> dict:
+    """Verifie si un wallet est sur liste noire/sanctions."""
+    issues = []
+
+    # Check prefixes sanctions
+    for prefix in SANCTIONED_PREFIXES:
+        if wallet.startswith(prefix):
+            issues.append(f"wallet_prefix_match_{prefix}")
+
+    # Check si wallet deja bloque en memoire
+    blocked = memory._data.get("compliance_blocked", [])
+    if wallet in blocked:
+        issues.append("previously_blocked")
+
+    # Verifier age du wallet via RPC (nouveau wallet = risque)
+    try:
+        import httpx
+        helius_key = _cfg("HELIUS_API_KEY")
+        if helius_key:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
+                    json={"jsonrpc": "2.0", "id": 1, "method": "getSignaturesForAddress", "params": [wallet, {"limit": 1}]},
+                )
+                sigs = resp.json().get("result", [])
+                if not sigs:
+                    issues.append("no_transaction_history")
+    except Exception:
+        pass
+
+    risk = "high" if issues else "low"
+    cleared = len(issues) == 0
+
+    if not cleared:
+        memory.log_decision("orange", f"COMPLIANCE: wallet {wallet[:12]}... flagge — {issues}", "AML check", "COMPLIANCE")
+        if "compliance_blocked" not in memory._data:
+            memory._data["compliance_blocked"] = []
+        if wallet not in memory._data["compliance_blocked"]:
+            memory._data["compliance_blocked"].append(wallet)
+            memory.save()
+        # Notifier NEGOTIATOR et CRISIS-MANAGER via le bus
+        agent_bus.send("COMPLIANCE", "NEGOTIATOR", "wallet_blocked", {"wallet": wallet, "issues": issues})
+        agent_bus.send("COMPLIANCE", "CRISIS-MANAGER", "compliance_flag", {"wallet": wallet, "risk": risk})
+
+    return {"wallet": wallet, "cleared": cleared, "risk": risk, "issues": issues}
+
+
+async def compliance_check_transaction(amount: float, sender: str, receiver: str, memory: Memory) -> dict:
+    """Verifie une transaction pour conformite AML basique."""
+    flags = []
+
+    # Seuil de transaction elevee
+    if amount > 10000:
+        flags.append("high_value_transaction")
+
+    # Frequence anormale du sender (>20 tx en 24h)
+    recent_decisions = [d for d in memory._data.get("decisions", [])
+                        if d.get("cible") == sender and d.get("ts", "")[:10] == datetime.utcnow().isoformat()[:10]]
+    if len(recent_decisions) > 20:
+        flags.append("unusual_frequency")
+
+    # Verifier les deux wallets
+    sender_check = await compliance_check_wallet(sender, memory)
+    receiver_check = await compliance_check_wallet(receiver, memory)
+    if not sender_check["cleared"]:
+        flags.append(f"sender_flagged: {sender_check['issues']}")
+    if not receiver_check["cleared"]:
+        flags.append(f"receiver_flagged: {receiver_check['issues']}")
+
+    approved = len(flags) == 0
+    if not approved:
+        await alert_info(f"COMPLIANCE: tx ${amount} bloquee — {flags}")
+
+    return {"approved": approved, "amount": amount, "flags": flags}
+
+
+# ══════════════════════════════════════════
+# PARTNERSHIP — Detection et demarchage partenariats
+# ══════════════════════════════════════════
+
+PARTNERSHIP_TARGETS = {
+    "dex": ["Jupiter", "Raydium", "Orca", "Meteora"],
+    "infra": ["Helius", "Quicknode", "Triton", "GenesysGo"],
+    "ai_protocols": ["Olas", "Fetch.ai", "SingularityNET", "Bittensor"],
+    "l2": ["Base", "Arbitrum", "Optimism"],
+    "gpu": ["RunPod", "Lambda", "Akash", "Render"],
+    "wallets": ["Phantom", "Backpack", "Solflare"],
+}
+
+PARTNERSHIP_TEMPLATES = {
+    "dex": "Integration listing — MAXIA routes {volume} trades/day through your DEX. API partnership for reduced fees?",
+    "infra": "Infrastructure discount — MAXIA serves {clients} AI agents. Volume pricing for RPC/compute?",
+    "ai_protocols": "AI-to-AI marketplace — MAXIA connects your agents to paying clients. Mutual listing partnership?",
+    "l2": "Cross-chain expansion — MAXIA is live on Solana+Base. Integration for {chain} support?",
+    "gpu": "GPU marketplace — MAXIA auctions GPU compute to AI agents. Reseller/affiliate deal?",
+    "wallets": "Wallet integration — embed MAXIA services (swap, GPU, AI) directly in your wallet UI.",
+}
+
+
+async def partnership_scan(memory: Memory) -> list:
+    """Scanne les partenaires potentiels et evalue la priorite."""
+    opportunities = []
+    existing = memory._data.get("partnerships", [])
+    existing_names = [p.get("name", "").lower() for p in existing]
+
+    stats = {
+        "volume": memory._data.get("kpi", [{}])[-1].get("volume", 0) if memory._data.get("kpi") else 0,
+        "clients": memory._data.get("clients", 0),
+    }
+
+    for category, partners in PARTNERSHIP_TARGETS.items():
+        template = PARTNERSHIP_TEMPLATES.get(category, "")
+        for partner in partners:
+            if partner.lower() in existing_names:
+                continue  # deja contacte
+            score = 0
+            # Score basé sur la pertinence actuelle
+            if category == "dex" and stats["volume"] > 0:
+                score = 80
+            elif category == "ai_protocols":
+                score = 90  # toujours haute priorite
+            elif category == "gpu":
+                score = 70
+            elif category == "infra" and stats["clients"] > 5:
+                score = 75
+            elif category == "wallets" and stats["clients"] > 20:
+                score = 85
+            elif category == "l2":
+                score = 60
+            else:
+                score = 50
+
+            msg = template.format(volume=stats["volume"], clients=stats["clients"], chain=partner)
+            opportunities.append({
+                "partner": partner,
+                "category": category,
+                "score": score,
+                "pitch": msg,
+            })
+
+    # Trier par score descendant
+    opportunities.sort(key=lambda x: x["score"], reverse=True)
+    return opportunities[:10]
+
+
+async def partnership_outreach(partner: str, category: str, pitch: str, memory: Memory) -> dict:
+    """Genere un message de demarchage personnalise via LLM."""
+    prompt = (
+        f"Ecris un message de partenariat B2B concis (150 mots max) a {partner} ({category}).\n"
+        f"Contexte: {pitch}\n"
+        f"MAXIA: AI marketplace sur Solana — {memory._data.get('clients', 0)} agents actifs, "
+        f"${memory._data.get('revenue_usd', 0)} rev mensuel.\n"
+        f"Ton: professionnel mais direct. Pas de flatterie excessive.\n"
+        f"Inclure: proposition de valeur mutuelle, CTA concret (call, pilot, API test).\n"
+        f"JSON: {{subject, message, cta, channel_suggested}}"
+    )
+    result = _pj(await _call_groq(CEO_IDENTITY + "\nMode PARTNERSHIP.", prompt))
+    if result:
+        if "partnerships" not in memory._data:
+            memory._data["partnerships"] = []
+        memory._data["partnerships"].append({
+            "name": partner, "category": category,
+            "contacted": datetime.utcnow().isoformat(),
+            "status": "outreach_sent",
+        })
+        memory.save()
+        memory.log_decision("orange", f"PARTNERSHIP: outreach a {partner} ({category})", "expansion", "PARTNERSHIP")
+        memory.log_action_with_tracking("PARTNERSHIP", "outreach", f"partner_{partner.lower()}", f"{partner} ({category})")
+    return result or {}
+
+
+# ══════════════════════════════════════════
+# ANALYTICS — Metriques avancees (retention, churn, LTV, funnel)
+# ══════════════════════════════════════════
+
+async def analytics_compute(memory: Memory) -> dict:
+    """Calcule les metriques business avancees."""
+    d = memory._data
+    kpis = d.get("kpi", [])
+    decisions = d.get("decisions", [])
+    conversations = d.get("conversations", [])
+    testimonials = d.get("testimonials", [])
+
+    # Revenue metrics
+    rev_total = d.get("revenue_usd", 0)
+    clients_total = d.get("clients", 0)
+    ltv = rev_total / max(1, clients_total)  # Lifetime value
+
+    # Funnel metrics (depuis les conversations)
+    prospects = len(set(c.get("user", "") for c in conversations if c.get("intention") == "prospect"))
+    signups = clients_total
+    active = d.get("kpi", [{}])[-1].get("clients_actifs", 0) if kpis else 0
+    paying = len([t for t in testimonials if t.get("published")])
+
+    funnel = {
+        "prospects": prospects,
+        "signups": signups,
+        "active": active,
+        "paying": paying,
+        "conversion_prospect_to_signup": f"{signups / max(1, prospects):.1%}",
+        "conversion_signup_to_active": f"{active / max(1, signups):.1%}",
+        "conversion_active_to_paying": f"{paying / max(1, active):.1%}",
+    }
+
+    # Churn : clients qui etaient actifs il y a 7j mais plus maintenant
+    kpi_7d_ago = kpis[-168] if len(kpis) >= 168 else kpis[0] if kpis else {}
+    prev_active = kpi_7d_ago.get("clients_actifs", 0)
+    churn = max(0, prev_active - active)
+    churn_rate = churn / max(1, prev_active)
+
+    # Revenue par canal
+    rev_by_canal = {}
+    for dec in decisions:
+        if "revenue" in dec.get("decision", "").lower() or "paiement" in dec.get("decision", "").lower():
+            canal = dec.get("cible", "unknown")
+            rev_by_canal[canal] = rev_by_canal.get(canal, 0) + 1
+
+    # Activite par heure (heatmap)
+    activity_hours = {}
+    for c in conversations[-500:]:
+        ts = c.get("ts", "")
+        if len(ts) >= 13:
+            hour = ts[11:13]
+            activity_hours[hour] = activity_hours.get(hour, 0) + 1
+
+    # Score de sante global (0-100)
+    health = 50
+    if rev_total > 0:
+        health += 15
+    if clients_total >= 5:
+        health += 10
+    if churn_rate < 0.1:
+        health += 10
+    if active > 0:
+        health += 10
+    if len(d.get("erreurs_recurrentes", [])) == 0:
+        health += 5
+    health = min(100, health)
+
+    analytics = {
+        "ltv": round(ltv, 2),
+        "churn": {"lost": churn, "rate": f"{churn_rate:.1%}"},
+        "funnel": funnel,
+        "revenue_by_canal": rev_by_canal,
+        "activity_heatmap": dict(sorted(activity_hours.items())),
+        "health_score": health,
+        "recommendations": [],
+    }
+
+    # Recommandations automatiques + notification inter-agents via bus
+    if churn_rate > 0.2:
+        analytics["recommendations"].append("CHURN ELEVE: activer TESTIMONIAL pour re-engager les inactifs")
+        agent_bus.send("ANALYTICS", "TESTIMONIAL", "churn_high", {"rate": f"{churn_rate:.1%}"})
+    if funnel["prospects"] > 0 and signups / max(1, prospects) < 0.05:
+        analytics["recommendations"].append("CONVERSION BASSE: HUNTER doit changer d'approche ou de canal")
+        agent_bus.send("ANALYTICS", "HUNTER", "low_conversion", {"rate": f"{signups / max(1, prospects):.1%}"})
+    if ltv < 1:
+        analytics["recommendations"].append("LTV FAIBLE: NEGOTIATOR doit proposer des bundles pour augmenter panier moyen")
+        agent_bus.send("ANALYTICS", "NEGOTIATOR", "low_ltv", {"ltv": ltv})
+    if health < 40:
+        analytics["recommendations"].append("SANTE CRITIQUE: focus sur stabilite avant croissance")
+        agent_bus.broadcast("ANALYTICS", "health_critical", {"score": health})
+
+    return analytics
+
+
+async def analytics_weekly_report(memory: Memory) -> dict:
+    """Genere un rapport hebdomadaire enrichi pour le fondateur."""
+    metrics = await analytics_compute(memory)
+    d = memory._data
+
+    prompt = (
+        f"Genere un rapport hebdomadaire CEO pour le fondateur (Alexis).\n\n"
+        f"METRIQUES:\n{json.dumps(metrics, indent=2, default=str)}\n\n"
+        f"KPI recents: rev=${d.get('revenue_usd', 0)}, clients={d.get('clients', 0)}\n"
+        f"Agents actifs: {list(d.get('agents', {}).keys())}\n"
+        f"Erreurs: {len(d.get('erreurs_recurrentes', []))}\n"
+        f"Testimonials: {len(d.get('testimonials', []))}\n\n"
+        f"Format: JSON {{resume_executif, kpi_cles, wins, problemes, actions_semaine_prochaine, message_fondateur}}\n"
+        f"Ton: direct, factuel, avec les chiffres. Max 300 mots."
+    )
+    report = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode ANALYTICS.", prompt, 2000))
+    if report:
+        report["metrics"] = metrics
+        memory.log_decision("vert", f"ANALYTICS: rapport hebdo genere (health={metrics['health_score']})", "reporting", "ANALYTICS")
+    return report or {"metrics": metrics}
+
+
+# ══════════════════════════════════════════
+# CRISIS-MANAGER — Gestion automatique des crises
+# ══════════════════════════════════════════
+
+CRISIS_LEVELS = {
+    "P0": {"name": "critique", "response_min": 5, "escalate": True, "pause_marketing": True},
+    "P1": {"name": "majeure", "response_min": 30, "escalate": True, "pause_marketing": True},
+    "P2": {"name": "moderee", "response_min": 120, "escalate": False, "pause_marketing": False},
+    "P3": {"name": "mineure", "response_min": 480, "escalate": False, "pause_marketing": False},
+}
+
+
+async def crisis_detect(memory: Memory) -> list:
+    """Detecte les situations de crise automatiquement."""
+    crises = []
+    d = memory._data
+
+    # P0 : Service principal DOWN
+    try:
+        health = await watchdog_health_check()
+        if health.get("failed", 0) > health.get("total", 1) * 0.5:
+            crises.append({
+                "level": "P0", "type": "service_outage",
+                "details": f"{health['failed']}/{health['total']} services DOWN",
+                "action": "WATCHDOG self-heal + GHOST-WRITER pause + alerte fondateur",
+            })
+    except Exception:
+        pass
+
+    # P0 : Perte de fonds detectee (solde du wallet micro qui baisse sans transactions loguees)
+    try:
+        balance = await micro_wallet.get_balance()
+        expected = MICRO_MAX_PER_DAY - micro_wallet._spent_today
+        if balance > 0 and balance < expected * 0.5 and micro_wallet._spent_today > 0:
+            crises.append({
+                "level": "P0", "type": "funds_anomaly",
+                "details": f"Wallet balance {balance:.4f} SOL < expected {expected:.4f}",
+                "action": "Freeze MICRO wallet + alerte rouge fondateur",
+            })
+    except Exception:
+        pass
+
+    # P1 : Erreurs en cascade (>10 erreurs differentes en 24h)
+    errors = d.get("erreurs_recurrentes", [])
+    recent_errors = [e for e in errors if e.get("count", 0) >= 3]
+    if len(recent_errors) >= 5:
+        crises.append({
+            "level": "P1", "type": "error_cascade",
+            "details": f"{len(recent_errors)} erreurs recurrentes (>=3 occurrences chacune)",
+            "action": "WATCHDOG diagnostic complet + pause operations non-critiques",
+        })
+
+    # P1 : Churn massif (perte >30% clients en 24h)
+    kpis = d.get("kpi", [])
+    if len(kpis) >= 8:
+        clients_now = kpis[-1].get("clients_actifs", 0)
+        clients_8h = kpis[-8].get("clients_actifs", 0)
+        if clients_8h > 5 and clients_now < clients_8h * 0.7:
+            crises.append({
+                "level": "P1", "type": "mass_churn",
+                "details": f"Clients: {clients_8h} -> {clients_now} (-{clients_8h - clients_now})",
+                "action": "ANALYTICS diagnostic + RESPONDER campagne retention",
+            })
+
+    # P2 : Budget epuise
+    if d.get("emergency_stop"):
+        crises.append({
+            "level": "P2", "type": "budget_exhausted",
+            "details": "Emergency stop actif — budget epuise",
+            "action": "Attente revenu ou reset fondateur",
+        })
+
+    # P2 : Aucun revenu depuis >7 jours
+    if d.get("semaines_0rev", 0) >= 1:
+        crises.append({
+            "level": "P2", "type": "zero_revenue",
+            "details": f"{d.get('semaines_0rev', 0)} semaines sans revenu",
+            "action": "HUNTER intensifier prospection + NEGOTIATOR proposer promos",
+        })
+
+    # Notifier les agents concernes via le bus
+    for crisis in crises:
+        level = crisis.get("level", "P3")
+        if level in ("P0", "P1"):
+            agent_bus.broadcast("CRISIS-MANAGER", "crisis_alert", {"level": level, "type": crisis["type"], "details": crisis["details"]})
+        if crisis["type"] == "mass_churn":
+            agent_bus.send("CRISIS-MANAGER", "ANALYTICS", "churn_alert", {"details": crisis["details"]})
+            agent_bus.send("CRISIS-MANAGER", "RESPONDER", "retention_needed", {"details": crisis["details"]})
+        if crisis["type"] == "zero_revenue":
+            agent_bus.send("CRISIS-MANAGER", "NEGOTIATOR", "promo_needed", {"weeks": d.get("semaines_0rev", 0)})
+            agent_bus.send("CRISIS-MANAGER", "HUNTER", "intensify", {"reason": "zero_revenue"})
+
+    return crises
+
+
+async def crisis_respond(crisis: dict, memory: Memory) -> dict:
+    """Execute le protocole de reponse a une crise."""
+    level = crisis.get("level", "P3")
+    config = CRISIS_LEVELS.get(level, CRISIS_LEVELS["P3"])
+    crisis_type = crisis.get("type", "unknown")
+    details = crisis.get("details", "")
+
+    response = {
+        "level": level,
+        "type": crisis_type,
+        "config": config,
+        "actions_taken": [],
+    }
+
+    # Pause marketing si necessaire
+    if config["pause_marketing"]:
+        memory.update_agent("GHOST-WRITER", {"status": "pause_crise", "reason": crisis_type})
+        memory.update_agent("HUNTER", {"status": "pause_crise", "reason": crisis_type})
+        response["actions_taken"].append("marketing_paused")
+
+    # Escalade fondateur si necessaire
+    if config["escalate"]:
+        await alert_rouge(
+            f"CRISE {level}: {crisis_type}",
+            f"{details}\n\nAction prevue: {crisis.get('action', 'diagnostic en cours')}\n"
+            f"Temps de reponse cible: {config['response_min']} min",
+            deadline_h=max(1, config["response_min"] // 60),
+        )
+        response["actions_taken"].append("founder_alerted")
+
+    # Actions automatiques selon le type
+    if crisis_type == "service_outage":
+        # Lancer self-heal sur tous les services en erreur
+        for err in memory._data.get("erreurs_recurrentes", []):
+            if not err.get("patch_proposed"):
+                await watchdog_self_heal(err["source"], err["error"], memory)
+        response["actions_taken"].append("self_heal_triggered")
+
+    elif crisis_type == "funds_anomaly":
+        # Freeze le micro wallet
+        micro_wallet._spent_today = MICRO_MAX_PER_DAY  # bloque toute depense
+        response["actions_taken"].append("micro_wallet_frozen")
+
+    elif crisis_type == "error_cascade":
+        # Demander a Sonnet un diagnostic complet
+        diag_prompt = (
+            f"CRISE {level}: {details}\n"
+            f"Erreurs: {json.dumps(memory._data.get('erreurs_recurrentes', [])[-10:], default=str)}\n"
+            f"Analyse la cause racine et propose 3 actions concretes.\n"
+            f"JSON: {{cause_racine, actions: [{{action, priorite, agent_cible}}], prevention}}"
+        )
+        diag = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode CRISIS-MANAGER.", diag_prompt, 1500))
+        if diag:
+            response["diagnostic"] = diag
+            response["actions_taken"].append("diagnostic_completed")
+
+    elif crisis_type == "mass_churn":
+        # Generer un message de retention
+        retention_msg = await ghost_write("retention_email", "Why are users leaving? Win-back offer.", "email", memory)
+        if retention_msg:
+            response["retention_message"] = retention_msg
+            response["actions_taken"].append("retention_campaign_drafted")
+
+    elif crisis_type == "zero_revenue":
+        # Proposer une promotion temporaire
+        promo = {
+            "type": "zero_fee_week",
+            "duration_days": 7,
+            "message": "0% fees for 7 days — bring your AI agent, earn USDC.",
+        }
+        response["promo_suggested"] = promo
+        response["actions_taken"].append("promo_suggested")
+
+    # Logger la crise
+    memory.log_decision(
+        "orange" if level in ("P0", "P1") else "vert",
+        f"CRISIS-MANAGER: {level} {crisis_type} — {len(response['actions_taken'])} actions",
+        "crisis_response", "CRISIS-MANAGER",
+    )
+
+    await alert_info(f"CRISIS {level} ({crisis_type}): {', '.join(response['actions_taken'])}")
+    return response
+
+
+# ══════════════════════════════════════════
 # CEO MAXIA
 # ══════════════════════════════════════════
 
@@ -1562,11 +2554,11 @@ class CEOMaxia:
         print(f"  Discord: {'actif' if DISCORD_WEBHOOK_URL else 'absent'}")
         print(f"  Budget: {self.memory.get_budget_vert():.4f} SOL")
         print(f"  Emergency: {'⛔ STOP' if self.memory.is_stopped() else 'OK'}")
-        print(f"  Agents: GHOST-WRITER, HUNTER, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, WEB-DESIGNER, ORACLE, MICRO")
+        print(f"  Agents: GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, WEB-DESIGNER, ORACLE, MICRO, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER")
 
     async def run(self):
         self._running = True
-        print("[CEO MAXIA] Demarre — 4 boucles, 7 agents, 5 mecanismes")
+        print("[CEO MAXIA] Demarre — 4 boucles, 17 agents, 5 mecanismes")
         await alert_info("CEO MAXIA V4 demarre")
 
         while self._running:
@@ -1717,7 +2709,7 @@ class CEOMaxia:
             if alert.get("type") == "price_spike":
                 token = alert.get("token", "")
                 print(f"[CEO] RADAR spike {token} — GHOST-WRITER tweet + DEPLOYER blog")
-                tweet = await ghost_write("tweet", f"{token} is pumping! Trade it on MAXIA with lowest fees.", "twitter")
+                tweet = await ghost_write("tweet", f"{token} is pumping! Trade it on MAXIA with lowest fees.", "twitter", self.memory)
                 if tweet and not tweet.get("blocked"):
                     # Post to Twitter
                     try:
@@ -1759,6 +2751,144 @@ class CEOMaxia:
         self.memory.update_agent("MICRO", micro_stats)
         self.memory.update_agent("TESTIMONIAL", {"count": len(self.memory._data.get("testimonials", []))})
 
+        # CRISIS-MANAGER — detection automatique de crises
+        crises = []
+        try:
+            crises = await crisis_detect(self.memory)
+            for crisis in crises:
+                print(f"[CEO] CRISIS {crisis['level']}: {crisis['type']} — {crisis['details'][:80]}")
+                await crisis_respond(crisis, self.memory)
+            self.memory.update_agent("CRISIS-MANAGER", {"status": "actif", "active_crises": len(crises)})
+        except Exception as e:
+            print(f"[CEO] CRISIS-MANAGER error: {e}")
+            self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": str(e)[:80]})
+
+        # ANALYTICS — metriques avancees (toutes les 3 heures)
+        analytics_data = {}
+        try:
+            analytics_data = await analytics_compute(self.memory)
+            self.memory.update_agent("ANALYTICS", {
+                "status": "actif",
+                "health_score": analytics_data.get("health_score", 0),
+                "ltv": analytics_data.get("ltv", 0),
+                "churn_rate": analytics_data.get("churn", {}).get("rate", "0%"),
+                "recommendations": len(analytics_data.get("recommendations", [])),
+            })
+            # Afficher les recommandations urgentes
+            for rec in analytics_data.get("recommendations", []):
+                print(f"[CEO] ANALYTICS: {rec}")
+        except Exception as e:
+            print(f"[CEO] ANALYTICS error: {e}")
+            self.memory.update_agent("ANALYTICS", {"status": "erreur"})
+
+        # PARTNERSHIP — scan partenaires (tous les 6 cycles = ~18h)
+        if self._cycle % 6 == 0:
+            try:
+                opportunities = await partnership_scan(self.memory)
+                if opportunities:
+                    top = opportunities[0]
+                    print(f"[CEO] PARTNERSHIP: top opportunity = {top['partner']} ({top['category']}, score {top['score']})")
+                    # Auto-outreach si score >= 80
+                    if top["score"] >= 80:
+                        await partnership_outreach(top["partner"], top["category"], top["pitch"], self.memory)
+                self.memory.update_agent("PARTNERSHIP", {"status": "actif", "opportunities": len(opportunities)})
+            except Exception as e:
+                print(f"[CEO] PARTNERSHIP error: {e}")
+                self.memory.update_agent("PARTNERSHIP", {"status": "erreur"})
+
+        # NEGOTIATOR + COMPLIANCE — stats
+        self.memory.update_agent("NEGOTIATOR", {"status": "actif", "mode": "auto"})
+        self.memory.update_agent("COMPLIANCE", {
+            "status": "actif",
+            "blocked_wallets": len(self.memory._data.get("compliance_blocked", [])),
+        })
+
+        # SCOUT stats
+        try:
+            from scout_agent import scout_agent as _scout
+            self.memory.update_agent("SCOUT", _scout.get_stats())
+        except Exception:
+            self.memory.update_agent("SCOUT", {"status": "non-demarre"})
+
+        # ── BUS CONSUMPTION — traiter les messages inter-agents ──
+        for agent_name in ["HUNTER", "NEGOTIATOR", "TESTIMONIAL", "RESPONDER", "GHOST-WRITER"]:
+            msgs = agent_bus.get_messages(agent_name)
+            for msg in msgs:
+                msg_type = msg.get("type", "")
+                msg_data = msg.get("data", {})
+                # HUNTER recoit des ordres d'intensification
+                if agent_name == "HUNTER" and msg_type == "intensify":
+                    self.memory.update_agent("HUNTER", {"intensify": True, "reason": msg_data.get("reason", "")})
+                elif agent_name == "HUNTER" and msg_type == "low_conversion":
+                    print(f"[CEO] BUS->HUNTER: low conversion ({msg_data.get('rate')})")
+                # NEGOTIATOR recoit des demandes de promo
+                elif agent_name == "NEGOTIATOR" and msg_type == "promo_needed":
+                    self.memory.update_agent("NEGOTIATOR", {"promo_mode": True, "weeks_0rev": msg_data.get("weeks", 0)})
+                elif agent_name == "NEGOTIATOR" and msg_type == "low_ltv":
+                    self.memory.update_agent("NEGOTIATOR", {"bundle_mode": True, "ltv": msg_data.get("ltv", 0)})
+                elif agent_name == "NEGOTIATOR" and msg_type == "wallet_blocked":
+                    self.memory.update_agent("NEGOTIATOR", {"blocked_wallet": msg_data.get("wallet", "")[:16]})
+                # TESTIMONIAL recoit des alertes churn
+                elif agent_name == "TESTIMONIAL" and msg_type == "churn_high":
+                    self.memory.update_agent("TESTIMONIAL", {"churn_alert": True, "rate": msg_data.get("rate", "")})
+                # RESPONDER recoit des demandes de retention
+                elif agent_name == "RESPONDER" and msg_type == "retention_needed":
+                    self.memory.update_agent("RESPONDER", {"retention_mode": True})
+            if msgs:
+                agent_bus.ack(agent_name)
+
+        # ── BUS ACTIONS — agents agissent sur les flags ──
+        # HUNTER : si intensify flag, changer de canal automatiquement
+        hunter_data = self.memory._data.get("agents", {}).get("HUNTER", {})
+        if hunter_data.get("intensify"):
+            canaux = ["solana_memo", "reddit", "discord_servers", "twitter_replies", "github_issues"]
+            current = self.memory._data.get("hunter_canal", "solana_memo")
+            try:
+                idx = canaux.index(current)
+                nxt = canaux[(idx + 1) % len(canaux)]
+            except ValueError:
+                nxt = "reddit"
+            self.memory.hunter_switch(nxt)
+            hunter_data["intensify"] = False
+            print(f"[CEO] BUS ACTION: HUNTER intensify -> switch to {nxt}")
+
+        # NEGOTIATOR : si promo_mode, creer un A/B test promo automatiquement
+        nego_data = self.memory._data.get("agents", {}).get("NEGOTIATOR", {})
+        if nego_data.get("promo_mode") and not self.memory._data.get("ab_tests", {}).get("promo_zero_fee"):
+            self.memory.create_ab_test("promo_zero_fee",
+                "0% fees for 7 days — bring your AI agent, earn USDC.",
+                "First 10 trades free. AI agents earn USDC on MAXIA.")
+            nego_data["promo_mode"] = False
+            print("[CEO] BUS ACTION: NEGOTIATOR created promo A/B test")
+
+        # NEGOTIATOR : si bundle_mode, log recommandation
+        if nego_data.get("bundle_mode"):
+            self.memory.add_regle(f"LTV faible ({nego_data.get('ltv', 0)}) — NEGOTIATOR doit proposer des bundles")
+            nego_data["bundle_mode"] = False
+
+        # TESTIMONIAL : si churn_alert, generer contenu retention
+        testi_data = self.memory._data.get("agents", {}).get("TESTIMONIAL", {})
+        if testi_data.get("churn_alert"):
+            try:
+                content = await ghost_write("retention_tweet", "Users are leaving — remind them why MAXIA is the cheapest AI marketplace", "twitter", self.memory)
+                if content and not content.get("blocked"):
+                    try:
+                        from twitter_bot import post_tweet
+                        await post_tweet(content.get("contenu", content.get("content", "")))
+                    except Exception:
+                        pass
+                testi_data["churn_alert"] = False
+                print("[CEO] BUS ACTION: TESTIMONIAL anti-churn tweet posted")
+            except Exception as e:
+                print(f"[CEO] BUS ACTION TESTIMONIAL error: {e}")
+
+        # RESPONDER : si retention_mode, activer reponse proactive
+        resp_data = self.memory._data.get("agents", {}).get("RESPONDER", {})
+        if resp_data.get("retention_mode"):
+            self.memory.add_regle("Retention mode actif — RESPONDER doit etre plus proactif et offrir des discounts")
+            resp_data["retention_mode"] = False
+            print("[CEO] BUS ACTION: RESPONDER retention mode activated")
+
         # RAG — rechercher le contexte pertinent
         rag_context = ""
         try:
@@ -1777,7 +2907,10 @@ class CEOMaxia:
             f"Micro wallet: {micro_stats.get('remaining_today', 0):.4f} SOL dispo\n"
             f"Erreurs: {data['erreurs']}\n"
             f"{rag_context}\n\n"
-            "Decisions tactiques ? JSON: {reflexion, situation, decisions: [{action, cible, priorite}], regles_apprises, message_fondateur}"
+            "Decisions tactiques ? JSON: {reflexion, situation, decisions: [{action, cible, priorite}], regles_apprises, message_fondateur}\n"
+            "IMPORTANT — cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
+            "IMPORTANT — action DOIT etre une directive CONCRETE et EXECUTABLE (ex: 'tweet: MAXIA fees reduced', 'switch canal discord', 'contact wallet Xyz'). "
+            "PAS de phrases vagues comme 'maximiser les chances de succes' ou 'ameliorer la visibilite'."
         )
         result = _pj(await _call_groq(CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
         if result:
@@ -1814,7 +2947,9 @@ class CEOMaxia:
             "Trouve 3 raisons concretes d'echec. Puis ajuste ton plan.\n\n"
             f"{'Si fondateur inactif >3j, inclus des victoires pour remotiver.' if tone == 'motivationnel' else ''}\n\n"
             "JSON: {reflexion, situation, analyse_swot, red_team: {concurrent, sceptique, investisseur}, "
-            "plan_ajuste, performance_agents, decisions, regles_apprises, message_fondateur}"
+            "plan_ajuste, performance_agents, decisions, regles_apprises, message_fondateur}\n"
+            "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
+            "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'tweet: ...', 'switch canal discord'). PAS de phrases vagues."
         )
         result = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
         if result:
@@ -1827,6 +2962,15 @@ class CEOMaxia:
             msg = result.get("message_fondateur")
             if msg:
                 await alert_info(f"Rapport: {msg[:300]}")
+
+        # ANALYTICS rapport quotidien enrichi
+        try:
+            analytics = await analytics_compute(self.memory)
+            health = analytics.get("health_score", 0)
+            if health < 40:
+                await alert_info(f"ANALYTICS: Health score CRITIQUE ({health}/100) — {analytics.get('recommendations', ['aucune'])}")
+        except Exception as e:
+            print(f"[CEO] ANALYTICS strategique error: {e}")
 
     # ── Boucle 3 : VISION + Compaction ──
 
@@ -1846,7 +2990,9 @@ class CEOMaxia:
             "Pour chaque prediction ratee, ajoute une regle dans regles_apprises.\n"
             f"Predictions passees vs realite :\n{retro}\n\n"
             "JSON: {reflexion, retrospective: {predictions_vs_realite: [{prediction, resultat, lecon}]}, "
-            "okr, roadmap, nouveau_produit, nouvel_agent, decisions, regles_apprises, message_fondateur}"
+            "okr, roadmap, nouveau_produit, nouvel_agent, decisions, regles_apprises, message_fondateur}\n"
+            "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
+            "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'deploy blog: ...', 'adjust prix swap 0.01%'). PAS de phrases vagues."
         )
         result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 4000))
         if result:
@@ -1879,6 +3025,24 @@ class CEOMaxia:
         except Exception as e:
             print(f"[CEO] WEB-DESIGNER error: {e}")
 
+        # ANALYTICS rapport hebdomadaire (dimanche = boucle vision)
+        try:
+            report = await analytics_weekly_report(self.memory)
+            if report.get("message_fondateur"):
+                await alert_info(f"ANALYTICS HEBDO: {report['message_fondateur'][:300]}")
+            print(f"[CEO] ANALYTICS: rapport hebdo genere (health={report.get('metrics', {}).get('health_score', '?')})")
+        except Exception as e:
+            print(f"[CEO] ANALYTICS weekly error: {e}")
+
+        # PARTNERSHIP scan hebdo — identifier les top partenaires
+        try:
+            opportunities = await partnership_scan(self.memory)
+            if opportunities:
+                top3 = [f"{o['partner']} ({o['score']})" for o in opportunities[:3]]
+                print(f"[CEO] PARTNERSHIP hebdo: top3 = {', '.join(top3)}")
+        except Exception as e:
+            print(f"[CEO] PARTNERSHIP weekly error: {e}")
+
         # Auto-deploy pages
         await self.auto_deploy_check()
         # Compaction memoire
@@ -1894,7 +3058,9 @@ class CEOMaxia:
             "Marche mondial, concurrents, geographie, langues, chains, partenariats, financement.\n"
             "Phases : actuelle -> suivante -> finale. Objectif, strategie, cout, timeline.\n"
             "JSON: {reflexion, marche, concurrents, expansion_plan, nouvelle_langue, nouvelle_chain, "
-            "partenariats_cibles, financement, nouveau_produit_mondial, decisions, regles_apprises, message_fondateur}"
+            "partenariats_cibles, financement, nouveau_produit_mondial, decisions, regles_apprises, message_fondateur}\n"
+            "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
+            "IMPORTANT — decisions[].action DOIT etre CONCRETE. PAS de phrases vagues."
         )
         result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 5000))
         if result:
@@ -1934,6 +3100,80 @@ class CEOMaxia:
 
     def fondateur_ping(self):
         self.memory.fondateur_responded()
+
+    # ── NEGOTIATOR ──
+
+    async def negotiate_price(self, buyer: str, service: str, proposed_price: float) -> dict:
+        """Negocie un prix avec un agent acheteur."""
+        return await negotiator_evaluate(buyer, service, proposed_price, self.memory)
+
+    async def negotiate_bundle(self, buyer: str, services: list) -> dict:
+        """Negocie un pack de services avec remise volume."""
+        return await negotiator_bulk_deal(buyer, services, self.memory)
+
+    # ── COMPLIANCE ──
+
+    async def check_wallet(self, wallet: str) -> dict:
+        """Verifie la conformite d'un wallet."""
+        return await compliance_check_wallet(wallet, self.memory)
+
+    async def check_transaction(self, amount: float, sender: str, receiver: str) -> dict:
+        """Verifie la conformite d'une transaction."""
+        return await compliance_check_transaction(amount, sender, receiver, self.memory)
+
+    # ── PARTNERSHIP ──
+
+    async def scan_partners(self) -> list:
+        """Scanne les opportunites de partenariat."""
+        return await partnership_scan(self.memory)
+
+    async def contact_partner(self, partner: str, category: str, pitch: str) -> dict:
+        """Envoie un message de demarchage a un partenaire."""
+        return await partnership_outreach(partner, category, pitch, self.memory)
+
+    # ── ANALYTICS ──
+
+    async def get_analytics(self) -> dict:
+        """Retourne les metriques avancees."""
+        return await analytics_compute(self.memory)
+
+    async def weekly_report(self) -> dict:
+        """Genere le rapport hebdomadaire enrichi."""
+        return await analytics_weekly_report(self.memory)
+
+    # ── CRISIS-MANAGER ──
+
+    async def detect_crises(self) -> list:
+        """Detecte les crises en cours."""
+        return await crisis_detect(self.memory)
+
+    async def handle_crisis(self, crisis: dict) -> dict:
+        """Execute le protocole de reponse a une crise."""
+        return await crisis_respond(crisis, self.memory)
+
+    # ── KILL SWITCH ──
+
+    def disable_agent(self, agent_name: str, reason: str = "manual"):
+        self.memory.disable_agent(agent_name, reason)
+
+    def enable_agent(self, agent_name: str):
+        self.memory.enable_agent(agent_name)
+
+    def get_disabled_agents(self) -> dict:
+        return self.memory.get_disabled_agents()
+
+    # ── ROI ──
+
+    def get_roi(self) -> dict:
+        return self.memory.get_roi_stats()
+
+    # ── A/B TESTING ──
+
+    def create_test(self, name: str, variant_a: str, variant_b: str):
+        self.memory.create_ab_test(name, variant_a, variant_b)
+
+    def get_ab_results(self) -> dict:
+        return self.memory.get_ab_results()
 
     # ── DEPLOYER ──
 
@@ -2011,6 +3251,13 @@ class CEOMaxia:
             "micro_wallet": micro_wallet.get_stats(),
             "failover": {"rpc_active": FAILOVER_RPC[_active_rpc_index]["name"], "rpc_failures": _rpc_failures},
             "okr": d.get("okr", {}),
+            "compliance": {"blocked_wallets": len(d.get("compliance_blocked", []))},
+            "partnerships": {"count": len(d.get("partnerships", [])), "active": [p["name"] for p in d.get("partnerships", []) if p.get("status") == "active"]},
+            "agent_bus": agent_bus.get_stats(),
+            "disabled_agents": d.get("disabled_agents", {}),
+            "roi": self.memory.get_roi_stats(),
+            "ab_tests": {k: {"status": v.get("status"), "winner": v.get("winner")} for k, v in d.get("ab_tests", {}).items()},
+            "llm_costs": get_llm_costs(),
         }
 
 

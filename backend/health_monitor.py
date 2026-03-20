@@ -1,0 +1,38 @@
+"""MAXIA Health Monitor — Checks all endpoints every 5 minutes"""
+import asyncio, time
+import httpx
+
+ENDPOINTS = [
+    ("/health", 200),
+    ("/api/public/crypto/prices", 200),
+    ("/api/public/stocks", 200),
+    ("/api/public/leaderboard", 200),
+    ("/mcp/tools", 200),
+    ("/.well-known/agent.json", 200),
+]
+
+async def run_health_monitor():
+    """Check critical endpoints every 5 minutes. Alert on failure."""
+    print("[HealthMonitor] Started — checking 6 endpoints every 5 min")
+    while True:
+        await asyncio.sleep(300)  # 5 minutes
+        failures = []
+        async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+            for path, expected in ENDPOINTS:
+                try:
+                    r = await client.get(path)
+                    if r.status_code != expected:
+                        failures.append(f"{path}: {r.status_code}")
+                except Exception as e:
+                    failures.append(f"{path}: {e}")
+        if failures:
+            print(f"[HealthMonitor] {len(failures)} FAILURES: {failures}")
+            try:
+                from alerts import alert_error
+                await alert_error("HealthMonitor", f"{len(failures)} endpoints down: {', '.join(failures)}")
+            except Exception:
+                pass
+        else:
+            # Log OK every hour (not every 5 min to reduce noise)
+            if int(time.time()) % 3600 < 300:
+                print(f"[HealthMonitor] All {len(ENDPOINTS)} endpoints OK")

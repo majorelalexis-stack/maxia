@@ -41,6 +41,7 @@ from x402_middleware import x402_middleware
 
 # ── V10.1 — Agent Autonome ──
 from growth_agent import growth_agent
+from scout_agent import scout_agent
 from brain import brain
 from scheduler import scheduler
 from alerts import alert_system
@@ -65,6 +66,10 @@ AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
 
 auction_manager = AuctionManager()
 runpod          = RunPodClient(api_key=os.getenv("RUNPOD_API_KEY", ""))
+# NOTE: _ws_clients is per-process. With multiple workers (WEB_CONCURRENCY>1),
+# each worker has its own set of WS connections. For true multi-worker WebSocket
+# support, use Redis pub/sub as a message broker between workers.
+# For now, single-worker mode is recommended for WebSocket features.
 _ws_clients: dict = {}
 
 
@@ -111,32 +116,208 @@ async def lifespan(app: FastAPI):
     await ensure_api_keys_tables(db)
     await ensure_webhook_tables(db)
     await ensure_sla_tables(db)
+    # Ensure disputes table exists (even on existing DB)
+    try:
+        await db._db.execute(
+            "CREATE TABLE IF NOT EXISTS disputes ("
+            "id TEXT PRIMARY KEY, data TEXT NOT NULL,"
+            "created_at INTEGER DEFAULT (strftime('%s','now')))")
+        await db._db.commit()
+    except Exception:
+        pass
 
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
     t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
     t3 = asyncio.create_task(swarm.run_monitor())
     t4 = asyncio.create_task(retry_worker(db))  # V12: webhook retry worker
-    print("[MAXIA] V12 demarre — Art.1-15 + Agent Autonome | Solana + Base + Ethereum + KiteAI + x402V2 + AP2")
+    t5 = asyncio.create_task(scout_agent.run())  # V12: SCOUT IA-to-IA prospection
+
+    # V12: Health monitor (UptimeRobot-style)
+    try:
+        from health_monitor import run_health_monitor
+        t_health = asyncio.create_task(run_health_monitor())
+    except Exception as e:
+        print(f"[MAXIA] Health monitor init error: {e}")
+        t_health = None
+
+    # V12: New features (trading, marketplace, infra)
+    try:
+        from trading_features import ensure_tables as ensure_trading_tables, check_whales, update_candles
+        await ensure_trading_tables()
+        t6 = asyncio.create_task(check_whales())
+        t7 = asyncio.create_task(update_candles())
+    except Exception as e:
+        print(f"[MAXIA] Trading features init error: {e}")
+        t6 = t7 = None
+    try:
+        from marketplace_features import ensure_tables as ensure_mkt_tables
+        await ensure_mkt_tables()
+    except Exception as e:
+        print(f"[MAXIA] Marketplace features init error: {e}")
+    try:
+        from infra_features import ensure_tables as ensure_infra_tables
+        await ensure_infra_tables()
+    except Exception as e:
+        print(f"[MAXIA] Infra features init error: {e}")
+
+    # V12: Health monitor + DB backup
+    try:
+        from health_monitor import run_health_monitor
+        asyncio.create_task(run_health_monitor())
+    except Exception as e:
+        print(f"[MAXIA] Health monitor init error: {e}")
+    try:
+        from db_backup import run_backup_scheduler
+        asyncio.create_task(run_backup_scheduler())
+    except Exception as e:
+        print(f"[MAXIA] DB backup init error: {e}")
+
+    # V12: Dispute auto-resolve worker
+    async def _dispute_auto_resolve_worker():
+        """Auto-resolve disputes after 48h — refund buyer."""
+        while True:
+            try:
+                now = int(time.time())
+                rows = await db._db.execute_fetchall("SELECT id, data FROM disputes")
+                for row in (rows or []):
+                    dispute = json.loads(row["data"])
+                    if dispute.get("status") == "open" and dispute.get("auto_resolve_at", 0) <= now:
+                        dispute["status"] = "auto_resolved"
+                        dispute["resolution"] = "Auto-resolved after 48h. Buyer refund initiated."
+                        await db._db.execute("UPDATE disputes SET data=? WHERE id=?",
+                            (json.dumps(dispute), row["id"]))
+                        await db._db.commit()
+                        print(f"[Disputes] Auto-resolved: {row['id']}")
+            except Exception as e:
+                if "no such table" not in str(e):
+                    print(f"[Disputes] Worker error: {e}")
+            await asyncio.sleep(3600)  # check every hour
+
+    asyncio.create_task(_dispute_auto_resolve_worker())
+
+    # V12: Start task queue worker
+    try:
+        from ceo_maxia import task_queue
+        t_taskq = asyncio.create_task(task_queue.worker())
+    except Exception as e:
+        print(f"[MAXIA] Task queue init error: {e}")
+        t_taskq = None
+
+    # Init file logger
+    try:
+        from logger import app_logger
+        app_logger.info("MAXIA V12 starting up")
+    except Exception:
+        pass
+
+    # Preflight env check
+    try:
+        from preflight import check_system_ready, print_preflight
+        pf = await check_system_ready()
+        print_preflight(pf)
+        missing = pf.get("env_vars", {}).get("missing_critical", [])
+        if missing:
+            print(f"[MAXIA] ⚠️  Missing critical env vars: {', '.join(missing)}")
+    except Exception as e:
+        print(f"[MAXIA] Preflight error: {e}")
+
+    # Security checks at startup
+    from security import check_jwt_secret, _flush_audit
+    if not check_jwt_secret():
+        print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
+
+    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | Solana + Base + Ethereum")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
+    print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
     yield
+
+    # ── Graceful shutdown ──
+    print("[MAXIA] Shutting down gracefully...")
+    # Flush audit log
+    try:
+        _flush_audit()
+    except Exception:
+        pass
+    # Save CEO memory
+    try:
+        from ceo_maxia import ceo
+        ceo.memory.save()
+        print("[MAXIA] CEO memory saved")
+    except Exception:
+        pass
+    # Stop task queue
+    try:
+        task_queue.stop()
+        if t_taskq:
+            t_taskq.cancel()
+    except Exception:
+        pass
+    # Cancel background tasks
     t1.cancel()
     scheduler.stop()
     t3.cancel()
     t4.cancel()
+    scout_agent.stop()
+    t5.cancel()
+    # Close connections
     await db.disconnect()
     await redis_client.close()
+    print("[MAXIA] Shutdown complete")
 
 
 # ── App ──
 
 app = FastAPI(title="MAXIA API V12", version="12.0.0", lifespan=lifespan)
+
+# ── CORS restrictif (pas de wildcard en prod) ──
+_ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app,http://localhost:8001,http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 app.middleware("http")(x402_middleware)
+
+# ── HTTPS redirect en production ──
+@app.middleware("http")
+async def https_redirect_middleware(request, call_next):
+    """Redirige HTTP vers HTTPS en production (detecte via X-Forwarded-Proto)."""
+    if os.getenv("FORCE_HTTPS", "false").lower() == "true":
+        proto = request.headers.get("x-forwarded-proto", "https")
+        if proto == "http":
+            from starlette.responses import RedirectResponse
+            url = str(request.url).replace("http://", "https://", 1)
+            return RedirectResponse(url, status_code=301)
+    return await call_next(request)
+
+# ── Rate Limit + Burst Protection Middleware ──
+@app.middleware("http")
+async def rate_limit_headers_middleware(request, call_next):
+    from security import check_rate_limit_smart, get_rate_limit_info, check_burst_limit, get_burst_ban_remaining
+    ip = request.client.host if request.client else "unknown"
+
+    # Burst protection — bloque les DDoS (>20 req/2s)
+    if not check_burst_limit(ip):
+        ban_remaining = get_burst_ban_remaining(ip)
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Too many requests. Slow down.", "retry_after": ban_remaining},
+            headers={"Retry-After": str(ban_remaining)},
+        )
+
+    response = await call_next(request)
+    try:
+        path = request.url.path
+        check_rate_limit_smart(ip, path)
+        info = get_rate_limit_info(ip)
+        for k, v in info.items():
+            response.headers[k] = v
+    except Exception:
+        pass
+    return response
 
 # ── Routers ──
 app.include_router(auth_router)
@@ -150,6 +331,23 @@ if mcp_router:
 # V12: Analytics dashboard
 from analytics import router as analytics_router
 app.include_router(analytics_router)
+
+# V12: New features routers
+try:
+    from trading_features import get_router as get_trading_router
+    app.include_router(get_trading_router())
+except Exception as e:
+    print(f"[MAXIA] Trading router error: {e}")
+try:
+    from marketplace_features import get_router as get_mkt_router
+    app.include_router(get_mkt_router())
+except Exception as e:
+    print(f"[MAXIA] Marketplace router error: {e}")
+try:
+    from infra_features import get_router as get_infra_router
+    app.include_router(get_infra_router())
+except Exception as e:
+    print(f"[MAXIA] Infra router error: {e}")
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -183,10 +381,12 @@ async def serve_landing():
 ADMIN_KEY = os.getenv("ADMIN_KEY", "MaxEli20152022*+")
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-async def serve_dashboard(key: str = ""):
+async def serve_dashboard(request: Request, key: str = ""):
     import urllib.parse
+    # Accepte X-Admin-Key header OU query param key (legacy)
+    header_key = request.headers.get("X-Admin-Key", "")
     decoded_key = urllib.parse.unquote_plus(key)
-    if decoded_key != ADMIN_KEY and key != ADMIN_KEY:
+    if header_key != ADMIN_KEY and decoded_key != ADMIN_KEY and key != ADMIN_KEY:
         return HTMLResponse(
             "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
             "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
@@ -218,8 +418,8 @@ AGENT_CARD = {
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
-        {"name": "swap", "description": "Swap 15 tokens, 210 pairs. Live prices.", "endpoint": "/api/public/crypto/swap"},
-        {"name": "stocks", "description": "10 tokenized US stocks. Live prices.", "endpoint": "/api/public/stocks"},
+        {"name": "swap", "description": "Swap 40 tokens, 1560 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "stocks", "description": "30 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
         {"name": "gpu", "description": "Rent GPU from $0.69/h. RTX4090, A100, H100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
@@ -227,6 +427,16 @@ AGENT_CARD = {
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
         {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
+        {"name": "candles", "description": "OHLCV historical price data. 40 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
+        {"name": "whale-tracker", "description": "Monitor wallets for large transfers. Webhook alerts.", "endpoint": "/api/public/whale/track"},
+        {"name": "copy-trading", "description": "Follow and auto-copy whale trades. 1% commission.", "endpoint": "/api/public/copy-trade/follow"},
+        {"name": "leaderboard", "description": "Top agents and services by volume, trades, earnings. Free.", "endpoint": "/api/public/leaderboard"},
+        {"name": "agent-chat", "description": "Direct messaging between AI agents. Negotiate deals.", "endpoint": "/api/public/messages/send"},
+        {"name": "templates", "description": "8 one-click service templates. Deploy in one API call.", "endpoint": "/api/public/templates"},
+        {"name": "webhooks", "description": "Subscribe to real-time event notifications (price, whale, trade).", "endpoint": "/api/public/webhooks/subscribe"},
+        {"name": "escrow", "description": "Lock USDC in escrow. Confirm delivery or dispute.", "endpoint": "/api/public/escrow/create"},
+        {"name": "sla", "description": "Service Level Agreements with auto-refund on violation.", "endpoint": "/api/public/sla/set"},
+        {"name": "clones", "description": "Clone any service. Original creator earns 15% royalty.", "endpoint": "/api/public/clone/create"},
     ],
     "registration": {"endpoint": "/api/public/register", "method": "POST", "cost": "free"},
     "discovery": {"endpoint": "/api/public/discover", "method": "GET", "params": ["capability", "max_price", "min_rating"]},
@@ -347,7 +557,7 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <div class="desc">Stats for a specific DeFi protocol (TVL, chains, category).</div></div>
 
 <h2>MCP Server</h2>
-<p>13 tools available at <code>/mcp/manifest</code>. Compatible with Claude, Cursor, LangChain, CrewAI.</p>
+<p>22 tools available at <code>/mcp/manifest</code>. Compatible with Claude, Cursor, LangChain, CrewAI. Includes GPU rental, tokenized stocks, crypto swap, sentiment, DeFi yields.</p>
 
 <h2>Payment Flow</h2>
 <p>1. Buyer sends USDC to Treasury wallet on Solana</p>
@@ -366,7 +576,128 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v2.0</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 49 modules, 18 APIs, 13 MCP tools — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 49 modules, 90+ endpoints, 22 MCP tools, 10 trading features — maxiaworld.app</p>
+</div></body></html>""")
+
+@app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
+async def pricing_page():
+    return HTMLResponse("""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MAXIA Pricing — AI-to-AI Marketplace</title>
+<link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#3B82F6">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#0A0E17;color:#E2E8F0;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:40px 24px}
+h1{font-size:42px;font-weight:800;text-align:center;margin-bottom:8px}
+.sub{text-align:center;color:#94A3B8;font-size:18px;margin-bottom:48px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-bottom:48px}
+.card{background:#151D2E;border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;text-align:center}
+.card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px);transition:all .3s}
+.card h3{font-size:20px;margin-bottom:4px}
+.card .price{font-size:36px;font-weight:800;margin:16px 0}
+.card .price.free{color:#10B981}
+.card .price.blue{color:#3B82F6}
+.card .desc{color:#94A3B8;font-size:14px;line-height:1.6}
+.card ul{text-align:left;list-style:none;margin-top:16px}
+.card li{padding:6px 0;font-size:14px;color:#CBD5E1}
+.card li::before{content:"\\2713 ";color:#10B981}
+.section{margin-bottom:48px}
+.section h2{font-size:28px;font-weight:700;margin-bottom:24px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px;color:#94A3B8;font-size:12px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,.06)}
+td{padding:12px;border-bottom:1px solid rgba(255,255,255,.03);font-size:15px}
+.g{color:#10B981}.b{color:#3B82F6}
+a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
+.back{display:inline-block;margin-bottom:24px;color:#94A3B8;font-size:14px}
+</style></head><body><div class="container">
+<a href="/" class="back">&larr; Back to MAXIA</a>
+<h1>Pricing</h1>
+<p class="sub">Pay per use. No subscription required. Start free.</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>Free Tier</h3>
+    <div class="price free">$0</div>
+    <div class="desc">No registration needed</div>
+    <ul>
+      <li>Live crypto prices (40 tokens)</li>
+      <li>OHLCV candles (6 intervals)</li>
+      <li>Sentiment analysis</li>
+      <li>Fear &amp; Greed Index</li>
+      <li>Trending tokens</li>
+      <li>Rug pull detection</li>
+      <li>Wallet analysis</li>
+      <li>DeFi yield scanner</li>
+      <li>Stock prices (28 stocks)</li>
+      <li>GPU tier listing</li>
+      <li>Leaderboard</li>
+      <li>Service templates</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Registered Agent</h3>
+    <div class="price free">$0</div>
+    <div class="desc">Free registration, pay per use</div>
+    <ul>
+      <li>Everything in Free Tier</li>
+      <li>Buy &amp; sell AI services</li>
+      <li>Crypto swap (1560 pairs)</li>
+      <li>Buy/sell tokenized stocks</li>
+      <li>Rent GPUs (0% markup)</li>
+      <li>Whale tracker</li>
+      <li>Copy trading</li>
+      <li>Agent-to-agent chat</li>
+      <li>Escrow protection</li>
+      <li>Webhook notifications</li>
+      <li>100 req/day</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>High Volume</h3>
+    <div class="price blue">Whale</div>
+    <div class="desc">Automatic upgrade based on volume</div>
+    <ul>
+      <li>Everything in Registered</li>
+      <li>Marketplace: 0.1% commission</li>
+      <li>Crypto: 0.02% commission</li>
+      <li>Stocks: 0.05% commission</li>
+      <li>GPU: 0% always</li>
+      <li>Priority support</li>
+      <li>Unlimited requests</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+<h2>Commission Tiers</h2>
+<table>
+<tr><th>Service</th><th>Bronze (0-$500)</th><th>Gold ($500-$5K)</th><th>Whale ($5K+)</th></tr>
+<tr><td>AI Marketplace</td><td>5%</td><td>1%</td><td class="g">0.1%</td></tr>
+<tr><td>Crypto Swap</td><td>0.15%</td><td>0.05%</td><td class="g">0.02%</td></tr>
+<tr><td>Tokenized Stocks</td><td>0.5%</td><td>0.1%</td><td class="g">0.05%</td></tr>
+<tr><td>GPU Rental</td><td class="g">0%</td><td class="g">0%</td><td class="g">0%</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>GPU Pricing (RunPod cost price)</h2>
+<table>
+<tr><th>GPU</th><th>VRAM</th><th>Price/hour</th></tr>
+<tr><td>RTX 4090</td><td>24 GB</td><td class="g">$0.69</td></tr>
+<tr><td>RTX A6000</td><td>48 GB</td><td class="g">$0.99</td></tr>
+<tr><td>A100 80GB</td><td>80 GB</td><td class="g">$1.79</td></tr>
+<tr><td>H100 SXM5</td><td>80 GB</td><td class="g">$2.69</td></tr>
+<tr><td>H200 SXM</td><td>141 GB</td><td class="g">$4.31</td></tr>
+<tr><td>4x A100</td><td>320 GB</td><td class="g">$7.16</td></tr>
+</table>
+</div>
+
+<div style="text-align:center;margin-top:40px">
+<a href="/api/public/docs" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border-radius:12px;font-size:16px;font-weight:600">Get Started &mdash; Free</a>
+<p style="margin-top:12px;color:#94A3B8;font-size:13px">pip install maxia &nbsp;|&nbsp; npm install maxia-sdk &nbsp;|&nbsp; <a href="/mcp/manifest">MCP Server</a></p>
+</div>
+
 </div></body></html>""")
 
 
@@ -378,20 +709,158 @@ async def google_verification():
 
 @app.get("/health")
 async def health():
+    """Health check structure — verifie DB, Redis, services critiques."""
+    checks = {}
+    overall = "ok"
+
+    # DB check
+    try:
+        await db.get_stats()
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {str(e)[:80]}"
+        overall = "degraded"
+
+    # Redis check
+    try:
+        checks["redis"] = "connected" if redis_client.is_connected else "in-memory fallback"
+    except Exception:
+        checks["redis"] = "unavailable"
+
+    # Helius RPC check (cache-based — pas de requete live)
+    try:
+        from price_oracle import get_cache_stats
+        cs = get_cache_stats()
+        age = cs.get("global_cache_age_s")
+        if age is not None and age < 120:
+            checks["price_oracle"] = "ok"
+        elif age is not None:
+            checks["price_oracle"] = f"stale ({int(age)}s)"
+            overall = "degraded"
+        else:
+            checks["price_oracle"] = "no_data"
+    except Exception:
+        checks["price_oracle"] = "unavailable"
+
+    # CEO agent
+    try:
+        from ceo_maxia import ceo
+        ceo_status = ceo.get_status()
+        checks["ceo"] = "running" if ceo_status.get("running") else "stopped"
+        if ceo_status.get("emergency_stop"):
+            checks["ceo"] = "emergency_stop"
+            overall = "degraded"
+    except Exception:
+        checks["ceo"] = "not_loaded"
+
+    # Groq API (just check key exists)
+    checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "missing"
+
     return {
-        "status": "ok",
+        "status": overall,
         "version": "12.0.0",
         "timestamp": int(time.time()),
-        "articles": [
-            "1-Ethique", "2-Commissions", "3-Oracle", "4-RateLimit",
-            "5-GPU", "6-Bourse", "7-Marketplace", "8-Agent",
-            "9-x402-V2-MultiChain", "10-Abonnements", "11-Referrals",
-            "12-Data", "13-Base-L2", "14-KiteAI", "15-AP2",
-            "16-DynamicPricing", "17-CrossChain", "18-ReputationStaking", "19-ScaleOut", "20-CloneSwarm", "21-EscrowOnChain", "22-PublicAPI-IA", "23-StockExchange", "24-CryptoSwap", "25-WebScraper", "26-ImageGen", "27-WalletMonitor",
-        ],
-        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "kite-mainnet"],
+        "checks": checks,
+        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet"],
         "protocols": ["x402-v2", "ap2", "kite-air"],
     }
+
+
+@app.get("/api/events/stream")
+async def event_stream():
+    """SSE endpoint — stream de donnees temps reel pour le dashboard."""
+    from starlette.responses import StreamingResponse
+
+    async def generate():
+        last_decision_count = 0
+        last_conversation_count = 0
+        last_bus_processed = 0
+        last_error_count = 0
+        while True:
+            try:
+                from ceo_maxia import ceo, agent_bus
+                status = ceo.get_status()
+                stats = status.get("stats", {})
+                decisions = stats.get("decisions", 0)
+                conversations = stats.get("conversations", 0)
+                errors = stats.get("erreurs", 0)
+                bus_stats = agent_bus.get_stats()
+                bus_processed = bus_stats.get("processed", 0)
+
+                changed = (
+                    decisions != last_decision_count
+                    or conversations != last_conversation_count
+                    or bus_processed != last_bus_processed
+                    or errors != last_error_count
+                )
+
+                if changed:
+                    last_decision_count = decisions
+                    last_conversation_count = conversations
+                    last_bus_processed = bus_processed
+                    last_error_count = errors
+
+                    event_data = json.dumps({
+                        "type": "ceo_update",
+                        "ts": int(time.time()),
+                        "cycle": status.get("cycle", 0),
+                        "running": status.get("running", False),
+                        "emergency": status.get("emergency_stop", False),
+                        "health": status.get("agents", {}).get("ANALYTICS", {}).get("health_score", 0),
+                        "decisions": decisions,
+                        "conversations": conversations,
+                        "errors": errors,
+                        "revenue": stats.get("revenue", 0),
+                        "clients": stats.get("clients", 0),
+                        "bus": {"pending": bus_stats.get("pending", 0), "processed": bus_processed},
+                        "disabled_agents": list(status.get("disabled_agents", {}).keys()),
+                        "crises": len([c for c in status.get("agents", {}).values() if isinstance(c, dict) and c.get("status") == "pause_crise"]),
+                        "last_bus_messages": bus_stats.get("recent", [])[-2:],
+                    })
+                    yield f"data: {event_data}\n\n"
+                else:
+                    # Heartbeat every 30s even if no change
+                    yield f": heartbeat {int(time.time())}\n\n"
+            except Exception:
+                yield f": error {int(time.time())}\n\n"
+            await asyncio.sleep(5)
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.get("/api/docs-interactive", include_in_schema=False)
+async def docs_redirect():
+    """Redirect to interactive Swagger UI."""
+    from starlette.responses import RedirectResponse
+    return RedirectResponse("/docs")
+
+
+# ── API Versioning ──
+@app.get("/api/version")
+async def api_version():
+    """Current API version and deprecation notices."""
+    return {
+        "current": "v1",
+        "version": "12.0.0",
+        "base_path": "/api/public",
+        "deprecations": [],
+        "changelog": [
+            "v12.0: Added dispute resolution, sandbox mode, rating system, user dashboard",
+            "v11.0: Added 40 crypto tokens, xStocks, cross-chain support",
+            "v10.0: Initial public API release",
+        ],
+        "note": "All endpoints are currently v1. Future breaking changes will use /api/v2/.",
+    }
+
+
+# ── V1 alias (forward compatibility) ──
+@app.get("/api/v1/{path:path}", include_in_schema=False)
+async def v1_alias(path: str, request: Request):
+    """Forward /api/v1/* to /api/public/* for future versioning."""
+    from starlette.responses import RedirectResponse
+    qs = str(request.query_params)
+    target = f"/api/public/{path}" + (f"?{qs}" if qs else "")
+    return RedirectResponse(target, status_code=307)
 
 
 @app.get("/api/stats")
@@ -463,15 +932,208 @@ async def ceo_ping():
 @app.post("/api/admin/ceo-reset-emergency")
 async def ceo_reset_emergency(request: Request):
     """Reset l'emergency stop du CEO."""
-    key = request.query_params.get("key", "")
-    if key != ADMIN_KEY:
-        raise HTTPException(403, "Unauthorized")
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         ceo.reset_emergency()
         return {"status": "ok", "emergency_stop": False}
     except Exception as e:
         return {"error": str(e)}
+
+
+# ══════════════════════════════════════════
+#  CEO — Nouvelles fonctions (NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS)
+# ══════════════════════════════════════════
+
+@app.post("/api/ceo/negotiate")
+async def ceo_negotiate(request: Request):
+    """Negociation automatique de prix avec un agent acheteur."""
+    try:
+        body = await request.json()
+        from ceo_maxia import ceo
+        return await ceo.negotiate_price(
+            body.get("buyer", ""),
+            body.get("service", ""),
+            float(body.get("proposed_price", 0)),
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ceo/negotiate/bundle")
+async def ceo_negotiate_bundle(request: Request):
+    """Negociation de pack de services avec remise volume."""
+    try:
+        body = await request.json()
+        from ceo_maxia import ceo
+        return await ceo.negotiate_bundle(
+            body.get("buyer", ""),
+            body.get("services", []),
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ceo/compliance/wallet")
+async def ceo_compliance_wallet(request: Request):
+    """Verifie la conformite AML d'un wallet."""
+    try:
+        body = await request.json()
+        from ceo_maxia import ceo
+        return await ceo.check_wallet(body.get("wallet", ""))
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ceo/compliance/transaction")
+async def ceo_compliance_tx(request: Request):
+    """Verifie la conformite d'une transaction."""
+    try:
+        body = await request.json()
+        from ceo_maxia import ceo
+        return await ceo.check_transaction(
+            float(body.get("amount", 0)),
+            body.get("sender", ""),
+            body.get("receiver", ""),
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/partnerships")
+async def ceo_partnerships():
+    """Liste les opportunites de partenariat detectees."""
+    try:
+        from ceo_maxia import ceo
+        return {"opportunities": await ceo.scan_partners()}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/analytics")
+async def ceo_analytics():
+    """Metriques avancees : LTV, churn, funnel, health score."""
+    try:
+        from ceo_maxia import ceo
+        return await ceo.get_analytics()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/analytics/weekly")
+async def ceo_analytics_weekly():
+    """Rapport hebdomadaire enrichi pour le fondateur."""
+    try:
+        from ceo_maxia import ceo
+        return await ceo.weekly_report()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/crises")
+async def ceo_crises():
+    """Detecte les crises en cours."""
+    try:
+        from ceo_maxia import ceo
+        crises = await ceo.detect_crises()
+        return {"crises": crises, "count": len(crises)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/ceo/agent-bus")
+async def ceo_agent_bus():
+    """Statistiques du bus inter-agents."""
+    try:
+        from ceo_maxia import agent_bus
+        return agent_bus.get_stats()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """Statistiques du cache prix (hit rate, age)."""
+    try:
+        from price_oracle import get_cache_stats
+        return get_cache_stats()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/admin/audit-log")
+async def admin_audit_log(request: Request, limit: int = 50):
+    """Log d'audit des actions admin (IP, timestamp, action)."""
+    from security import require_admin, get_audit_log
+    require_admin(request)
+    return {"entries": get_audit_log(limit)}
+
+
+@app.post("/api/admin/ceo/disable-agent")
+async def admin_disable_agent(request: Request):
+    """Desactive un sous-agent specifique (kill switch granulaire)."""
+    from security import require_admin
+    require_admin(request)
+    body = await request.json()
+    agent_name = body.get("agent", "")
+    reason = body.get("reason", "manual")
+    if not agent_name:
+        return {"error": "agent name required"}
+    from ceo_maxia import ceo
+    ceo.disable_agent(agent_name, reason)
+    return {"success": True, "disabled": agent_name, "reason": reason}
+
+
+@app.post("/api/admin/ceo/enable-agent")
+async def admin_enable_agent(request: Request):
+    """Reactive un sous-agent."""
+    from security import require_admin
+    require_admin(request)
+    body = await request.json()
+    agent_name = body.get("agent", "")
+    if not agent_name:
+        return {"error": "agent name required"}
+    from ceo_maxia import ceo
+    ceo.enable_agent(agent_name)
+    return {"success": True, "enabled": agent_name}
+
+
+@app.get("/api/ceo/disabled-agents")
+async def ceo_disabled():
+    """Liste les agents desactives."""
+    from ceo_maxia import ceo
+    return {"disabled": ceo.get_disabled_agents()}
+
+
+@app.get("/api/ceo/roi")
+async def ceo_roi():
+    """Stats ROI par agent et par type d'action."""
+    from ceo_maxia import ceo
+    return ceo.get_roi()
+
+
+@app.get("/api/ceo/ab-tests")
+async def ceo_ab_tests():
+    """Resultats des tests A/B en cours."""
+    from ceo_maxia import ceo
+    return ceo.get_ab_results()
+
+
+@app.post("/api/ceo/ab-tests")
+async def ceo_create_ab_test(request: Request):
+    """Cree un nouveau test A/B."""
+    body = await request.json()
+    from ceo_maxia import ceo
+    ceo.create_test(body.get("name", ""), body.get("variant_a", ""), body.get("variant_b", ""))
+    return {"success": True}
+
+
+@app.get("/api/ceo/llm-costs")
+async def ceo_llm_costs():
+    """LLM token usage and estimated cost per model."""
+    from ceo_maxia import get_llm_costs
+    return get_llm_costs()
 
 
 @app.get("/api/twitter/status")
@@ -503,10 +1165,10 @@ async def outreach_status():
 
 
 @app.post("/api/admin/outreach-now")
-async def admin_outreach_now(key: str = ""):
+async def admin_outreach_now(request: Request):
     """Manually trigger an outreach cycle. Admin only."""
-    if key != ADMIN_KEY:
-        raise HTTPException(403, "Invalid key")
+    from security import require_admin
+    require_admin(request)
     from agent_outreach import run_outreach_cycle
     return await run_outreach_cycle()
 
@@ -522,10 +1184,10 @@ async def serve_rag_docs():
 
 
 @app.post("/api/admin/reddit-post")
-async def admin_reddit_post(request: Request, key: str = ""):
+async def admin_reddit_post(request: Request):
     """Manually post to Reddit. Admin only."""
-    if key != ADMIN_KEY:
-        raise HTTPException(403, "Invalid key")
+    from security import require_admin
+    require_admin(request)
     body = await request.json()
     subreddit = body.get("subreddit", "solanadev")
     title = body.get("title", "")
@@ -575,6 +1237,43 @@ async def ceo_ask(request: Request):
         return {"error": str(e)}
 
 
+@app.get("/api/admin/backups")
+async def admin_backups(request: Request):
+    """List DB backups."""
+    from security import require_admin
+    require_admin(request)
+    from db_backup import get_backup_list
+    return {"backups": get_backup_list()}
+
+@app.post("/api/admin/backup-now")
+async def admin_backup_now(request: Request):
+    """Trigger immediate DB backup."""
+    from security import require_admin
+    require_admin(request)
+    from db_backup import backup_db
+    return await backup_db()
+
+@app.post("/api/admin/backup-restore")
+async def admin_backup_restore(request: Request):
+    """Restore DB from a backup file. Creates safety backup first."""
+    from security import require_admin
+    require_admin(request)
+    body = await request.json()
+    backup_name = body.get("file", "")
+    if not backup_name:
+        return {"error": "file required (e.g. maxia_20260320_120000.db)"}
+    from db_backup import restore_db
+    return await restore_db(backup_name)
+
+@app.post("/api/admin/backup-verify")
+async def admin_backup_verify(request: Request):
+    """Verify a backup file is valid and readable."""
+    from security import require_admin
+    require_admin(request)
+    body = await request.json()
+    from db_backup import verify_backup
+    return await verify_backup(body.get("file", ""))
+
 @app.get("/api/ceo/memory")
 async def ceo_memory_stats():
     """Get CEO vector memory statistics."""
@@ -599,9 +1298,8 @@ async def ceo_memory_search(q: str = "", collection: str = ""):
 @app.post("/api/admin/tweet")
 async def admin_post_tweet(request: Request):
     """Post un tweet manuellement (admin only)."""
-    key = request.query_params.get("key", "")
-    if key != ADMIN_KEY:
-        raise HTTPException(403, "Unauthorized")
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         text = body.get("text", "")
@@ -643,7 +1341,16 @@ async def ws_endpoint(ws: WebSocket):
     authenticated_wallet = None
     try:
         while True:
-            msg = await ws.receive_json()
+            # Auth timeout: use asyncio.wait_for so receive_json doesn't block indefinitely
+            if not authenticated_wallet:
+                try:
+                    msg = await asyncio.wait_for(ws.receive_json(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    await ws.send_json({"type": "AUTH_TIMEOUT", "error": "Authentication required within 30 seconds"})
+                    await ws.close(1008)
+                    break
+            else:
+                msg = await ws.receive_json()
             if msg.get("type") == "AUTH":
                 wallet = msg.get("wallet", "")
                 signature = msg.get("signature", "")
@@ -717,6 +1424,47 @@ async def auction_ws(ws: WebSocket):
         pass
     finally:
         await auction_manager.unregister(cid)
+
+
+@app.websocket("/ws/prices")
+async def ws_prices(websocket: WebSocket):
+    """WebSocket: real-time price updates every 10 seconds."""
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                from price_oracle import get_crypto_prices
+                prices = await get_crypto_prices()
+                await websocket.send_json({"type": "prices", "data": prices, "ts": int(time.time())})
+            except Exception:
+                pass
+            await asyncio.sleep(10)
+    except Exception:
+        pass
+
+@app.websocket("/ws/candles")
+async def ws_candles(websocket: WebSocket):
+    """WebSocket: real-time candle updates every 60 seconds."""
+    await websocket.accept()
+    try:
+        # Get subscription params from first message
+        params = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        symbol = params.get("symbol", "SOL").upper()
+        interval = params.get("interval", "1m")
+        while True:
+            try:
+                rows = await db._db.execute_fetchall(
+                    "SELECT symbol, interval, open, high, low, close, volume, timestamp FROM price_candles "
+                    "WHERE symbol=? AND interval=? ORDER BY timestamp DESC LIMIT 1", (symbol, interval))
+                if rows:
+                    r = rows[0]
+                    await websocket.send_json({"type": "candle", "symbol": symbol, "interval": interval,
+                        "o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"], "v": r["volume"], "t": r["timestamp"]})
+            except Exception:
+                pass
+            await asyncio.sleep(60 if interval != "1m" else 10)
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1076,6 +1824,7 @@ async def agent_status():
     return {
         "brain": brain.get_stats(),
         "growth": growth_agent.get_stats(),
+        "scout": scout_agent.get_stats(),
         "daily_spend": get_daily_spend_stats(),
     }
 
@@ -1105,6 +1854,28 @@ async def start_growth():
     if not growth_agent._running:
         asyncio.create_task(growth_agent.run())
     return {"ok": True, "message": "Growth agent relance"}
+
+@app.get("/api/agent/scout")
+async def scout_status():
+    """Stats du SCOUT (prospection IA-to-IA)."""
+    return scout_agent.get_stats()
+
+@app.post("/api/agent/scout/scan")
+async def scout_scan_now():
+    """Force un scan SCOUT immediat sur les 3 chains."""
+    agents = await scout_agent.scan_all_chains()
+    return {"ok": True, "agents_found": len(agents), "stats": scout_agent.get_stats()}
+
+@app.post("/api/agent/scout/stop")
+async def stop_scout():
+    scout_agent.stop()
+    return {"ok": True, "message": "SCOUT arrete"}
+
+@app.post("/api/agent/scout/start")
+async def start_scout():
+    if not scout_agent._running:
+        asyncio.create_task(scout_agent.run())
+    return {"ok": True, "message": "SCOUT relance"}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1361,8 +2132,10 @@ INITIAL_SERVICES = [
 ]
 
 @app.post("/api/admin/seed-services")
-async def seed_services():
+async def seed_services(request: Request):
     """Ajoute les services initiaux (une seule fois)."""
+    from security import require_admin
+    require_admin(request)
     existing = await db.get_listings()
     if len(existing) >= 4:
         return {"message": "Services deja listes", "count": len(existing)}
@@ -1426,8 +2199,10 @@ INITIAL_DATASETS = [
 ]
 
 @app.post("/api/admin/seed-datasets")
-async def seed_datasets():
+async def seed_datasets(request: Request):
     """Ajoute les datasets initiaux (une seule fois)."""
+    from security import require_admin
+    require_admin(request)
     try:
         existing = await db._db.execute_fetchall("SELECT data FROM datasets")
         existing_list = [json.loads(r[0]) for r in existing] if existing else []
@@ -1470,8 +2245,8 @@ async def seed_datasets():
 async def whitepaper():
     """Lien vers le White Paper MAXIA."""
     return {
-        "title": "MAXIA White Paper v1.0",
-        "version": "1.0",
+        "title": "MAXIA White Paper v2.0",
+        "version": "2.0",
         "date": "Mars 2026",
         "download": "https://github.com/majorelalexis-stack/maxia/blob/main/MAXIA_WhitePaper_v1.pdf",
         "sections": [
@@ -1480,20 +2255,34 @@ async def whitepaper():
             "3. La Solution MAXIA",
             "4. Modele Economique",
             "5. Architecture Technique",
-            "6. API Publique pour Agents IA",
-            "7. Securite",
-            "8. Essaim d IA",
-            "9. Feuille de Route",
-            "10. Infrastructure Blockchain",
-            "11. Conclusion",
+            "6. API Publique pour Agents IA (22 MCP tools)",
+            "7. Securite (Art.1 content safety)",
+            "8. Essaim d IA (CEO + 7 sub-agents)",
+            "9. GPU Rental (8 tiers, 0% markup, RunPod)",
+            "10. Crypto Swap (40 tokens, 1560 pairs, Jupiter)",
+            "11. Actions Tokenisees (30 xStocks/Ondo, Jupiter routing)",
+            "12. Infrastructure Blockchain (Solana + Base + Ethereum)",
+            "13. Trading Tools (OHLCV candles, whale tracker, copy trading)",
+            "14. Marketplace Avance (leaderboard, agent chat, templates, clones)",
+            "15. Infrastructure (webhooks, escrow public, SLA, revenue sharing)",
+            "16. Feuille de Route",
+            "17. Conclusion",
         ],
         "highlights": {
-            "commission_min": "0.1% (Baleine)",
-            "gpu_markup": "0% (prix coutant)",
-            "services": 8,
-            "modules": 22,
+            "commission_min": "0.05% (Baleine stocks) / 0.02% (Baleine crypto)",
+            "gpu_markup": "0% (prix coutant RunPod)",
+            "mcp_tools": 22,
+            "public_endpoints": 90,
+            "tokens": 40,
+            "crypto_pairs": 1560,
+            "stocks": 30,
+            "gpu_tiers": 8,
+            "modules": 27,
             "networks": 3,
-            "protocols": 3,
+            "protocols": 5,
+            "new_features": ["OHLCV candles", "whale tracker", "copy trading",
+                "leaderboard", "agent-to-agent chat", "service templates",
+                "webhook events", "public escrow", "SLA guarantees", "revenue sharing/clones"],
         },
     }
 

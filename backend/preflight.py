@@ -90,7 +90,41 @@ async def check_system_ready() -> dict:
     except Exception:
         results["database"] = {"ok": False, "detail": "Module non charge"}
 
-    # 7. Resume
+    # 7. All env vars check
+    env_vars = {
+        "HELIUS_API_KEY": ("critical", "Prix live Helius"),
+        "GROQ_API_KEY": ("critical", "CEO + IA inference"),
+        "ANTHROPIC_API_KEY": ("optional", "CEO strategique (Sonnet/Opus)"),
+        "DISCORD_WEBHOOK_URL": ("recommended", "Alertes Discord"),
+        "TWITTER_API_KEY": ("optional", "Twitter bot"),
+        "TELEGRAM_BOT_TOKEN": ("optional", "Telegram bot"),
+        "DISCORD_BOT_TOKEN": ("optional", "Discord bot"),
+        "ADMIN_KEY": ("critical", "Admin endpoints"),
+        "JWT_SECRET": ("critical", "Session tokens"),
+        "GITHUB_TOKEN": ("optional", "DEPLOYER auto-deploy"),
+        "DATABASE_URL": ("optional", "PostgreSQL (sinon SQLite)"),
+        "REDIS_URL": ("optional", "Redis cache (sinon in-memory)"),
+        "ESCROW_PRIVKEY_B58": ("critical", "Escrow transactions"),
+        "TREASURY_ADDRESS": ("critical", "Recevoir paiements"),
+        "MICRO_WALLET_ADDRESS": ("optional", "CEO micro-depenses"),
+    }
+    missing_critical = []
+    missing_optional = []
+    for var, (level, desc) in env_vars.items():
+        val = os.getenv(var, "")
+        if not val:
+            if level == "critical":
+                missing_critical.append(f"{var} ({desc})")
+            else:
+                missing_optional.append(f"{var} ({desc})")
+    results["env_vars"] = {
+        "ok": len(missing_critical) == 0,
+        "detail": f"{len(env_vars) - len(missing_critical) - len(missing_optional)}/{len(env_vars)} configured",
+        "missing_critical": missing_critical,
+        "missing_optional": missing_optional[:5],
+    }
+
+    # 8. Resume
     total = len(results)
     passed = sum(1 for r in results.values() if r["ok"])
     critical_ok = results["escrow_address"]["ok"] and results["treasury"]["ok"]

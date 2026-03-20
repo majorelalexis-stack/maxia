@@ -1,12 +1,98 @@
-"""MAXIA Art.1 V12 — Securite, filtrage contenu, rate limiting, garde-fous financiers"""
-import re, time, json
+"""MAXIA Art.1 V12 — Securite, filtrage contenu, rate limiting, burst protection, audit, garde-fous financiers"""
+import re, time, json, os
 from collections import defaultdict
 from pathlib import Path
+from datetime import datetime
 from fastapi import HTTPException, Request
 from config import (
     BLOCKED_WORDS, BLOCKED_PATTERNS,
     GROWTH_MAX_SPEND_DAY, GROWTH_MAX_SPEND_TX,
 )
+
+
+# ── Audit log (admin actions) ──
+
+_AUDIT_LOG_FILE = Path(__file__).parent / ".audit_log.jsonl"
+_audit_buffer: list = []
+
+
+def audit_log(action: str, ip: str, details: str = "", user: str = "admin"):
+    """Log une action admin avec timestamp, IP, details."""
+    entry = {
+        "ts": datetime.utcnow().isoformat(),
+        "action": action,
+        "ip": ip,
+        "user": user,
+        "details": details[:500],
+    }
+    _audit_buffer.append(entry)
+    print(f"[AUDIT] {action} from {ip}: {details[:100]}")
+    # Flush au disque tous les 5 entrees
+    if len(_audit_buffer) >= 5:
+        _flush_audit()
+
+
+def _flush_audit():
+    global _audit_buffer
+    try:
+        with open(_AUDIT_LOG_FILE, "a") as f:
+            for entry in _audit_buffer:
+                f.write(json.dumps(entry) + "\n")
+        _audit_buffer = []
+    except Exception as e:
+        print(f"[AUDIT] Flush error: {e}")
+
+
+def get_audit_log(limit: int = 50) -> list:
+    """Retourne les dernieres entrees du log d'audit."""
+    _flush_audit()
+    entries = []
+    try:
+        if _AUDIT_LOG_FILE.exists():
+            lines = _AUDIT_LOG_FILE.read_text().strip().split("\n")
+            for line in lines[-limit:]:
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+    except Exception:
+        pass
+    return entries
+
+
+# ── Admin auth helper ──
+
+def require_admin(request: Request) -> str:
+    """Verifie l'admin key depuis le header X-Admin-Key (prioritaire) ou query param key (legacy).
+    Log chaque tentative dans l'audit log."""
+    admin_key = os.getenv("ADMIN_KEY", "")
+    if not admin_key:
+        raise HTTPException(500, "ADMIN_KEY not configured")
+    ip = request.client.host if request.client else "unknown"
+    # Header d'abord (securise)
+    key = request.headers.get("X-Admin-Key", "")
+    method = "header"
+    # Fallback query param (legacy — deprecie)
+    if not key:
+        key = request.query_params.get("key", "")
+        method = "query_param"
+    if key != admin_key:
+        audit_log("admin_auth_failed", ip, f"method={method} path={request.url.path}")
+        raise HTTPException(403, "Unauthorized")
+    audit_log("admin_auth_ok", ip, f"method={method} path={request.url.path}")
+    return key
+
+
+# ── JWT secret validation ──
+
+def check_jwt_secret():
+    """Verifie que JWT_SECRET n'est pas un default insecure. Appele au demarrage."""
+    secret = os.getenv("JWT_SECRET", "")
+    insecure_defaults = ["", "secret", "changeme", "your-secret-key", "maxia", "test"]
+    if secret.lower() in insecure_defaults or len(secret) < 16:
+        print("[SECURITY] ⚠️  JWT_SECRET is insecure or missing! Set a strong random value (32+ chars).")
+        return False
+    return True
 
 # ── Content filtering ──
 
@@ -66,6 +152,61 @@ def check_rate_limit(request: Request) -> None:
     _check_rate_limit_memory(ip)
 
 
+# ── Smart Rate Limiting (free vs paid endpoints) ──
+
+_FREE_PATH_KEYWORDS = [
+    "prices", "candles", "leaderboard", "templates", "trending",
+    "fear-greed", "stocks", "gpu/tiers", "sentiment", "token-risk",
+    "wallet-analysis", "defi", "sla", "clone/stats",
+]
+
+_smart_rate_info: dict = defaultdict(dict)
+
+
+def check_rate_limit_smart(identifier: str, endpoint: str = "") -> bool:
+    """
+    Smart rate limiting: free endpoints are unlimited, paid endpoints get 60 req/min.
+    Returns True if request is allowed, False if rate-limited.
+    Sets rate limit info in _smart_rate_info[identifier] for response headers.
+    """
+    path = endpoint.lower()
+
+    # FREE endpoints — always allowed
+    for kw in _FREE_PATH_KEYWORDS:
+        if kw in path:
+            _smart_rate_info[identifier] = {
+                "X-RateLimit-Limit": "unlimited",
+                "X-RateLimit-Remaining": "unlimited",
+                "X-RateLimit-Tier": "free",
+            }
+            return True
+
+    # PAID / AUTH endpoints — 60 req/min sliding window
+    now = time.time()
+    _rate_store[identifier] = [t for t in _rate_store[identifier] if t > now - RATE_WINDOW]
+    remaining = max(0, RATE_LIMIT - len(_rate_store[identifier]))
+
+    _smart_rate_info[identifier] = {
+        "X-RateLimit-Limit": str(RATE_LIMIT),
+        "X-RateLimit-Remaining": str(remaining),
+        "X-RateLimit-Reset": str(int(now + RATE_WINDOW)),
+        "X-RateLimit-Tier": "paid",
+    }
+
+    if len(_rate_store[identifier]) >= RATE_LIMIT:
+        return False
+
+    _rate_store[identifier].append(now)
+    if len(_rate_store) > _RATE_STORE_MAX_KEYS:
+        _cleanup_rate_store()
+    return True
+
+
+def get_rate_limit_info(identifier: str) -> dict:
+    """Return rate limit headers info for a given identifier."""
+    return _smart_rate_info.get(identifier, {})
+
+
 def _check_rate_limit_memory(ip: str) -> None:
     """In-memory sliding window rate check."""
     now = time.time()
@@ -75,6 +216,44 @@ def _check_rate_limit_memory(ip: str) -> None:
     _rate_store[ip].append(now)
     if len(_rate_store) > _RATE_STORE_MAX_KEYS:
         _cleanup_rate_store()
+
+
+# ── Burst protection (anti-DDoS) ──
+
+_burst_store: dict = defaultdict(list)
+BURST_LIMIT = 20       # max 20 requetes
+BURST_WINDOW = 2       # en 2 secondes
+_burst_bans: dict = {} # {ip: ban_until_timestamp}
+BURST_BAN_DURATION = 60  # ban 60 secondes apres un burst
+
+
+def check_burst_limit(ip: str) -> bool:
+    """Verifie les bursts (>20 req/2s). Retourne True si OK, False si bloque."""
+    now = time.time()
+
+    # Verifie si l'IP est encore bannie
+    if ip in _burst_bans:
+        if now < _burst_bans[ip]:
+            return False
+        else:
+            del _burst_bans[ip]
+
+    _burst_store[ip] = [t for t in _burst_store[ip] if t > now - BURST_WINDOW]
+    if len(_burst_store[ip]) >= BURST_LIMIT:
+        _burst_bans[ip] = now + BURST_BAN_DURATION
+        print(f"[Security] BURST BAN: {ip} ({len(_burst_store[ip])} req/{BURST_WINDOW}s)")
+        return False
+
+    _burst_store[ip].append(now)
+    return True
+
+
+def get_burst_ban_remaining(ip: str) -> int:
+    """Retourne les secondes restantes de ban, 0 si pas banni."""
+    if ip not in _burst_bans:
+        return 0
+    remaining = _burst_bans[ip] - time.time()
+    return max(0, int(remaining))
 
 
 # ── Garde-fous financiers (Art.4 V12) avec persistance fichier ──

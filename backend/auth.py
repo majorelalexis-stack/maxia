@@ -1,5 +1,5 @@
 """MAXIA Auth V12 - Signature Solana ed25519 + anti-replay"""
-import os, time, secrets
+import os, time, secrets, hashlib, hmac
 from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from nacl.signing import VerifyKey
@@ -9,6 +9,35 @@ import base58
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 NONCES: dict = {}
 NONCE_TTL = 300
+
+# JWT-like session tokens (HMAC-signed, not ed25519)
+_JWT_SECRET = os.getenv("JWT_SECRET", "")
+if not _JWT_SECRET or len(_JWT_SECRET) < 16:
+    # Genere un secret ephemere si non configure (valable uniquement pour cette instance)
+    _JWT_SECRET = secrets.token_hex(32)
+    print("[Auth] ⚠️  JWT_SECRET not set — using ephemeral secret (sessions lost on restart)")
+
+
+def create_session_token(wallet: str) -> str:
+    """Cree un token de session signe HMAC-SHA256."""
+    payload = f"{wallet}:{int(time.time()) + 86400}"  # 24h expiry
+    sig = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{payload}:{sig}"
+
+
+def verify_session_token(token: str) -> str:
+    """Verifie un token de session. Retourne le wallet ou raise."""
+    parts = token.split(":")
+    if len(parts) != 3:
+        raise HTTPException(401, "Token invalide")
+    wallet, expiry_str, sig = parts
+    payload = f"{wallet}:{expiry_str}"
+    expected = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    if not hmac.compare_digest(sig, expected):
+        raise HTTPException(401, "Token signature invalide")
+    if int(expiry_str) < int(time.time()):
+        raise HTTPException(401, "Token expire")
+    return wallet
 
 # Nonces deja utilises (anti-replay) — TTL de 10 min
 _USED_NONCES: dict = {}
@@ -94,7 +123,8 @@ async def verify_signature(req: AuthRequest):
     if len(_USED_NONCES) > _USED_NONCES_MAX:
         _cleanup_used_nonces()
 
-    return {"ok": True, "wallet": req.wallet}
+    token = create_session_token(req.wallet)
+    return {"ok": True, "wallet": req.wallet, "session_token": token}
 
 
 async def require_auth(

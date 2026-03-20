@@ -109,3 +109,109 @@ async def x402_verify_payment_eth(payment_header: str, expected_amount_usdc: flo
         tx_hash=payment_header,
         expected_amount_raw=int(expected_amount_usdc * 1e6),
     )
+
+
+async def verify_eth_value_transfer(tx_hash: str, expected_recipient: str = None,
+                                     min_eth: float = None) -> dict:
+    """Verify a native ETH value transfer (not ERC-20)."""
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "eth_getTransactionByHash",
+        "params": [tx_hash],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(ETH_RPC, json=payload)
+            data = resp.json()
+        tx = data.get("result")
+        if not tx:
+            return {"valid": False, "error": "Transaction not found"}
+
+        value_wei = int(tx.get("value", "0x0"), 16)
+        value_eth = value_wei / 1e18
+        to_addr = tx.get("to", "")
+
+        if expected_recipient and to_addr.lower() != expected_recipient.lower():
+            return {"valid": False, "error": f"Recipient mismatch: {to_addr}"}
+
+        if min_eth and value_eth < min_eth:
+            return {"valid": False, "error": f"Insufficient: {value_eth:.6f} ETH < {min_eth:.6f} ETH"}
+
+        receipt = await verify_eth_transaction(tx_hash)
+        if not receipt.get("valid"):
+            return receipt
+
+        receipt["ethTransfer"] = {
+            "from": tx.get("from", ""),
+            "to": to_addr,
+            "value_wei": value_wei,
+            "value_eth": value_eth,
+        }
+        return receipt
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+# ══════════════════════════════════════════
+# Fonctions de scan pour SCOUT agent
+# ══════════════════════════════════════════
+
+async def get_eth_block_number() -> int:
+    """Get current Ethereum block number."""
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "eth_blockNumber",
+        "params": [],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(ETH_RPC, json=payload)
+            data = resp.json()
+        return int(data.get("result", "0x0"), 16)
+    except Exception:
+        return 0
+
+
+async def get_contract_logs(contract_address: str, from_block: str = None,
+                             topic0: str = None) -> list:
+    """Get event logs for a contract (used by SCOUT to find AI agent interactions)."""
+    if not from_block:
+        current = await get_eth_block_number()
+        from_block = hex(max(0, current - 5000))  # ~last 18h
+
+    params = {
+        "address": contract_address,
+        "fromBlock": from_block,
+        "toBlock": "latest",
+    }
+    if topic0:
+        params["topics"] = [topic0]
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "eth_getLogs",
+        "params": [params],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(ETH_RPC, json=payload)
+            data = resp.json()
+        return data.get("result", [])
+    except Exception as e:
+        print(f"[EthVerifier] get_contract_logs error: {e}")
+        return []
+
+
+async def get_wallet_tx_count(address: str) -> int:
+    """Get transaction count for a wallet (nonce = activity level)."""
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "eth_getTransactionCount",
+        "params": [address, "latest"],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(ETH_RPC, json=payload)
+            data = resp.json()
+        return int(data.get("result", "0x0"), 16)
+    except Exception:
+        return 0

@@ -70,6 +70,14 @@ X402_PRICE_MAP = {
 # ── Serveur ──
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8001"))
+# Multi-worker: run with `uvicorn main:app --workers 4` for production
+# Or use Gunicorn: `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker`
+WORKERS = int(os.getenv("WEB_CONCURRENCY", "1"))
+
+# ── Security ──
+JWT_SECRET = os.getenv("JWT_SECRET", "")  # MUST be set in production (32+ chars)
+FORCE_HTTPS = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+SANDBOX_MODE = os.getenv("SANDBOX_MODE", "false").lower() == "true"
 BROKER_MARGIN      = float(os.getenv("BROKER_MARGIN", "1.00"))
 AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
 AGENT_TIMEOUT_S    = int(os.getenv("AGENT_TIMEOUT_S", "10"))

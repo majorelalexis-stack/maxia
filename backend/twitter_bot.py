@@ -217,7 +217,7 @@ async def _generate_reply(mention_text: str) -> str:
                     {"role": "system", "content": (
                         f"You are MAXIA social media manager. MAXIA is an AI-to-AI marketplace on Solana ({MAXIA_URL}). "
                         "Reply to this mention in max 250 chars. Be helpful, technical, not salesy. "
-                        "If they ask about services, mention: swap 210 pairs, GPU $0.69/h, audit $9.99, marketplace for AI agents. "
+                        "If they ask about services, mention: swap 1560 pairs (40 tokens), GPU $0.69/h, 30 tokenized stocks, marketplace for AI agents. "
                         "Always include the URL."
                     )},
                     {"role": "user", "content": f"Reply to: {mention_text}"},
@@ -296,17 +296,32 @@ async def run_twitter_bot():
     if not TWITTER_API_KEY:
         return
 
+    # Test de connexion au demarrage (post only, free tier compatible)
+    client = _get_client()
+    if client:
+        print("[Twitter] Client initialise (Free tier: post only)")
+    else:
+        print("[Twitter] Erreur client — verifier les cles API")
+        return
+
     while True:
         try:
             _reset_daily()
 
-            # 1. Repondre aux mentions
-            replies = await auto_reply_mentions()
-            if replies:
-                print(f"[Twitter] {len(replies)} reponses aux mentions")
+            # Free tier: pas de lecture mentions (GET /users/me = 401)
+            # Le CEO poste via post_tweet() (appele par GHOST-WRITER)
+            # Les mentions seront lues si le plan est upgrader a Basic
 
-            # 2. Le CEO decidera quoi poster via post_tweet()
-            # (appele par ceo_maxia.py via GHOST-WRITER)
+            try:
+                replies = await auto_reply_mentions()
+                if replies:
+                    print(f"[Twitter] {len(replies)} reponses aux mentions")
+            except Exception as e:
+                # Free tier: 401 on read endpoints — silently skip
+                if "401" in str(e) or "Unauthorized" in str(e):
+                    pass
+                else:
+                    print(f"[Twitter] Mentions error: {e}")
 
         except Exception as e:
             print(f"[Twitter] Bot error: {e}")
