@@ -160,7 +160,7 @@ class PostgresDatabase:
                 );
 
                 CREATE TABLE IF NOT EXISTS disputes (
-                    dispute_id TEXT PRIMARY KEY,
+                    id TEXT PRIMARY KEY,
                     data TEXT NOT NULL,
                     created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW())::BIGINT)
                 );
@@ -412,14 +412,15 @@ class PostgresDatabase:
     # ── Disputes ──
 
     async def save_dispute(self, dispute: dict):
+        dispute_id = dispute.get("id", dispute.get("disputeId", ""))
         await self._execute(
-            """INSERT INTO disputes(dispute_id, data) VALUES($1, $2)
-               ON CONFLICT (dispute_id) DO UPDATE SET data = EXCLUDED.data""",
-            (dispute["disputeId"], json.dumps(dispute)))
+            """INSERT INTO disputes(id, data) VALUES($1, $2)
+               ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data""",
+            (dispute_id, json.dumps(dispute)))
 
     async def get_dispute(self, dispute_id: str):
         row = await self._fetchone(
-            "SELECT data FROM disputes WHERE dispute_id=$1", (dispute_id,))
+            "SELECT data FROM disputes WHERE id=$1", (dispute_id,))
         return json.loads(row["data"]) if row else None
 
     async def get_all_disputes(self):
