@@ -470,6 +470,10 @@ body::before {
     <a class="nav-item" href="/MAXIA_WhitePaper_v1.pdf" target="_blank" id="nav-wp" style="text-decoration:none;color:inherit">
       <span class="icon">📄</span> White Paper
     </a>
+    <div class="nav-section">INTELLIGENCE</div>
+    <div class="nav-item" onclick="showPage('ceo-analytics',this)"><span class="icon">📊</span>CEO Analytics</div>
+    <div class="nav-item" onclick="showPage('agent-bus',this)"><span class="icon">🔌</span>Agent Bus</div>
+    <div class="nav-item" onclick="showPage('roi-tracking',this)"><span class="icon">💰</span>ROI Tracking</div>
     <div class="nav-section">Système</div>
     <div class="nav-item" onclick="showPage('logs',this)">
       <span class="icon">▤</span> Logs &amp; API
@@ -1528,6 +1532,45 @@ body::before {
     </div>
   </div>
 
+  <!-- CEO ANALYTICS PAGE -->
+  <div class="page" id="page-ceo-analytics">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">CEO Analytics</h2>
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Health Score</div><div class="stat-value cyan" id="a-health">--</div><span class="stat-icon">💚</span></div>
+      <div class="stat-card purple"><div class="stat-label">LLM Cost (USD)</div><div class="stat-value purple" id="a-llm-cost">$0</div><span class="stat-icon">🧠</span></div>
+      <div class="stat-card green"><div class="stat-label">LLM Calls</div><div class="stat-value green" id="a-llm-calls">0</div><span class="stat-icon">📞</span></div>
+      <div class="stat-card gold"><div class="stat-label">Active Crises</div><div class="stat-value gold" id="a-crises">0</div><span class="stat-icon">🚨</span></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Funnel</span></div><div class="panel-body" id="a-funnel">Loading...</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Recommendations</span></div><div class="panel-body" id="a-recs">Loading...</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Disabled Agents</span><button class="panel-action" onclick="loadDisabled()">Refresh</button></div><div class="panel-body" id="a-disabled">None</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Circuit Breakers</span></div><div class="panel-body" id="a-breakers">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- AGENT BUS PAGE -->
+  <div class="page" id="page-agent-bus">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">Agent Bus — Inter-Agent Communication</h2>
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Pending Messages</div><div class="stat-value cyan" id="b-pending">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Processed</div><div class="stat-value green" id="b-processed">0</div></div>
+    </div>
+    <div class="panel"><div class="panel-header"><span class="panel-title">Recent Messages</span><button class="panel-action" onclick="loadBus()">Refresh</button></div><div class="panel-body"><div class="console" id="b-log">Loading...</div></div></div>
+  </div>
+
+  <!-- ROI TRACKING PAGE -->
+  <div class="page" id="page-roi-tracking">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">ROI Tracking</h2>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">ROI by Agent</span></div><div class="panel-body" id="r-agents">Loading...</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">ROI by Action Type</span></div><div class="panel-body" id="r-types">Loading...</div></div>
+    </div>
+    <div class="panel"><div class="panel-header"><span class="panel-title">A/B Tests</span></div><div class="panel-body" id="r-ab">No tests running</div></div>
+  </div>
+
 </div><!-- /main -->
 </div><!-- /shell -->
 
@@ -1558,6 +1601,9 @@ function showPage(name, el) {
   if (name === 'swarm')       loadSwarmData();
   if (name === 'escrow')      {} // Static page
   if (name === 'ceochat')     {} // Chat page - no data to load
+  if (name === 'ceo-analytics') loadAnalytics();
+  if (name === 'agent-bus') loadBus();
+  if (name === 'roi-tracking') loadROI();
 }
 
 // ── Toast ──
@@ -2461,6 +2507,86 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(refreshCharts, 1500);
   setInterval(refreshCharts, 60000);
 });
+
+// CEO Analytics
+async function loadAnalytics() {
+  try {
+    const [analytics, crises, costs, cache, disabled] = await Promise.all([
+      fetch('/api/ceo/analytics').then(r=>r.json()),
+      fetch('/api/ceo/crises').then(r=>r.json()),
+      fetch('/api/ceo/llm-costs').then(r=>r.json()),
+      fetch('/api/cache/stats').then(r=>r.json()),
+      fetch('/api/ceo/disabled-agents').then(r=>r.json()),
+    ]);
+    document.getElementById('a-health').textContent = analytics.health_score || '--';
+    document.getElementById('a-llm-cost').textContent = '$' + (costs.estimated_cost_usd || 0).toFixed(4);
+    document.getElementById('a-llm-calls').textContent = costs.total_calls || 0;
+    document.getElementById('a-crises').textContent = crises.count || 0;
+
+    // Funnel
+    const f = analytics.funnel || {};
+    document.getElementById('a-funnel').innerHTML = `<table class="data-table"><tr><td>Prospects</td><td class="mono">${f.prospects||0}</td></tr><tr><td>Signups</td><td class="mono">${f.signups||0}</td></tr><tr><td>Active</td><td class="mono">${f.active||0}</td></tr><tr><td>Paying</td><td class="mono">${f.paying||0}</td></tr><tr><td>Prospect→Signup</td><td class="mono">${f.conversion_prospect_to_signup||'0%'}</td></tr></table>`;
+
+    // Recommendations
+    const recs = analytics.recommendations || [];
+    document.getElementById('a-recs').innerHTML = recs.length ? recs.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">${r}</div>`).join('') : '<span style="color:var(--muted)">No recommendations</span>';
+
+    // Disabled agents
+    const dis = disabled.disabled || {};
+    const disKeys = Object.keys(dis);
+    document.getElementById('a-disabled').innerHTML = disKeys.length ? disKeys.map(k=>`<span class="badge red">${k}</span> <span style="font-size:11px;color:var(--muted)">${dis[k].reason||''}</span><br>`).join('') : '<span class="badge green">All agents active</span>';
+
+    // Circuit breakers
+    const cbs = cache.circuit_breakers || {};
+    document.getElementById('a-breakers').innerHTML = Object.entries(cbs).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${k}</span><span class="badge ${v.state==='closed'?'green':'red'}">${v.state} (${v.failures}/${v.max})</span></div>`).join('');
+  } catch(e) { console.error('Analytics error:', e); }
+}
+
+// Agent Bus
+async function loadBus() {
+  try {
+    const data = await fetch('/api/ceo/agent-bus').then(r=>r.json());
+    document.getElementById('b-pending').textContent = data.pending || 0;
+    document.getElementById('b-processed').textContent = data.processed || 0;
+    const recent = data.recent || [];
+    document.getElementById('b-log').innerHTML = recent.length ? recent.map(m=>`<div class="log-line"><span class="log-ts">${(m.ts||'').substr(11,8)}</span><span class="log-info">${m.sender}→${m.receiver}</span> <span>${m.type}</span></div>`).join('') : '<span style="color:var(--muted)">No recent messages</span>';
+  } catch(e) { console.error('Bus error:', e); }
+}
+
+// ROI
+async function loadROI() {
+  try {
+    const [roi, ab] = await Promise.all([
+      fetch('/api/ceo/roi').then(r=>r.json()),
+      fetch('/api/ceo/ab-tests').then(r=>r.json()),
+    ]);
+    const agents = roi.by_agent || {};
+    document.getElementById('r-agents').innerHTML = Object.keys(agents).length ? Object.entries(agents).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">${k}</span><span class="mono">${v.actions} actions, ${v.conversions} conv, $${v.revenue.toFixed(2)}</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+    const types = roi.by_type || {};
+    document.getElementById('r-types').innerHTML = Object.keys(types).length ? Object.entries(types).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${k}</span><span class="mono">${v.conversions}/${v.actions} (${v.actions>0?((v.conversions/v.actions)*100).toFixed(0):0}%)</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+
+    const abKeys = Object.keys(ab);
+    document.getElementById('r-ab').innerHTML = abKeys.length ? abKeys.map(k=>{const t=ab[k];return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>${k}</strong> — <span class="badge ${t.status==='completed'?'green':'cyan'}">${t.status}</span>${t.winner?` Winner: <strong>${t.winner}</strong>`:''}</div>`;}).join('') : '<span style="color:var(--muted)">No A/B tests</span>';
+  } catch(e) { console.error('ROI error:', e); }
+}
+
+function loadDisabled() { loadAnalytics(); }
+
+// SSE Live Stream
+try {
+  const evtSource = new EventSource('/api/events/stream');
+  evtSource.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'ceo_update') {
+        const el = document.getElementById('a-health');
+        if (el) el.textContent = d.health || '--';
+        const crEl = document.getElementById('a-crises');
+        if (crEl) crEl.textContent = d.crises || 0;
+      }
+    } catch(err) {}
+  };
+} catch(e) {}
 
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
