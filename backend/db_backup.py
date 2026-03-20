@@ -46,8 +46,9 @@ async def restore_db(backup_name: str) -> dict:
     backup_file = BACKUP_DIR / backup_name
     if not backup_file.exists():
         return {"success": False, "error": f"Backup not found: {backup_name}"}
-    if not backup_name.startswith("maxia_") or not backup_name.endswith(".db"):
-        return {"success": False, "error": "Invalid backup filename"}
+    import re
+    if not re.match(r'^maxia_[a-zA-Z0-9_]+\.db$', backup_name):
+        return {"success": False, "error": "Invalid backup filename (must match maxia_*.db, no path chars)"}
     try:
         # Safety backup of current DB before restoring
         safety = BACKUP_DIR / f"maxia_pre_restore_{time.strftime('%Y%m%d_%H%M%S')}.db"

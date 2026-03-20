@@ -509,6 +509,47 @@ class PostgresDatabase:
         sql = f"UPDATE agent_services SET {', '.join(parts)} WHERE id=${len(vals)}"
         await self._execute(sql, tuple(vals))
 
+    async def get_service_by_name(self, name: str):
+        """Cherche un service par son nom (case-insensitive)."""
+        row = await self._fetchone(
+            "SELECT * FROM agent_services WHERE LOWER(name)=LOWER($1) AND status='active' LIMIT 1", (name,))
+        return dict(row) if row else None
+
+    # ── Stock Portfolio ──
+
+    async def get_stock_portfolio(self, api_key: str, symbol: str = None):
+        if symbol:
+            row = await self._fetchone(
+                "SELECT * FROM stock_portfolios WHERE api_key=$1 AND symbol=$2", (api_key, symbol))
+            return dict(row) if row else None
+        rows = await self._fetchall(
+            "SELECT * FROM stock_portfolios WHERE api_key=$1", (api_key,))
+        return [dict(r) for r in rows]
+
+    async def get_all_stock_portfolios(self, symbol: str):
+        rows = await self._fetchall(
+            "SELECT * FROM stock_portfolios WHERE symbol=$1", (symbol,))
+        return [dict(r) for r in rows]
+
+    async def save_stock_holding(self, api_key: str, symbol: str, shares: float):
+        await self._execute(
+            """INSERT INTO stock_portfolios(api_key, symbol, shares)
+               VALUES($1, $2, $3)
+               ON CONFLICT(api_key, symbol) DO UPDATE SET shares=$3""",
+            (api_key, symbol, shares))
+
+    async def get_stock_trades(self, trade_id: str = None):
+        if trade_id:
+            row = await self._fetchone("SELECT * FROM stock_trades WHERE trade_id=$1", (trade_id,))
+            return dict(row) if row else None
+        rows = await self._fetchall("SELECT * FROM stock_trades ORDER BY created_at DESC LIMIT 50")
+        return [dict(r) for r in rows]
+
+    async def save_stock_trade(self, trade: dict):
+        await self._execute(
+            "INSERT INTO stock_trades(trade_id, data) VALUES($1, $2)",
+            (trade.get("trade_id", ""), json.dumps(trade)))
+
     # ── Marketplace: Transactions ──
 
     async def save_marketplace_tx(self, tx: dict):

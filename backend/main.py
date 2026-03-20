@@ -61,7 +61,7 @@ except ImportError:
     mcp_router = None
 
 # ── Runtime config ──
-BROKER_MARGIN      = float(os.getenv("BROKER_MARGIN", "1.20"))
+BROKER_MARGIN      = float(os.getenv("BROKER_MARGIN", "1.00"))  # matches config.py
 AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
 
 auction_manager = AuctionManager()
@@ -160,12 +160,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[MAXIA] Infra features init error: {e}")
 
-    # V12: Health monitor + DB backup
-    try:
-        from health_monitor import run_health_monitor
-        asyncio.create_task(run_health_monitor())
-    except Exception as e:
-        print(f"[MAXIA] Health monitor init error: {e}")
+    # V12: DB backup
     try:
         from db_backup import run_backup_scheduler
         asyncio.create_task(run_backup_scheduler())
@@ -252,13 +247,20 @@ async def lifespan(app: FastAPI):
             t_taskq.cancel()
     except Exception:
         pass
-    # Cancel background tasks
-    t1.cancel()
+    # Cancel all background tasks
+    for t in [t1, t3, t4, t5]:
+        try:
+            t.cancel()
+        except Exception:
+            pass
+    for t in [t_health, t6, t7]:
+        try:
+            if t:
+                t.cancel()
+        except Exception:
+            pass
     scheduler.stop()
-    t3.cancel()
-    t4.cancel()
     scout_agent.stop()
-    t5.cancel()
     # Close connections
     await db.disconnect()
     await redis_client.close()
@@ -378,7 +380,7 @@ async def serve_landing():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
 
-ADMIN_KEY = os.getenv("ADMIN_KEY", "MaxEli20152022*+")
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request, key: str = ""):

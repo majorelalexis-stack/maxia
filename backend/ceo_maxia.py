@@ -205,7 +205,7 @@ Phase : {PHASE} | Vision : {VISION}
 Fondateur : {FOUNDER_NAME} (autorite finale sur decisions rouges)
 URL : {URL}
 
-13 SOUS-AGENTS :
+17 SOUS-AGENTS :
 - GHOST-WRITER : contenu (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA, canaux: Twitter/Discord/Reddit/GitHub)
 - SCOUT : prospection IA-to-IA sur 3 chains (Solana/Base/Ethereum) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
@@ -219,6 +219,10 @@ URL : {URL}
 - PARTNERSHIP : detecte et contacte des partenaires strategiques (DEX, protocols, GPU)
 - ANALYTICS : metriques avancees (LTV, churn, funnel, health score 0-100)
 - CRISIS-MANAGER : detecte et gere les crises (P0 critique -> P3 mineure)
+- DEPLOYER : genere et deploie des pages web (status, docs, blog) via GitHub Pages
+- WEB-DESIGNER : met a jour la config JSON frontend dynamiquement
+- ORACLE : social listening (DexScreener, GitHub trending, influenceurs)
+- MICRO : wallet de micro-depenses pour experimentations
 
 PROTOCOLE (Chain of Thought) :
 1. COLLECTE donnees sous-agents
@@ -728,6 +732,7 @@ class Memory:
 
     def update_agent(self, name: str, status: dict):
         self._data["agents"][name] = {**status, "at": datetime.utcnow().isoformat()}
+        self.save()
 
     def update_okr(self, okr: dict):
         """Met a jour les OKR (Objectives & Key Results)."""
@@ -1578,7 +1583,7 @@ async def execute(decisions: list, memory: Memory):
             cible_map = {
                 "CEO": "WATCHDOG", "MAXIA": "WATCHDOG", "MARKETING": "GHOST-WRITER",
                 "CONTENT": "GHOST-WRITER", "PROSPECTION": "HUNTER", "BUDGET": "SOL-TREASURY",
-                "TREASURY": "SOL-TREASURY", "PRIX": "SOL-TREASURY", "MONITORING": "WATCHDOG",
+                "TREASURY": "SOL-TREASURY", "TARIF": "SOL-TREASURY", "MONITORING": "WATCHDOG",
                 "SOCIAL": "GHOST-WRITER", "TWITTER": "GHOST-WRITER", "DISCORD": "RESPONDER",
                 "TELEGRAM": "RESPONDER", "INTELLIGENCE": "RADAR", "FEEDBACK": "TESTIMONIAL",
                 "IA-PROSPECTION": "SCOUT", "AI-AGENTS": "SCOUT", "RECRUTEMENT-IA": "SCOUT",

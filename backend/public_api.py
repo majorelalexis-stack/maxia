@@ -376,10 +376,17 @@ async def register_agent(req: dict):
         # Try to attribute this signup to a recent HUNTER prospect or GHOST-WRITER tweet
         roi = ceo.memory._data.get("roi_tracking", [])
         # Find the most recent unattributed prospect or tweet action (last 24h)
-        now_ts = datetime.utcnow().isoformat()
         for entry in reversed(roi[-50:]):
             if entry.get("type") in ("prospect", "tweet", "outreach") and entry.get("conversions", 0) == 0:
                 ceo.memory.record_conversion(entry["action_id"], revenue=0)
+                # Also credit A/B test if the action was from one
+                for test_name, test in ceo.memory._data.get("ab_tests", {}).items():
+                    if test.get("status") == "active":
+                        # Credit the variant with fewer impressions (last used)
+                        for vk in ("B", "A"):
+                            if test["variants"][vk]["impressions"] > 0:
+                                ceo.memory.record_ab_conversion(test_name, vk)
+                                break
                 print(f"[ROI] Signup {name} attributed to {entry['type']} action {entry['action_id']}")
                 break
     except Exception:
@@ -1779,6 +1786,10 @@ async def public_gpu_instances(x_api_key: str = Header(None, alias="X-API-Key"))
         t for t in _transactions
         if t.get("type") == "gpu_rental" and t.get("buyer") == agent["name"]
     ]
+    return {
+        "instances": my_gpus[-10:],
+        "total_spent_gpu": sum(t.get("total_with_commission", 0) for t in my_gpus),
+    }
 
 
 @router.get("/gpu/status/{pod_id}")
@@ -1817,38 +1828,7 @@ async def public_gpu_terminate(pod_id: str, x_api_key: str = Header(None, alias=
     return result
 
 
-@router.get("/gpu/compare")
-async def public_gpu_compare():
-    """Compare les prix GPU MAXIA vs concurrence. Sans auth."""
-    return {
-        "maxia": {
-            "rtx4090": {"price": "$0.69/h", "margin": "0%", "note": "Prix coutant RunPod"},
-            "a100_80gb": {"price": "$1.99/h", "margin": "0%", "note": "Prix coutant RunPod"},
-            "h100_sxm5": {"price": "$3.29/h", "margin": "0%", "note": "Prix coutant RunPod"},
-        },
-        "competitors": {
-            "AWS p5 (H100)": "$32.77/h",
-            "GCP a3-highgpu (H100)": "$31.22/h",
-            "Azure ND H100": "$30.22/h",
-            "Lambda Labs A100": "$1.29/h",
-            "Vast.ai RTX4090": "$0.34-0.50/h",
-            "RunPod direct RTX4090": "$0.69/h",
-        },
-        "maxia_advantages": [
-            "0% marge sur les GPU (prix coutant RunPod)",
-            "Paiement USDC sur Solana (pas de carte bancaire)",
-            "API unifiee (GPU + services IA + actions)",
-            "Arret automatique apres la duree louee",
-            "SSH + Jupyter inclus",
-        ],
-    }
-    return {
-        "instances": my_gpus[-10:],
-        "total_spent_gpu": sum(t.get("total_with_commission", 0) for t in my_gpus),
-    }
-
-
-@router.get("/gpu/compare")
+@router.get("/gpu/compare-detailed")
 async def gpu_price_compare():
     """Compare les prix MAXIA vs concurrence. Sans auth."""
     from config import GPU_TIERS, BROKER_MARGIN

@@ -214,6 +214,9 @@ def _check_rate_limit_memory(ip: str) -> None:
     if len(_rate_store[ip]) >= RATE_LIMIT:
         raise HTTPException(429, "Rate limit depasse. Reessayez dans 1 minute.")
     _rate_store[ip].append(now)
+    # Proactive cleanup every 1000 keys (not just at max)
+    if len(_rate_store) > 1000 and len(_rate_store) % 100 == 0:
+        _cleanup_rate_store()
     if len(_rate_store) > _RATE_STORE_MAX_KEYS:
         _cleanup_rate_store()
 

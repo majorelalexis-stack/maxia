@@ -1,4 +1,4 @@
-"""MAXIA Preflight V10.1 — Diagnostic systeme avant lancement"""
+"""MAXIA Preflight V12 — Diagnostic systeme avant lancement"""
 import os, asyncio
 import httpx
 from config import (
@@ -142,7 +142,7 @@ async def check_system_ready() -> dict:
 def print_preflight(results: dict):
     """Affiche le rapport de preflight en console."""
     print("\n" + "=" * 50)
-    print("  MAXIA V10.1 — PRE-FLIGHT CHECK")
+    print("  MAXIA V12 — PRE-FLIGHT CHECK")
     print("=" * 50)
 
     for key, val in results.items():

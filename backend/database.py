@@ -77,10 +77,6 @@ DB_SCHEMA = (
     "stake_id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
-    "CREATE TABLE IF NOT EXISTS disputes ("
-    "dispute_id TEXT PRIMARY KEY, data TEXT NOT NULL,"
-    "created_at INTEGER DEFAULT (strftime('%s','now')));"
-
     "CREATE TABLE IF NOT EXISTS escrow_records ("
     "escrow_id TEXT PRIMARY KEY, buyer TEXT NOT NULL, seller TEXT NOT NULL,"
     "status TEXT DEFAULT 'locked', data TEXT NOT NULL,"

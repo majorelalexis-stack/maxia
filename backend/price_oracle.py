@@ -69,7 +69,7 @@ _http_pool: httpx.AsyncClient = None
 async def _get_http() -> httpx.AsyncClient:
     """Retourne un client HTTP partage (connection pooling)."""
     global _http_pool
-    if _http_pool is None or _http_pool.is_closed:
+    if _http_pool is None or getattr(_http_pool, 'is_closed', True):
         _http_pool = httpx.AsyncClient(
             timeout=10,
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
