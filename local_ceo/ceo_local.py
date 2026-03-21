@@ -138,7 +138,10 @@ def _log(msg: str):
     """Log dans fichier + stdout."""
     _rotate_log()
     line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
-    print(line)
+    try:
+        print(line.encode("utf-8", errors="replace").decode("utf-8"))
+    except Exception:
+        print(line.encode("ascii", errors="replace").decode("ascii"))
     try:
         with open(_LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -457,12 +460,12 @@ class VPSClient:
                 cached = data.get("cached", False)
                 cost = data.get("cost_usd", 0)
                 if cached:
-                    print(f"  [VPS/think] Cache hit (0$)")
+                    _log("  [VPS/think] Cache hit (0$)")
                 else:
-                    print(f"  [VPS/think] {tier} ~${cost}")
+                    _log(f"  [VPS/think] {tier} ~${cost}")
                 return data.get("result", "")
         except Exception as e:
-            print(f"[VPS] think error: {e}")
+            _log(f"[VPS] think error: {e}")
             return ""
 
 
@@ -840,9 +843,14 @@ class CEOLocal:
         )
 
         if is_strategic:
-            # Delegue a Claude sur le VPS (cache 10 min, prompt compresse)
+            # Delegue a Claude sur le VPS (prompt compact, pas le CEO_SYSTEM complet)
+            strategic_prompt = (
+                "Tu es CEO MAXIA (marketplace IA sur Solana, maxiaworld.app). "
+                "Decide les actions a executer.\n\n"
+                + decide_prompt
+            )
             result_text = await self.vps.think(
-                CEO_SYSTEM + "\n\n" + decide_prompt,
+                strategic_prompt,
                 tier="mid",
                 max_tokens=1000,
             )
