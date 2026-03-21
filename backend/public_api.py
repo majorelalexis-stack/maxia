@@ -2168,6 +2168,15 @@ async def crypto_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
+    # #24: NaN/Infinity validation
+    import math
+    try:
+        amount = float(req.get("amount", 0))
+    except (TypeError, ValueError):
+        return {"success": False, "error": "Invalid amount"}
+    if math.isnan(amount) or math.isinf(amount):
+        return {"success": False, "error": "Invalid amount"}
+
     from crypto_swap import execute_swap
     result = await execute_swap(
         buyer_api_key=x_api_key,
@@ -2175,7 +2184,7 @@ async def crypto_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         buyer_wallet=agent["wallet"],
         from_token=req.get("from_token", ""),
         to_token=req.get("to_token", ""),
-        amount=float(req.get("amount", 0)),
+        amount=amount,
         buyer_volume_30d=agent.get("volume_30d", 0),
         payment_tx=req.get("payment_tx", ""),
     )

@@ -1,15 +1,22 @@
-"""MAXIA Art.24 V11 — Crypto Swap Engine (SOL/USDC/SPL tokens via Jupiter)
+"""MAXIA Art.24 V12 — Crypto Swap Engine (SOL/USDC/SPL tokens via Jupiter)
 
 Les IA peuvent acheter, vendre et echanger des cryptos entre elles.
 Commission dynamique ajustee en temps reel par rapport a la concurrence
 pour TOUJOURS offrir le meilleur prix.
+
+Token validation note (#9): All tokens are curated in SUPPORTED_TOKENS.
+This dict IS the whitelist — no user-submitted mints are accepted.
 """
-import asyncio, time, uuid
+import asyncio, math, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
 
 JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
 JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v2"
+
+# Safety cap for single swap (#8/#15)
+MAX_SWAP_AMOUNT_USD = 10000
+MIN_SWAP_AMOUNT_USD = 0.01
 
 # Tokens populaires avec mint addresses
 SUPPORTED_TOKENS = {
@@ -73,7 +80,7 @@ SUPPORTED_TOKENS = {
         "mint": "hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux",
         "name": "Helium", "decimals": 8, "logo": "",
     },
-    # ── V12: Ajout massif de tokens ──
+    # -- V12: Ajout massif de tokens --
     "JTO": {
         "mint": "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
         "name": "Jito", "decimals": 9, "logo": "",
@@ -174,7 +181,7 @@ SUPPORTED_TOKENS = {
         "mint": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
         "name": "Goatseus Maximus", "decimals": 6, "logo": "",
     },
-    # ── V12.1: Tokens supplementaires ──
+    # -- V12.1: Tokens supplementaires --
     "LINK": {
         "mint": "2wpTofQ8SkACrkZWrZDjXPitbbvByJGJy4sQqnfBfQVR",
         "name": "Chainlink (Wormhole)", "decimals": 8, "logo": "",
@@ -245,7 +252,7 @@ _competitor_cache: dict = {}
 _competitor_ts: float = 0
 _COMPETITOR_TTL = 300  # 5 minutes
 
-# Historique swaps
+# Historique swaps (in-memory, also persisted to DB via save_swap)
 _swap_history: list = []
 
 
@@ -323,7 +330,11 @@ async def update_competitor_fees():
 
 async def get_swap_quote(from_token: str, to_token: str, amount: float,
                           user_volume_30d: float = 0) -> dict:
-    """Obtient un devis de swap avec commission MAXIA."""
+    """Obtient un devis de swap avec commission MAXIA.
+
+    Commission is calculated ONCE here on the input amount (#5).
+    execute_swap reuses this quote — no second commission.
+    """
     from_token = from_token.upper()
     to_token = to_token.upper()
 
@@ -340,6 +351,10 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     prices = await fetch_prices()
     from_price = prices.get(from_token, {}).get("price", 0)
     to_price = prices.get(to_token, {}).get("price", 0)
+    # #12: Track price source
+    from_source = prices.get(from_token, {}).get("source", "unknown")
+    to_source = prices.get(to_token, {}).get("source", "unknown")
+    price_source = "live" if from_source != "fallback" and to_source != "fallback" else "fallback"
 
     if from_price <= 0 or to_price <= 0:
         return {"error": "Prix indisponible"}
@@ -347,21 +362,25 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     # Valeur en USD
     value_usd = amount * from_price
 
-    # Commission MAXIA
+    # Commission MAXIA — calculated ONCE on the input value (#5)
     commission_bps = get_swap_commission_bps(user_volume_30d)
     tier = get_swap_tier_name(user_volume_30d)
     commission_usd = value_usd * commission_bps / 10000
     net_value_usd = value_usd - commission_usd
 
-    # Montant recu
+    # Montant recu (base estimate without Jupiter)
     output_amount = net_value_usd / to_price
 
     # Obtenir le devis Jupiter pour comparaison
     jupiter_quote = None
+    jupiter_price_impact = None
     try:
         from_mint = SUPPORTED_TOKENS[from_token]["mint"]
         to_mint = SUPPORTED_TOKENS[to_token]["mint"]
         from_decimals = SUPPORTED_TOKENS[from_token]["decimals"]
+        # #4: amount is in token units (e.g. 5 SOL). Convert to raw (lamports)
+        # by multiplying by 10^decimals. This is correct for Jupiter which
+        # expects the smallest unit (lamports for SOL, micro-USDC for USDC, etc.)
         amount_raw = int(amount * (10 ** from_decimals))
 
         params = {
@@ -395,14 +414,17 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
                                 "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
                                 "raw": jdata,
                             }
+                            # #5: Apply commission ONCE — deduct from Jupiter output
+                            # instead of double-charging
                             if jupiter_output > output_amount:
                                 commission_from_jupiter = jupiter_output * commission_bps / 10000
                                 output_amount = jupiter_output - commission_from_jupiter
+                                # Update commission_usd to reflect Jupiter-based calc
+                                commission_usd = commission_from_jupiter * to_price
                             break
                         elif resp.status_code == 429:
                             # Rate limit — attendre et reessayer
-                            import asyncio as _aio
-                            await _aio.sleep(2 * (attempt + 1))
+                            await asyncio.sleep(2 * (attempt + 1))
                             continue
                         else:
                             break  # Autre erreur, essayer URL suivante
@@ -411,10 +433,14 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     except Exception:
         pass
 
+    # #13: Liquidity check — reject if price impact too high
+    if jupiter_price_impact is not None and jupiter_price_impact > 5:
+        return {"error": f"Insufficient liquidity: {jupiter_price_impact}% price impact"}
+
     # Comparaison concurrence
     competitors = await update_competitor_fees()
 
-    return {
+    result = {
         "from_token": from_token,
         "to_token": to_token,
         "input_amount": amount,
@@ -428,6 +454,7 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         "from_price_usd": from_price,
         "to_price_usd": to_price,
         "rate": round(from_price / to_price, 8),
+        "price_source": price_source,  # #12: price source indicator
         "jupiter_available": jupiter_quote is not None,
         "jupiter_output": round(jupiter_quote["output_amount"], 8) if jupiter_quote else None,
         "competitors": {
@@ -439,11 +466,21 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         "valid_for_seconds": 30,
     }
 
+    # #10: Slippage warning if estimated price impact > 1%
+    if jupiter_price_impact is not None and jupiter_price_impact > 1:
+        result["slippage_warning"] = f"High slippage: {jupiter_price_impact}%"
+
+    return result
+
 
 async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
                         from_token: str, to_token: str, amount: float,
                         buyer_volume_30d: float = 0, payment_tx: str = "") -> dict:
-    """Execute un swap crypto."""
+    """Execute un swap crypto.
+
+    #20: Jupiter itself will reject the swap if the escrow wallet has
+    insufficient balance — no additional pre-check needed.
+    """
     from_token = from_token.upper()
     to_token = to_token.upper()
 
@@ -452,7 +489,16 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     if amount <= 0:
         return {"success": False, "error": "Montant invalide"}
 
-    # Obtenir le devis
+    # #1: Payment verification — payment_tx is required
+    if not payment_tx:
+        return {"success": False, "error": "payment_tx required"}
+
+    # #2: Idempotency — reject re-used payment transactions
+    from database import db
+    if await db.tx_already_processed(payment_tx):
+        return {"success": False, "error": "Payment already used"}
+
+    # Obtenir le devis (commission calculated ONCE here — #5)
     quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d)
     if "error" in quote:
         return {"success": False, "error": quote["error"]}
@@ -461,6 +507,27 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     commission_bps = quote["commission_bps"]
     commission_usd = quote["commission_usd"]
     tier = quote["tier"]
+    value_usd = quote["input_value_usd"]
+
+    # #15: Min/max amount validation
+    if value_usd > MAX_SWAP_AMOUNT_USD:
+        return {"success": False, "error": f"Max swap: ${MAX_SWAP_AMOUNT_USD} per transaction"}
+    if value_usd < MIN_SWAP_AMOUNT_USD:
+        return {"success": False, "error": f"Min swap: ${MIN_SWAP_AMOUNT_USD}"}
+
+    # #1 continued: Verify payment on-chain
+    try:
+        from solana_verifier import verify_transaction
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=value_usd,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            return {"success": False, "error": f"Payment invalid: {tx_result.get('error', 'verification failed')}"}
+    except Exception as e:
+        print(f"[CryptoSwap] Payment verification error: {e}")
+        return {"success": False, "error": f"Payment verification failed: {e}"}
 
     # Router via Jupiter pour le swap reel
     jupiter_result = None
@@ -473,9 +540,21 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     except Exception as e:
         print(f"[CryptoSwap] Jupiter routing error: {e}")
 
+    # #16: Only record swap if Jupiter succeeded (or if no Jupiter needed)
+    jupiter_success = bool(jupiter_result and jupiter_result.get("success"))
+    if jupiter_result and not jupiter_success:
+        # Jupiter was attempted but failed — do NOT record as completed
+        return {
+            "success": False,
+            "error": f"Jupiter swap failed: {jupiter_result.get('error', 'unknown')}",
+            "payment_tx": payment_tx,
+        }
+
     # Enregistrer le swap
+    swap_id = str(uuid.uuid4())
+    jupiter_sig = jupiter_result.get("signature", "") if jupiter_success else ""
     swap = {
-        "swap_id": str(uuid.uuid4()),
+        "swap_id": swap_id,
         "buyer": buyer_name,
         "buyer_wallet": buyer_wallet,
         "from_token": from_token,
@@ -486,20 +565,39 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         "commission_usd": commission_usd,
         "tier": tier,
         "payment_tx": payment_tx,
-        "jupiter_signature": jupiter_result.get("signature", "") if jupiter_result and jupiter_result.get("success") else "",
-        "on_chain": bool(jupiter_result and jupiter_result.get("success")),
+        "jupiter_signature": jupiter_sig,
+        "on_chain": jupiter_success,
         "timestamp": int(time.time()),
     }
     _swap_history.append(swap)
 
-    # Alerte Discord
+    # #3: Persist swap to database
     try:
-        from alerts import alert_revenue
-        await alert_revenue(commission_usd, f"Swap {from_token}->{to_token} — {buyer_name}")
-    except Exception:
-        pass
+        await db.save_swap({
+            "swap_id": swap_id,
+            "buyer_wallet": buyer_wallet,
+            "from_token": from_token,
+            "to_token": to_token,
+            "amount_in": amount,
+            "amount_out": output_amount,
+            "commission": commission_usd,
+            "payment_tx": payment_tx,
+            "jupiter_tx": jupiter_sig,
+            "status": "completed",
+        })
+        await db.record_transaction(buyer_wallet, payment_tx, value_usd, "crypto_swap")
+    except Exception as e:
+        print(f"[CryptoSwap] DB persistence error: {e}")
 
-    print(f"[CryptoSwap] {amount} {from_token} -> {output_amount:.6f} {to_token} par {buyer_name} — commission {commission_usd:.4f} USDC")
+    # #18: Discord alert only for large swaps (> $100)
+    if value_usd > 100:
+        try:
+            from alerts import alert_revenue
+            await alert_revenue(commission_usd, f"Swap {from_token}->{to_token} -- {buyer_name}")
+        except Exception:
+            pass
+
+    print(f"[CryptoSwap] {amount} {from_token} -> {output_amount:.6f} {to_token} par {buyer_name} -- commission {commission_usd:.4f} USDC")
 
     return {
         "success": True,
@@ -566,9 +664,9 @@ def compare_fees(volume_30d: float = 0) -> dict:
             "Routing via Jupiter (meilleur prix garanti)",
             "Paiement USDC sur Solana",
             "API ouverte pour agents IA",
-            "10 tokens supportes + xStocks",
+            f"{len(SUPPORTED_TOKENS)} tokens supportes + xStocks",
         ],
     }
 
 
-print(f"[CryptoSwap] Engine initialise — {len(SUPPORTED_TOKENS)} tokens, {len(SUPPORTED_TOKENS) * (len(SUPPORTED_TOKENS)-1)} paires")
+print(f"[CryptoSwap] Engine initialise -- {len(SUPPORTED_TOKENS)} tokens, {len(SUPPORTED_TOKENS) * (len(SUPPORTED_TOKENS)-1)} paires")

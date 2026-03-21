@@ -139,6 +139,14 @@ DB_SCHEMA = (
     "service TEXT NOT NULL, price_usdc REAL NOT NULL,"
     "commission_usdc REAL NOT NULL, seller_gets_usdc REAL NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE TABLE IF NOT EXISTS crypto_swaps ("
+    "swap_id TEXT PRIMARY KEY, buyer_wallet TEXT NOT NULL,"
+    "from_token TEXT NOT NULL, to_token TEXT NOT NULL,"
+    "amount_in REAL NOT NULL, amount_out REAL NOT NULL,"
+    "commission REAL DEFAULT 0, payment_tx TEXT, jupiter_tx TEXT,"
+    "status TEXT DEFAULT 'completed',"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
 )
 
 class Database:
@@ -416,6 +424,20 @@ class Database:
             "total_volume_usdc": txs["vol"] if txs else 0,
             "total_commission_usdc": txs["comm"] if txs else 0,
         }
+
+    # ── Crypto Swaps ──
+
+    async def save_swap(self, swap: dict):
+        await self._db.execute(
+            "INSERT INTO crypto_swaps (swap_id, buyer_wallet, from_token, to_token, "
+            "amount_in, amount_out, commission, payment_tx, jupiter_tx, status) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (swap.get("swap_id", ""), swap.get("buyer_wallet", ""),
+             swap.get("from_token", ""), swap.get("to_token", ""),
+             swap.get("amount_in", 0), swap.get("amount_out", 0),
+             swap.get("commission", 0), swap.get("payment_tx", ""),
+             swap.get("jupiter_tx", ""), swap.get("status", "completed")))
+        await self._db.commit()
 
     # ── Stock Portfolios ──
 

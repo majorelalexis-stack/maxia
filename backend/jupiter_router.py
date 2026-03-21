@@ -144,7 +144,18 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
 
 async def buy_token_via_jupiter(token_mint: str, amount_usdc: float,
                                   buyer_wallet: str) -> dict:
-    """Achete un token en routant via Jupiter (USDC -> Token)."""
+    """Achete un token en routant via Jupiter (USDC -> Token).
+
+    WARNING (#8): Using escrow wallet for Jupiter swaps.
+    In production, each user should sign their own transactions.
+    Current architecture: MAXIA acts as intermediary (receives USDC,
+    swaps via escrow, sends tokens to buyer).
+    """
+    # #8: Safety cap — prevent excessively large swaps through escrow
+    MAX_SWAP_AMOUNT_USD = 10000
+    if amount_usdc > MAX_SWAP_AMOUNT_USD:
+        return {"success": False, "error": f"Swap amount exceeds safety limit (${MAX_SWAP_AMOUNT_USD})"}
+
     amount_raw = int(amount_usdc * 1e6)  # USDC a 6 decimales
 
     # 1. Obtenir le devis
