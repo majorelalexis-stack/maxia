@@ -60,7 +60,7 @@ AP2_SIGNING_KEY = os.getenv("AP2_SIGNING_KEY", "")
 
 # ── x402 ──
 X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
-SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet"]
+SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
     "/api/data/datasets":       0.10,
@@ -176,6 +176,11 @@ DATABASE_URL         = os.getenv("DATABASE_URL", "")           # postgresql://..
 REDIS_URL            = os.getenv("REDIS_URL", "")              # redis://localhost:6379/0
 ACCEPTED_CURRENCIES  = ["USDC", "SOL", "ETH"]
 CURRENCY_SLIPPAGE_PCT = float(os.getenv("CURRENCY_SLIPPAGE_PCT", "2"))
+
+# ── V12: XRP Ledger (3eme blockchain) ──
+XRPL_RPC = os.getenv("XRPL_RPC", "https://s2.ripple.com:51234/")
+XRPL_USDC_ISSUER = os.getenv("XRPL_USDC_ISSUER", "rcEGREd8NmkKRE8GE424sksyt1tJVFZwu")
+TREASURY_ADDRESS_XRPL = os.getenv("TREASURY_ADDRESS_XRPL", "")
 
 # ── V12: LLM Router (CEO autonome) ──
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")

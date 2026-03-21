@@ -2655,6 +2655,71 @@ async def whitepaper():
 
 
 # ══════════════════════════════════════════════════════════
+#  V12: XRP LEDGER (4eme reseau)
+# ══════════════════════════════════════════════════════════
+
+@app.post("/api/xrpl/verify")
+async def xrpl_verify(request: Request):
+    """Verifie une transaction sur XRP Ledger."""
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from xrpl_verifier import verify_xrpl_transaction
+        return await verify_xrpl_transaction(
+            tx_hash,
+            expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+
+@app.get("/api/xrpl/balance/{address}")
+async def xrpl_balance(address: str):
+    """Solde XRP + USDC d'un wallet XRPL."""
+    try:
+        from xrpl_verifier import get_xrpl_balance
+        return await get_xrpl_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/xrpl/info")
+async def xrpl_info():
+    """Infos XRP Ledger."""
+    from config import XRPL_RPC, XRPL_USDC_ISSUER, TREASURY_ADDRESS_XRPL
+    return {
+        "network": "xrpl-mainnet",
+        "rpc": XRPL_RPC,
+        "usdc_issuer": XRPL_USDC_ISSUER,
+        "treasury": TREASURY_ADDRESS_XRPL or "not configured",
+        "supported_currencies": ["XRP", "USDC"],
+        "settlement_time": "3-5 seconds",
+        "fees": "< $0.01",
+    }
+
+
+@app.post("/api/xrpl/verify-usdc")
+async def xrpl_verify_usdc(request: Request):
+    """Verifie un transfert USDC sur XRPL."""
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from xrpl_verifier import verify_usdc_transfer_xrpl
+        return await verify_usdc_transfer_xrpl(
+            tx_hash,
+            expected_dest=body.get("expected_dest", ""),
+            min_amount=float(body.get("min_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
 #  V11: BOURSE ACTIONS TOKENISEES (Art.23)
 # ══════════════════════════════════════════════════════════
 
