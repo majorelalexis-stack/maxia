@@ -1,4 +1,4 @@
-"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB multi-chain)"""
+"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB + TRON multi-chain)"""
 import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -7,6 +7,7 @@ from config import (
     TREASURY_ADDRESS_XRPL, TREASURY_ADDRESS_TON, TREASURY_ADDRESS_SUI,
     TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
     TREASURY_ADDRESS_AVALANCHE, TREASURY_ADDRESS_BNB,
+    TREASURY_ADDRESS_TRON,
     BASE_USDC_CONTRACT, BASE_CHAIN_ID,
     ETH_USDC_CONTRACT, ETH_CHAIN_ID, ETH_MIN_TX_USDC,
     TON_USDT_JETTON, SUI_USDC_TYPE,
@@ -14,6 +15,7 @@ from config import (
     ARBITRUM_USDC_CONTRACT, ARBITRUM_CHAIN_ID,
     AVALANCHE_USDC_CONTRACT, AVALANCHE_CHAIN_ID,
     BNB_USDC_CONTRACT, BNB_CHAIN_ID,
+    TRON_USDT_CONTRACT, TRON_USDC_CONTRACT,
     X402_PRICE_MAP, SUPPORTED_NETWORKS,
 )
 
@@ -173,6 +175,19 @@ async def x402_middleware(request: Request, call_next):
                     "maxTimeoutSeconds": 60,
                     "extra": {"chainId": BNB_CHAIN_ID},
                 })
+            # TRON (non-EVM — USDT primary, USDC available)
+            if TREASURY_ADDRESS_TRON:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "tron-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path} (TRON — USDT/USDC TRC-20)",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_TRON,
+                    "asset": TRON_USDT_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                })
             return JSONResponse(
                 status_code=402,
                 content={"x402Version": 2, "accepts": accepts},
@@ -249,6 +264,9 @@ async def x402_middleware(request: Request, call_next):
             elif "bnb" in pay_network:
                 from bnb_verifier import x402_verify_payment_bnb
                 verify_call = x402_verify_payment_bnb(pay_header, price)
+            elif "tron" in pay_network:
+                from tron_verifier import x402_verify_payment_tron
+                verify_call = x402_verify_payment_tron(pay_header, price)
             else:
                 from solana_verifier import verify_transaction
                 verify_call = verify_transaction(
@@ -265,8 +283,8 @@ async def x402_middleware(request: Request, call_next):
             )
 
         # ── Standardize result key ──
-        # XRPL, TON, SUI verifiers use "verified"; Solana/Base/ETH use "valid"
-        if any(net in pay_network for net in ("xrpl", "xrp", "ton", "sui")):
+        # XRPL, TON, SUI, TRON verifiers use "verified"; Solana/Base/ETH use "valid"
+        if any(net in pay_network for net in ("xrpl", "xrp", "ton", "sui", "tron")):
             is_valid = result.get("verified", False)
         else:
             is_valid = result.get("valid", False)

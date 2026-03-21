@@ -61,7 +61,7 @@ AP2_SIGNING_KEY = os.getenv("AP2_SIGNING_KEY", "")
 
 # ── x402 ──
 X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
-SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet"]
+SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
     "/api/gpu/auctions":        1.00,
@@ -216,6 +216,12 @@ BNB_RPC              = os.getenv("BNB_RPC", "https://bsc-dataseed.binance.org")
 BNB_CHAIN_ID         = 56
 BNB_USDC_CONTRACT    = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"
 TREASURY_ADDRESS_BNB = os.getenv("TREASURY_ADDRESS_BNB", "")
+
+# ── V12: TRON (10eme blockchain, non-EVM) ──
+TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
+TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")
+TRON_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"  # Tether USDT TRC-20
+TRON_USDC_CONTRACT = "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8"  # USDC TRC-20
 
 # ── V12: LLM Router (CEO autonome) ──
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")

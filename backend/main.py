@@ -3172,6 +3172,57 @@ async def sui_balance(address: str):
 
 
 # ══════════════════════════════════════════════════════════
+#  V12: TRON (10eme reseau, non-EVM)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/tron/info")
+async def tron_info():
+    """Infos reseau TRON."""
+    from config import TRON_API_URL, TREASURY_ADDRESS_TRON, TRON_USDT_CONTRACT, TRON_USDC_CONTRACT
+    return {
+        "network": "tron-mainnet",
+        "api": TRON_API_URL,
+        "usdt_contract": TRON_USDT_CONTRACT,
+        "usdc_contract": TRON_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_TRON or "not configured",
+        "status": "active" if TREASURY_ADDRESS_TRON else "not_configured",
+        "supported_currencies": ["TRX", "USDT", "USDC"],
+        "settlement_time": "3-5 seconds",
+        "fees": "< $0.01 (Energy/Bandwidth)",
+        "note": "TRON uses USDT (TRC-20) as primary stablecoin — largest USDT network by volume",
+    }
+
+
+@app.post("/api/tron/verify")
+async def tron_verify(request: Request):
+    """Verifie une transaction sur TRON."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_id = body.get("tx_id", "") or body.get("tx_hash", "")
+    if not tx_id:
+        raise HTTPException(400, "tx_id (or tx_hash) required")
+    try:
+        from tron_verifier import verify_tron_transaction
+        return await verify_tron_transaction(
+            tx_id,
+            expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+
+@app.get("/api/tron/balance/{address}")
+async def tron_balance(address: str):
+    """Solde TRX d'un wallet TRON."""
+    try:
+        from tron_verifier import get_tron_balance
+        return await get_tron_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
 #  V11: BOURSE ACTIONS TOKENISEES (Art.23)
 # ══════════════════════════════════════════════════════════
 
