@@ -1,11 +1,89 @@
-"""MAXIA Art.13 — Base (Coinbase L2) Verifier & x402 EVM Support"""
-import os, asyncio
+"""MAXIA Art.13 — Base (Coinbase L2) Verifier & x402 EVM Support
+Production-hardened: RPC fallback, rate limiting, proper logging, min amount checks.
+"""
+import os, asyncio, time, logging
 import httpx
-from config import BASE_RPC, BASE_CHAIN_ID, BASE_USDC_CONTRACT, X402_FACILITATOR_URL
+from config import (
+    BASE_RPC, BASE_CHAIN_ID, BASE_USDC_CONTRACT, BASE_MIN_TX_USDC,
+    X402_FACILITATOR_URL, TREASURY_ADDRESS_BASE,
+)
+
+logger = logging.getLogger("maxia.base_verifier")
+
+# ── #2: RPC fallback list ──
+BASE_RPC_URLS = [
+    os.getenv("BASE_RPC", "https://mainnet.base.org"),
+    "https://base.llamarpc.com",
+    "https://base-mainnet.public.blastapi.io",
+]
+
+# ── #9: USDC contract assertion at module load ──
+_EXPECTED_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+if BASE_USDC_CONTRACT.lower() != _EXPECTED_USDC.lower():
+    logger.critical(
+        f"[BaseVerifier] BASE_USDC_CONTRACT mismatch! "
+        f"Got {BASE_USDC_CONTRACT}, expected {_EXPECTED_USDC}. "
+        f"Payments will fail!"
+    )
+
+# ── #13: Facilitator URL HTTPS check ──
+if X402_FACILITATOR_URL and not X402_FACILITATOR_URL.startswith("https://"):
+    logger.warning(
+        f"[BaseVerifier] X402_FACILITATOR_URL is not HTTPS: {X402_FACILITATOR_URL}. "
+        f"This is insecure in production!"
+    )
+
+# ── #14: RPC rate limiter — max 100 calls/min ──
+_RPC_CALL_LIMIT = 100
+_rpc_calls: list[float] = []
+_rpc_lock = asyncio.Lock()
+
+
+async def _check_rpc_rate_limit():
+    """Enforce max RPC calls per minute. Raises if exceeded."""
+    async with _rpc_lock:
+        now = time.monotonic()
+        # Evict calls older than 60s
+        while _rpc_calls and _rpc_calls[0] < now - 60:
+            _rpc_calls.pop(0)
+        if len(_rpc_calls) >= _RPC_CALL_LIMIT:
+            raise RuntimeError(f"RPC rate limit exceeded ({_RPC_CALL_LIMIT} calls/min)")
+        _rpc_calls.append(now)
+
+
+async def _rpc_post(payload: dict, timeout: float = 20) -> dict:
+    """Post to Base RPC with fallback across multiple endpoints.
+    Tries each RPC URL in order; returns first successful response.
+    #2: RPC fallback, #6: timeout 20s, #7: specific exception logging, #14: rate limit.
+    """
+    await _check_rpc_rate_limit()
+    last_error = None
+    for rpc_url in BASE_RPC_URLS:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(rpc_url, json=payload)
+                data = resp.json()
+            if "error" in data and data["error"]:
+                logger.warning(f"[BaseVerifier] RPC {rpc_url} returned error: {data['error']}")
+                last_error = Exception(f"RPC error: {data['error']}")
+                continue
+            return data
+        except httpx.TimeoutException as e:
+            logger.warning(f"[BaseVerifier] RPC {rpc_url} timeout: {e}")
+            last_error = e
+        except httpx.ConnectError as e:
+            logger.warning(f"[BaseVerifier] RPC {rpc_url} connect error: {e}")
+            last_error = e
+        except Exception as e:
+            logger.warning(f"[BaseVerifier] RPC {rpc_url} unexpected error: {type(e).__name__}: {e}")
+            last_error = e
+    raise last_error or Exception("All Base RPC endpoints failed")
 
 
 async def verify_base_transaction(tx_hash: str, expected_to: str = None) -> dict:
-    """Verify a transaction on Base L2 via eth_getTransactionReceipt."""
+    """Verify a transaction on Base L2 via eth_getTransactionReceipt.
+    #2: RPC fallback, #6: 20s timeout, #7: specific error logging.
+    """
     payload = {
         "jsonrpc": "2.0", "id": 1,
         "method": "eth_getTransactionReceipt",
@@ -13,9 +91,7 @@ async def verify_base_transaction(tx_hash: str, expected_to: str = None) -> dict
     }
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(BASE_RPC, json=payload)
-                data = resp.json()
+            data = await _rpc_post(payload)
             result = data.get("result")
             if not result:
                 await asyncio.sleep(2 ** attempt)
@@ -24,6 +100,8 @@ async def verify_base_transaction(tx_hash: str, expected_to: str = None) -> dict
                 return {"valid": False, "error": "Transaction reverted"}
             if expected_to and result.get("to", "").lower() != expected_to.lower():
                 return {"valid": False, "error": "Recipient mismatch"}
+            # #16: Log successful verification
+            logger.info(f"[BaseVerifier] TX verified: {tx_hash[:16]}... block={result.get('blockNumber')}")
             return {
                 "valid": True,
                 "blockNumber": int(result.get("blockNumber", "0x0"), 16),
@@ -33,18 +111,41 @@ async def verify_base_transaction(tx_hash: str, expected_to: str = None) -> dict
                 "network": "base-mainnet",
                 "chainId": BASE_CHAIN_ID,
             }
+        except RuntimeError as e:
+            # Rate limit exceeded — don't retry
+            return {"valid": False, "error": str(e)}
+        except httpx.TimeoutException as e:
+            logger.warning(f"[BaseVerifier] verify_base_transaction attempt {attempt + 1} timeout: {e}")
+            await asyncio.sleep(2 ** attempt)
+        except httpx.ConnectError as e:
+            logger.warning(f"[BaseVerifier] verify_base_transaction attempt {attempt + 1} connect error: {e}")
+            await asyncio.sleep(2 ** attempt)
         except Exception as e:
-            print(f"[BaseVerifier] Attempt {attempt + 1} failed: {e}")
+            logger.error(f"[BaseVerifier] verify_base_transaction attempt {attempt + 1} failed: {type(e).__name__}: {e}")
             await asyncio.sleep(2 ** attempt)
     return {"valid": False, "error": "Verification failed after retries"}
 
 
 async def verify_usdc_transfer_base(tx_hash: str, expected_amount_raw: int = None,
                                      expected_recipient: str = None) -> dict:
-    """Verify a USDC ERC-20 Transfer event on Base with recipient + amount check."""
+    """Verify a USDC ERC-20 Transfer event on Base with recipient + amount check.
+    #1: Graceful handling of missing treasury, #4: address extraction validation,
+    #5: min tx amount check, #7: better error logging, #16: success logging.
+    """
+    # #1: Handle missing treasury config gracefully
     if not expected_recipient:
-        from config import TREASURY_ADDRESS_BASE
+        if not TREASURY_ADDRESS_BASE:
+            return {"valid": False, "error": "TREASURY_ADDRESS_BASE not configured"}
         expected_recipient = TREASURY_ADDRESS_BASE
+
+    # #5: Minimum transaction amount
+    if expected_amount_raw is not None and expected_amount_raw > 0:
+        min_raw = int(BASE_MIN_TX_USDC * 1e6)
+        if expected_amount_raw < min_raw:
+            return {
+                "valid": False,
+                "error": f"Amount below minimum: ${expected_amount_raw / 1e6:.4f} < ${BASE_MIN_TX_USDC}",
+            }
 
     receipt = await verify_base_transaction(tx_hash, expected_to=None)
     if not receipt.get("valid"):
@@ -56,50 +157,78 @@ async def verify_usdc_transfer_base(tx_hash: str, expected_amount_raw: int = Non
         "params": [tx_hash],
     }
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(BASE_RPC, json=payload)
-            data = resp.json()
+        data = await _rpc_post(payload)
         logs = data.get("result", {}).get("logs", [])
         transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
         for log in logs:
             topics = log.get("topics", [])
-            if (log.get("address", "").lower() == BASE_USDC_CONTRACT.lower()
-                    and len(topics) >= 3
-                    and topics[0] == transfer_topic):
-                amount = int(log.get("data", "0x0"), 16)
-                from_addr = "0x" + topics[1][-40:]
-                to_addr = "0x" + topics[2][-40:]
 
-                # Verifier le destinataire
-                if expected_recipient and to_addr.lower() != expected_recipient.lower():
-                    return {
-                        "valid": False,
-                        "error": f"Recipient mismatch: {to_addr} != {expected_recipient}",
-                    }
+            # #4: Address extraction validation — ensure topics has enough entries and correct length
+            if len(topics) < 3:
+                continue
+            if (log.get("address", "").lower() != BASE_USDC_CONTRACT.lower()
+                    or topics[0] != transfer_topic):
+                continue
+            if len(topics[1]) < 42 or len(topics[2]) < 42:
+                logger.warning(f"[BaseVerifier] Malformed topics in tx {tx_hash}: len(topics[1])={len(topics[1])}, len(topics[2])={len(topics[2])}")
+                continue
 
-                # Verifier le montant
-                if expected_amount_raw and amount < expected_amount_raw:
-                    return {
-                        "valid": False,
-                        "error": f"Insufficient: {amount / 1e6:.2f} USDC < {expected_amount_raw / 1e6:.2f} USDC",
-                    }
+            amount = int(log.get("data", "0x0"), 16)
+            from_addr = "0x" + topics[1][-40:]
+            to_addr = "0x" + topics[2][-40:]
 
-                receipt["usdcTransfer"] = {
-                    "from": from_addr,
-                    "to": to_addr,
-                    "amount_raw": amount,
-                    "amount_usdc": amount / 1e6,
+            # Verify recipient
+            if expected_recipient and to_addr.lower() != expected_recipient.lower():
+                return {
+                    "valid": False,
+                    "error": f"Recipient mismatch: {to_addr} != {expected_recipient}",
                 }
-                return receipt
+
+            # Verify amount
+            if expected_amount_raw and amount < expected_amount_raw:
+                return {
+                    "valid": False,
+                    "error": f"Insufficient: {amount / 1e6:.2f} USDC < {expected_amount_raw / 1e6:.2f} USDC",
+                }
+
+            receipt["usdcTransfer"] = {
+                "from": from_addr,
+                "to": to_addr,
+                "amount_raw": amount,
+                "amount_usdc": amount / 1e6,
+            }
+            # #16: Log successful USDC verification
+            logger.info(
+                f"[BaseVerifier] USDC transfer verified: {tx_hash[:16]}... "
+                f"{from_addr[:10]}...->{to_addr[:10]}... {amount / 1e6:.2f} USDC"
+            )
+            return receipt
         return {"valid": False, "error": "No USDC transfer found in logs"}
+    except RuntimeError as e:
+        return {"valid": False, "error": str(e)}
+    except httpx.TimeoutException as e:
+        logger.error(f"[BaseVerifier] verify_usdc_transfer_base timeout: {e}")
+        return {"valid": False, "error": f"RPC timeout: {e}"}
+    except httpx.ConnectError as e:
+        logger.error(f"[BaseVerifier] verify_usdc_transfer_base connect error: {e}")
+        return {"valid": False, "error": f"RPC connection error: {e}"}
     except Exception as e:
+        logger.error(f"[BaseVerifier] verify_usdc_transfer_base error: {type(e).__name__}: {e}")
         return {"valid": False, "error": str(e)}
 
 
 async def x402_verify_payment_base(payment_header: str, expected_amount_usdc: float) -> dict:
-    """Verify an x402 payment on Base via the Coinbase facilitator."""
+    """Verify an x402 payment on Base via the Coinbase facilitator.
+    #3: Fallback to direct on-chain verification if facilitator fails.
+    #13: Warns if facilitator URL is not HTTPS.
+    """
+    # #13: Runtime HTTPS enforcement
+    if X402_FACILITATOR_URL and not X402_FACILITATOR_URL.startswith("https://"):
+        logger.warning(f"[x402] Facilitator URL is not HTTPS: {X402_FACILITATOR_URL}")
+
+    # First try: facilitator
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(
                 f"{X402_FACILITATOR_URL}/verify",
                 json={
@@ -110,15 +239,41 @@ async def x402_verify_payment_base(payment_header: str, expected_amount_usdc: fl
             )
             result = resp.json()
         if resp.status_code == 200 and result.get("valid"):
+            # #16: Log successful x402 verification
+            logger.info(f"[x402] Base payment verified via facilitator: {result.get('txHash', '')[:16]}...")
             return {
                 "valid": True,
                 "txHash": result.get("txHash", ""),
                 "network": "base-mainnet",
                 "settledAmount": result.get("settledAmount"),
             }
-        return {"valid": False, "error": result.get("error", "Facilitator rejected")}
+        logger.warning(f"[x402] Facilitator rejected: {result.get('error', 'unknown')}")
+    except httpx.TimeoutException as e:
+        logger.warning(f"[x402] Facilitator timeout: {e}")
+    except httpx.ConnectError as e:
+        logger.warning(f"[x402] Facilitator connect error: {e}")
     except Exception as e:
-        return {"valid": False, "error": f"Facilitator error: {e}"}
+        logger.warning(f"[x402] Facilitator error: {type(e).__name__}: {e}")
+
+    # #3: Fallback — try direct on-chain USDC transfer verification
+    # The payment_header might be a tx hash directly
+    if payment_header and payment_header.startswith("0x") and len(payment_header) == 66:
+        logger.info(f"[x402] Attempting direct on-chain fallback for {payment_header[:16]}...")
+        try:
+            direct_result = await verify_usdc_transfer_base(
+                tx_hash=payment_header,
+                expected_amount_raw=int(expected_amount_usdc * 1e6),
+            )
+            if direct_result.get("valid"):
+                logger.info(f"[x402] Direct on-chain verification succeeded for {payment_header[:16]}...")
+                direct_result["verifiedVia"] = "direct-onchain-fallback"
+                direct_result["txHash"] = payment_header
+                return direct_result
+            logger.warning(f"[x402] Direct on-chain fallback failed: {direct_result.get('error')}")
+        except Exception as e:
+            logger.error(f"[x402] Direct on-chain fallback error: {type(e).__name__}: {e}")
+
+    return {"valid": False, "error": "Facilitator rejected and direct verification failed"}
 
 
 def build_x402_challenge_base(path: str, price_usdc: float, pay_to: str) -> dict:

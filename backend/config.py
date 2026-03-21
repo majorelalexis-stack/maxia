@@ -39,6 +39,7 @@ BASE_RPC              = os.getenv("BASE_RPC", "https://mainnet.base.org")
 BASE_CHAIN_ID         = 8453
 BASE_USDC_CONTRACT    = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 TREASURY_ADDRESS_BASE = os.getenv("TREASURY_ADDRESS_BASE", "")
+BASE_MIN_TX_USDC      = float(os.getenv("BASE_MIN_TX_USDC", "0.01"))  # Min $0.01 on Base (low gas)
 
 # ── Ethereum Mainnet (grosses transactions uniquement) ──
 ETH_RPC              = os.getenv("ETH_RPC", "https://eth.llamarpc.com")

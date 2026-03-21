@@ -1,10 +1,15 @@
 """MAXIA Art.16 V11 — Cross-Chain Bridge Handler (via Li.Fi API)"""
-import os, time, uuid, asyncio
+import os, time, uuid, asyncio, logging
 import httpx
 from config import (
     LIFI_API_URL, BRIDGE_ENABLED, TREASURY_ADDRESS,
     TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
 )
+
+logger = logging.getLogger("maxia.cross_chain")
+
+# #8: Bridge slippage configurable via env var (default 1%)
+BRIDGE_SLIPPAGE_PCT = float(os.getenv("BRIDGE_SLIPPAGE_PCT", "1.0"))
 
 
 class CrossChainHandler:
@@ -50,7 +55,7 @@ class CrossChainHandler:
             "fromAmount": amount,
             "fromAddress": from_address,
             "toAddress": to_address,
-            "slippage": "0.01",
+            "slippage": str(BRIDGE_SLIPPAGE_PCT / 100),  # #8: configurable slippage
         }
 
         try:
@@ -88,11 +93,27 @@ class CrossChainHandler:
         if not bridge:
             return {"error": "Bridge introuvable"}
 
-        # Verifier le solde actuel de la treasury
+        # Verifier le solde actuel de la treasury Solana
         from solana_tx import get_sol_balance
         balance = await get_sol_balance(TREASURY_ADDRESS)
-
         bridge["treasury_balance_check"] = balance
+
+        # #12: Also check Base treasury balance if configured
+        if TREASURY_ADDRESS_BASE:
+            try:
+                from base_verifier import _rpc_post
+                payload = {
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "eth_getBalance",
+                    "params": [TREASURY_ADDRESS_BASE, "latest"],
+                }
+                data = await _rpc_post(payload)
+                base_balance_wei = int(data.get("result", "0x0"), 16)
+                bridge["base_treasury_balance_eth"] = base_balance_wei / 1e18
+            except Exception as e:
+                logger.warning(f"[CrossChain] Failed to check Base treasury balance: {e}")
+                bridge["base_treasury_balance_eth"] = None
+
         bridge["last_check"] = int(time.time())
 
         return bridge

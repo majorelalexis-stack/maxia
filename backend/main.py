@@ -2124,23 +2124,28 @@ async def agent_stats(wallet: str):
 @app.get("/api/base/info")
 async def base_info():
     from config import BASE_RPC, BASE_CHAIN_ID, BASE_USDC_CONTRACT
+    # #11: status depends on treasury configuration (#17: startup validation)
     return {
         "network": "base-mainnet",
         "chainId": BASE_CHAIN_ID,
         "rpc": BASE_RPC,
         "usdcContract": BASE_USDC_CONTRACT,
         "treasury": TREASURY_ADDRESS_BASE,
-        "status": "active",
+        "status": "active" if TREASURY_ADDRESS_BASE else "not_configured",
     }
 
 
 @app.post("/api/base/verify")
-async def verify_base_tx(req: BaseVerifyRequest):
+async def verify_base_tx(req: BaseVerifyRequest, request: Request):
+    # #15: Rate limit on verify endpoints (raises HTTPException 429 if exceeded)
+    check_rate_limit(request)
     return await verify_base_transaction(req.tx_hash, req.expected_to)
 
 
 @app.post("/api/base/verify-usdc")
-async def verify_base_usdc(req: BaseVerifyRequest):
+async def verify_base_usdc(req: BaseVerifyRequest, request: Request):
+    # #15: Rate limit on verify endpoints (raises HTTPException 429 if exceeded)
+    check_rate_limit(request)
     return await verify_usdc_transfer_base(req.tx_hash, req.expected_amount_raw)
 
 

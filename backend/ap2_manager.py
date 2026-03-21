@@ -283,6 +283,9 @@ class AP2Manager:
             if "base" in network:
                 from base_verifier import verify_usdc_transfer_base
                 from config import TREASURY_ADDRESS_BASE
+                # #10: Explicit error if Base treasury is not configured
+                if not TREASURY_ADDRESS_BASE:
+                    return {"valid": False, "error": "Base L2 treasury not configured (TREASURY_ADDRESS_BASE missing)"}
                 result = await verify_usdc_transfer_base(
                     tx_hash=payment_payload,
                     expected_amount_raw=int(expected * 1e6) if expected else None,
