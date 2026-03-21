@@ -21,6 +21,7 @@ import httpx
 from config import (
     get_rpc_url, ETH_RPC, BASE_RPC, GROQ_API_KEY, GROQ_MODEL,
     MARKETING_WALLET_ADDRESS, PROSPECT_MAX_PER_DAY,
+    POLYGON_RPC, ARBITRUM_RPC, AVALANCHE_RPC, BNB_RPC,
 )
 from alerts import alert_system, alert_error
 
@@ -80,6 +81,26 @@ BASE_AI_CONTRACTS = {
         "type": "factory",
         "scan_method": "logs",
     },
+}
+
+# Polygon AI contracts
+POLYGON_AI_CONTRACTS = {
+    "0x0000000000000000000000000000000000001010": {"name": "Polygon MATIC", "type": "token", "scan_method": "logs"},
+}
+
+# Arbitrum AI contracts
+ARBITRUM_AI_CONTRACTS = {
+    "0x912CE59144191C1204E64559FE8253a0e49E6548": {"name": "ARB Token", "type": "token", "scan_method": "transfers"},
+}
+
+# Avalanche AI contracts
+AVALANCHE_AI_CONTRACTS = {
+    "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7": {"name": "WAVAX", "type": "token", "scan_method": "logs"},
+}
+
+# BNB Chain AI contracts
+BNB_AI_CONTRACTS = {
+    "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c": {"name": "WBNB", "type": "token", "scan_method": "logs"},
 }
 
 # Known AI agent registries (HTTP APIs)
@@ -157,6 +178,12 @@ class ScoutAgent:
             self._scan_solana(),
             self._scan_ethereum(),
             self._scan_base(),
+            self._scan_evm_chain("polygon", POLYGON_RPC, POLYGON_AI_CONTRACTS),
+            self._scan_evm_chain("arbitrum", ARBITRUM_RPC, ARBITRUM_AI_CONTRACTS),
+            self._scan_evm_chain("avalanche", AVALANCHE_RPC, AVALANCHE_AI_CONTRACTS),
+            self._scan_evm_chain("bnb", BNB_RPC, BNB_AI_CONTRACTS),
+            self._scan_ton(),
+            self._scan_sui(),
             self._scan_registries(),
             return_exceptions=True,
         )
@@ -303,6 +330,92 @@ class ScoutAgent:
                         })
             except Exception as e:
                 print(f"[SCOUT] Base scan {info['name']} error: {e}")
+        return agents
+
+    async def _scan_evm_chain(self, chain_name: str, rpc_url: str, contracts: dict) -> list:
+        """Scan generique pour chains EVM (Polygon, Arbitrum, Avalanche, BNB)."""
+        agents = []
+        for contract, info in contracts.items():
+            try:
+                payload = {
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "eth_getLogs",
+                    "params": [{"address": contract, "fromBlock": "latest", "toBlock": "latest"}],
+                }
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(rpc_url, json=payload)
+                    logs = resp.json().get("result", [])
+                    wallets = set()
+                    for log in logs[:20]:
+                        topics = log.get("topics", [])
+                        for t in topics[1:]:
+                            if len(t) == 66:
+                                addr = "0x" + t[-40:]
+                                if addr != "0x" + "0" * 40:
+                                    wallets.add(addr)
+                    for wallet in list(wallets)[:5]:
+                        agents.append({
+                            "address": wallet,
+                            "chain": chain_name,
+                            "protocol": info["name"],
+                            "type": info["type"],
+                            "contact_method": "api_or_onchain",
+                        })
+            except Exception as e:
+                print(f"[SCOUT] {chain_name} scan {info['name']} error: {e}")
+        return agents
+
+    async def _scan_ton(self) -> list:
+        """Scan TON pour trouver des bots/agents actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                # Chercher les transactions recentes sur des contrats connus
+                resp = await client.get("https://toncenter.com/api/v2/getTransactions",
+                    params={"address": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs", "limit": 10})
+                data = resp.json()
+                if data.get("ok"):
+                    for tx in data.get("result", [])[:10]:
+                        sender = tx.get("in_msg", {}).get("source", "")
+                        if sender:
+                            agents.append({
+                                "address": sender,
+                                "chain": "ton",
+                                "protocol": "TON USDT",
+                                "type": "active_wallet",
+                                "contact_method": "telegram",
+                            })
+        except Exception as e:
+            print(f"[SCOUT] TON scan error: {e}")
+        return agents
+
+    async def _scan_sui(self) -> list:
+        """Scan SUI pour trouver des agents/bots actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post("https://fullnode.mainnet.sui.io:443", json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "suix_queryEvents",
+                    "params": [{"MoveModule": {"package": "0x2", "module": "coin"}}, None, 10, True],
+                })
+                data = resp.json()
+                events = data.get("result", {}).get("data", [])
+                wallets = set()
+                for event in events[:10]:
+                    sender = event.get("sender", "")
+                    if sender:
+                        wallets.add(sender)
+                for wallet in list(wallets)[:5]:
+                    agents.append({
+                        "address": wallet,
+                        "chain": "sui",
+                        "protocol": "SUI DeFi",
+                        "type": "active_wallet",
+                        "contact_method": "api_or_onchain",
+                    })
+        except Exception as e:
+            print(f"[SCOUT] SUI scan error: {e}")
         return agents
 
     async def _scan_registries(self) -> list:
