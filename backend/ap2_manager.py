@@ -295,7 +295,12 @@ class AP2Manager:
                 return result
             if "ethereum" in network:
                 from eth_verifier import verify_usdc_transfer_eth
-                from config import TREASURY_ADDRESS_ETH
+                from config import TREASURY_ADDRESS_ETH, ETH_MIN_TX_USDC
+                # #12: Enforce minimum amount for Ethereum (high gas fees)
+                if not TREASURY_ADDRESS_ETH:
+                    return {"valid": False, "error": "ETH treasury not configured (TREASURY_ADDRESS_ETH missing)"}
+                if expected and expected < ETH_MIN_TX_USDC:
+                    return {"valid": False, "error": f"Amount ${expected:.2f} below Ethereum minimum (${ETH_MIN_TX_USDC}). Use Solana or Base for small amounts."}
                 result = await verify_usdc_transfer_eth(
                     tx_hash=payment_payload,
                     expected_amount_raw=int(expected * 1e6) if expected else None,

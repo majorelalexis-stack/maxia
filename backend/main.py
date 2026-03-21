@@ -2169,13 +2169,17 @@ async def ethereum_info():
 
 
 @app.post("/api/ethereum/verify")
-async def verify_eth_tx(req: BaseVerifyRequest):
+async def verify_eth_tx(req: BaseVerifyRequest, request: Request):
+    # #14-17: Rate limit on Ethereum verify endpoints (same pattern as Base)
+    check_rate_limit(request)
     from eth_verifier import verify_eth_transaction
     return await verify_eth_transaction(req.tx_hash, req.expected_to)
 
 
 @app.post("/api/ethereum/verify-usdc")
-async def verify_eth_usdc(req: BaseVerifyRequest):
+async def verify_eth_usdc(req: BaseVerifyRequest, request: Request):
+    # #14-17: Rate limit on Ethereum verify-usdc endpoints (same pattern as Base)
+    check_rate_limit(request)
     from eth_verifier import verify_usdc_transfer_eth
     return await verify_usdc_transfer_eth(req.tx_hash, req.expected_amount_raw)
 

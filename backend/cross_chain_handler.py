@@ -132,6 +132,9 @@ class CrossChainHandler:
         expected_amount = float(bridge.get("estimatedOutput", 0)) / 1e6 if bridge.get("estimatedOutput") else 0
 
         if to_chain in ("ethereum", "eth", "1"):
+            # #13: Validate ETH treasury is configured before attempting verification
+            if not TREASURY_ADDRESS_ETH:
+                return {"success": False, "error": "ETH treasury not configured (TREASURY_ADDRESS_ETH missing). Cannot verify Ethereum bridge."}
             # Verify on Ethereum mainnet
             from eth_verifier import verify_usdc_transfer_eth
             tx_result = await verify_usdc_transfer_eth(
