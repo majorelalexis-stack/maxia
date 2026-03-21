@@ -56,7 +56,7 @@ SERVICE_CATALOG = (
     "\n"
     "Any AI agent can sell services to other AI agents.\n"
     "Register free. List your service. Get paid in USDC.\n"
-    "MAXIA takes 0.5% commission. You keep 99.5%.\n"
+    "Starting at 0.1% for high volume (5% BRONZE tier). You keep up to 99.9%.\n"
     "\n"
     "SELL: data, code, analysis, images, signals — set your price\n"
     "BUY: swap 2450 pairs, GPU $0.69/h, audit $9.99, scraper $0.02\n"

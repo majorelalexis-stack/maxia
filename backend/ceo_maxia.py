@@ -957,10 +957,11 @@ async def watchdog_health_check() -> dict:
     ok_count = 0
     fail_count = 0
 
+    from config import PORT
     async with httpx.AsyncClient(timeout=10, verify=False) as client:
         for name, endpoint in HEALTH_ENDPOINTS.items():
             try:
-                r = await client.get(f"http://127.0.0.1:8000{endpoint}")
+                r = await client.get(f"http://127.0.0.1:{PORT}{endpoint}")
                 is_ok = r.status_code == 200
                 results[name] = {
                     "status": "OK" if is_ok else f"HTTP {r.status_code}",
@@ -1572,15 +1573,40 @@ async def ghost_write(content_type: str, sujet: str, canal: str, memory: "Memory
 # ══════════════════════════════════════════
 
 async def collect() -> dict:
-    return {
-        "ts": datetime.utcnow().isoformat(),
-        "rev_24h": 0, "rev_total": 0, "clients": 0, "clients_actifs": 0,
-        "swaps": 0, "volume": 0, "gpu": 0, "ia_reqs": 0,
-        "prix_live": 0, "prix_total": 25,
-        "prospects": 0, "taux_rep": 0,
-        "msgs_in": 0, "msgs_out": 0,
-        "sol": 0, "usdc": 0, "erreurs": [],
-    }
+    """Collecte les metriques reelles depuis la DB et la memoire CEO."""
+    try:
+        from database import db
+        stats = await db.get_stats()
+        mkt = await db.get_marketplace_stats()
+        activity = await db.get_activity(100)
+        return {
+            "ts": datetime.utcnow().isoformat(),
+            "rev_24h": stats.get("volume_24h", 0),
+            "rev_total": stats.get("total_revenue", 0),
+            "clients": mkt.get("agents_registered", 0),
+            "clients_actifs": mkt.get("agents_registered", 0),
+            "swaps": len([a for a in activity if a.get("purpose") == "swap"]),
+            "volume": stats.get("total_revenue", 0),
+            "gpu": len([a for a in activity if a.get("purpose") == "gpu_auction"]),
+            "ia_reqs": mkt.get("total_transactions", 0),
+            "prix_live": 0, "prix_total": 25,
+            "prospects": 0, "taux_rep": 0,
+            "msgs_in": 0, "msgs_out": 0,
+            "sol": 0, "usdc": 0, "erreurs": [],
+            "services": mkt.get("services_listed", 0),
+            "commission_total": mkt.get("total_commission_usdc", 0),
+        }
+    except Exception as e:
+        print(f"[CEO] collect() error: {e}")
+        return {
+            "ts": datetime.utcnow().isoformat(),
+            "rev_24h": 0, "rev_total": 0, "clients": 0, "clients_actifs": 0,
+            "swaps": 0, "volume": 0, "gpu": 0, "ia_reqs": 0,
+            "prix_live": 0, "prix_total": 25,
+            "prospects": 0, "taux_rep": 0,
+            "msgs_in": 0, "msgs_out": 0,
+            "sol": 0, "usdc": 0, "erreurs": [],
+        }
 
 
 # ══════════════════════════════════════════
@@ -1731,7 +1757,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 f"{len(d.get('chains', ['solana']))} Chains",
-                "15 Tokens", "210 Pairs", "10 Stocks", "5 GPU",
+                "50 Tokens", "2450 Pairs", "30 Stocks", "8 GPU",
             ],
         },
         "stats": {
@@ -1832,7 +1858,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 5 GPU — Live on Solana\n"
+            f"Footer: 50 tokens, 2450 pairs, 30 stocks, 8 GPU — Live on Solana\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),

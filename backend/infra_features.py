@@ -79,8 +79,11 @@ async def webhook_subscribe(req: dict, x_api_key: str = Header(None, alias="X-AP
         raise HTTPException(401, "X-API-Key required")
     agent = await _get_agent(x_api_key)
     callback_url = req.get("callback_url", "")
-    if not callback_url or not callback_url.startswith("https://"):
-        raise HTTPException(400, "HTTPS callback_url required")
+    try:
+        from webhook_dispatcher import validate_callback_url
+        callback_url = validate_callback_url(callback_url)
+    except ValueError as e:
+        raise HTTPException(400, f"Invalid callback_url: {e}")
 
     events = req.get("events", ["all"])
     if not isinstance(events, list):

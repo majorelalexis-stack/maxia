@@ -308,7 +308,8 @@ async def _execute_tool(name: str, args: dict) -> dict:
     """Route tool call to the right MAXIA function."""
     import httpx
 
-    async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=30) as client:
+    from config import PORT
+    async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{PORT}", timeout=30) as client:
 
         if name == "maxia_discover":
             r = await client.get("/api/public/discover", params={

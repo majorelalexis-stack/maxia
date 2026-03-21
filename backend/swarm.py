@@ -20,7 +20,7 @@ import asyncio, uuid, time, json, hashlib
 import httpx
 from config import (
     GROQ_API_KEY, GROQ_MODEL, TREASURY_ADDRESS,
-    RAILWAY_API_TOKEN, GROWTH_MONTHLY_BUDGET,
+    RAILWAY_API_TOKEN, GROWTH_MONTHLY_BUDGET, PORT,
 )
 from alerts import alert_system, alert_error
 
@@ -428,7 +428,7 @@ class Swarm:
     async def _register_bot(self, template: dict) -> dict:
         """Register a bot agent on MAXIA marketplace."""
         try:
-            async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+            async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{PORT}", timeout=10) as client:
                 r = await client.post("/api/public/register", json={
                     "name": template["name"],
                     "wallet": "internal",
@@ -456,7 +456,7 @@ class Swarm:
             }
             svc_type = type_map.get(template.get("niche_id", ""), "data")
 
-            async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+            async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{PORT}", timeout=10) as client:
                 r = await client.post("/api/public/sell",
                     headers={"X-API-Key": api_key},
                     json={

@@ -9,6 +9,9 @@ from datetime import datetime
 
 # XRPL USDC issuer (Circle)
 XRPL_USDC_ISSUER = "rcEGREd8NmkKRE8GE424sksyt1tJVFZwu"
+# On XRPL, standard currency codes are 3 characters (ISO 4217).
+# Circle's USDC on XRPL uses "USD" as the currency code (not "USDC").
+# This is correct per XRPL spec: 3-char codes are native, longer codes are hex-encoded.
 XRPL_USDC_CURRENCY = "USD"
 
 
@@ -64,7 +67,8 @@ async def verify_xrpl_transaction(tx_hash: str, expected_dest: str = "",
                 return {"verified": False, "error": "Format montant inconnu"}
 
             # Verifications
-            if expected_dest and receiver.lower() != expected_dest.lower():
+            # XRP addresses are case-sensitive (base58check) — exact comparison required
+            if expected_dest and receiver != expected_dest:
                 return {"verified": False, "error": f"Destinataire incorrect: {receiver}"}
             if expected_amount > 0 and amount < expected_amount * 0.99:
                 return {"verified": False, "error": f"Montant insuffisant: {amount} < {expected_amount}"}

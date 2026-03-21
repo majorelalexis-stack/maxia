@@ -8,7 +8,7 @@ Le bot gere un canal @MAXIA_alerts avec :
 """
 import asyncio, time, json
 import httpx
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL
+from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL, PORT
 
 _running = False
 
@@ -147,7 +147,7 @@ async def handle_telegram_updates():
 async def _ask_ceo(message: str, user: str) -> str:
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post("http://127.0.0.1:8000/api/ceo/ask", json={"message": message})
+            resp = await client.post(f"http://127.0.0.1:{PORT}/api/ceo/ask", json={"message": message})
             if resp.status_code == 200:
                 return resp.json().get("response", "Erreur CEO")
             return f"Erreur API: {resp.status_code}"

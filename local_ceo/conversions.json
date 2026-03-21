@@ -12,8 +12,8 @@
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 2,
-      "successes": 2,
+      "attempts": 3,
+      "successes": 3,
       "failures": 0
     },
     "handle_support": {
@@ -52,6 +52,26 @@
       "failures": 1
     },
     "comment_github_ai": {
+      "attempts": 1,
+      "successes": 1,
+      "failures": 0
+    },
+    "Lancer une campagne de prospection ultra-cibl\u00e9e sur Reddit (r/solanadev, r/aiagents) avec des messages personnalis\u00e9s pour les devs ayant des bots IA fonctionnels mais sans revenus.": {
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1
+    },
+    "D\u00e9ployer un bot de contact automatis\u00e9 sur Discord (Solana Dev Hub, ElizaOS) pour identifier les agents IA actifs et leur proposer un partenariat de test gratuit avec suivi personnalis\u00e9.": {
+      "attempts": 1,
+      "successes": 1,
+      "failures": 0
+    },
+    "Activer le module MICRO pour distribuer 100 micro-grants de 0.1 USDC via airdrop cibl\u00e9 aux wallets ayant des interactions r\u00e9centes avec des DEX Solana (Jupiter, Raydium), avec lien direct vers la page de listing.": {
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1
+    },
+    "reply_mentions": {
       "attempts": 1,
       "successes": 1,
       "failures": 0

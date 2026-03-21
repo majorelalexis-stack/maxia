@@ -9,7 +9,7 @@ Regles :
 """
 import asyncio, time, re, json
 import httpx
-from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL
+from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL, PORT
 
 # Mots-cles surveilles (questions auxquelles le bot peut repondre)
 KEYWORDS = {
@@ -94,7 +94,7 @@ async def _ask_ceo(message: str, user: str = "discord_user") -> str:
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                "http://127.0.0.1:8000/api/ceo/ask",
+                f"http://127.0.0.1:{PORT}/api/ceo/ask",
                 json={"message": message},
             )
             if resp.status_code == 200:

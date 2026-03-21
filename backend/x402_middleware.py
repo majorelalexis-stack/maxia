@@ -93,7 +93,9 @@ async def x402_middleware(request: Request, call_next):
                 expected_recipient=TREASURY_ADDRESS,
             )
 
-        if not result.get("valid"):
+        # xrpl_verifier returns "verified", others return "valid"
+        is_valid = result.get("valid") or result.get("verified")
+        if not is_valid:
             return JSONResponse(
                 status_code=402,
                 content={"error": "Payment verification failed",

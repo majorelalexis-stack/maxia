@@ -115,14 +115,7 @@ async def lifespan(app: FastAPI):
     await ensure_api_keys_tables(db)
     await ensure_webhook_tables(db)
     await ensure_sla_tables(db)
-    # Ensure disputes table exists (even on existing DB)
-    try:
-        await db.raw_execute(
-            "CREATE TABLE IF NOT EXISTS disputes ("
-            "id TEXT PRIMARY KEY, data TEXT NOT NULL,"
-            "created_at INTEGER DEFAULT (strftime('%s','now')))")
-    except Exception:
-        pass
+    # disputes table is already created in DB_SCHEMA (database.py)
 
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
     t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
@@ -393,12 +386,10 @@ async def serve_landing():
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-async def serve_dashboard(request: Request, key: str = ""):
-    import urllib.parse
-    # Accepte X-Admin-Key header OU query param key (legacy)
+async def serve_dashboard(request: Request):
+    # Only accept X-Admin-Key header (no query param to avoid key leaking in logs/referer)
     header_key = request.headers.get("X-Admin-Key", "")
-    decoded_key = urllib.parse.unquote_plus(key)
-    if header_key != ADMIN_KEY and decoded_key != ADMIN_KEY and key != ADMIN_KEY:
+    if header_key != ADMIN_KEY:
         return HTMLResponse(
             "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
             "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
@@ -641,7 +632,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
       <li>Rug pull detection</li>
       <li>Wallet analysis</li>
       <li>DeFi yield scanner</li>
-      <li>Stock prices (28 stocks)</li>
+      <li>Stock prices (30 stocks)</li>
       <li>GPU tier listing</li>
       <li>Leaderboard</li>
       <li>Service templates</li>
@@ -881,12 +872,16 @@ async def v1_alias(path: str, request: Request):
 
 
 @app.get("/api/stats")
-async def get_stats():
+async def get_stats(request: Request):
+    from security import require_admin
+    require_admin(request)
     return await db.get_stats()
 
 
 @app.get("/api/activity")
-async def get_activity(limit: int = 30):
+async def get_activity(request: Request, limit: int = 30):
+    from security import require_admin
+    require_admin(request)
     return await db.get_activity(limit)
 
 
@@ -896,6 +891,8 @@ async def get_activity(limit: int = 30):
 
 @app.get("/api/ceo/status")
 async def ceo_status(request: Request):
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return ceo.get_status()
@@ -911,6 +908,8 @@ async def ceo_message(request: Request):
     try:
         from ceo_maxia import ceo
         body = await request.json()
+        if len(str(body)) > 50000:
+            raise HTTPException(400, "Payload too large")
         canal = body.get("canal", "api")
         user = body.get("user", "anonymous")
         message = body.get("message", "")
@@ -930,6 +929,8 @@ async def ceo_feedback(request: Request):
     try:
         from ceo_maxia import ceo
         body = await request.json()
+        if len(str(body)) > 50000:
+            raise HTTPException(400, "Payload too large")
         user = body.get("user", "anonymous")
         feedback = body.get("feedback", "")
         if not feedback:
@@ -940,8 +941,10 @@ async def ceo_feedback(request: Request):
 
 
 @app.post("/api/ceo/ping")
-async def ceo_ping():
+async def ceo_ping(request: Request):
     """Le fondateur signale sa presence."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         ceo.fondateur_ping()
@@ -974,6 +977,8 @@ async def ceo_negotiate(request: Request):
     require_admin(request)
     try:
         body = await request.json()
+        if len(str(body)) > 50000:
+            raise HTTPException(400, "Payload too large")
         from ceo_maxia import ceo
         return await ceo.negotiate_price(
             body.get("buyer", ""),
@@ -1667,7 +1672,7 @@ async def ceo_ask(request: Request):
             messages=[
                 {"role": "system", "content": (
                     "Tu es le CEO de MAXIA, un marketplace AI-to-AI sur Solana (maxiaworld.app). "
-                    "Tu geres 11 sous-agents, le marketing, le WATCHDOG, et la strategie. "
+                    "Tu geres 17 sous-agents, le marketing, le WATCHDOG, et la strategie. "
                     "Tu reponds au FONDATEUR. Sois direct, concis, strategique. "
                     "Reponds en texte simple, PAS en JSON. En francais."
                 )},
@@ -1807,6 +1812,13 @@ async def ws_endpoint(ws: WebSocket):
                 signature = msg.get("signature", "")
                 nonce = msg.get("nonce", "")
                 if wallet and signature and nonce:
+                    # Verify nonce exists and matches
+                    from auth import NONCES
+                    entry = NONCES.get(wallet)
+                    if not entry or entry[0] != nonce:
+                        await ws.send_json({"type": "AUTH_FAILED", "error": "Invalid or expired nonce"})
+                        await ws.close(1008)
+                        break
                     # Verifier la signature ed25519
                     try:
                         from nacl.signing import VerifyKey
@@ -1847,6 +1859,12 @@ async def auction_ws(ws: WebSocket):
                 _sig = msg.get("signature", "")
                 _nonce = msg.get("nonce", "")
                 if _wallet and _sig and _nonce:
+                    # Verify nonce exists and matches
+                    from auth import NONCES as _NONCES
+                    _entry = _NONCES.get(_wallet)
+                    if not _entry or _entry[0] != _nonce:
+                        await ws.send_json({"type": "AUTH_FAILED", "error": "Invalid or expired nonce"})
+                        continue
                     try:
                         from nacl.signing import VerifyKey
                         import base58 as b58
