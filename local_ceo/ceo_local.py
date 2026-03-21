@@ -922,37 +922,83 @@ class CEOLocal:
         schedule = self._is_good_hour()
         hashtags = schedule.get("hashtags", "#Solana #AI")
 
-        # 6 routines qui alternent (cycle % 6)
+        # 12 routines qui alternent (cycle % 12) — couvrent les 11 chains
+        chain_queries = [
+            "AI agent solana developer",
+            "AI agent polygon DeFi",
+            "AI agent arbitrum",
+            "AI bot BNB chain BSC",
+            "AI agent avalanche subnet",
+            "TON bot telegram developer",
+            "SUI Move AI agent",
+            "TRON bot DeFi developer",
+            "AI agent ethereum web3",
+            "AI agent XRP XRPL",
+            "AI marketplace multi-chain",
+        ]
+        chain_subreddits = ["solanadev", "polygon", "arbitrum", "BNBChainDev", "avax", "ethereum", "defi", "cryptocurrency"]
+        chain_competitors = ["JupiterExchange", "RunPod", "AaveAave", "UniswapProtocol", "1inch", "PancakeSwap", "SuiNetwork", "TONcoin"]
+
         routines = [
-            # Cycle 0: Tweet + Search profiles + Like
+            # Cycle 0: Tweet + Search chain-specific
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": f"AI agent developer {hashtags.split()[0]}"}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[cycle % len(chain_queries)]}, "priority": "vert"},
             ],
-            # Cycle 1: Search profiles + Score + Follow best
+            # Cycle 1: Search profiles on rotating chain
             [
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "AI agent solana developer web3"}, "priority": "vert"},
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 1) % len(chain_queries)]}, "priority": "vert"},
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
-            # Cycle 2: Reply mentions + Like tweets
+            # Cycle 2: Reply mentions + Like
             [
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI marketplace solana USDC"}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 2) % len(chain_queries)]}, "priority": "vert"},
             ],
-            # Cycle 3: Post Reddit + Search Reddit
+            # Cycle 3: Post Reddit on rotating subreddit
             [
-                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": "solanadev"}, "priority": "vert"},
+                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[cycle % len(chain_subreddits)]}, "priority": "vert"},
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "built a bot no users no revenue"}, "priority": "vert"},
             ],
-            # Cycle 4: Tweet + Scrape followers concurrent
+            # Cycle 4: Tweet + Scrape rotating competitor
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "scrape_followers", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[cycle % len(chain_competitors)]}, "priority": "vert"},
             ],
-            # Cycle 5: Blog + Analyze trends
+            # Cycle 5: Blog + Trends
             [
                 {"action": "write_blog", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "analyze_trends", "agent": "RADAR", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 6: Search TON/Telegram devs
+            [
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "telegram bot developer TON blockchain"}, "priority": "vert"},
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "TON SUI TRON developer AI"}, "priority": "vert"},
+            ],
+            # Cycle 7: Search DeFi agents across chains
+            [
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "DeFi bot multi-chain yield farming"}, "priority": "vert"},
+            ],
+            # Cycle 8: Reply + Search EVM devs
+            [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "smart contract developer polygon arbitrum"}, "priority": "vert"},
+            ],
+            # Cycle 9: Reddit cross-chain + competitive scan
+            [
+                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[(cycle + 3) % len(chain_subreddits)]}, "priority": "vert"},
+                {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[(cycle + 1) % len(chain_competitors)]}, "priority": "vert"},
+            ],
+            # Cycle 10: GitHub AI projects + search
+            [
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent marketplace USDC multi-chain"}, "priority": "vert"},
+            ],
+            # Cycle 11: Tweet + manage DMs
+            [
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
         ]
 
@@ -1467,7 +1513,9 @@ class CEOLocal:
 
     async def _search_and_join_groups(self, platform: str = "telegram") -> dict:
         """Cherche et rejoint des groupes pertinents sur Telegram/Discord."""
-        queries = ["Solana dev", "AI agents", "ElizaOS", "LangChain", "DeFi builders", "Web3 dev"]
+        queries = ["Solana dev", "AI agents", "ElizaOS", "LangChain", "DeFi builders", "Web3 dev",
+                   "Polygon developers", "Arbitrum builders", "Avalanche subnet", "BNB Chain dev",
+                   "TON developers", "SUI Move dev", "TRON developers"]
         joined = []
         already = self.memory.get("groups_joined", [])
 
