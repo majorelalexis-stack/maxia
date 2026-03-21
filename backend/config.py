@@ -63,7 +63,6 @@ X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facil
 SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
-    "/api/data/datasets":       0.10,
     "/api/gpu/auctions":        1.00,
 }
 
