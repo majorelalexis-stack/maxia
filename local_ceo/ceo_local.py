@@ -756,16 +756,26 @@ class CEOLocal:
         return "\n".join(parts) if parts else "Pas d historique."
 
     def _is_good_hour(self) -> dict:
-        """Calendrier de publication. Retourne les actions recommandees selon l'heure."""
+        """Calendrier de publication 24/7 — cible la bonne region selon l'heure UTC."""
         import datetime
         hour = datetime.datetime.utcnow().hour
-        # Heures de pointe (UTC) pour les devs crypto/AI
-        if 9 <= hour <= 11 or 17 <= hour <= 19:
-            return {"post_ok": True, "reason": "Heure de pointe"}
-        elif 0 <= hour <= 6:
-            return {"post_ok": False, "reason": "Nuit — pas de post, monitoring seulement"}
-        else:
-            return {"post_ok": True, "reason": "Heure normale"}
+
+        # 24/7 : toujours une region active quelque part
+        if 7 <= hour <= 11:
+            return {"post_ok": True, "region": "Europe", "lang": "en", "hashtags": "#AI #Solana #Web3 #DeFi #BuildOnSolana",
+                    "reason": "Matin Europe — devs EU actifs"}
+        elif 12 <= hour <= 16:
+            return {"post_ok": True, "region": "US East", "lang": "en", "hashtags": "#AIagent #Solana #crypto #dev #startup",
+                    "reason": "Matin US East — peak Twitter US"}
+        elif 17 <= hour <= 21:
+            return {"post_ok": True, "region": "US West", "lang": "en", "hashtags": "#AI #Web3dev #SolanaDev #GPU #BuildInPublic",
+                    "reason": "Aprem US West — devs SF/LA actifs"}
+        elif 22 <= hour or hour <= 2:
+            return {"post_ok": True, "region": "Asia", "lang": "en", "hashtags": "#Solana #AI #blockchain #Web3 #crypto",
+                    "reason": "Matin Asie — devs Inde/Singapour/Japon actifs"}
+        else:  # 3-6 UTC
+            return {"post_ok": True, "region": "Asia/Oceania", "lang": "en", "hashtags": "#DeFi #AIagent #Solana #dev",
+                    "reason": "Matin Oceanie/Asie Est — volume plus bas mais actif"}
 
     async def _decide(self, analysis: str, state: dict) -> list:
         """DECIDE — Ollama classifie, memoire + calendrier + scoring."""
@@ -782,12 +792,8 @@ class CEOLocal:
             f"Rev=${kpis.get('revenue_24h', 0)} Clients={kpis.get('clients_actifs', 0)}\n"
             f"ANALYSE: {analysis[:200]}\n"
             f"{memory_ctx}\n"
-            f"HEURE: {schedule['reason']}"
+            f"HEURE: {schedule['reason']} | Region: {schedule.get('region', '?')} | Hashtags: {schedule.get('hashtags', '')}"
         )
-
-        if not schedule["post_ok"]:
-            _log("  Nuit — skip marketing, monitoring only")
-            return []
 
         # Etape 1: Ollama classifie (0 cout, prompt ultra court)
         classification = await call_local_llm(
