@@ -1200,15 +1200,19 @@ class CEOLocal:
 
             if result.get("success"):
                 return {"success": True, "detail": f"{method} OK"}
-            elif fallback_vps:
-                print(f"[ACT] Browser {method} failed, fallback VPS...")
+            else:
+                error = result.get("error", result.get("detail", "unknown error"))
+                _log(f"  [BROWSER] {method} failed: {str(error)[:100]}")
+            if fallback_vps and not result.get("success"):
+                _log(f"  [BROWSER] Fallback VPS...")
                 return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
-            return result
+            return {"success": False, "detail": error}
         except Exception as e:
+            _log(f"  [BROWSER] {method} exception: {str(e)[:100]}")
             if fallback_vps:
-                print(f"[ACT] Browser {method} error: {e}, fallback VPS")
+                _log(f"  [BROWSER] Fallback VPS...")
                 return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
-            return {"success": False, "detail": str(e)}
+            return {"success": False, "detail": str(e)[:200]}
 
     async def _manage_conversations(self) -> dict:
         """Lit les DMs non lus sur Twitter, Telegram, Discord et repond."""
