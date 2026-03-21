@@ -182,7 +182,7 @@ async def run_telegram_bot():
 
     # Message de demarrage — 1 seule fois par jour
     import os
-    flag_file = "/tmp/maxia_telegram_started"
+    flag_file = os.path.join(os.path.dirname(__file__), ".telegram_started")
     today = time.strftime("%Y-%m-%d")
     should_send_startup = True
     try:

@@ -1093,7 +1093,10 @@ class CEOLocal:
         # #8 Blog
         elif action == "write_blog":
             from blog_manager import generate_blog_post
-            post = await generate_blog_post(params.get("topic", "How to monetize your AI agent"), call_local_llm)
+            # Blog via VPS/Claude (trop long pour Ollama)
+            async def _blog_llm(prompt, max_tokens=2000):
+                return await self.vps.think(prompt, tier="mid", max_tokens=max_tokens)
+            post = await generate_blog_post(params.get("topic", "How to monetize your AI agent"), _blog_llm)
             return {"success": bool(post), "detail": f"Blog: {post.get('filename', '?')} ({post.get('words', 0)} words)"}
         # #10 Price watch
         elif action == "watch_prices":
@@ -1221,6 +1224,7 @@ class CEOLocal:
         # Twitter DMs
         try:
             dms = await browser.read_twitter_dms(10)
+            _log(f"  [DM] Twitter: {len(dms)} conversations, {sum(1 for d in dms if d.get('unread'))} non lues")
             unread = [d for d in dms if d.get("unread")]
             for dm in unread[:3]:
                 name = dm.get("name", "")

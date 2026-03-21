@@ -776,28 +776,42 @@ class BrowserAgent:
             await page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(5000)
 
-            # Trouver et remplir le champ commentaire
+            # D'abord cliquer sur la zone commentaire pour l'activer
+            for trigger in [
+                'div[placeholder*="Add a comment" i]',
+                'shreddit-composer',
+                'button:has-text("Add a comment")',
+                'button:has-text("Ajouter un commentaire")',
+                '[data-click-id="comment"]',
+                'faceplate-tracker[source="comment"]',
+                'p[placeholder*="comment" i]',
+            ]:
+                try:
+                    el = page.locator(trigger).first
+                    if await el.is_visible(timeout=2000):
+                        await el.click()
+                        await page.wait_for_timeout(1500)
+                        break
+                except Exception:
+                    continue
+
+            # Remplir le commentaire
             filled = await self._find_and_fill(page, [
-                'div[contenteditable="true"][data-placeholder*="Add a comment" i]',
-                'div[contenteditable="true"][placeholder*="comment" i]',
                 'div[contenteditable="true"][role="textbox"]',
-                'textarea[placeholder*="comment" i]',
+                'div[contenteditable="true"]',
                 'shreddit-composer div[contenteditable="true"]',
+                'textarea[placeholder*="comment" i]',
+                'textarea[name="comment"]',
+                'div[data-placeholder*="comment" i]',
             ], text[:5000], "Reddit comment box")
 
             if not filled:
-                # Essayer de cliquer d'abord sur "Add a comment"
-                clicked = await self._find_and_click(page, [
-                    'div[placeholder*="Add a comment" i]',
-                    'button:has-text("Add a comment")',
-                    '[data-click-id="comment"]',
-                ], "Comment trigger")
-                if clicked:
-                    await page.wait_for_timeout(1000)
-                    filled = await self._find_and_fill(page, [
-                        'div[contenteditable="true"]',
-                        'textarea',
-                    ], text[:5000], "Reddit comment box (2nd try)")
+                # Dernier recours: taper au clavier
+                try:
+                    await page.keyboard.type(text[:2000], delay=20)
+                    filled = True
+                except Exception:
+                    pass
 
             if not filled:
                 await self._screenshot(page, "reddit_comment_fail")
