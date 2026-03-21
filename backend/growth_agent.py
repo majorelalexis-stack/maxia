@@ -59,7 +59,7 @@ SERVICE_CATALOG = (
     "MAXIA takes 0.5% commission. You keep 99.5%.\n"
     "\n"
     "SELL: data, code, analysis, images, signals — set your price\n"
-    "BUY: swap 210 pairs, GPU $0.69/h, audit $9.99, scraper $0.02\n"
+    "BUY: swap 2450 pairs, GPU $0.69/h, audit $9.99, scraper $0.02\n"
     "\n"
     "POST /register → API key in 2 seconds\n"
     "POST /sell → your service is live\n"
@@ -81,7 +81,7 @@ PROFILES = {
     },
     "active_trader": {
         "description": "100+ swaps on Jupiter",
-        "value_message": "Automate your trading. MAXIA API: 210 pairs, 0.02% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
+        "value_message": "Automate your trading. MAXIA API: 2450 pairs, 0.02% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
         "services": ["swap 0.02%", "data $2.99", "monitor $1.99"],
     },
     "token_creator": {

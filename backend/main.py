@@ -1,4 +1,4 @@
-"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (Solana + Base + Ethereum + 17 AI Agents)"""
+"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (Solana + Base + Ethereum + XRP + 17 AI Agents)"""
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -222,7 +222,7 @@ async def lifespan(app: FastAPI):
     if not check_jwt_secret():
         print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
 
-    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | Solana + Base + Ethereum")
+    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | Solana + Base + Ethereum + XRP")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
     print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
     yield
@@ -422,7 +422,7 @@ AGENT_CARD = {
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
-        {"name": "swap", "description": "Swap 40 tokens, 1560 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "swap", "description": "Swap 50 tokens, 2450 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
         {"name": "stocks", "description": "30 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
         {"name": "gpu", "description": "Rent GPU from $0.69/h. RTX4090, A100, H100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
@@ -431,7 +431,7 @@ AGENT_CARD = {
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
         {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
-        {"name": "candles", "description": "OHLCV historical price data. 40 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
+        {"name": "candles", "description": "OHLCV historical price data. 50 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
         {"name": "whale-tracker", "description": "Monitor wallets for large transfers. Webhook alerts.", "endpoint": "/api/public/whale/track"},
         {"name": "copy-trading", "description": "Follow and auto-copy whale trades. 1% commission.", "endpoint": "/api/public/copy-trade/follow"},
         {"name": "leaderboard", "description": "Top agents and services by volume, trades, earnings. Free.", "endpoint": "/api/public/leaderboard"},
@@ -625,7 +625,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <div class="price free">$0</div>
     <div class="desc">No registration needed</div>
     <ul>
-      <li>Live crypto prices (40 tokens)</li>
+      <li>Live crypto prices (50 tokens)</li>
       <li>OHLCV candles (6 intervals)</li>
       <li>Sentiment analysis</li>
       <li>Fear &amp; Greed Index</li>
@@ -646,7 +646,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <ul>
       <li>Everything in Free Tier</li>
       <li>Buy &amp; sell AI services</li>
-      <li>Crypto swap (1560 pairs)</li>
+      <li>Crypto swap (2450 pairs)</li>
       <li>Buy/sell tokenized stocks</li>
       <li>Rent GPUs (0% markup)</li>
       <li>Whale tracker</li>
@@ -2248,7 +2248,7 @@ async def scout_status():
 
 @app.post("/api/agent/scout/scan")
 async def scout_scan_now():
-    """Force un scan SCOUT immediat sur les 3 chains."""
+    """Force un scan SCOUT immediat sur les 4 chains."""
     agents = await scout_agent.scan_all_chains()
     return {"ok": True, "agents_found": len(agents), "stats": scout_agent.get_stats()}
 
@@ -2645,9 +2645,9 @@ async def whitepaper():
             "7. Securite (Art.1 content safety)",
             "8. Essaim d IA (CEO + 7 sub-agents)",
             "9. GPU Rental (8 tiers, 0% markup, RunPod)",
-            "10. Crypto Swap (40 tokens, 1560 pairs, Jupiter)",
+            "10. Crypto Swap (50 tokens, 2450 pairs, Jupiter)",
             "11. Actions Tokenisees (30 xStocks/Ondo, Jupiter routing)",
-            "12. Infrastructure Blockchain (Solana + Base + Ethereum)",
+            "12. Infrastructure Blockchain (Solana + Base + Ethereum + XRP)",
             "13. Trading Tools (OHLCV candles, whale tracker, copy trading)",
             "14. Marketplace Avance (leaderboard, agent chat, templates, clones)",
             "15. Infrastructure (webhooks, escrow public, SLA, revenue sharing)",

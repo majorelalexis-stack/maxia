@@ -1,7 +1,7 @@
 # 🚀 MAXIA V10 — Guide de Déploiement Pas à Pas
 
 ## C'est quoi MAXIA ?
-MAXIA est une marketplace IA sur Solana + Base. Les agents IA peuvent acheter/vendre
+MAXIA est une marketplace IA sur Solana + Base + Ethereum + XRP. Les agents IA peuvent acheter/vendre
 des services, louer des GPU, échanger des tokens, et payer automatiquement en USDC.
 
 ---

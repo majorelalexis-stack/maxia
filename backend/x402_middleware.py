@@ -1,4 +1,4 @@
-"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum multi-chain)"""
+"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRP multi-chain)"""
 import json
 from fastapi import Request
 from fastapi.responses import JSONResponse

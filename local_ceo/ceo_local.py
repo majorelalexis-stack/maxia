@@ -161,9 +161,9 @@ TWEET_TEMPLATES = [
     # Tips techniques
     "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 4 chains (Solana, Base, ETH, XRP)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
     "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on Solana, Base, Ethereum, or XRP.\n\n1 API call to list. That's it.\nmaxiaworld.app",
-    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 15 tokens. 210 pairs. 4 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
+    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 4 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
     # Stats
-    "MAXIA stats:\n- 15 tokens, 210 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 4 chains: Solana + Base + ETH + XRP\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
+    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 4 chains: Solana + Base + ETH + XRP\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
     # Dev-focused
     "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on Solana, Base, ETH, and XRP.\nOther AIs will find and pay you.",
     # Comparative
@@ -496,8 +496,8 @@ class VPSClient:
 # Boucle OODA principale
 # ══════════════════════════════════════════
 
-CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur Solana + Base + Ethereum.
-Produit : AI Marketplace — swap 15 tokens 210 paires, stocks 10 actions, GPU 0% marge, services IA, MCP 22 tools.
+CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur Solana + Base + Ethereum + XRP.
+Produit : AI Marketplace — swap 50 tokens 2450 paires, stocks 10 actions, GPU 0% marge, services IA, MCP 22 tools, 4 chains.
 Phase : Pre-seed | Vision : Devenir la couche d intelligence liquide de l ecosysteme Solana.
 Fondateur : Alexis (autorite finale sur decisions rouges)
 URL : maxiaworld.app
@@ -505,7 +505,7 @@ URL : maxiaworld.app
 17 SOUS-AGENTS SUR LE VPS (tu leur donnes des ordres via l API) :
 - GHOST-WRITER : contenu, tweets, threads (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-- SCOUT : prospection IA-to-IA sur 3 chains (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 4 chains (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring, validation, self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -1442,7 +1442,7 @@ class CEOLocal:
             if not params.get("body"):
                 params["body"] = (
                     "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n"
-                    "- 15 tokens, 210 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n"
+                    "- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n"
                     "- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\n"
                     "One API call to list your agent. maxiaworld.app"
                 )

@@ -11,7 +11,7 @@ MAXIA_SERVICES = {
     "gpu_rtx4090": {"name": "RTX 4090 GPU", "price": 0.69, "unit": "per hour", "description": "24GB VRAM, 0% markup"},
     "gpu_a100": {"name": "A100 80GB GPU", "price": 1.79, "unit": "per hour", "description": "80GB VRAM, ideal for training"},
     "gpu_h100": {"name": "H100 SXM5 GPU", "price": 2.69, "unit": "per hour", "description": "80GB VRAM, fastest"},
-    "swap": {"name": "Token Swap", "price": 0.005, "unit": "per trade (0.5%)", "description": "15 tokens, 210 pairs, via Jupiter"},
+    "swap": {"name": "Token Swap", "price": 0.005, "unit": "per trade (0.5%)", "description": "50 tokens, 2450 pairs, via Jupiter"},
     "stocks": {"name": "Tokenized Stocks", "price": 0.005, "unit": "per trade (0.5%)", "description": "10 stocks via Ondo/xStocks"},
     "audit": {"name": "Smart Contract Audit", "price": 9.99, "unit": "per audit", "description": "AI-powered security review"},
     "custom_agent": {"name": "Custom AI Agent", "price": 49.99, "unit": "per month", "description": "Your agent listed + promoted on MAXIA"},

@@ -16,7 +16,7 @@ async def generate_blog_post(topic: str, call_llm_fn) -> dict:
     prompt = (
         f"Write a technical blog post about: {topic}\n\n"
         f"Context: MAXIA is an AI-to-AI marketplace on 4 chains (Solana, Base, ETH, XRP).\n"
-        f"Features: 15 tokens, 210 pairs, GPU $0.69/h, 10 stocks, 22 MCP tools.\n"
+        f"Features: 50 tokens, 2450 pairs, GPU $0.69/h, 10 stocks, 22 MCP tools.\n"
         f"Target: AI developers who want their agents to earn USDC.\n\n"
         f"Format: Markdown. Include code examples. 500-800 words.\n"
         f"Tone: Technical, practical, no marketing fluff.\n"
@@ -55,7 +55,7 @@ PRODUCT_HUNT_DRAFT = {
         "MAXIA is an open-source AI marketplace where autonomous agents discover, "
         "buy, and sell services using USDC across 4 chains (Solana, Base, Ethereum, XRP).\n\n"
         "Features:\n"
-        "- Swap 15 tokens (210 pairs) via Jupiter\n"
+        "- Swap 50 tokens (2450 pairs) via Jupiter\n"
         "- GPU rental at cost ($0.69/h RTX 4090, 0% markup)\n"
         "- 10 tokenized stocks\n"
         "- 22 MCP tools for agent integration\n"

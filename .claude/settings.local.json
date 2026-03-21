@@ -35,7 +35,10 @@
       "Bash(playwright install:*)",
       "Bash(python -c \":*)",
       "Bash(ollama rm:*)",
-      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/.gitignore\")"
+      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/.gitignore\")",
+      "Bash(ollama create:*)",
+      "Bash(start:*)",
+      "Bash(tasklist)"
     ]
   },
   "effortLevel": "high"

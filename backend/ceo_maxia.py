@@ -6,7 +6,7 @@ Un seul agent, une seule memoire, 4 boucles, 7 sous-agents, 5 mecanismes interne
 SOUS-AGENTS :
   GHOST-WRITER   : Contenu, tweets, threads (valide par WATCHDOG avant publication)
   HUNTER         : Prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-  SCOUT          : Prospection IA-to-IA sur Solana/Base/Ethereum (Olas, Fetch, ElizaOS, Virtuals)
+  SCOUT          : Prospection IA-to-IA sur Solana/Base/Ethereum/XRP (Olas, Fetch, ElizaOS, Virtuals)
   WATCHDOG       : Monitoring, validation, self-healing (propose des patchs)
   SOL-TREASURY   : Budget dynamique, gas, ROI, remboursements
   RESPONDER      : Repond a TOUS messages 24/7 (Twitter, Discord, Telegram, API)
@@ -189,7 +189,7 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Marketplace on Solana — swap 15 tokens 210 paires, stocks 10 actions, GPU, services IA"
+PRODUCT = "AI Marketplace on Solana — swap 50 tokens 2450 paires, stocks 10 actions, GPU, services IA, 4 chains"
 PHASE = "Pre-seed"
 VISION = "Devenir la couche d'intelligence liquide de l'ecosysteme Solana"
 URL = "maxiaworld.app"
@@ -219,7 +219,7 @@ URL : {URL}
 17 SOUS-AGENTS :
 - GHOST-WRITER : contenu (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA, canaux: Twitter/Discord/Reddit/GitHub)
-- SCOUT : prospection IA-to-IA sur 3 chains (Solana/Base/Ethereum) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 4 chains (Solana/Base/Ethereum/XRP) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring + validation + self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -1499,7 +1499,7 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
     ctx = (
         f"CANAL: {canal}\nUSER: {user}\nMESSAGE: {msg}\n"
         f"HISTORIQUE:\n{json.dumps(prev, indent=1, default=str) if prev else '(Premier contact)'}\n"
-        f"MAXIA: 15 tokens, 210 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
+        f"MAXIA: 50 tokens, 2450 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
     # Router: FAST pour les reponses (besoin de qualite, mais pas strategique)
@@ -1832,7 +1832,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 15 tokens, 210 pairs, 10 stocks, 5 GPU — Live on Solana\n"
+            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 5 GPU — Live on Solana\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),
@@ -3390,7 +3390,7 @@ if __name__ == "__main__":
 
         # GHOST-WRITER + WATCHDOG
         print("\n--- GHOST-WRITER + WATCHDOG ---")
-        c = await ghost_write("tweet", "MAXIA 15 tokens live", "twitter")
+        c = await ghost_write("tweet", "MAXIA 50 tokens live", "twitter")
         print(f"  Blocked: {c.get('blocked', False)} | {json.dumps(c, default=str)[:100]}")
 
         # TESTIMONIAL
@@ -3435,7 +3435,7 @@ if __name__ == "__main__":
 
         # BLOG
         print("\n--- BLOG ---")
-        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 15 tokens")
+        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 50 tokens")
         print(f"  Blog: {blog.get('success', False)} | {blog.get('url', blog.get('error', ''))}")
 
         # STATUS
