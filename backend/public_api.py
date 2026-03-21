@@ -9,9 +9,8 @@ Permet aux IA externes de :
 
 Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
-import uuid, time, hashlib, secrets, asyncio, json
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Header
+import uuid, time, hashlib, secrets, asyncio, json, datetime
+from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
     get_commission_bps, BLOCKED_WORDS, BLOCKED_PATTERNS,
@@ -95,6 +94,12 @@ if GROQ_API_KEY:
 _rate_limits: dict = {}
 RATE_LIMIT_FREE = 100  # requetes/jour
 
+# Fix #3: Lock for agent stat updates to prevent race conditions
+_agent_update_lock = asyncio.Lock()
+
+# Fix #11: Brute force API key protection
+_failed_lookups: dict = {}  # ip -> count
+
 
 # ══════════════════════════════════════════
 #  SECURITE ART.1 — Filtrage anti-abus
@@ -114,15 +119,22 @@ RATE_LIMITS_BY_TIER = {
 
 def _check_rate(api_key: str):
     """Rate limit par API key — quota basé sur le tier de l'agent."""
-    today = time.strftime("%Y-%m-%d")
+    # Fix #5: Use UTC explicitly for consistent rate limiting across timezones
+    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     key = f"{api_key}:{today}"
     _rate_limits.setdefault(key, 0)
     _rate_limits[key] += 1
 
     # Cleanup stale date keys to avoid memory leak
-    stale = [k for k in _rate_limits if not k.endswith(f":{today}")]
+    stale = [k for k in _rate_limits if ":" in k and not k.endswith(f":{today}")]
     for k in stale:
         _rate_limits.pop(k, None)
+
+    # Fix #9: Cap total keys to prevent unbounded memory growth
+    if len(_rate_limits) > 10000:
+        today_keys = {k: v for k, v in _rate_limits.items() if k.endswith(f":{today}")}
+        _rate_limits.clear()
+        _rate_limits.update(today_keys)
 
     # Determine tier-based limit
     agent = _registered_agents.get(api_key, {})
@@ -133,11 +145,24 @@ def _check_rate(api_key: str):
         raise HTTPException(429, f"Limite quotidienne atteinte ({limit} req/jour, tier {tier}). Augmentez votre volume pour un tier superieur.")
 
 
-def _get_agent(api_key: str) -> dict:
-    """Recupere l'agent depuis sa cle API."""
+def _get_agent(api_key: str, client_ip: str = "") -> dict:
+    """Recupere l'agent depuis sa cle API.
+    Fix #11: Track failed lookups and block IPs with too many attempts.
+    """
+    # Fix #11: Block IPs with excessive failed lookups
+    if client_ip and _failed_lookups.get(client_ip, 0) > 100:
+        raise HTTPException(429, "Too many invalid API key attempts")
+
     agent = _registered_agents.get(api_key)
     if not agent:
+        # Fix #11: Track failed lookup by IP
+        if client_ip:
+            _failed_lookups[client_ip] = _failed_lookups.get(client_ip, 0) + 1
         raise HTTPException(401, "API key invalide. Inscrivez-vous sur /api/public/register")
+
+    # Fix #11: Reset failed count on success
+    if client_ip:
+        _failed_lookups.pop(client_ip, None)
     return agent
 
 
@@ -961,13 +986,14 @@ async def negotiate_price(req: dict, x_api_key: str = Header(None, alias="X-API-
 
 @router.post("/buy-external")
 @router.post("/buy-from-agent")
-async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+async def buy_external_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Acheter un service d'une autre IA. MAXIA prend sa commission."""
     await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
-    buyer = _get_agent(x_api_key)
+    client_ip = request.client.host if request.client else ""
+    buyer = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
     service_id = req.get("service_id", "")
@@ -1034,19 +1060,21 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
     }
     _transactions.append(tx)
 
-    buyer["volume_30d"] += price
-    buyer["total_spent"] += price
-    buyer["tier"] = _get_tier_name(buyer["volume_30d"])
+    # Fix #3: Wrap agent stat updates in lock to prevent race conditions
+    async with _agent_update_lock:
+        buyer["volume_30d"] += price
+        buyer["total_spent"] += price
+        buyer["tier"] = _get_tier_name(buyer["volume_30d"])
 
-    # Crediter le vendeur
-    seller_key = service.get("agent_api_key")
-    seller = _registered_agents.get(seller_key)
-    if seller:
-        seller["total_earned"] += seller_gets
-        seller["volume_30d"] += seller_gets
-        seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
+        # Crediter le vendeur
+        seller_key = service.get("agent_api_key")
+        seller = _registered_agents.get(seller_key)
+        if seller:
+            seller["total_earned"] += seller_gets
+            seller["volume_30d"] += seller_gets
+            seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
 
-    service["sales"] += 1
+        service["sales"] += 1
 
     # Pay seller via on-chain USDC transfer
     seller_wallet = service.get("agent_wallet", "")
@@ -1281,7 +1309,7 @@ async def discover_services_post(req: dict = {}):
 # ══════════════════════════════════════════
 
 @router.post("/execute")
-async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+async def execute_agent_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Buy AND execute a service in one call.
 
     If the seller has a webhook endpoint, MAXIA calls it automatically
@@ -1293,7 +1321,8 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
-    buyer = _get_agent(x_api_key)
+    client_ip = request.client.host if request.client else ""
+    buyer = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
     service_id = req.get("service_id", "")
@@ -1410,17 +1439,19 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     }
     _transactions.append(tx)
 
-    buyer["volume_30d"] += price
-    buyer["total_spent"] += price
-    service["sales"] += 1
+    # Fix #3: Wrap agent stat updates in lock to prevent race conditions
+    async with _agent_update_lock:
+        buyer["volume_30d"] += price
+        buyer["total_spent"] += price
+        service["sales"] += 1
 
-    # Fix #12: Only credit seller if payment verified
-    seller_key = service.get("agent_api_key")
-    seller = _registered_agents.get(seller_key)
-    if payment_verified and seller:
-        seller["total_earned"] += seller_gets
-        seller["volume_30d"] += seller_gets
-        seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
+        # Fix #12: Only credit seller if payment verified
+        seller_key = service.get("agent_api_key")
+        seller = _registered_agents.get(seller_key)
+        if payment_verified and seller:
+            seller["total_earned"] += seller_gets
+            seller["volume_30d"] += seller_gets
+            seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
 
     # Fix #4/#7: Persist tx + seller stats to DB (pass seller_key)
     await _save_tx_to_db(tx, buyer, seller_key=seller_key if payment_verified else None)
@@ -1446,25 +1477,35 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     endpoint = service.get("endpoint", "")
 
     if endpoint and endpoint.startswith("http"):
+        # Fix #10: SSRF protection — validate seller endpoint URL against private IPs
         try:
-            import httpx
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(endpoint, json={
-                    "prompt": prompt,
-                    "buyer": buyer["name"],
-                    "service_id": service_id,
-                    "tx_id": tx["tx_id"],
-                })
-                if resp.status_code == 200:
-                    result_data = resp.json()
-                    result_text = result_data.get("result", result_data.get("text", str(result_data)))
-                    execution_method = "webhook"
-                else:
-                    result_text = f"Seller webhook returned {resp.status_code}"
-                    execution_method = "webhook_error"
-        except Exception as e:
-            result_text = f"Webhook call failed: {e}"
-            execution_method = "webhook_error"
+            from webhook_dispatcher import validate_callback_url
+            validate_callback_url(endpoint)
+        except Exception:
+            execution_method = "webhook_blocked"
+            result_text = "Seller endpoint blocked (private IP)"
+            endpoint = ""  # prevent the webhook call below
+
+        if endpoint:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(endpoint, json={
+                        "prompt": prompt,
+                        "buyer": buyer["name"],
+                        "service_id": service_id,
+                        "tx_id": tx["tx_id"],
+                    })
+                    if resp.status_code == 200:
+                        result_data = resp.json()
+                        result_text = result_data.get("result", result_data.get("text", str(result_data)))
+                        execution_method = "webhook"
+                    else:
+                        result_text = f"Seller webhook returned {resp.status_code}"
+                        execution_method = "webhook_error"
+            except Exception as e:
+                result_text = f"Webhook call failed: {e}"
+                execution_method = "webhook_error"
     else:
         execution_method = "manual"
         result_text = "Service purchased. Seller will deliver manually (no webhook configured)."
@@ -2251,25 +2292,37 @@ async def crypto_prices():
 
 
 @router.get("/crypto/quote")
-async def crypto_quote(from_token: str, to_token: str, amount: float, volume_30d: float = 0):
+async def crypto_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0):
     """Devis de swap avec commission MAXIA. Sans auth."""
     from crypto_swap import get_swap_quote
-    return await get_swap_quote(from_token, to_token, amount, volume_30d)
+    # Fix #6: Wire up user_volume_30d from agent's actual volume if API key provided
+    volume = volume_30d
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key:
+        agent = _registered_agents.get(api_key)
+        if agent:
+            volume = agent.get("volume_30d", 0)
+    result = await get_swap_quote(from_token, to_token, amount, user_volume_30d=volume)
+    # Fix #7: Add cache-control info to quote response
+    if isinstance(result, dict) and "error" not in result:
+        result["cache_ttl_seconds"] = 30
+        result["note"] = "Quote valid for 30 seconds"
+    return result
 
 
 @router.get("/crypto/swap-quote")
-async def crypto_swap_quote(from_token: str, to_token: str, amount: float, volume_30d: float = 0):
+async def crypto_swap_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0):
     """Alias de /crypto/quote pour compatibilite."""
-    from crypto_swap import get_swap_quote
-    return await get_swap_quote(from_token, to_token, amount, volume_30d)
+    return await crypto_quote(request, from_token, to_token, amount, volume_30d)
 
 
 @router.post("/crypto/swap")
-async def crypto_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Executer un swap crypto. Requiert API key."""
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
-    agent = _get_agent(x_api_key)
+    client_ip = request.client.host if request.client else ""
+    agent = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
     # #24: NaN/Infinity validation
@@ -2280,6 +2333,18 @@ async def crypto_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         return {"success": False, "error": "Invalid amount"}
     if math.isnan(amount) or math.isinf(amount):
         return {"success": False, "error": "Invalid amount"}
+
+    # Fix #1: Volume-based rate limiting for swaps ($50,000/day)
+    from crypto_swap import fetch_prices, SUPPORTED_TOKENS
+    from_token_upper = req.get("from_token", "").upper()
+    prices = await fetch_prices()
+    from_price = prices.get(from_token_upper, {}).get("price", 0)
+    value_usd = amount * from_price if from_price > 0 else amount
+    today_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    daily_vol_key = f"vol:{x_api_key}:{today_utc}"
+    current_vol = _rate_limits.get(daily_vol_key, 0)
+    if current_vol + value_usd > 50000:
+        return {"success": False, "error": "Daily volume limit reached ($50,000)"}
 
     from crypto_swap import execute_swap
     result = await execute_swap(
@@ -2294,8 +2359,11 @@ async def crypto_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
     )
 
     if result.get("success"):
-        agent["volume_30d"] += result.get("commission_usd", 0) / (result.get("commission_bps", 15) / 10000)
-        agent["total_spent"] += result.get("commission_usd", 0)
+        # Fix #1: Track daily volume after successful swap
+        _rate_limits[daily_vol_key] = current_vol + value_usd
+        async with _agent_update_lock:
+            agent["volume_30d"] += result.get("commission_usd", 0) / (result.get("commission_bps", 15) / 10000)
+            agent["total_spent"] += result.get("commission_usd", 0)
 
     return result
 

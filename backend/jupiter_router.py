@@ -99,6 +99,10 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
         rpc = get_rpc_url()
         tx_bytes = base64.b64decode(swap_transaction_b64)
 
+        # Fix #2: Validate transaction length before slicing
+        if len(tx_bytes) < 65:
+            return {"success": False, "error": "Invalid transaction format from Jupiter"}
+
         # Signer la transaction
         secret = base58.b58decode(ESCROW_PRIVKEY_B58)
         signing_key = SigningKey(secret[:32])
@@ -108,6 +112,8 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
         # Format: num_signatures (1 byte) + signatures (64 * num) + message
         num_sigs = tx_bytes[0]
         msg_start = 1 + (num_sigs * 64)
+        if msg_start >= len(tx_bytes):
+            return {"success": False, "error": "Invalid transaction format: message offset out of bounds"}
         message = tx_bytes[msg_start:]
 
         signature = signing_key.sign(message).signature

@@ -11,6 +11,11 @@ import asyncio, math, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
 
+
+# Fix #8: Standardized logging helper
+def _log_swap(msg: str):
+    print(f"[CryptoSwap] {msg}")
+
 JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
 JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v2"
 
@@ -294,7 +299,7 @@ async def fetch_prices(token_ids: list = None) -> dict:
         _price_cache_ts = time.time()
         return prices
     except Exception as e:
-        print(f"[CryptoSwap] Price oracle error: {e}")
+        _log_swap(f"Price oracle error: {e}")
 
     if _price_cache:
         return _price_cache
@@ -314,18 +319,54 @@ async def update_competitor_fees():
     if time.time() - _competitor_ts < _COMPETITOR_TTL and _competitor_cache:
         return _competitor_cache
 
-    # Utiliser des estimations statiques (Jupiter API non accessible depuis Railway)
+    # Fix #4: Try to fetch Jupiter fee from their API, fallback to hardcoded
+    source = "estimated"
+    jupiter_effective_bps = 5
+    jupiter_price_impact = 0.05
+
+    try:
+        # Fetch a small SOL->USDC quote to measure effective Jupiter fee
+        sol_mint = SUPPORTED_TOKENS["SOL"]["mint"]
+        usdc_mint = SUPPORTED_TOKENS["USDC"]["mint"]
+        params = {
+            "inputMint": sol_mint,
+            "outputMint": usdc_mint,
+            "amount": "1000000000",  # 1 SOL in lamports
+            "slippageBps": 50,
+        }
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
+            if resp.status_code == 200:
+                jdata = resp.json()
+                # Calculate effective fee from price impact
+                impact = float(jdata.get("priceImpactPct", "0"))
+                jupiter_price_impact = impact
+                # platformFee if present
+                platform_fee = jdata.get("platformFee", {})
+                if platform_fee:
+                    fee_bps = int(platform_fee.get("feeBps", 0))
+                    jupiter_effective_bps = fee_bps
+                else:
+                    # Jupiter charges 0% platform fee, effective cost is slippage
+                    jupiter_effective_bps = max(1, int(impact * 100))
+                source = "live"
+                _log_swap(f"Jupiter fee fetched live: {jupiter_effective_bps} bps, impact {jupiter_price_impact}%")
+    except Exception as e:
+        _log_swap(f"Jupiter fee fetch failed (using estimates): {e}")
+
     _competitor_cache = {
-        "jupiter_effective_bps": 5,
-        "jupiter_price_impact": 0.05,
+        "jupiter_effective_bps": jupiter_effective_bps,
+        "jupiter_price_impact": jupiter_price_impact,
         "raydium_bps": 25,
         "orca_bps": 30,
         "binance_bps": 10,
         "updated_at": int(time.time()),
+        "last_checked": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+        "source": source,
     }
     _competitor_ts = time.time()
 
-    return _competitor_cache or {"jupiter_effective_bps": 5, "raydium_bps": 25}
+    return _competitor_cache
 
 
 async def get_swap_quote(from_token: str, to_token: str, amount: float,
@@ -526,7 +567,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         if not tx_result.get("valid"):
             return {"success": False, "error": f"Payment invalid: {tx_result.get('error', 'verification failed')}"}
     except Exception as e:
-        print(f"[CryptoSwap] Payment verification error: {e}")
+        _log_swap(f"Payment verification error: {e}")
         return {"success": False, "error": f"Payment verification failed: {e}"}
 
     # Router via Jupiter pour le swap reel
@@ -538,7 +579,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         # Appeler Jupiter
         jupiter_result = await buy_token_via_jupiter(to_mint, amount, buyer_wallet)
     except Exception as e:
-        print(f"[CryptoSwap] Jupiter routing error: {e}")
+        _log_swap(f"Jupiter routing error: {e}")
 
     # #16: Only record swap if Jupiter succeeded (or if no Jupiter needed)
     jupiter_success = bool(jupiter_result and jupiter_result.get("success"))
@@ -587,7 +628,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         })
         await db.record_transaction(buyer_wallet, payment_tx, value_usd, "crypto_swap")
     except Exception as e:
-        print(f"[CryptoSwap] DB persistence error: {e}")
+        _log_swap(f"DB persistence error: {e}")
 
     # #18: Discord alert only for large swaps (> $100)
     if value_usd > 100:
@@ -597,7 +638,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         except Exception:
             pass
 
-    print(f"[CryptoSwap] {amount} {from_token} -> {output_amount:.6f} {to_token} par {buyer_name} -- commission {commission_usd:.4f} USDC")
+    _log_swap(f"{amount} {from_token} -> {output_amount:.6f} {to_token} par {buyer_name} -- commission {commission_usd:.4f} USDC")
 
     return {
         "success": True,
@@ -669,4 +710,4 @@ def compare_fees(volume_30d: float = 0) -> dict:
     }
 
 
-print(f"[CryptoSwap] Engine initialise -- {len(SUPPORTED_TOKENS)} tokens, {len(SUPPORTED_TOKENS) * (len(SUPPORTED_TOKENS)-1)} paires")
+_log_swap(f"Engine initialise -- {len(SUPPORTED_TOKENS)} tokens, {len(SUPPORTED_TOKENS) * (len(SUPPORTED_TOKENS)-1)} paires")
