@@ -2674,6 +2674,69 @@ async def whitepaper():
 
 
 # ══════════════════════════════════════════════════════════
+#  V12.1: Agent Analytics (inscriptions en temps reel)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/analytics/agents")
+async def analytics_agents(period: str = "7d"):
+    """Nombre d'agents inscrits par jour sur une periode."""
+    try:
+        from public_api import _registered_agents
+        import datetime
+
+        # Calculer la periode
+        days = int(period.replace("d", "")) if "d" in period else 7
+        now = int(time.time())
+        cutoff = now - (days * 86400)
+
+        # Compteur par jour
+        daily = {}
+        total = 0
+        for key, agent in _registered_agents.items():
+            ts = agent.get("registered_at", 0)
+            total += 1
+            if ts >= cutoff:
+                day = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+                daily[day] = daily.get(day, 0) + 1
+
+        # Remplir les jours sans inscription
+        result = []
+        for i in range(days - 1, -1, -1):
+            d = (datetime.datetime.now() - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+            result.append({"date": d, "registrations": daily.get(d, 0)})
+
+        return {
+            "total_agents": total,
+            "period": period,
+            "daily": result,
+            "active_today": sum(1 for a in _registered_agents.values() if a.get("requests_today", 0) > 0),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/analytics/agents/live")
+async def analytics_agents_live():
+    """Compteur live d'agents inscrits + derniere inscription."""
+    try:
+        from public_api import _registered_agents
+        agents = list(_registered_agents.values())
+        last = max(agents, key=lambda a: a.get("registered_at", 0)) if agents else {}
+        return {
+            "total": len(agents),
+            "active_today": sum(1 for a in agents if a.get("requests_today", 0) > 0),
+            "last_registration": {
+                "name": last.get("name", ""),
+                "wallet": last.get("wallet", "")[:16] + "..." if last.get("wallet") else "",
+                "timestamp": last.get("registered_at", 0),
+            } if last else None,
+            "with_services": sum(1 for a in agents if a.get("services_listed", 0) > 0),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
 #  V12: XRP LEDGER (4eme reseau)
 # ══════════════════════════════════════════════════════════
 

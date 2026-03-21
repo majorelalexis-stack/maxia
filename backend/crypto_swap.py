@@ -174,6 +174,47 @@ SUPPORTED_TOKENS = {
         "mint": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
         "name": "Goatseus Maximus", "decimals": 6, "logo": "",
     },
+    # ── V12.1: Tokens supplementaires ──
+    "LINK": {
+        "mint": "2wpTofQ8SkACrkZWrZDjXPitbbvByJGJy4sQqnfBfQVR",
+        "name": "Chainlink (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "UNI": {
+        "mint": "8FU95xFJhUUkyyCLU13HSzDLs7oC4QZdXQHL6SCeab36",
+        "name": "Uniswap (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "AAVE": {
+        "mint": "3vAs4D1WE6Na4tCgt4BApgFfENbCCJVDP6QDT9zKMJH4",
+        "name": "Aave (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "LDO": {
+        "mint": "HZRCwxP2Vq9PCpPXooayhJ2bxTB5AMqFqZbNPc3Ldzsf",
+        "name": "Lido DAO (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "VIRTUAL": {
+        "mint": "VRTuawjjBKGfQLFMWrqwZ2KnaDxMFimJonH7miSbFaB",
+        "name": "Virtuals Protocol", "decimals": 9, "logo": "",
+    },
+    "OLAS": {
+        "mint": "Ez3nzG9ofodYCvEmw73XhQ87LWNYVRM2s7diB5tBZPyM",
+        "name": "Autonolas", "decimals": 8, "logo": "",
+    },
+    "FET": {
+        "mint": "EgLJHNkSFJNJbGMWnN2ESCMQ79HEGPJGDbpPFNX7vagd",
+        "name": "Fetch.ai (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "PEPE": {
+        "mint": "3Ysmnbdwje7SP2bKSJgST4iFF3FrVLjR2uGaoV1138DP",
+        "name": "Pepe (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "DOGE": {
+        "mint": "GRFKmwmF14nBnSEyEesFctHYBwRLXSBZdGAjqFNonWon",
+        "name": "Dogecoin (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "SHIB": {
+        "mint": "CiKu4eHsVrc1eueVQeHn7qhXTcVu95gSQoBBpX5SQzUt",
+        "name": "Shiba Inu (Wormhole)", "decimals": 8, "logo": "",
+    },
 }
 
 # Commission concurrence (mis a jour dynamiquement)
