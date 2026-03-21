@@ -650,6 +650,14 @@ class CEOLocal:
         """Boucle OODA principale."""
         self._running = True
         _log("[CEO Local] Demarre la boucle OODA")
+
+        # Lancer Chrome une seule fois au demarrage (reste ouvert)
+        try:
+            await browser.setup()
+            _log("[CEO Local] Chrome lance et pret")
+        except Exception as e:
+            _log(f"[CEO Local] Chrome failed: {e} — actions browser indisponibles")
+
         await notify_all("CEO Local demarre", "Boucle OODA active", "vert")
 
         while self._running:

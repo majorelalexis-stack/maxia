@@ -119,11 +119,11 @@ class BrowserAgent:
     async def _ensure_ready(self):
         if not self._initialized:
             await self.setup()
+            return
         # Verifier que le browser est toujours vivant
         try:
-            if self._page and self._page.is_closed():
+            if self._page is None or self._page.is_closed():
                 raise Exception("Page closed")
-            # Test rapide
             await self._page.evaluate("1+1")
         except Exception:
             print("[BrowserAgent] Browser mort, reconnexion...")
