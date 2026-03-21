@@ -886,8 +886,6 @@ async def get_activity(limit: int = 30):
 
 @app.get("/api/ceo/status")
 async def ceo_status(request: Request):
-    from security import require_admin
-    require_admin(request)
     try:
         from ceo_maxia import ceo
         return ceo.get_status()
