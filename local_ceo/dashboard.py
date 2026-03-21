@@ -16,7 +16,23 @@ _CONTROL_FILE = _DIR / "ceo_control.json"  # pause/resume + settings
 def _load_memory() -> dict:
     try:
         if _MEMORY_FILE.exists():
-            return json.loads(_MEMORY_FILE.read_text(encoding="utf-8"))
+            raw = _MEMORY_FILE.read_text(encoding="utf-8")
+            # Handle encrypted memory (Fernet)
+            if raw.startswith("gAAAAA"):
+                try:
+                    key_file = _DIR / ".memory_key"
+                    if key_file.exists():
+                        from cryptography.fernet import Fernet
+                        key = key_file.read_bytes()
+                        raw = Fernet(key).decrypt(raw.encode()).decode()
+                except Exception:
+                    # Try backup
+                    bak = Path(str(_MEMORY_FILE) + ".bak")
+                    if bak.exists():
+                        raw = bak.read_text(encoding="utf-8")
+                    else:
+                        return {}
+            return json.loads(raw)
     except Exception:
         pass
     return {}

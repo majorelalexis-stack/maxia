@@ -971,8 +971,8 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on Solana, 50 tokens, 4 chains, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself."},
-                        {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'}"},
+                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on Solana, 50 tokens, 4 chains, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
+                        {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'} Do NOT mention any revenue or user statistics."},
                     ],
                     max_tokens=100,
                     temperature=0.9,
@@ -995,7 +995,9 @@ class CEOLocal:
         # Pour les tweets, generer le contenu via Groq (pas Ollama)
         for d in decisions:
             if d["action"] == "post_template_tweet":
-                tweet = await self._generate_tweet_via_groq(analysis[:100])
+                # Don't pass revenue/user stats to tweet generation
+                clean_context = "Focus on MAXIA features: 50 tokens, 4 chains, GPU at cost, AI agent marketplace"
+                tweet = await self._generate_tweet_via_groq(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
                 _log(f"  [TWEET] {tweet[:80]}...")
