@@ -1757,7 +1757,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 f"{len(d.get('chains', ['solana']))} Chains",
-                "50 Tokens", "2450 Pairs", "30 Stocks", "8 GPU",
+                "50 Tokens", "2450 Pairs", "10 Stocks", "8 GPU",
             ],
         },
         "stats": {
@@ -1858,7 +1858,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 50 tokens, 2450 pairs, 30 stocks, 8 GPU — Live on Solana\n"
+            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 8 GPU — Live on Solana\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),

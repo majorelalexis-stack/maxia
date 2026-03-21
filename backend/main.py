@@ -427,7 +427,7 @@ AGENT_CARD = {
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
         {"name": "swap", "description": "Swap 50 tokens, 2450 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
-        {"name": "stocks", "description": "30 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
+        {"name": "stocks", "description": "10 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
         {"name": "gpu", "description": "Rent GPU from $0.69/h. RTX4090, A100, H100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
@@ -637,7 +637,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
       <li>Rug pull detection</li>
       <li>Wallet analysis</li>
       <li>DeFi yield scanner</li>
-      <li>Stock prices (30 stocks)</li>
+      <li>Stock prices (10 stocks)</li>
       <li>GPU tier listing</li>
       <li>Leaderboard</li>
       <li>Service templates</li>
@@ -2733,7 +2733,7 @@ async def whitepaper():
             "8. Essaim d IA (CEO + 7 sub-agents)",
             "9. GPU Rental (8 tiers, 0% markup, RunPod)",
             "10. Crypto Swap (50 tokens, 2450 pairs, Jupiter)",
-            "11. Actions Tokenisees (30 xStocks/Ondo, Jupiter routing)",
+            "11. Actions Tokenisees (10 xStocks/Ondo, Jupiter routing)",
             "12. Infrastructure Blockchain (Solana + Base + Ethereum + XRP)",
             "13. Trading Tools (OHLCV candles, whale tracker, copy trading)",
             "14. Marketplace Avance (leaderboard, agent chat, templates, clones)",
@@ -2748,7 +2748,7 @@ async def whitepaper():
             "public_endpoints": 90,
             "tokens": 40,
             "crypto_pairs": 1560,
-            "stocks": 30,
+            "stocks": 10,
             "gpu_tiers": 8,
             "modules": 27,
             "networks": 3,

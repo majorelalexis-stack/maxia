@@ -112,186 +112,6 @@ TOKENIZED_STOCKS = {
         "mint_ondo": "",
         "logo": "",
     },
-    "NFLX": {
-        "name": "Netflix Inc.",
-        "symbol": "NFLX",
-        "xstock_symbol": "NFLXX",
-        "ondo_symbol": "NFLXon",
-        "sector": "Entertainment",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/netflix.com",
-    },
-    "AMD": {
-        "name": "Advanced Micro Devices",
-        "symbol": "AMD",
-        "xstock_symbol": "AMDX",
-        "ondo_symbol": "AMDon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/amd.com",
-    },
-    "PLTR": {
-        "name": "Palantir Technologies",
-        "symbol": "PLTR",
-        "xstock_symbol": "PLTRX",
-        "ondo_symbol": "PLTRon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/palantir.com",
-    },
-    "COIN": {
-        "name": "Coinbase Global",
-        "symbol": "COIN",
-        "xstock_symbol": "COINX",
-        "ondo_symbol": "COINon",
-        "sector": "Crypto",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/coinbase.com",
-    },
-    "CRM": {
-        "name": "Salesforce Inc.",
-        "symbol": "CRM",
-        "xstock_symbol": "CRMX",
-        "ondo_symbol": "CRMon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/salesforce.com",
-    },
-    "INTC": {
-        "name": "Intel Corp.",
-        "symbol": "INTC",
-        "xstock_symbol": "INTCX",
-        "ondo_symbol": "INTCon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/intel.com",
-    },
-    "UBER": {
-        "name": "Uber Technologies",
-        "symbol": "UBER",
-        "xstock_symbol": "UBERX",
-        "ondo_symbol": "UBERon",
-        "sector": "Transport",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/uber.com",
-    },
-    "MARA": {
-        "name": "MARA Holdings (Bitcoin Mining)",
-        "symbol": "MARA",
-        "xstock_symbol": "MARAX",
-        "ondo_symbol": "MARAon",
-        "sector": "Crypto",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/mara.com",
-    },
-    "AVGO": {
-        "name": "Broadcom Inc.",
-        "symbol": "AVGO",
-        "xstock_symbol": "AVGOX",
-        "ondo_symbol": "AVGOon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/broadcom.com",
-    },
-    "DIA": {
-        "name": "SPDR Dow Jones ETF",
-        "symbol": "DIA",
-        "xstock_symbol": "DIAX",
-        "ondo_symbol": "DIAon",
-        "sector": "ETF",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "",
-    },
-    "IWM": {
-        "name": "iShares Russell 2000 ETF",
-        "symbol": "IWM",
-        "xstock_symbol": "IWMX",
-        "ondo_symbol": "IWMon",
-        "sector": "ETF",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "",
-    },
-    "GLD": {
-        "name": "SPDR Gold Shares ETF",
-        "symbol": "GLD",
-        "xstock_symbol": "GLDX",
-        "ondo_symbol": "GLDon",
-        "sector": "Commodity",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "",
-    },
-    "ARKK": {
-        "name": "ARK Innovation ETF",
-        "symbol": "ARKK",
-        "xstock_symbol": "ARKKX",
-        "ondo_symbol": "ARKKon",
-        "sector": "ETF",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "",
-    },
-    "RIOT": {
-        "name": "Riot Platforms (Bitcoin Mining)",
-        "symbol": "RIOT",
-        "xstock_symbol": "RIOTX",
-        "ondo_symbol": "RIOTon",
-        "sector": "Crypto",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/riotplatforms.com",
-    },
-    "SHOP": {
-        "name": "Shopify Inc.",
-        "symbol": "SHOP",
-        "xstock_symbol": "SHOPX",
-        "ondo_symbol": "SHOPon",
-        "sector": "E-Commerce",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/shopify.com",
-    },
-    "SQ": {
-        "name": "Block Inc. (Square)",
-        "symbol": "SQ",
-        "xstock_symbol": "SQX",
-        "ondo_symbol": "SQon",
-        "sector": "Fintech",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/block.xyz",
-    },
-    "PYPL": {
-        "name": "PayPal Holdings",
-        "symbol": "PYPL",
-        "xstock_symbol": "PYPLX",
-        "ondo_symbol": "PYPLon",
-        "sector": "Fintech",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/paypal.com",
-    },
-    "ORCL": {
-        "name": "Oracle Corp.",
-        "symbol": "ORCL",
-        "xstock_symbol": "ORCLX",
-        "ondo_symbol": "ORCLon",
-        "sector": "Technology",
-        "mint_xstock": "",
-        "mint_ondo": "",
-        "logo": "https://logo.clearbit.com/oracle.com",
-    },
 }
 
 # ── Commission dynamique pour les actions (plus basse que les services) ──
@@ -468,21 +288,15 @@ async def _ensure_portfolios_loaded():
 
 
 async def _persist_holding(api_key: str, symbol: str, shares: float):
-    """Persiste un holding en DB."""
-    try:
-        from database import db
-        await db.save_stock_holding(api_key, symbol, shares)
-    except Exception as e:
-        print(f"[Stocks] DB persist error: {e}")
+    """Persiste un holding en DB. Raises on failure — trade must not succeed without persistence."""
+    from database import db
+    await db.save_stock_holding(api_key, symbol, shares)
 
 
 async def _persist_trade(trade: dict):
-    """Persiste un trade en DB."""
-    try:
-        from database import db
-        await db.save_stock_trade(trade)
-    except Exception as e:
-        print(f"[Stocks] DB trade persist error: {e}")
+    """Persiste un trade en DB. Raises on failure — trade must not succeed without persistence."""
+    from database import db
+    await db.save_stock_trade(trade)
 
 
 def get_stock_commission_bps(volume_30d: float) -> int:
@@ -576,6 +390,7 @@ class TokenizedStockExchange:
                 "price_usd": price_data.get("price", 0),
                 "change_24h_pct": round(price_data.get("change", 0), 2),
                 "volume": price_data.get("volume", 0),
+                "price_source": price_data.get("source", "fallback"),
                 "fractional": True,
                 "min_buy_usdc": 1.0,
                 "payment": "USDC on Solana",
@@ -613,6 +428,7 @@ class TokenizedStockExchange:
             "market_cap": price_data.get("market_cap", 0),
             "tokens_available": [info["xstock_symbol"], info["ondo_symbol"]],
             "sector": info["sector"],
+            "price_source": price_data.get("source", "fallback"),
             "updated_at": int(time.time()),
         }
 
@@ -629,8 +445,33 @@ class TokenizedStockExchange:
         if amount_usdc > 100000:
             return {"success": False, "error": "Maximum 100 000 USDC par trade"}
 
+        # ── Fix #1: Verify USDC payment BEFORE executing trade ──
+        if not payment_tx:
+            return {"success": False, "error": "payment_tx required"}
+
+        # Idempotency check — reject reused payment signatures
+        try:
+            from database import db
+            if await db.tx_already_processed(payment_tx):
+                return {"success": False, "error": "Payment already used"}
+        except Exception:
+            pass
+
+        # Verify payment on-chain
+        from solana_verifier import verify_transaction
+        from config import TREASURY_ADDRESS
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=amount_usdc,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            return {"success": False, "error": f"Payment invalid: {tx_result.get('error')}"}
+
         prices = await fetch_stock_prices()
-        price = prices.get(symbol, {}).get("price", 0)
+        price_data = prices.get(symbol, {})
+        price = price_data.get("price", 0)
+        price_source = price_data.get("source", "fallback")
         if price <= 0:
             return {"success": False, "error": f"Prix indisponible pour {symbol}"}
 
@@ -641,65 +482,71 @@ class TokenizedStockExchange:
         shares = round(net_amount / price, 6)
         tier = get_stock_tier_name(buyer_volume_30d)
 
-        # Router via Jupiter pour le swap reel USDC -> Token
-        jupiter_result = None
+        # ── Fix #3: Only record trade AFTER Jupiter swap succeeds ──
         mint = TOKENIZED_STOCKS[symbol].get("mint_xstock") or TOKENIZED_STOCKS[symbol].get("mint_ondo", "")
         if mint and len(mint) > 20:
             try:
                 from jupiter_router import buy_token_via_jupiter
                 jupiter_result = await buy_token_via_jupiter(mint, net_amount, buyer_wallet)
-                if jupiter_result.get("success"):
-                    print(f"[Stocks] Jupiter swap OK: {jupiter_result.get('signature', '')[:16]}...")
-                else:
-                    print(f"[Stocks] Jupiter swap failed: {jupiter_result.get('error', '')} — trade enregistre localement")
+                if not jupiter_result.get("success"):
+                    return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}
+                print(f"[Stocks] Jupiter swap OK: {jupiter_result.get('signature', '')[:16]}...")
+
+                # Record trade ONLY after successful swap
+                trade = {
+                    "trade_id": str(uuid.uuid4()),
+                    "type": "buy",
+                    "buyer": buyer_name,
+                    "buyer_wallet": buyer_wallet,
+                    "symbol": symbol,
+                    "name": TOKENIZED_STOCKS[symbol]["name"],
+                    "amount_usdc": amount_usdc,
+                    "commission_usdc": commission,
+                    "commission_bps": commission_bps,
+                    "net_amount_usdc": net_amount,
+                    "price_per_share": price,
+                    "shares": shares,
+                    "tier": tier,
+                    "payment_tx": payment_tx,
+                    "timestamp": int(time.time()),
+                    "route": "Jupiter -> xStocks/Ondo",
+                    "jupiter_signature": jupiter_result.get("signature", ""),
+                    "jupiter_explorer": jupiter_result.get("explorer", ""),
+                    "on_chain": True,
+                    "price_source": price_source,
+                }
+                _stock_trades.append(trade)
+
+                # Mettre a jour le portfolio
+                _portfolios.setdefault(buyer_api_key, {})
+                _portfolios[buyer_api_key].setdefault(symbol, 0)
+                _portfolios[buyer_api_key][symbol] += shares
+                await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
+                await _persist_trade(trade)
+
+                # ── Fix #6: Record transaction in DB ──
+                from database import db as _db
+                await _db.record_transaction(buyer_wallet, payment_tx, amount_usdc, "stock_trade")
+
+                # Alerte Discord
+                try:
+                    from alerts import alert_revenue
+                    await alert_revenue(commission, f"Achat action {symbol} — {buyer_name} ({amount_usdc} USDC)")
+                except Exception:
+                    pass
+
+                print(f"[Stocks] BUY {shares:.4f} {symbol} @ ${price} par {buyer_name} — commission {commission} USDC")
+
+                return {
+                    "success": True,
+                    **trade,
+                    "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
+                    "price_source": price_source,
+                }
             except Exception as e:
-                print(f"[Stocks] Jupiter routing error: {e} — trade enregistre localement")
-
-        # Enregistrer le trade
-        trade = {
-            "trade_id": str(uuid.uuid4()),
-            "type": "buy",
-            "buyer": buyer_name,
-            "buyer_wallet": buyer_wallet,
-            "symbol": symbol,
-            "name": TOKENIZED_STOCKS[symbol]["name"],
-            "amount_usdc": amount_usdc,
-            "commission_usdc": commission,
-            "commission_bps": commission_bps,
-            "net_amount_usdc": net_amount,
-            "price_per_share": price,
-            "shares": shares,
-            "tier": tier,
-            "payment_tx": payment_tx,
-            "timestamp": int(time.time()),
-            "route": "Jupiter -> xStocks/Ondo",
-            "jupiter_signature": jupiter_result.get("signature", "") if jupiter_result and jupiter_result.get("success") else "",
-            "jupiter_explorer": jupiter_result.get("explorer", "") if jupiter_result and jupiter_result.get("success") else "",
-            "on_chain": bool(jupiter_result and jupiter_result.get("success")),
-        }
-        _stock_trades.append(trade)
-
-        # Mettre a jour le portfolio
-        _portfolios.setdefault(buyer_api_key, {})
-        _portfolios[buyer_api_key].setdefault(symbol, 0)
-        _portfolios[buyer_api_key][symbol] += shares
-        await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
-        await _persist_trade(trade)
-
-        # Alerte Discord
-        try:
-            from alerts import alert_revenue
-            await alert_revenue(commission, f"Achat action {symbol} — {buyer_name} ({amount_usdc} USDC)")
-        except Exception:
-            pass
-
-        print(f"[Stocks] BUY {shares:.4f} {symbol} @ ${price} par {buyer_name} — commission {commission} USDC")
-
-        return {
-            "success": True,
-            **trade,
-            "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
-        }
+                return {"success": False, "error": f"Jupiter error: {e}"}
+        else:
+            return {"success": False, "error": f"Stock {symbol} not available for trading (no on-chain token)"}
 
     async def sell_stock(self, seller_api_key: str, seller_name: str,
                           seller_wallet: str, symbol: str, shares: float,
@@ -709,15 +556,21 @@ class TokenizedStockExchange:
         symbol = symbol.upper()
         if symbol not in TOKENIZED_STOCKS:
             return {"success": False, "error": f"Action inconnue: {symbol}"}
+        if shares <= 0:
+            return {"success": False, "error": "Shares must be > 0"}
 
-        # Verifier le portfolio
+        # ── Fix #8: Verify seller actually holds the shares ──
         portfolio = _portfolios.get(seller_api_key, {})
         held = portfolio.get(symbol, 0)
+        if held <= 0:
+            return {"success": False, "error": f"You do not hold any {symbol} shares"}
         if held < shares:
             return {"success": False, "error": f"Solde insuffisant: {held:.6f} {symbol} (demande: {shares})"}
 
         prices = await fetch_stock_prices()
-        price = prices.get(symbol, {}).get("price", 0)
+        price_data = prices.get(symbol, {})
+        price = price_data.get("price", 0)
+        price_source = price_data.get("source", "fallback")
         if price <= 0:
             return {"success": False, "error": f"Prix indisponible pour {symbol}"}
 
@@ -727,57 +580,62 @@ class TokenizedStockExchange:
         net_usdc = gross_usdc - commission
         tier = get_stock_tier_name(seller_volume_30d)
 
-        # Router via Jupiter pour le swap reel Token -> USDC
-        jupiter_result = None
+        # ── Fix #3 (sell): Only record trade AFTER Jupiter swap succeeds ──
         mint = TOKENIZED_STOCKS[symbol].get("mint_xstock") or TOKENIZED_STOCKS[symbol].get("mint_ondo", "")
         if mint and len(mint) > 20:
             try:
                 from jupiter_router import sell_token_via_jupiter
                 amount_raw = int(shares * 1e6)  # approximation
                 jupiter_result = await sell_token_via_jupiter(mint, amount_raw, seller_wallet)
+                if not jupiter_result.get("success"):
+                    return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}
+
+                # Record trade ONLY after successful swap
+                trade = {
+                    "trade_id": str(uuid.uuid4()),
+                    "type": "sell",
+                    "seller": seller_name,
+                    "seller_wallet": seller_wallet,
+                    "symbol": symbol,
+                    "name": TOKENIZED_STOCKS[symbol]["name"],
+                    "shares": shares,
+                    "price_per_share": price,
+                    "gross_usdc": gross_usdc,
+                    "commission_usdc": commission,
+                    "commission_bps": commission_bps,
+                    "net_usdc": net_usdc,
+                    "tier": tier,
+                    "timestamp": int(time.time()),
+                    "route": "xStocks/Ondo -> Jupiter -> USDC",
+                    "jupiter_signature": jupiter_result.get("signature", ""),
+                    "on_chain": True,
+                    "price_source": price_source,
+                }
+                _stock_trades.append(trade)
+
+                # Mettre a jour le portfolio
+                _portfolios[seller_api_key][symbol] -= shares
+                await _persist_holding(seller_api_key, symbol, _portfolios[seller_api_key][symbol])
+                await _persist_trade(trade)
+
+                try:
+                    from alerts import alert_revenue
+                    await alert_revenue(commission, f"Vente action {symbol} — {seller_name} ({gross_usdc} USDC)")
+                except Exception:
+                    pass
+
+                print(f"[Stocks] SELL {shares:.4f} {symbol} @ ${price} par {seller_name} — commission {commission} USDC")
+
+                return {
+                    "success": True,
+                    **trade,
+                    "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
+                    "price_source": price_source,
+                }
             except Exception as e:
-                print(f"[Stocks] Jupiter sell error: {e}")
-
-        # Enregistrer le trade
-        trade = {
-            "trade_id": str(uuid.uuid4()),
-            "type": "sell",
-            "seller": seller_name,
-            "seller_wallet": seller_wallet,
-            "symbol": symbol,
-            "name": TOKENIZED_STOCKS[symbol]["name"],
-            "shares": shares,
-            "price_per_share": price,
-            "gross_usdc": gross_usdc,
-            "commission_usdc": commission,
-            "commission_bps": commission_bps,
-            "net_usdc": net_usdc,
-            "tier": tier,
-            "timestamp": int(time.time()),
-            "route": "xStocks/Ondo -> Jupiter -> USDC",
-            "jupiter_signature": jupiter_result.get("signature", "") if jupiter_result and jupiter_result.get("success") else "",
-            "on_chain": bool(jupiter_result and jupiter_result.get("success")),
-        }
-        _stock_trades.append(trade)
-
-        # Mettre a jour le portfolio
-        _portfolios[seller_api_key][symbol] -= shares
-        await _persist_holding(seller_api_key, symbol, _portfolios[seller_api_key][symbol])
-        await _persist_trade(trade)
-
-        try:
-            from alerts import alert_revenue
-            await alert_revenue(commission, f"Vente action {symbol} — {seller_name} ({gross_usdc} USDC)")
-        except Exception:
-            pass
-
-        print(f"[Stocks] SELL {shares:.4f} {symbol} @ ${price} par {seller_name} — commission {commission} USDC")
-
-        return {
-            "success": True,
-            **trade,
-            "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
-        }
+                return {"success": False, "error": f"Jupiter error: {e}"}
+        else:
+            return {"success": False, "error": f"Stock {symbol} not available for trading (no on-chain token)"}
 
     async def get_portfolio(self, api_key: str) -> dict:
         """Portfolio de l'utilisateur."""
