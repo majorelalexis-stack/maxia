@@ -14,6 +14,18 @@ import time
 from config_local import BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY
 
 
+# Rate limits pour eviter les bans (actions par minute)
+_RATE_LIMITS = {
+    "tweet": {"per_min": 2, "per_day": MAX_TWEETS_DAY},
+    "like": {"per_min": 5, "per_day": 50},
+    "follow": {"per_min": 2, "per_day": 10},
+    "reply": {"per_min": 2, "per_day": 20},
+    "reddit_post": {"per_min": 1, "per_day": MAX_REDDIT_POSTS_DAY},
+    "reddit_comment": {"per_min": 1, "per_day": 15},
+    "dm": {"per_min": 1, "per_day": 10},
+}
+
+
 class BrowserAgent:
     """Controle un navigateur Chrome via Playwright avec selectors robustes."""
 
@@ -22,13 +34,53 @@ class BrowserAgent:
         self._context = None
         self._page = None
         self._initialized = False
-        self._daily_counts = {"tweets": 0, "reddit": 0, "date": ""}
+        self._daily_counts = {"date": ""}
+        self._minute_counts = {}  # {action: [timestamps]}
+        self._action_history = []  # Deduplication: [{action, hash, ts}]
         self._profile_dir = BROWSER_PROFILE_DIR
 
     def _reset_if_new_day(self):
         today = time.strftime("%Y-%m-%d")
-        if self._daily_counts["date"] != today:
-            self._daily_counts = {"tweets": 0, "reddit": 0, "date": today}
+        if self._daily_counts.get("date") != today:
+            self._daily_counts = {"date": today}
+            self._action_history = [a for a in self._action_history if a["ts"] > time.time() - 86400]
+
+    def _check_rate(self, action_type: str) -> str | None:
+        """Verifie les rate limits. Retourne None si OK, sinon le message d'erreur."""
+        self._reset_if_new_day()
+        limits = _RATE_LIMITS.get(action_type, {"per_min": 3, "per_day": 30})
+
+        # Limite par jour
+        day_count = self._daily_counts.get(action_type, 0)
+        if day_count >= limits["per_day"]:
+            return f"Limite {action_type}/jour atteinte ({limits['per_day']})"
+
+        # Limite par minute
+        now = time.time()
+        timestamps = self._minute_counts.get(action_type, [])
+        timestamps = [t for t in timestamps if t > now - 60]
+        self._minute_counts[action_type] = timestamps
+        if len(timestamps) >= limits["per_min"]:
+            return f"Rate limit {action_type}: {limits['per_min']}/min"
+
+        return None
+
+    def _record_action(self, action_type: str, content_hash: str = ""):
+        """Enregistre une action pour rate limiting et deduplication."""
+        self._daily_counts[action_type] = self._daily_counts.get(action_type, 0) + 1
+        self._minute_counts.setdefault(action_type, []).append(time.time())
+        if content_hash:
+            self._action_history.append({"action": action_type, "hash": content_hash, "ts": time.time()})
+
+    def _is_duplicate(self, action_type: str, content: str) -> bool:
+        """Verifie si cette action a deja ete faite (meme contenu)."""
+        import hashlib
+        h = hashlib.md5(f"{action_type}:{content}".encode()).hexdigest()[:12]
+        return any(a["hash"] == h for a in self._action_history)
+
+    def _content_hash(self, action_type: str, content: str) -> str:
+        import hashlib
+        return hashlib.md5(f"{action_type}:{content}".encode()).hexdigest()[:12]
 
     async def setup(self):
         """Lance Chromium avec profil persistant."""
@@ -142,9 +194,11 @@ class BrowserAgent:
 
     async def post_tweet(self, text: str, media: str = None) -> dict:
         """Poste un tweet sur X avec multi-selectors robustes."""
-        self._reset_if_new_day()
-        if self._daily_counts["tweets"] >= MAX_TWEETS_DAY:
-            return {"success": False, "error": f"Limite tweets/jour atteinte ({MAX_TWEETS_DAY})"}
+        err = self._check_rate("tweet")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("tweet", text):
+            return {"success": False, "error": "Tweet deja poste (doublon)"}
 
         await self._ensure_ready()
         page = self._page
@@ -200,7 +254,7 @@ class BrowserAgent:
             await page.wait_for_timeout(3000)
             proof = await self._screenshot(page, "tweet_ok")
 
-            self._daily_counts["tweets"] += 1
+            self._record_action("tweet", self._content_hash("tweet", text))
             return {"success": True, "proof": proof, "text": text[:100]}
 
         except Exception as e:
@@ -247,9 +301,11 @@ class BrowserAgent:
 
     async def post_reddit(self, subreddit: str, title: str, body: str) -> dict:
         """Poste sur un subreddit avec multi-selectors."""
-        self._reset_if_new_day()
-        if self._daily_counts["reddit"] >= MAX_REDDIT_POSTS_DAY:
-            return {"success": False, "error": f"Limite reddit/jour atteinte ({MAX_REDDIT_POSTS_DAY})"}
+        err = self._check_rate("reddit_post")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("reddit_post", f"{subreddit}:{title}"):
+            return {"success": False, "error": "Post Reddit deja fait (doublon)"}
 
         await self._ensure_ready()
         page = self._page
@@ -305,7 +361,7 @@ class BrowserAgent:
             await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "reddit_ok")
 
-            self._daily_counts["reddit"] += 1
+            self._record_action("reddit_post", self._content_hash("reddit_post", f"{subreddit}:{title}"))
             return {"success": True, "proof": proof, "subreddit": subreddit}
 
         except Exception as e:
@@ -469,6 +525,11 @@ class BrowserAgent:
 
     async def like_tweet(self, tweet_url: str) -> dict:
         """Like un tweet pour gagner en visibilite."""
+        err = self._check_rate("like")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("like", tweet_url):
+            return {"success": False, "error": "Deja like"}
         await self._ensure_ready()
         page = self._page
 
@@ -487,6 +548,7 @@ class BrowserAgent:
                 return {"success": False, "error": "Bouton Like introuvable"}
 
             await page.wait_for_timeout(1000)
+            self._record_action("like", self._content_hash("like", tweet_url))
             return {"success": True, "url": tweet_url}
 
         except Exception as e:
@@ -494,6 +556,11 @@ class BrowserAgent:
 
     async def follow_user(self, username: str) -> dict:
         """Follow un utilisateur sur X."""
+        err = self._check_rate("follow")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("follow", username):
+            return {"success": False, "error": f"Deja follow: {username}"}
         await self._ensure_ready()
         page = self._page
 
@@ -519,6 +586,7 @@ class BrowserAgent:
                 return {"success": False, "error": "Bouton Follow introuvable"}
 
             await page.wait_for_timeout(1000)
+            self._record_action("follow", self._content_hash("follow", clean))
             return {"success": True, "username": clean}
 
         except Exception as e:
@@ -656,6 +724,332 @@ class BrowserAgent:
         except Exception as e:
             await self._screenshot(page, "reddit_comment_error")
             return {"success": False, "error": str(e)}
+
+
+    # ── Twitter DMs ──
+
+    async def dm_twitter(self, username: str, text: str) -> dict:
+        """Envoie un DM sur X."""
+        err = self._check_rate("dm")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("dm", username):
+            return {"success": False, "error": f"DM deja envoye a {username}"}
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            clean = username.lstrip("@")
+            await page.goto(f"https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Nouveau message
+            clicked = await self._find_and_click(page, [
+                '[data-testid="NewDM_Button"]',
+                'a[href="/messages/compose"]',
+                '[aria-label*="New message" i]',
+                '[aria-label*="Nouveau message" i]',
+            ], "New DM button")
+            if not clicked:
+                return {"success": False, "error": "Bouton nouveau DM introuvable"}
+            await page.wait_for_timeout(1500)
+
+            # Chercher le destinataire
+            filled = await self._find_and_fill(page, [
+                'input[data-testid="searchPeople"]',
+                'input[placeholder*="Search" i]',
+                'input[placeholder*="Rechercher" i]',
+                'input[aria-label*="Search" i]',
+            ], clean, "DM search")
+            if not filled:
+                return {"success": False, "error": "Champ recherche DM introuvable"}
+            await page.wait_for_timeout(2000)
+
+            # Cliquer sur le profil dans les resultats
+            result_item = page.locator(f'[data-testid="typeaheadResult"]').first
+            if await result_item.is_visible(timeout=5000):
+                await result_item.click()
+            else:
+                return {"success": False, "error": f"Profil {clean} introuvable dans les DMs"}
+            await page.wait_for_timeout(1000)
+
+            # Cliquer Next/Suivant
+            await self._find_and_click(page, [
+                'button[data-testid="nextButton"]',
+                'button:has-text("Next")',
+                'button:has-text("Suivant")',
+            ], "Next button")
+            await page.wait_for_timeout(1000)
+
+            # Taper le message
+            filled = await self._find_and_fill(page, [
+                '[data-testid="dmComposerTextInput"]',
+                'div[data-testid="dmComposerTextInput"]',
+                'div[role="textbox"][contenteditable]',
+            ], text[:1000], "DM text")
+            if not filled:
+                return {"success": False, "error": "Champ message DM introuvable"}
+            await page.wait_for_timeout(500)
+
+            # Envoyer
+            sent = await self._find_and_click(page, [
+                '[data-testid="dmComposerSendButton"]',
+                'button[aria-label*="Send" i]',
+                'button[aria-label*="Envoyer" i]',
+            ], "Send DM")
+            if not sent:
+                return {"success": False, "error": "Bouton envoyer DM introuvable"}
+
+            await page.wait_for_timeout(2000)
+            self._record_action("dm", self._content_hash("dm", username))
+            return {"success": True, "username": clean}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ── Telegram Web ──
+
+    async def send_telegram(self, group_or_user: str, text: str) -> dict:
+        """Envoie un message sur Telegram Web (groupe ou user)."""
+        err = self._check_rate("dm")
+        if err:
+            return {"success": False, "error": err}
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            # Chercher le groupe/user
+            search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
+            if await search.is_visible(timeout=5000):
+                await search.click()
+                await search.fill(group_or_user)
+                await page.wait_for_timeout(2000)
+
+                # Cliquer sur le resultat
+                result = page.locator(f'.ListItem:has-text("{group_or_user}")').first
+                if await result.is_visible(timeout=5000):
+                    await result.click()
+                else:
+                    return {"success": False, "error": f"Groupe/user '{group_or_user}' introuvable"}
+            else:
+                return {"success": False, "error": "Champ recherche Telegram introuvable"}
+
+            await page.wait_for_timeout(1500)
+
+            # Taper le message
+            filled = await self._find_and_fill(page, [
+                'div.input-message-input[contenteditable="true"]',
+                '#editable-message-text',
+                'div[contenteditable="true"][data-peer-id]',
+                'div.input-message-container div[contenteditable]',
+            ], text[:4000], "Telegram message")
+            if not filled:
+                return {"success": False, "error": "Champ message Telegram introuvable"}
+
+            # Envoyer (Enter)
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(2000)
+
+            self._record_action("dm", self._content_hash("telegram", f"{group_or_user}:{text[:50]}"))
+            return {"success": True, "target": group_or_user}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def join_telegram_group(self, group_link: str) -> dict:
+        """Rejoint un groupe Telegram public."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(group_link, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            # Cliquer Join
+            joined = await self._find_and_click(page, [
+                'button:has-text("Join Group")',
+                'button:has-text("Join Channel")',
+                'button:has-text("JOIN")',
+                '.btn-primary:has-text("Join")',
+            ], "Join button")
+
+            await page.wait_for_timeout(2000)
+            return {"success": joined, "group": group_link}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ── GitHub ──
+
+    async def star_github_repo(self, repo_url: str) -> dict:
+        """Star un repo GitHub."""
+        if self._is_duplicate("star", repo_url):
+            return {"success": False, "error": "Deja star"}
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(repo_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Verifier si deja starred
+            unstar = page.locator('button:has-text("Unstar"), button[aria-label*="Unstar"]').first
+            if await unstar.is_visible(timeout=2000):
+                return {"success": True, "already": True, "repo": repo_url}
+
+            starred = await self._find_and_click(page, [
+                'button:has-text("Star")',
+                'button[aria-label*="Star this"]',
+                '.starring-container button:not(.starred)',
+            ], "Star button")
+
+            if starred:
+                self._record_action("star", self._content_hash("star", repo_url))
+            return {"success": starred, "repo": repo_url}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def post_github_issue(self, repo_url: str, title: str, body: str) -> dict:
+        """Cree une issue sur un repo GitHub."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            issues_url = repo_url.rstrip("/") + "/issues/new"
+            await page.goto(issues_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Titre
+            filled = await self._find_and_fill(page, [
+                'input#issue_title',
+                'input[name="issue[title]"]',
+                'input[placeholder*="Title" i]',
+            ], title[:256], "Issue title")
+            if not filled:
+                return {"success": False, "error": "Champ titre issue introuvable"}
+
+            # Body
+            await self._find_and_fill(page, [
+                'textarea#issue_body',
+                'textarea[name="issue[body]"]',
+                'textarea[placeholder*="Leave a comment" i]',
+                'div[contenteditable="true"]',
+            ], body[:5000], "Issue body")
+
+            await page.wait_for_timeout(1000)
+
+            # Submit
+            submitted = await self._find_and_click(page, [
+                'button:has-text("Submit new issue")',
+                'button[type="submit"]:has-text("Submit")',
+            ], "Submit issue")
+
+            await page.wait_for_timeout(3000)
+            return {"success": submitted, "repo": repo_url, "title": title[:50]}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def comment_github_discussion(self, discussion_url: str, text: str) -> dict:
+        """Commente sur une discussion/issue GitHub."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(discussion_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            filled = await self._find_and_fill(page, [
+                'textarea#new_comment_field',
+                'textarea[name="comment[body]"]',
+                'textarea[placeholder*="Leave a comment" i]',
+                'div.CommentBox-container textarea',
+            ], text[:5000], "GitHub comment")
+            if not filled:
+                return {"success": False, "error": "Champ commentaire GitHub introuvable"}
+
+            await page.wait_for_timeout(1000)
+
+            submitted = await self._find_and_click(page, [
+                'button:has-text("Comment")',
+                'button[type="submit"]:has-text("Comment")',
+            ], "Comment button")
+
+            await page.wait_for_timeout(3000)
+            return {"success": submitted, "url": discussion_url}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ── Discord Web ──
+
+    async def send_discord(self, server_channel_url: str, text: str) -> dict:
+        """Envoie un message sur Discord Web."""
+        err = self._check_rate("dm")
+        if err:
+            return {"success": False, "error": err}
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(server_channel_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            filled = await self._find_and_fill(page, [
+                'div[role="textbox"][contenteditable="true"]',
+                'div[data-slate-editor="true"]',
+                'div.slateTextArea-1Mkdgw',
+            ], text[:2000], "Discord message")
+            if not filled:
+                return {"success": False, "error": "Champ message Discord introuvable"}
+
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(2000)
+
+            self._record_action("dm", self._content_hash("discord", f"{server_channel_url}:{text[:50]}"))
+            return {"success": True, "channel": server_channel_url}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def join_discord_server(self, invite_link: str) -> dict:
+        """Rejoint un serveur Discord via invite."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(invite_link, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            joined = await self._find_and_click(page, [
+                'button:has-text("Accept Invite")',
+                'button:has-text("Join")',
+                'button:has-text("Accepter l\'invitation")',
+            ], "Join Discord")
+
+            await page.wait_for_timeout(3000)
+            return {"success": joined, "invite": invite_link}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    # ── Veille concurrentielle ──
+
+    async def competitive_scan(self, urls: list) -> list:
+        """Screenshot + extraction de plusieurs pages concurrentes."""
+        results = []
+        for url in urls[:5]:  # Max 5 par scan
+            try:
+                path = await self.screenshot_page(url)
+                text = await self.browse_and_extract(url, "main")
+                results.append({"url": url, "screenshot": path, "extract": text[:500]})
+            except Exception as e:
+                results.append({"url": url, "error": str(e)})
+        return results
 
 
 # Singleton

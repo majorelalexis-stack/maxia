@@ -30,7 +30,12 @@
       "WebFetch(domain:aleksandarhaber.com)",
       "Bash(ollama pull:*)",
       "Bash(ollama list:*)",
-      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/backend/.env\")"
+      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/backend/.env\")",
+      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/local_ceo/.env\")",
+      "Bash(playwright install:*)",
+      "Bash(python -c \":*)",
+      "Bash(ollama rm:*)",
+      "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/.gitignore\")"
     ]
   },
   "effortLevel": "high"

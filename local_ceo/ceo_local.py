@@ -24,6 +24,71 @@ from audit_local import audit
 from notifier import notify_all, request_approval, get_pending_approvals
 from browser_agent import browser
 
+# ══════════════════════════════════════════
+# Memoire locale persistante (JSON)
+# ══════════════════════════════════════════
+
+_MEMORY_FILE = os.path.join(os.path.dirname(__file__), "ceo_memory.json")
+
+
+def _load_memory() -> dict:
+    try:
+        if os.path.exists(_MEMORY_FILE):
+            with open(_MEMORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {
+        "decisions": [], "actions_done": [], "regles": [],
+        "tweets_posted": [], "contacts": [], "follows": [],
+        "last_strategic": "", "cycle_count": 0,
+        "daily_stats": {},
+    }
+
+
+def _save_memory(mem: dict):
+    try:
+        # Garder les listes a taille raisonnable
+        for key in ["decisions", "actions_done", "tweets_posted"]:
+            if len(mem.get(key, [])) > 500:
+                mem[key] = mem[key][-500:]
+        with open(_MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(mem, f, indent=2, default=str, ensure_ascii=False)
+    except Exception as e:
+        print(f"[Memory] Save error: {e}")
+
+
+# ══════════════════════════════════════════
+# Logs rotatifs
+# ══════════════════════════════════════════
+
+_LOG_FILE = os.path.join(os.path.dirname(__file__), "ceo_local.log")
+_MAX_LOG_SIZE = 5 * 1024 * 1024  # 5 Mo
+
+
+def _rotate_log():
+    """Rotation si log > 5 Mo."""
+    try:
+        if os.path.exists(_LOG_FILE) and os.path.getsize(_LOG_FILE) > _MAX_LOG_SIZE:
+            backup = _LOG_FILE + ".old"
+            if os.path.exists(backup):
+                os.remove(backup)
+            os.rename(_LOG_FILE, backup)
+    except Exception:
+        pass
+
+
+def _log(msg: str):
+    """Log dans fichier + stdout."""
+    _rotate_log()
+    line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}"
+    print(line)
+    try:
+        with open(_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
 
 # ══════════════════════════════════════════
 # LLM Router local (simplifie — Ollama + Mistral fallback)
@@ -290,37 +355,48 @@ REGLES DE DECISION :
 FORMAT REPONSE (JSON strict) :
 {"analysis": "2 phrases max", "decisions": [{"action": "...", "agent": "...", "params": {...}, "priority": "vert|orange|rouge"}], "next_focus": "1 phrase"}"""
 
+# Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
+CEO_SYSTEM_SHORT = """CEO MAXIA — marketplace IA sur Solana. maxiaworld.app
+Rev=0, objectif 10k€/mois. Cible: devs AI sans revenus.
+
+ACTIONS: post_tweet, reply_tweet, like_tweet, follow_user, search_twitter, search_profiles,
+get_mentions, post_reddit, comment_reddit, search_reddit, send_alert, browse_competitor,
+dm_twitter, send_telegram, star_github, send_discord.
+Priorites: vert=auto, orange=validation, rouge=fondateur.
+Max 3 actions. JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
+
 
 class CEOLocal:
-    """Agent CEO local avec boucle OODA."""
+    """Agent CEO local avec boucle OODA, memoire persistante, logs rotatifs."""
 
     def __init__(self):
         self.vps = VPSClient()
+        self.memory = _load_memory()
         self._running = False
-        self._cycle = 0
-        self._browser_ready = False
+        self._cycle = self.memory.get("cycle_count", 0)
         self._daily_actions = {"date": "", "count": 0}
-        print("[CEO Local] Initialise")
-        print(f"  VPS: {VPS_URL}")
-        print(f"  Ollama: {OLLAMA_URL}/{OLLAMA_MODEL}")
-        print(f"  Intervalle: {OODA_INTERVAL_S}s")
+        _log("[CEO Local] Initialise")
+        _log(f"  VPS: {VPS_URL}")
+        _log(f"  Ollama: {OLLAMA_URL}/{OLLAMA_MODEL}")
+        _log(f"  Intervalle: {OODA_INTERVAL_S}s")
+        _log(f"  Memoire: {len(self.memory.get('decisions', []))} decisions, {len(self.memory.get('regles', []))} regles")
 
     async def run(self):
         """Boucle OODA principale."""
         self._running = True
-        print("[CEO Local] Demarre la boucle OODA")
+        _log("[CEO Local] Demarre la boucle OODA")
         await notify_all("CEO Local demarre", "Boucle OODA active", "vert")
 
         while self._running:
             self._cycle += 1
             start = time.time()
-            print(f"\n[CEO Local] === Cycle #{self._cycle} ===")
+            _log(f"\n=== Cycle #{self._cycle} ===")
 
             try:
                 # 1. OBSERVE — recuperer l'etat du VPS
                 state = await self._observe()
                 if not state:
-                    print("[CEO Local] VPS inaccessible, retry dans 60s")
+                    _log("[CEO Local] VPS inaccessible, retry dans 60s")
                     await asyncio.sleep(60)
                     continue
 
@@ -335,10 +411,12 @@ class CEOLocal:
 
                 # 5. LOG
                 elapsed = time.time() - start
-                print(f"[CEO Local] Cycle #{self._cycle} complete en {elapsed:.1f}s")
+                _log(f"Cycle #{self._cycle} complete en {elapsed:.1f}s")
+                self.memory["cycle_count"] = self._cycle
+                _save_memory(self.memory)
 
             except Exception as e:
-                print(f"[CEO Local] Erreur cycle #{self._cycle}: {e}")
+                _log(f"ERREUR cycle #{self._cycle}: {e}")
                 await audit.log(f"cycle_error: {e}", success=False)
 
             # 6. SLEEP
@@ -349,18 +427,16 @@ class CEOLocal:
 
     async def _observe(self) -> dict:
         """OBSERVE — Recupere l'etat du VPS."""
-        print("[OBSERVE] Recuperation etat VPS...")
+        _log("[OBSERVE] Recuperation etat VPS...")
         state = await self.vps.get_state()
         if state:
             kpis = state.get("kpi", {})
-            print(f"  Rev 24h: ${kpis.get('revenue_24h', 0)}")
-            print(f"  Clients: {kpis.get('clients_actifs', 0)}")
-            print(f"  Services: {kpis.get('services_actifs', 0)}")
+            _log(f"  Rev=${kpis.get('revenue_24h', 0)} Clients={kpis.get('clients_actifs', 0)} Services={kpis.get('services_actifs', 0)}")
         return state
 
     async def _orient(self, state: dict) -> str:
         """ORIENT — Analyse locale via Ollama (0 cout)."""
-        print("[ORIENT] Analyse locale...")
+        _log("[ORIENT] Analyse locale...")
         kpis = state.get("kpi", {})
         agents = state.get("agents", {})
         errors = state.get("errors", [])
@@ -380,12 +456,12 @@ class CEOLocal:
             system="Tu es un analyste business. Sois concis et factuel.",
             max_tokens=300,
         )
-        print(f"  Analyse: {analysis[:150]}")
+        _log(f"  Analyse: {analysis[:150]}")
         return analysis
 
     async def _decide(self, analysis: str, state: dict) -> list:
         """DECIDE — Ollama classifie la situation, Claude decide si necessaire."""
-        print("[DECIDE] Classification locale...")
+        _log("[DECIDE] Classification locale...")
         kpis = state.get("kpi", {})
 
         context = (
@@ -404,7 +480,7 @@ class CEOLocal:
         )
         classification = await call_local_llm(classify_prompt, max_tokens=10)
         is_strategic = "strateg" in classification.lower()
-        print(f"  Classification: {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
+        _log(f"  Classification: {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
 
         # Etape 2: Generer les decisions
         decide_prompt = (
@@ -421,18 +497,20 @@ class CEOLocal:
                 max_tokens=1000,
             )
         else:
-            # Ollama local (0 cout)
-            result_text = await call_local_llm(decide_prompt, system=CEO_SYSTEM, max_tokens=800)
+            # Ollama local avec prompt court (0 cout)
+            result_text = await call_local_llm(decide_prompt, system=CEO_SYSTEM_SHORT, max_tokens=800)
 
         result = parse_json(result_text)
         decisions = result.get("decisions", [])
 
         if decisions:
-            print(f"  {len(decisions)} decisions generees")
+            _log(f"  {len(decisions)} decisions generees")
             for d in decisions:
-                print(f"    [{d.get('priority', '?')}] {d.get('action', '?')} -> {d.get('agent', '?')}")
+                _log(f"    [{d.get('priority', '?')}] {d.get('action', '?')} -> {d.get('agent', '?')}")
+            # Sauvegarder en memoire
+            self.memory["decisions"].extend(decisions)
         else:
-            print("  Aucune decision")
+            _log("  Aucune decision")
 
         return decisions
 
@@ -443,7 +521,7 @@ class CEOLocal:
         from config_local import MAX_ACTIONS_DAY
         for decision in decisions:
             if self._daily_actions["count"] >= MAX_ACTIONS_DAY:
-                print(f"[ACT] Limite quotidienne atteinte ({MAX_ACTIONS_DAY})")
+                _log(f"[ACT] Limite quotidienne atteinte ({MAX_ACTIONS_DAY})")
                 break
 
             action = decision.get("action", "")
@@ -452,16 +530,16 @@ class CEOLocal:
             priority = decision.get("priority", "vert").lower()
             action_id = f"ceo_{uuid.uuid4().hex[:8]}"
 
-            print(f"[ACT] {action} -> {agent} [{priority}]")
+            _log(f"[ACT] {action} -> {agent} [{priority}]")
 
             # Gate d'approbation
             if priority in ("orange", "rouge"):
                 approved_by = await request_approval(action_id, decision)
                 if approved_by == "denied":
-                    print(f"  REFUSE par {approved_by}")
+                    _log(f"  REFUSE par {approved_by}")
                     await audit.log(action, agent, priority=priority, approved_by="denied", success=False)
                     continue
-                print(f"  Approuve par: {approved_by}")
+                _log(f"  Approuve par: {approved_by}")
             else:
                 approved_by = "auto"
 
@@ -470,7 +548,13 @@ class CEOLocal:
                 result = await self._execute_action(action, agent, params, priority)
                 success = result.get("success", False)
                 detail = result.get("detail", result.get("result", ""))
-                print(f"  Resultat: {'OK' if success else 'ECHEC'} — {str(detail)[:100]}")
+                _log(f"  {'OK' if success else 'ECHEC'}: {str(detail)[:100]}")
+
+                # Sauvegarder en memoire
+                self.memory["actions_done"].append({
+                    "action": action, "agent": agent, "priority": priority,
+                    "success": success, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
 
                 await audit.log(
                     action, agent, priority=priority,
@@ -482,7 +566,7 @@ class CEOLocal:
                 self._daily_actions["count"] += 1
 
             except Exception as e:
-                print(f"  ERREUR: {e}")
+                _log(f"  ERREUR: {e}")
                 await audit.log(action, agent, priority=priority, result=str(e), success=False)
 
     async def _execute_action(self, action: str, agent: str, params: dict,
@@ -514,10 +598,38 @@ class CEOLocal:
         elif action == "search_reddit":
             results = await browser.search_reddit(params.get("subreddit", ""), params.get("query", ""))
             return {"success": bool(results), "detail": f"{len(results)} posts trouves", "data": results}
+        # Twitter DMs (local)
+        elif action == "dm_twitter":
+            return await self._do_browser("dm_twitter", params)
+        # Telegram (local)
+        elif action == "send_telegram":
+            return await self._do_browser("send_telegram", params)
+        elif action == "join_telegram":
+            result = await browser.join_telegram_group(params.get("group_link", ""))
+            return {"success": result.get("success", False), "detail": str(result)}
+        # GitHub (local)
+        elif action == "star_github":
+            result = await browser.star_github_repo(params.get("repo_url", ""))
+            return {"success": result.get("success", False), "detail": str(result)}
+        elif action == "post_github_issue":
+            result = await browser.post_github_issue(params.get("repo_url", ""), params.get("title", ""), params.get("body", ""))
+            return {"success": result.get("success", False), "detail": str(result)}
+        elif action == "comment_github":
+            result = await browser.comment_github_discussion(params.get("url", ""), params.get("text", ""))
+            return {"success": result.get("success", False), "detail": str(result)}
+        # Discord (local)
+        elif action == "send_discord":
+            return await self._do_browser("send_discord", params)
+        elif action == "join_discord":
+            result = await browser.join_discord_server(params.get("invite_link", ""))
+            return {"success": result.get("success", False), "detail": str(result)}
         # Veille (local)
         elif action == "browse_competitor":
             path = await browser.screenshot_page(params.get("url", ""))
             return {"success": bool(path), "detail": f"Screenshot: {path}"}
+        elif action == "competitive_scan":
+            results = await browser.competitive_scan(params.get("urls", []))
+            return {"success": bool(results), "detail": f"{len(results)} pages scannees", "data": results}
         # VPS
         else:
             return await self.vps.execute(action, agent, params, priority)
@@ -539,6 +651,12 @@ class CEOLocal:
                 result = await fn(params.get("subreddit", ""), params.get("title", ""), params.get("body", ""))
             elif method == "comment_reddit":
                 result = await fn(params.get("post_url", ""), params.get("text", ""))
+            elif method == "dm_twitter":
+                result = await fn(params.get("username", ""), params.get("text", ""))
+            elif method == "send_telegram":
+                result = await fn(params.get("target", params.get("group", "")), params.get("text", ""))
+            elif method == "send_discord":
+                result = await fn(params.get("channel_url", ""), params.get("text", ""))
             else:
                 result = {"success": False, "error": f"Unknown browser method: {method}"}
 
@@ -566,7 +684,7 @@ class CEOLocal:
 
 async def main():
     if not CEO_API_KEY:
-        print("ERREUR: CEO_API_KEY non configure dans .env")
+        _log("ERREUR: CEO_API_KEY non configure dans .env")
         sys.exit(1)
 
     ceo = CEOLocal()
@@ -574,23 +692,23 @@ async def main():
     # Verifier la connexion VPS
     health = await ceo.vps.health()
     if health.get("healthy"):
-        print("[CEO Local] VPS connecte et en bonne sante")
+        _log("[CEO Local] VPS connecte et en bonne sante")
     else:
-        print(f"[CEO Local] VPS indisponible: {health}")
-        print("  Demarrage quand meme (retry automatique)")
+        _log(f"[CEO Local] VPS indisponible: {health}")
+        _log("  Demarrage quand meme (retry automatique)")
 
     # Verifier Ollama
     try:
         test = await call_ollama("Dis 'ok' en un mot.", max_tokens=10)
-        print(f"[CEO Local] Ollama OK: {test.strip()}")
+        _log(f"[CEO Local] Ollama OK: {test.strip()[:30]}")
     except Exception as e:
-        print(f"[CEO Local] Ollama indisponible: {e}")
-        print("  Fallback Mistral sera utilise")
+        _log(f"[CEO Local] Ollama indisponible: {e}")
+        _log("  Fallback Mistral sera utilise")
 
     try:
         await ceo.run()
     except KeyboardInterrupt:
-        print("\n[CEO Local] Arret demande")
+        _log("[CEO Local] Arret demande")
         ceo.stop()
         await browser.close()
 

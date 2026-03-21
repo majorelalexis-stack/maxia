@@ -1,10 +1,6 @@
-.env
+local_ceo/.env
+backend/.env
 *.db
 __pycache__/
-*.pyc
-venv/
-.venv/
-dist/
-build/
-*.exe
-.daily_spend.json
+.maxia-browser/
+*.log

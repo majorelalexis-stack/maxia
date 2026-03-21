@@ -1060,10 +1060,25 @@ async def ceo_agent_bus():
 #  CEO AUTONOME — Endpoints securises PC local <-> VPS
 # ═══════════════════════════════════════════════════════════
 
+# Rate limit CEO endpoints: 30 req/min
+_ceo_rate: list = []
+_CEO_RATE_LIMIT = 30
+_CEO_RATE_WINDOW = 60
+
+
+def _check_ceo_rate(ip: str):
+    now = time.time()
+    _ceo_rate[:] = [t for t in _ceo_rate if t > now - _CEO_RATE_WINDOW]
+    if len(_ceo_rate) >= _CEO_RATE_LIMIT:
+        raise HTTPException(429, "CEO API rate limit: 30 req/min")
+    _ceo_rate.append(now)
+
+
 @app.get("/api/ceo/state")
 async def ceo_full_state(request: Request):
     """Etat complet du VPS pour le CEO local."""
     from auth import require_ceo_auth
+    _check_ceo_rate(request.client.host if request.client else "?")
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
     try:
         from ceo_maxia import ceo, get_llm_costs
@@ -1279,7 +1294,7 @@ async def ceo_think(request: Request):
     cache_key = f"ceo_think_{prompt_hash}"
     if hasattr(app.state, '_think_cache'):
         cached = app.state._think_cache.get(cache_key)
-        if cached and time.time() - cached["ts"] < 600:
+        if cached and time.time() - cached["ts"] < 3600:  # Cache 1h
             audit_log("ceo_think_cached", ip, f"tier={tier} hash={prompt_hash}", "ceo-local")
             return {"result": cached["result"], "tier": tier, "cached": True, "cost_usd": 0}
     else:
