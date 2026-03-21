@@ -164,6 +164,28 @@ class VPSClient:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def think(self, prompt: str, tier: str = "fast", max_tokens: int = 1000) -> str:
+        """POST /api/ceo/think — Delegue la reflexion strategique a Claude sur le VPS."""
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    f"{self._base}/api/ceo/think",
+                    headers=self._headers,
+                    json={"prompt": prompt, "tier": tier, "max_tokens": max_tokens},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                cached = data.get("cached", False)
+                cost = data.get("cost_usd", 0)
+                if cached:
+                    print(f"  [VPS/think] Cache hit (0$)")
+                else:
+                    print(f"  [VPS/think] {tier} ~${cost}")
+                return data.get("result", "")
+        except Exception as e:
+            print(f"[VPS] think error: {e}")
+            return ""
+
 
 # ══════════════════════════════════════════
 # Boucle OODA principale
@@ -335,20 +357,46 @@ class CEOLocal:
         return analysis
 
     async def _decide(self, analysis: str, state: dict) -> list:
-        """DECIDE — Determiner les actions via LLM."""
-        print("[DECIDE] Generation decisions...")
+        """DECIDE — Ollama classifie la situation, Claude decide si necessaire."""
+        print("[DECIDE] Classification locale...")
         kpis = state.get("kpi", {})
 
-        prompt = (
-            f"ANALYSE: {analysis}\n\n"
-            f"ETAT: Rev=${kpis.get('revenue_24h', 0)}, "
-            f"Clients={kpis.get('clients_actifs', 0)}, "
-            f"Emergency={kpis.get('emergency_stop', False)}\n\n"
-            "Quelles actions executer ? Max 3 actions par cycle.\n"
-            "Privilegie les actions VERT (auto) sauf si enjeu financier > $5."
+        context = (
+            f"ANALYSE: {analysis[:300]}\n"
+            f"Rev=${kpis.get('revenue_24h', 0)}, Clients={kpis.get('clients_actifs', 0)}, "
+            f"Emergency={kpis.get('emergency_stop', False)}"
         )
 
-        result_text = await call_local_llm(prompt, system=CEO_SYSTEM, max_tokens=800)
+        # Etape 1: Ollama classifie — routine ou strategique ? (0 cout)
+        classify_prompt = (
+            f"{context}\n\n"
+            "Cette situation necessite-t-elle une reflexion strategique (changement de prix, "
+            "nouveau canal marketing, decision budget) ou juste des actions de routine "
+            "(tweet, monitoring, rapport) ?\n"
+            "Reponds UN MOT: routine ou strategique"
+        )
+        classification = await call_local_llm(classify_prompt, max_tokens=10)
+        is_strategic = "strateg" in classification.lower()
+        print(f"  Classification: {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
+
+        # Etape 2: Generer les decisions
+        decide_prompt = (
+            f"{context}\n\n"
+            "Max 3 actions. Pas d actions vagues.\n"
+            "JSON: {\"decisions\": [{\"action\": \"...\", \"agent\": \"...\", \"params\": {...}, \"priority\": \"vert|orange|rouge\"}]}"
+        )
+
+        if is_strategic:
+            # Delegue a Claude sur le VPS (cache 10 min, prompt compresse)
+            result_text = await self.vps.think(
+                CEO_SYSTEM + "\n\n" + decide_prompt,
+                tier="mid",
+                max_tokens=1000,
+            )
+        else:
+            # Ollama local (0 cout)
+            result_text = await call_local_llm(decide_prompt, system=CEO_SYSTEM, max_tokens=800)
+
         result = parse_json(result_text)
         decisions = result.get("decisions", [])
 

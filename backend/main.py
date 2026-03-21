@@ -1256,6 +1256,81 @@ async def ceo_emergency_stop(request: Request):
         return {"success": False, "error": str(e)}
 
 
+@app.post("/api/ceo/think")
+async def ceo_think(request: Request):
+    """Le CEO local delegue une reflexion strategique a Claude sur le VPS.
+    Evite de payer Claude 2x — le local envoie le prompt, le VPS reflechit."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    tier = body.get("tier", "fast")  # fast|mid|strategic
+    max_tokens = min(body.get("max_tokens", 1000), 4000)
+    ip = request.client.host if request.client else "unknown"
+
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+
+    # Cache: ne pas appeler Claude si meme prompt dans les 10 dernieres min
+    import hashlib
+    prompt_hash = hashlib.md5(prompt[:500].encode()).hexdigest()[:12]
+    cache_key = f"ceo_think_{prompt_hash}"
+    if hasattr(app.state, '_think_cache'):
+        cached = app.state._think_cache.get(cache_key)
+        if cached and time.time() - cached["ts"] < 600:
+            audit_log("ceo_think_cached", ip, f"tier={tier} hash={prompt_hash}", "ceo-local")
+            return {"result": cached["result"], "tier": tier, "cached": True, "cost_usd": 0}
+    else:
+        app.state._think_cache = {}
+
+    try:
+        from llm_router import router as llm_router, Tier
+        from ceo_maxia import CEO_IDENTITY
+
+        tier_map = {"fast": Tier.FAST, "mid": Tier.MID, "strategic": Tier.STRATEGIC}
+        llm_tier = tier_map.get(tier, Tier.FAST)
+
+        # Compresser le prompt: arrondir les chiffres, limiter la taille
+        clean_prompt = _compress_prompt(prompt)
+
+        result = await llm_router.call(
+            clean_prompt, tier=llm_tier,
+            system=CEO_IDENTITY, max_tokens=max_tokens,
+        )
+
+        # Cache le resultat
+        app.state._think_cache[cache_key] = {"result": result, "ts": time.time()}
+        # Nettoyer le cache (max 50 entrees)
+        if len(app.state._think_cache) > 50:
+            oldest = sorted(app.state._think_cache.items(), key=lambda x: x[1]["ts"])[:25]
+            for k, _ in oldest:
+                app.state._think_cache.pop(k, None)
+
+        cost = llm_router.costs_today.get(tier, {}).get("cost", 0)
+        audit_log("ceo_think", ip, f"tier={tier} tokens~{len(result)//4} hash={prompt_hash}", "ceo-local")
+        return {"result": result, "tier": tier, "cached": False, "cost_usd": round(cost, 4)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _compress_prompt(prompt: str) -> str:
+    """Compresse un prompt pour economiser des tokens Claude.
+    - Arrondit les chiffres a 2 decimales
+    - Supprime les lignes vides en double
+    - Tronque a 3000 chars max
+    """
+    import re
+    # Arrondir les nombres longs
+    compressed = re.sub(r'(\d+\.\d{3,})', lambda m: f"{float(m.group()):.2f}", prompt)
+    # Supprimer les lignes vides en double
+    compressed = re.sub(r'\n{3,}', '\n\n', compressed)
+    # Supprimer les espaces en trop
+    compressed = re.sub(r'  +', ' ', compressed)
+    return compressed[:3000]
+
+
 def _build_action_string(action: str, params: dict) -> str:
     """Construit une string d'action pour le ceo_executor existant."""
     if action == "post_tweet":
