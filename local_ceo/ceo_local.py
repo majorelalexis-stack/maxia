@@ -29,13 +29,57 @@ from browser_agent import browser
 # ══════════════════════════════════════════
 
 _MEMORY_FILE = os.path.join(os.path.dirname(__file__), "ceo_memory.json")
+_MEMORY_KEY_FILE = os.path.join(os.path.dirname(__file__), ".memory_key")
+
+
+def _get_cipher_key() -> bytes:
+    """Genere ou charge une cle de chiffrement (Fernet)."""
+    if os.path.exists(_MEMORY_KEY_FILE):
+        with open(_MEMORY_KEY_FILE, "rb") as f:
+            return f.read()
+    try:
+        from cryptography.fernet import Fernet
+        key = Fernet.generate_key()
+        with open(_MEMORY_KEY_FILE, "wb") as f:
+            f.write(key)
+        return key
+    except ImportError:
+        return b""
+
+
+def _encrypt(data: str) -> str:
+    """Chiffre les donnees sensibles (wallets, contacts)."""
+    try:
+        from cryptography.fernet import Fernet
+        key = _get_cipher_key()
+        if not key:
+            return data
+        return Fernet(key).encrypt(data.encode()).decode()
+    except Exception:
+        return data
+
+
+def _decrypt(data: str) -> str:
+    """Dechiffre les donnees."""
+    try:
+        from cryptography.fernet import Fernet
+        key = _get_cipher_key()
+        if not key:
+            return data
+        return Fernet(key).decrypt(data.encode()).decode()
+    except Exception:
+        return data
 
 
 def _load_memory() -> dict:
     try:
         if os.path.exists(_MEMORY_FILE):
             with open(_MEMORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                raw = f.read()
+            # Tenter de dechiffrer si c'est chiffre
+            if raw.startswith("gAAAAA"):
+                raw = _decrypt(raw)
+            return json.loads(raw)
     except Exception:
         pass
     return {
@@ -52,8 +96,20 @@ def _save_memory(mem: dict):
         for key in ["decisions", "actions_done", "tweets_posted"]:
             if len(mem.get(key, [])) > 500:
                 mem[key] = mem[key][-500:]
+        raw = json.dumps(mem, indent=2, default=str, ensure_ascii=False)
+        # Chiffrer les contacts et wallets
+        sensitive_keys = ["contacts", "follows"]
+        for k in sensitive_keys:
+            if k in mem and mem[k]:
+                # On chiffre le fichier complet si des donnees sensibles existent
+                try:
+                    from cryptography.fernet import Fernet
+                    raw = _encrypt(raw)
+                except ImportError:
+                    pass
+                break
         with open(_MEMORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(mem, f, indent=2, default=str, ensure_ascii=False)
+            f.write(raw)
     except Exception as e:
         print(f"[Memory] Save error: {e}")
 
@@ -118,10 +174,98 @@ TWEET_VARIANTS = {
     "B": {"style": "storytelling, probleme/solution", "cta": "link in bio"},
 }
 
+# A/B test tracking
+_AB_FILE = os.path.join(os.path.dirname(__file__), "ab_tests.json")
+
+
+def _load_ab() -> dict:
+    try:
+        if os.path.exists(_AB_FILE):
+            with open(_AB_FILE, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {"tests": [], "template_usage": {}}
+
+
+def _save_ab(data: dict):
+    try:
+        with open(_AB_FILE, "w") as f:
+            json.dump(data, f, indent=2, default=str)
+    except Exception:
+        pass
+
 
 def pick_tweet_template() -> str:
-    """Choisit un template aleatoire non utilise recemment."""
-    return random.choice(TWEET_TEMPLATES)
+    """Choisit un template aleatoire, evite ceux recemment utilises."""
+    ab = _load_ab()
+    usage = ab.get("template_usage", {})
+    # Trier par usage (moins utilise = prioritaire)
+    scored = [(t, usage.get(t[:20], 0)) for t in TWEET_TEMPLATES]
+    scored.sort(key=lambda x: x[1])
+    # Choisir parmi les 3 moins utilises
+    chosen = random.choice(scored[:3])[0]
+    usage[chosen[:20]] = usage.get(chosen[:20], 0) + 1
+    ab["template_usage"] = usage
+    _save_ab(ab)
+    return chosen
+
+
+def start_ab_test(tweet_a: str, tweet_b: str) -> dict:
+    """Lance un A/B test: poste 2 variantes et les suit."""
+    ab = _load_ab()
+    test_id = f"ab_{int(time.time())}"
+    ab["tests"].append({
+        "id": test_id,
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "variant_a": {"text": tweet_a[:280], "engagement": None},
+        "variant_b": {"text": tweet_b[:280], "engagement": None},
+        "winner": None,
+        "status": "pending",
+    })
+    _save_ab(ab)
+    return {"test_id": test_id}
+
+
+async def check_ab_results() -> list:
+    """Verifie l'engagement des A/B tests en cours."""
+    ab = _load_ab()
+    results = []
+    for test in ab.get("tests", []):
+        if test["status"] != "pending":
+            continue
+        # Si test a plus de 2h, verifier engagement
+        test_ts = test.get("ts", "")
+        if not test_ts:
+            continue
+        try:
+            from datetime import datetime
+            age_h = (datetime.utcnow() - datetime.fromisoformat(test_ts)).total_seconds() / 3600
+            if age_h < 2:
+                continue  # Trop tot
+        except Exception:
+            continue
+
+        # Verifier engagement via browser
+        for variant in ["variant_a", "variant_b"]:
+            url = test[variant].get("tweet_url", "")
+            if url and not test[variant].get("engagement"):
+                eng = await browser.verify_tweet_engagement(url)
+                test[variant]["engagement"] = eng
+
+        # Determiner le gagnant
+        eng_a = test["variant_a"].get("engagement", {})
+        eng_b = test["variant_b"].get("engagement", {})
+        score_a = eng_a.get("likes", 0) * 2 + eng_a.get("retweets", 0) * 3 + eng_a.get("replies", 0)
+        score_b = eng_b.get("likes", 0) * 2 + eng_b.get("retweets", 0) * 3 + eng_b.get("replies", 0)
+
+        if score_a > 0 or score_b > 0:
+            test["winner"] = "A" if score_a >= score_b else "B"
+            test["status"] = "complete"
+            results.append({"id": test["id"], "winner": test["winner"], "score_a": score_a, "score_b": score_b})
+
+    _save_ab(ab)
+    return results
 
 
 # ══════════════════════════════════════════
@@ -502,7 +646,20 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[MENTIONS] Erreur: {e}")
 
-                # 6. SYNC — envoyer les actions au VPS (eviter double-post)
+                # 6. CHECK A/B tests + engagement (toutes les 6 cycles)
+                if self._cycle % 6 == 0:
+                    try:
+                        ab_results = await check_ab_results()
+                        if ab_results:
+                            for r in ab_results:
+                                _log(f"[A/B] Test {r['id']}: winner={r['winner']} (A:{r['score_a']} B:{r['score_b']})")
+                                self.memory.setdefault("regles", []).append(
+                                    f"A/B test: variant {r['winner']} performe mieux (score {max(r['score_a'], r['score_b'])})"
+                                )
+                    except Exception as e:
+                        _log(f"[A/B] Check error: {e}")
+
+                # 7. SYNC — envoyer les actions au VPS (eviter double-post)
                 recent = self.memory.get("actions_done", [])[-10:]
                 sync_result = await self.vps.sync(recent, active=True)
                 vps_actions = sync_result.get("vps_actions", [])
@@ -768,6 +925,17 @@ class CEOLocal:
         elif action == "post_template_tweet":
             text = pick_tweet_template()
             return await self._do_browser("post_tweet", {"text": text})
+        elif action == "ab_test":
+            text_a = params.get("text_a", pick_tweet_template())
+            text_b = params.get("text_b", pick_tweet_template())
+            # Poster les 2 variantes
+            res_a = await self._do_browser("post_tweet", {"text": text_a})
+            res_b = await self._do_browser("post_tweet", {"text": text_b})
+            test = start_ab_test(text_a, text_b)
+            return {"success": True, "detail": f"A/B test lance: {test['test_id']}"}
+        elif action == "check_ab":
+            results = await check_ab_results()
+            return {"success": True, "detail": f"{len(results)} tests completes", "data": results}
         # Reddit (local)
         elif action == "post_reddit":
             return await self._do_browser("post_reddit", params)

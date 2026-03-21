@@ -1341,11 +1341,14 @@ async def ceo_think(request: Request):
     if not prompt:
         raise HTTPException(400, "prompt required")
 
-    # Cache: ne pas appeler Claude si meme prompt dans les 10 dernieres min
+    # Cache semantique: prompts similaires = meme reponse (1h)
     import hashlib
-    prompt_hash = hashlib.md5(prompt[:500].encode()).hexdigest()[:12]
+    # Normaliser le prompt pour cache semantique
+    normalized = _normalize_for_cache(prompt)
+    prompt_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
     cache_key = f"ceo_think_{prompt_hash}"
     if hasattr(app.state, '_think_cache'):
+        # Chercher aussi des prompts similaires (meme hash normalise)
         cached = app.state._think_cache.get(cache_key)
         if cached and time.time() - cached["ts"] < 3600:  # Cache 1h
             audit_log("ceo_think_cached", ip, f"tier={tier} hash={prompt_hash}", "ceo-local")
@@ -1381,6 +1384,22 @@ async def ceo_think(request: Request):
         return {"result": result, "tier": tier, "cached": False, "cost_usd": round(cost, 4)}
     except Exception as e:
         return {"error": str(e)}
+
+
+def _normalize_for_cache(prompt: str) -> str:
+    """Normalise un prompt pour le cache semantique.
+    Supprime les chiffres volatils (timestamps, montants exacts) pour
+    que des prompts similaires matchent le meme cache."""
+    import re
+    n = prompt[:500].lower()
+    # Remplacer les nombres par des placeholders
+    n = re.sub(r'\$[\d.]+', '$X', n)
+    n = re.sub(r'\d{4}-\d{2}-\d{2}', 'DATE', n)
+    n = re.sub(r'\d{2}:\d{2}', 'TIME', n)
+    n = re.sub(r'=\d+', '=N', n)
+    # Supprimer les espaces multiples
+    n = re.sub(r'\s+', ' ', n).strip()
+    return n
 
 
 def _compress_prompt(prompt: str) -> str:

@@ -120,6 +120,50 @@ class BrowserAgent:
         if not self._initialized:
             await self.setup()
 
+    async def _new_page(self):
+        """Cree un nouvel onglet pour les actions paralleles."""
+        if not self._initialized:
+            await self.setup()
+        return await self._context.new_page()
+
+    async def parallel_actions(self, actions: list) -> list:
+        """Execute plusieurs actions browser en parallele (multi-onglets).
+        actions: [{"method": "like_tweet", "params": {"tweet_url": "..."}}, ...]
+        """
+        import asyncio as _aio
+        results = []
+
+        async def _run_one(action):
+            method = action.get("method", "")
+            params = action.get("params", {})
+            fn = getattr(self, method, None)
+            if not fn:
+                return {"method": method, "success": False, "error": "Unknown method"}
+            try:
+                if method in ("like_tweet", "follow_user"):
+                    r = await fn(list(params.values())[0] if params else "")
+                elif method == "post_tweet":
+                    r = await fn(params.get("text", ""))
+                elif method == "screenshot_page":
+                    r = {"path": await fn(params.get("url", ""))}
+                else:
+                    r = {"skipped": True}
+                return {"method": method, **r}
+            except Exception as e:
+                return {"method": method, "success": False, "error": str(e)}
+
+        # Executer max 3 en parallele
+        for i in range(0, len(actions), 3):
+            batch = actions[i:i+3]
+            batch_results = await _aio.gather(*[_run_one(a) for a in batch], return_exceptions=True)
+            for r in batch_results:
+                if isinstance(r, Exception):
+                    results.append({"success": False, "error": str(r)})
+                else:
+                    results.append(r)
+
+        return results
+
     # ── Helpers robustes ──
 
     async def _find_and_click(self, page, selectors: list, description: str, timeout: int = 10000) -> bool:
