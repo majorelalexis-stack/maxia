@@ -201,7 +201,7 @@ BUDGET_ROUGE = 1.0
 BUDGET_DECAY_WEEKLY = 0.5
 MIN_BUDGET_VERT = 0.005
 HUNTER_MIN_CONVERSION = 0.01
-EMERGENCY_ORANGE_LIMIT = 5
+EMERGENCY_ORANGE_LIMIT = 50  # Pre-seed: $0 revenue is normal, don't block too early
 MAX_PROSPECTS_DAY = 10
 MAX_TWEETS_DAY = 5
 
@@ -498,8 +498,8 @@ class Memory:
         orange = [d for d in self._data.get("decisions", []) if d.get("level") == "orange"]
         if len(orange) > EMERGENCY_ORANGE_LIMIT:
             return True
-        if self._data.get("spent_sol", 0) > 0.5 and self._data.get("revenue_usd", 0) == 0:
-            return True
+        if self._data.get("spent_sol", 0) > 2.0 and self._data.get("revenue_usd", 0) == 0:
+            return True  # Only stop if spent >2 SOL with zero revenue
         return False
 
     def is_stopped(self) -> bool:
