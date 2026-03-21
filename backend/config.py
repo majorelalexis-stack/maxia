@@ -186,7 +186,7 @@ TREASURY_ADDRESS_XRPL = os.getenv("TREASURY_ADDRESS_XRPL", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-2503")
 CEO_LOCAL_MODE = os.getenv("CEO_LOCAL_MODE", "true").lower() == "true"
 
 # ── V12: CEO API (PC local <-> VPS) ──

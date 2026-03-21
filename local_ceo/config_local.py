@@ -15,7 +15,7 @@ OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "minicpm-v")
 
 # Mistral (tier MID)
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-2503")
 
 # Boucle OODA
 OODA_INTERVAL_S = int(os.getenv("OODA_INTERVAL_S", "600"))  # 10 min
