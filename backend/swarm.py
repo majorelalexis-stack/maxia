@@ -1,20 +1,20 @@
-"""MAXIA Art.20 V11 — Essaim d'IA (Specialized Clone Swarm)
+"""MAXIA Art.20 V12 — Specialized Clone Swarm (production-hardened)
 
-MAXIA detecte des niches rentables et deploie des sous-IA specialisees,
-chacune avec son propre marketing, ses tarifs, et son wallet autonome.
+MAXIA detects profitable niches and deploys specialized sub-AIs,
+each with its own pricing, wallet, and autonomous revenue stream.
 
 Architecture:
-    MAXIA (Reine) -> MAXIA-GPU-Render (Clone 1)
+    MAXIA (Queen) -> MAXIA-GPU-Render (Clone 1)
                   -> MAXIA-Data-Trading (Clone 2)
                   -> MAXIA-Code-Audit (Clone 3)
                   -> ...
 
-Chaque clone:
-    - A son propre wallet Solana
-    - A ses propres tarifs adaptes a sa niche
-    - Genere ses propres revenus
-    - Reverse un % a la Reine (MAXIA Treasury)
-    - Peut etre arrete/relance independamment
+Each clone:
+    - Has its own Solana wallet
+    - Has its own pricing adapted to its niche
+    - Generates its own revenue
+    - Pays a % royalty to the Queen (MAXIA Treasury)
+    - Can be paused/resumed/stopped independently
 """
 import asyncio, uuid, time, json, hashlib
 import httpx
@@ -35,7 +35,18 @@ if GROQ_API_KEY:
         pass
 
 
-# ── Niches predefinies que MAXIA peut detecter et exploiter ──
+# ── Race condition lock (#8) ──
+_swarm_lock = asyncio.Lock()
+
+
+# ── Required fields for niche template validation (#12) ──
+_REQUIRED_TEMPLATE_FIELDS = frozenset({
+    "name", "description", "target_keywords", "base_price_usdc",
+    "commission_bps", "marketing_lang", "marketing_pitch", "niche_id",
+})
+
+
+# ── Predefined niches MAXIA can detect and exploit ──
 NICHE_TEMPLATES = {
     "sentiment": {
         "name": "MAXIA-SentimentBot",
@@ -119,12 +130,18 @@ NICHE_TEMPLATES = {
     },
 }
 
-# Pourcentage des revenus reverse a la Reine
+# (#12) Validate all niche templates have required fields at import time
+for _nid, _tmpl in NICHE_TEMPLATES.items():
+    _missing = _REQUIRED_TEMPLATE_FIELDS - set(_tmpl.keys())
+    if _missing:
+        raise ValueError(f"Niche template '{_nid}' missing required fields: {_missing}")
+
+# Percentage of revenue paid to the Queen
 QUEEN_ROYALTY_PCT = 15
 
 
 class Clone:
-    """Un clone specialise de MAXIA."""
+    """A specialized MAXIA clone."""
 
     def __init__(self, clone_id: str, niche: str, template: dict):
         self.clone_id = clone_id
@@ -137,9 +154,9 @@ class Clone:
         self.marketing_lang = template["marketing_lang"]
         self.marketing_pitch = template["marketing_pitch"]
 
-        # Wallet autonome (genere ou assigne)
+        # Wallet address only — never store private key (#1)
         self.wallet_address = ""
-        self.wallet_privkey = ""
+        # wallet_privkey removed — use config.MICRO_WALLET_PRIVKEY at execution time
 
         # Marketplace registration
         self.api_key = ""
@@ -153,6 +170,7 @@ class Clone:
         self.queen_royalties_paid = 0.0
 
     def to_dict(self) -> dict:
+        """Serialize clone state. Never expose wallet private key (#11)."""
         return {
             "cloneId": self.clone_id,
             "niche": self.niche,
@@ -161,7 +179,7 @@ class Clone:
             "targetKeywords": self.target_keywords,
             "basePriceUsdc": self.base_price,
             "commissionBps": self.commission_bps,
-            "wallet": self.wallet_address[:12] + "..." if self.wallet_address else "non assigne",
+            "wallet": self.wallet_address[:8] + "..." if self.wallet_address else "not assigned",
             "status": self.status,
             "createdAt": self.created_at,
             "totalRevenue": self.total_revenue,
@@ -173,22 +191,22 @@ class Clone:
 
 class Swarm:
     """
-    Gestionnaire de l'essaim d'IA MAXIA.
-    La Reine (MAXIA principale) cree, surveille et coordonne les clones.
+    MAXIA clone swarm manager.
+    The Queen (main MAXIA) creates, monitors, and coordinates clones.
     """
 
     def __init__(self):
         self._clones: dict = {}  # clone_id -> Clone
-        self._running = False
+        self._running = False  # (#15) graceful shutdown flag
         self._niche_scores: dict = {}  # niche -> profitability score
-        print(f"[Swarm] Essaim initialise — {len(NICHE_TEMPLATES)} niches disponibles")
+        print(f"[Swarm] Swarm initialized -- {len(NICHE_TEMPLATES)} niches available")
 
-    # ── Analyse de niche ──
+    # ── Niche analysis ──
 
     async def analyze_niches(self, db=None) -> list:
         """
-        Analyse les niches rentables en fonction du volume de transactions
-        et de la demande sur la marketplace MAXIA.
+        Analyze profitable niches based on transaction volume
+        and demand on the MAXIA marketplace.
         """
         scores = []
 
@@ -203,7 +221,7 @@ class Swarm:
                 "recommended": False,
             }
 
-            # Analyser la demande via les commandes existantes
+            # Analyze demand via existing commands
             if db:
                 try:
                     keywords = template["target_keywords"]
@@ -217,29 +235,30 @@ class Swarm:
                     score["market_demand"] = (
                         "high" if count > 10 else "medium" if count > 3 else "low"
                     )
-                except Exception:
-                    score["potential_score"] = 50  # Score par defaut
+                except Exception as e:
+                    print(f"[Swarm] ERROR analyzing niche {niche_id}: {e}")
+                    score["potential_score"] = 50  # Default score
 
-            # Utiliser Groq pour evaluer la niche
+            # Use Groq to evaluate the niche
             if groq_client:
                 try:
                     analysis = await self._ai_analyze_niche(template)
                     score["ai_analysis"] = analysis
                     if "high" in analysis.lower() or "strong" in analysis.lower():
                         score["potential_score"] = min(100, score["potential_score"] + 30)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[Swarm] ERROR in AI niche analysis: {e}")
 
             score["recommended"] = score["potential_score"] >= 40
             scores.append(score)
 
-        # Trier par score
+        # Sort by score
         scores.sort(key=lambda x: x["potential_score"], reverse=True)
         self._niche_scores = {s["niche"]: s["potential_score"] for s in scores}
         return scores
 
     async def _ai_analyze_niche(self, template: dict) -> str:
-        """Utilise Groq pour analyser le potentiel d'une niche."""
+        """Use Groq to analyze niche potential."""
         if not groq_client:
             return "AI analysis unavailable"
         try:
@@ -256,61 +275,76 @@ class Swarm:
                     model=GROQ_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=100, temperature=0.5,
+                    timeout=30,  # (#14) Groq timeout
                 )
                 return resp.choices[0].message.content.strip()
             return await asyncio.to_thread(_call)
         except Exception as e:
             return f"Analysis error: {e}"
 
-    # ── Creation de clones ──
+    # ── Clone creation ──
 
-    async def spawn_clone(self, niche: str, wallet_address: str = "",
-                          wallet_privkey: str = "") -> dict:
-        """Cree et deploie un nouveau clone specialise."""
+    async def spawn_clone(self, niche: str, wallet_address: str = "") -> dict:
+        """Create and deploy a new specialized clone. Never accepts private keys (#1)."""
         template = NICHE_TEMPLATES.get(niche)
         if not template:
-            return {"success": False, "error": f"Niche inconnue: {niche}. Disponibles: {list(NICHE_TEMPLATES.keys())}"}
+            return {"success": False, "error": f"Unknown niche: {niche}. Available: {list(NICHE_TEMPLATES.keys())}"}
 
-        # Verifier qu'on n'a pas deja un clone pour cette niche
+        # Check we don't already have an active clone for this niche
         for clone in self._clones.values():
             if clone.niche == niche and clone.status in ("active", "deploying"):
-                return {"success": False, "error": f"Clone {clone.name} deja actif pour cette niche"}
+                return {"success": False, "error": f"Clone {clone.name} already active for this niche"}
 
-        clone_id = str(uuid.uuid4())
+        clone_id = str(uuid.uuid4())  # (#9) Full UUID, not truncated
         clone = Clone(clone_id, niche, template)
         clone.wallet_address = wallet_address
-        clone.wallet_privkey = wallet_privkey
         clone.status = "active"
 
         self._clones[clone_id] = clone
 
-        print(f"[Swarm] Clone cree: {clone.name} ({niche}) — ID: {clone_id[:8]}...")
+        # (#5) Persist to DB
+        await self._persist_clone(clone)
+
+        print(f"[Swarm] Clone created: {clone.name} ({niche}) -- ID: {clone_id}")
         await alert_system(
-            f"Nouveau clone: {clone.name}",
-            f"Niche: {niche}\nPrix: ${template['base_price_usdc']}/req\nCommission: {template['commission_bps']} BPS",
+            f"New clone: {clone.name}",
+            f"Niche: {niche}\nPrice: ${template['base_price_usdc']}/req\nCommission: {template['commission_bps']} BPS",
         )
 
         return {"success": True, **clone.to_dict()}
 
-    # ── Traitement des requetes par les clones ──
+    # ── Request processing by clones ──
 
     async def process_request(self, niche: str, prompt: str,
                               buyer_wallet: str = "") -> dict:
-        """Route une requete vers le clone specialise de la niche."""
-        # Trouver le clone actif pour cette niche
-        clone = None
-        for c in self._clones.values():
-            if c.niche == niche and c.status == "active":
-                clone = c
-                break
+        """Route a request to the specialized clone for the given niche."""
+        async with _swarm_lock:  # (#8) race condition protection
+            # Find active clone for this niche
+            clone = None
+            for c in self._clones.values():
+                if c.niche == niche and c.status == "active":
+                    clone = c
+                    break
 
-        if not clone:
-            return {"success": False, "error": f"Aucun clone actif pour la niche: {niche}"}
+            # (#16) If no active clone but niche score is high, auto-spawn one
+            if not clone:
+                niche_score = self._niche_scores.get(niche, 0)
+                if niche_score >= 40 and niche in NICHE_TEMPLATES:
+                    spawn_result = await self.spawn_clone(niche)
+                    if spawn_result.get("success"):
+                        # Find the newly spawned clone
+                        for c in self._clones.values():
+                            if c.niche == niche and c.status == "active":
+                                clone = c
+                                break
+
+            if not clone:
+                return {"success": False, "error": f"No active clone for niche: {niche}"}
 
         if not groq_client:
-            return {"success": False, "error": "Groq API non disponible"}
+            return {"success": False, "error": "Groq API not available"}
 
-        # Generer la reponse specialisee
+        # Generate specialized response
         try:
             system_prompt = (
                 f"You are {clone.name}, a specialized AI agent.\n"
@@ -326,16 +360,30 @@ class Swarm:
                         {"role": "user", "content": prompt},
                     ],
                     max_tokens=4096, temperature=0.7,
+                    timeout=30,  # (#14) Groq timeout
                 )
                 return resp.choices[0].message.content
 
             result = await asyncio.to_thread(_call)
 
-            # Comptabiliser
+            # Track stats
             clone.total_requests += 1
             clone.total_revenue += clone.base_price
             royalty = clone.base_price * QUEEN_ROYALTY_PCT / 100
             clone.queen_royalties_paid += royalty
+
+            # (#5) Persist updated stats to DB
+            await self._persist_clone(clone)
+
+            # (#6) Revenue tracking — actual USDC verification happens at marketplace level
+            # Swarm records the transaction for analytics
+            try:
+                from database import db
+                await db.record_transaction(
+                    buyer_wallet or "anonymous", "", clone.base_price, "swarm_request"
+                )
+            except Exception:
+                pass
 
             return {
                 "success": True,
@@ -347,45 +395,50 @@ class Swarm:
                 "result_hash": hashlib.sha256(result.encode()).hexdigest(),
             }
         except Exception as e:
+            print(f"[Swarm] ERROR in process_request: {e}")
             return {"success": False, "error": str(e)}
 
-    # ── Gestion des clones ──
+    # ── Clone management ──
 
-    def pause_clone(self, clone_id: str) -> dict:
+    async def pause_clone(self, clone_id: str) -> dict:
         clone = self._clones.get(clone_id)
         if not clone:
-            return {"success": False, "error": "Clone introuvable"}
+            return {"success": False, "error": "Clone not found"}
         clone.status = "paused"
-        print(f"[Swarm] Clone pause: {clone.name}")
+        await self._persist_clone(clone)  # (#5)
+        print(f"[Swarm] Clone paused: {clone.name}")
         return {"success": True, "status": "paused"}
 
-    def resume_clone(self, clone_id: str) -> dict:
+    async def resume_clone(self, clone_id: str) -> dict:
         clone = self._clones.get(clone_id)
         if not clone:
-            return {"success": False, "error": "Clone introuvable"}
+            return {"success": False, "error": "Clone not found"}
         clone.status = "active"
-        print(f"[Swarm] Clone relance: {clone.name}")
+        await self._persist_clone(clone)  # (#5)
+        print(f"[Swarm] Clone resumed: {clone.name}")
         return {"success": True, "status": "active"}
 
-    def stop_clone(self, clone_id: str) -> dict:
+    async def stop_clone(self, clone_id: str) -> dict:
         clone = self._clones.get(clone_id)
         if not clone:
-            return {"success": False, "error": "Clone introuvable"}
+            return {"success": False, "error": "Clone not found"}
         clone.status = "stopped"
-        print(f"[Swarm] Clone arrete: {clone.name}")
+        await self._persist_clone(clone)  # (#5)
+        print(f"[Swarm] Clone stopped: {clone.name}")
         return {"success": True, "status": "stopped"}
 
-    # ── Surveillance de l'essaim ──
+    # ── Swarm monitoring ──
 
     async def run_monitor(self):
-        """Boucle de surveillance de l'essaim. Tourne toutes les 5 min."""
-        print("[Swarm] Moniteur demarre")
+        """Swarm monitoring loop. Runs every 5 minutes."""
+        self._running = True  # (#15) graceful shutdown flag
+        print("[Swarm] Monitor started")
 
         # Auto-deploy all bots on first run
         await asyncio.sleep(30)  # Wait for server startup
         await self.auto_deploy_all()
 
-        while True:
+        while self._running:  # (#15) check flag instead of while True
             try:
                 active = [c for c in self._clones.values() if c.status == "active"]
                 total_rev = sum(c.total_revenue for c in self._clones.values())
@@ -393,14 +446,19 @@ class Swarm:
 
                 if active:
                     print(
-                        f"[Swarm] {len(active)} clones actifs | "
+                        f"[Swarm] {len(active)} active clones | "
                         f"Rev: {total_rev:.2f} USDC | "
                         f"Royalties: {total_royalties:.2f} USDC"
                     )
             except Exception as e:
-                print(f"[Swarm] Monitor err: {e}")
+                print(f"[Swarm] ERROR in monitor: {e}")
 
             await asyncio.sleep(300)
+
+    def stop(self):
+        """Graceful shutdown of the monitor loop (#15)."""
+        self._running = False
+        print("[Swarm] Monitor stop requested")
 
     async def auto_deploy_all(self):
         """Deploy all niche bots as INTERNAL execution engines. NOT visible on marketplace."""
@@ -412,13 +470,14 @@ class Swarm:
                 continue
 
             try:
-                clone_id = str(uuid.uuid4())[:8]
+                clone_id = str(uuid.uuid4())  # (#9) Full UUID
                 clone = Clone(clone_id, niche_id, template)
                 clone.status = "active"
                 self._clones[clone_id] = clone
-                print(f"[Swarm] ✓ {template['name']} ready (internal fallback)")
+                await self._persist_clone(clone)  # (#5)
+                print(f"[Swarm] {template['name']} ready (internal fallback)")
             except Exception as e:
-                print(f"[Swarm] Deploy error {niche_id}: {e}")
+                print(f"[Swarm] ERROR deploying {niche_id}: {e}")
 
         active = len([c for c in self._clones.values() if c.status == "active"])
         print(f"[Swarm] {active} internal bots ready as fallback execution engines")
@@ -435,7 +494,7 @@ class Swarm:
                 if r.status_code == 200:
                     return r.json()
         except Exception as e:
-            print(f"[Swarm] Register error: {e}")
+            print(f"[Swarm] ERROR registering bot: {e}")
         return {}
 
     async def _list_service(self, api_key: str, template: dict) -> dict:
@@ -467,7 +526,7 @@ class Swarm:
                 if r.status_code == 200:
                     return r.json()
         except Exception as e:
-            print(f"[Swarm] List service error: {e}")
+            print(f"[Swarm] ERROR listing service: {e}")
         return {}
 
     async def execute_for_buyer(self, niche: str, prompt: str) -> str:
@@ -489,33 +548,78 @@ class Swarm:
         )
 
         try:
-            import asyncio
-
+            # (#18) Removed redundant `import asyncio` — already imported at top
             def _call():
                 resp = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model=GROQ_MODEL,  # (#7) Use config instead of hardcoded model
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt},
                     ],
                     max_tokens=500,
                     temperature=0.7,
+                    timeout=30,  # (#14) Groq timeout
                 )
                 return resp.choices[0].message.content.strip()
 
-            result = await asyncio.get_event_loop().run_in_executor(None, _call)
+            result = await asyncio.to_thread(_call)
 
-            # Track revenue for the clone
-            for clone in self._clones.values():
-                if clone.niche == niche and clone.status == "active":
-                    clone.total_requests += 1
-                    clone.total_revenue += template["base_price_usdc"]
-                    clone.queen_royalties_paid += template["base_price_usdc"] * QUEEN_ROYALTY_PCT / 100
-                    break
+            # (#8) Track revenue for the clone under lock
+            async with _swarm_lock:
+                for clone in self._clones.values():
+                    if clone.niche == niche and clone.status == "active":
+                        clone.total_requests += 1
+                        clone.total_revenue += template["base_price_usdc"]
+                        clone.queen_royalties_paid += template["base_price_usdc"] * QUEEN_ROYALTY_PCT / 100
+                        await self._persist_clone(clone)  # (#5)
+                        break
 
             return result
         except Exception as e:
+            print(f"[Swarm] ERROR in execute_for_buyer: {e}")
             return f"Execution error: {e}"
+
+    # ── Database persistence (#5) ──
+
+    async def _persist_clone(self, clone: Clone):
+        """Save or update clone state in the database."""
+        try:
+            from database import db
+            await db.raw_execute(
+                "INSERT OR REPLACE INTO swarm_clones"
+                "(clone_id, niche, name, status, total_requests, total_revenue, wallet_address, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (clone.clone_id, clone.niche, clone.name, clone.status,
+                 clone.total_requests, clone.total_revenue,
+                 clone.wallet_address, clone.created_at),
+            )
+        except Exception as e:
+            print(f"[Swarm] ERROR persisting clone {clone.clone_id}: {e}")
+
+    async def load_clones_from_db(self):
+        """Load active clones from database on startup."""
+        try:
+            from database import db
+            rows = await db.raw_execute_fetchall(
+                "SELECT * FROM swarm_clones WHERE status IN ('active','paused')"
+            )
+            for row in rows:
+                niche = row[1] if isinstance(row, (list, tuple)) else row["niche"]
+                template = NICHE_TEMPLATES.get(niche)
+                if not template:
+                    continue
+                clone_id = row[0] if isinstance(row, (list, tuple)) else row["clone_id"]
+                clone = Clone(clone_id, niche, template)
+                clone.status = row[3] if isinstance(row, (list, tuple)) else row["status"]
+                clone.total_requests = row[4] if isinstance(row, (list, tuple)) else row["total_requests"]
+                clone.total_revenue = row[5] if isinstance(row, (list, tuple)) else row["total_revenue"]
+                clone.wallet_address = row[6] if isinstance(row, (list, tuple)) else row["wallet_address"]
+                clone.created_at = row[7] if isinstance(row, (list, tuple)) else row["created_at"]
+                self._clones[clone_id] = clone
+            if rows:
+                print(f"[Swarm] Loaded {len(rows)} clones from database")
+        except Exception as e:
+            print(f"[Swarm] ERROR loading clones from DB: {e}")
 
     # ── Stats ──
 

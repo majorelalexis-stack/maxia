@@ -116,7 +116,7 @@ class GrowthAgent:
         self._running: bool = False
         self._total_prospects = 0
         self._total_spend = 0.0
-        self._max_per_day = 10
+        self._max_per_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_wallet = 2
         print("[GrowthAgent] Agent marketing ultra-cible initialise")
 

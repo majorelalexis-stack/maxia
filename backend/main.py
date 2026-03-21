@@ -2480,49 +2480,72 @@ async def scale_stats():
 # ══════════════════════════════════════════════════════════
 
 @app.get("/api/swarm/stats")
-async def swarm_stats():
-    """Stats completes de l'essaim."""
+async def swarm_stats(request: Request):
+    """Full swarm stats."""
+    from security import check_rate_limit
+    check_rate_limit(request)
     return swarm.get_stats()
 
 @app.get("/api/swarm/niches")
-async def swarm_niches():
-    """Liste des niches disponibles."""
+async def swarm_niches(request: Request):
+    """List available niches."""
+    from security import check_rate_limit
+    check_rate_limit(request)
     return swarm.get_available_niches()
 
 @app.post("/api/swarm/analyze")
-async def swarm_analyze():
-    """Analyse IA des niches rentables."""
+async def swarm_analyze(request: Request):
+    """AI analysis of profitable niches."""
+    from security import check_rate_limit
+    check_rate_limit(request)
     return await swarm.analyze_niches(db)
 
 @app.post("/api/swarm/spawn")
-async def swarm_spawn(req: dict, wallet: str = Depends(require_auth)):
-    """Deployer un nouveau clone specialise."""
+async def swarm_spawn(req: dict, request: Request, wallet: str = Depends(require_auth)):
+    """Deploy a new specialized clone. (#1) Never accept wallet_privkey."""
+    from security import check_rate_limit
+    check_rate_limit(request)
     return await swarm.spawn_clone(
         niche=req.get("niche", ""),
         wallet_address=req.get("wallet_address", ""),
-        wallet_privkey=req.get("wallet_privkey", ""),
     )
 
 @app.post("/api/swarm/request")
-async def swarm_request(req: dict):
-    """Envoyer une requete a un clone specialise."""
-    return await swarm.process_request(
-        niche=req.get("niche", ""),
-        prompt=req.get("prompt", ""),
-        buyer_wallet=req.get("buyer_wallet", ""),
-    )
+async def swarm_request(req: dict, request: Request):
+    """Send a request to a specialized clone. (#3) Input validation + (#4) rate limit."""
+    from security import check_rate_limit, check_content_safety
+    check_rate_limit(request)
+    niche = str(req.get("niche", ""))[:50]
+    prompt = str(req.get("prompt", ""))[:5000]
+    wallet = str(req.get("buyer_wallet", ""))[:50]
+    if not niche or not prompt:
+        raise HTTPException(400, "niche and prompt required")
+    check_content_safety(prompt, "prompt")
+    return await swarm.process_request(niche=niche, prompt=prompt, buyer_wallet=wallet)
 
 @app.post("/api/swarm/pause/{clone_id}")
-async def swarm_pause(clone_id: str):
-    return swarm.pause_clone(clone_id)
+async def swarm_pause(clone_id: str, request: Request):
+    """Pause a clone. (#2) Admin auth required."""
+    from security import require_admin, check_rate_limit
+    check_rate_limit(request)
+    require_admin(request)
+    return await swarm.pause_clone(clone_id)
 
 @app.post("/api/swarm/resume/{clone_id}")
-async def swarm_resume(clone_id: str):
-    return swarm.resume_clone(clone_id)
+async def swarm_resume(clone_id: str, request: Request):
+    """Resume a clone. (#2) Admin auth required."""
+    from security import require_admin, check_rate_limit
+    check_rate_limit(request)
+    require_admin(request)
+    return await swarm.resume_clone(clone_id)
 
 @app.post("/api/swarm/stop/{clone_id}")
-async def swarm_stop(clone_id: str):
-    return swarm.stop_clone(clone_id)
+async def swarm_stop(clone_id: str, request: Request):
+    """Stop a clone. (#2) Admin auth required."""
+    from security import require_admin, check_rate_limit
+    check_rate_limit(request)
+    require_admin(request)
+    return await swarm.stop_clone(clone_id)
 
 
 # ══════════════════════════════════════════════════════════

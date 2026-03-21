@@ -20,7 +20,7 @@ import httpx
 
 from config import (
     get_rpc_url, ETH_RPC, BASE_RPC, GROQ_API_KEY, GROQ_MODEL,
-    MARKETING_WALLET_ADDRESS,
+    MARKETING_WALLET_ADDRESS, PROSPECT_MAX_PER_DAY,
 )
 from alerts import alert_system, alert_error
 
@@ -116,7 +116,7 @@ class ScoutAgent:
         self._running: bool = False
         self._total_discovered = 0
         self._total_contacted = 0
-        self._max_contacts_day = 15
+        self._max_contacts_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_agent = 2
         print("[SCOUT] Agent IA-to-IA prospection initialise (Solana + Base + Ethereum + XRP)")
 

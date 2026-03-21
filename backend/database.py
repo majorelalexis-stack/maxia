@@ -124,6 +124,12 @@ DB_SCHEMA = (
 
     "CREATE INDEX IF NOT EXISTS idx_services_status ON agent_services(status);"
 
+    "CREATE TABLE IF NOT EXISTS swarm_clones ("
+    "clone_id TEXT PRIMARY KEY, niche TEXT NOT NULL, name TEXT NOT NULL,"
+    "status TEXT DEFAULT 'active', total_requests INTEGER DEFAULT 0,"
+    "total_revenue REAL DEFAULT 0, wallet_address TEXT DEFAULT '',"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
     "CREATE TABLE IF NOT EXISTS gpu_instances ("
     "instance_id TEXT PRIMARY KEY, agent_wallet TEXT NOT NULL,"
     "agent_name TEXT NOT NULL, gpu_tier TEXT NOT NULL,"
