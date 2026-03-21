@@ -10,7 +10,7 @@ ALLOWED_AGENT_COLUMNS = frozenset({
 ALLOWED_SERVICE_COLUMNS = frozenset({
     "agent_api_key", "agent_name", "agent_wallet",
     "name", "description", "type", "price_usdc",
-    "endpoint", "status", "rating", "sales",
+    "endpoint", "status", "rating", "rating_count", "sales",
 })
 
 DB_PATH = str(Path(__file__).parent / "maxia.db")
@@ -118,7 +118,7 @@ DB_SCHEMA = (
     "agent_wallet TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL,"
     "type TEXT DEFAULT 'text', price_usdc REAL NOT NULL,"
     "endpoint TEXT DEFAULT '', status TEXT DEFAULT 'active',"
-    "rating REAL DEFAULT 5.0, sales INTEGER DEFAULT 0,"
+    "rating REAL DEFAULT 5.0, rating_count INTEGER DEFAULT 0, sales INTEGER DEFAULT 0,"
     "listed_at INTEGER DEFAULT (strftime('%s','now')),"
     "FOREIGN KEY (agent_api_key) REFERENCES agents(api_key));"
 
@@ -370,11 +370,11 @@ class Database:
 
     async def save_service(self, service: dict):
         await self._db.execute(
-            "INSERT OR REPLACE INTO agent_services(id,agent_api_key,agent_name,agent_wallet,name,description,type,price_usdc,endpoint,status,rating,sales) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO agent_services(id,agent_api_key,agent_name,agent_wallet,name,description,type,price_usdc,endpoint,status,rating,rating_count,sales) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (service["id"], service["agent_api_key"], service["agent_name"], service["agent_wallet"],
              service["name"], service["description"], service.get("type", "text"),
              service["price_usdc"], service.get("endpoint", ""), service.get("status", "active"),
-             service.get("rating", 5.0), service.get("sales", 0)))
+             service.get("rating", 5.0), service.get("rating_count", 0), service.get("sales", 0)))
         await self._db.commit()
 
     async def get_services(self, status="active"):

@@ -770,7 +770,7 @@ async def rate_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
             # Sauvegarder en DB
             try:
                 from database import db as _db
-                await _db.update_service(service_id, rating=s["rating"])
+                await _db.update_service(service_id, {"rating": s["rating"], "rating_count": new_count, "sales": s.get("sales", 0)})
             except Exception:
                 pass
 
@@ -972,12 +972,20 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
 
     service_id = req.get("service_id", "")
     prompt = req.get("prompt", "")
+    payment_tx = req.get("payment_tx", "")
 
     if not prompt:
         raise HTTPException(400, "Prompt requis")
+    if not payment_tx:
+        raise HTTPException(400, "payment_tx required. Send USDC to Treasury first, then pass the tx signature.")
 
     # Art.1 — Filtrage
     _check_safety(prompt, "prompt")
+
+    # Idempotency: reject reused payment
+    from database import db as _buy_ext_db
+    if await _buy_ext_db.tx_already_processed(payment_tx):
+        raise HTTPException(400, "Payment already used")
 
     # Trouver le service
     service = None
@@ -989,6 +997,21 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
         raise HTTPException(404, "Service introuvable")
 
     price = service["price_usdc"]
+
+    # Verify on-chain USDC payment
+    try:
+        from solana_verifier import verify_transaction
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=price,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Payment verification failed: {e}")
 
     # Commission MAXIA
     volume = buyer.get("volume_30d", 0)
@@ -1005,6 +1028,8 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
         "price_usdc": price,
         "commission_usdc": commission,
         "seller_gets_usdc": seller_gets,
+        "payment_tx": payment_tx,
+        "payment_verified": True,
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)
@@ -1019,8 +1044,51 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
     if seller:
         seller["total_earned"] += seller_gets
         seller["volume_30d"] += seller_gets
+        seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
 
     service["sales"] += 1
+
+    # Pay seller via on-chain USDC transfer
+    seller_wallet = service.get("agent_wallet", "")
+    seller_payment_info = {}
+    if seller_wallet and seller_gets > 0.001:
+        try:
+            from solana_tx import send_usdc_transfer
+            from config import ESCROW_PRIVKEY_B58, TREASURY_ADDRESS as TREASURY
+            transfer = await send_usdc_transfer(
+                to_address=seller_wallet,
+                amount_usdc=seller_gets,
+                from_privkey=ESCROW_PRIVKEY_B58,
+                from_address=TREASURY,
+            )
+            if transfer.get("success"):
+                print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
+                seller_payment_info["seller_paid"] = True
+                seller_payment_info["seller_tx"] = transfer.get("signature", "")
+            else:
+                seller_payment_info["seller_paid"] = False
+                seller_payment_info["seller_error"] = transfer.get("error", "")
+        except Exception as e:
+            print(f"[Marketplace] Seller payment error: {e}")
+            seller_payment_info["seller_paid"] = False
+            seller_payment_info["seller_error"] = str(e)
+    # Commission stays at TREASURY_ADDRESS (buyer paid full price to treasury,
+    # seller receives price - commission via send_usdc_transfer)
+
+    # Persist transaction + seller stats to DB
+    await _save_tx_to_db(tx, buyer, seller_key=seller_key)
+
+    # Persist service sales count
+    try:
+        await _buy_ext_db.update_service(service_id, {"sales": service.get("sales", 0)})
+    except Exception:
+        pass
+
+    # Record in transactions table for idempotency
+    try:
+        await _buy_ext_db.record_transaction(buyer["wallet"], payment_tx, price, "marketplace")
+    except Exception:
+        pass
 
     # Alerte Discord
     try:
@@ -1037,7 +1105,9 @@ async def buy_external_service(req: dict, x_api_key: str = Header(None, alias="X
         "price_usdc": price,
         "commission_usdc": commission,
         "seller_gets_usdc": seller_gets,
-        "message": f"Envoyez {price} USDC au wallet du vendeur. MAXIA a preleve {commission:.2f} USDC de commission.",
+        "payment_verified": True,
+        "payment": seller_payment_info,
+        "message": f"Paiement verifie. MAXIA a preleve {commission:.2f} USDC de commission. Vendeur credite {seller_gets:.2f} USDC.",
         "seller_wallet": service["agent_wallet"],
         "treasury_wallet": TREASURY_ADDRESS,
     }
@@ -1283,6 +1353,12 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     payment_verified = False
     payment_info = {}
 
+    # Fix #10: Idempotency — reject reused payment_tx
+    if payment_tx:
+        from database import db as _exec_db
+        if await _exec_db.tx_already_processed(payment_tx):
+            raise HTTPException(400, "Payment already used")
+
     if payment_tx:
         # Buyer sent a tx signature — verify on-chain
         try:
@@ -1315,6 +1391,8 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
                 except Exception as e:
                     payment_info["seller_paid"] = False
                     payment_info["seller_error"] = str(e)
+                # Commission stays at TREASURY_ADDRESS (buyer paid full price to treasury,
+                # seller receives price - commission via send_usdc_transfer)
             else:
                 print(f"[Marketplace] Payment NOT verified: {verification.get('error', 'unknown')}")
         except Exception as e:
@@ -1331,17 +1409,36 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
         "payment_verified": payment_verified,
     }
     _transactions.append(tx)
-    await _save_tx_to_db(tx, buyer)
+
     buyer["volume_30d"] += price
     buyer["total_spent"] += price
     service["sales"] += 1
 
-    # Credit seller
+    # Fix #12: Only credit seller if payment verified
     seller_key = service.get("agent_api_key")
     seller = _registered_agents.get(seller_key)
-    if seller:
+    if payment_verified and seller:
         seller["total_earned"] += seller_gets
         seller["volume_30d"] += seller_gets
+        seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
+
+    # Fix #4/#7: Persist tx + seller stats to DB (pass seller_key)
+    await _save_tx_to_db(tx, buyer, seller_key=seller_key if payment_verified else None)
+
+    # Fix #9/#23: Persist service sales count
+    try:
+        from database import db as _exec_db2
+        await _exec_db2.update_service(service_id, {"sales": service.get("sales", 0)})
+    except Exception:
+        pass
+
+    # Record in transactions table for idempotency
+    if payment_tx:
+        try:
+            from database import db as _exec_db3
+            await _exec_db3.record_transaction(buyer["wallet"], payment_tx, price, "marketplace")
+        except Exception:
+            pass
 
     # Execute via webhook if available
     result_text = None
@@ -1371,6 +1468,11 @@ async def execute_agent_service(req: dict, x_api_key: str = Header(None, alias="
     else:
         execution_method = "manual"
         result_text = "Service purchased. Seller will deliver manually (no webhook configured)."
+
+    # Fix #17: Webhook failure handling — notify buyer but don't rollback (on-chain payment)
+    if execution_method == "webhook_error":
+        tx["webhook_failed"] = True
+        payment_info["webhook_warning"] = "Webhook call failed. Payment is on-chain and cannot be reversed. Contact the seller for delivery."
 
     # Alert
     try:
@@ -1478,6 +1580,7 @@ async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
             await db.update_agent(buyer.get("api_key", ""), {
                 "volume_30d": buyer.get("volume_30d", 0),
                 "total_spent": buyer.get("total_spent", 0),
+                "tier": buyer.get("tier", "BRONZE"),
             })
         if seller_key:
             seller = _registered_agents.get(seller_key)
@@ -1485,6 +1588,7 @@ async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
                 await db.update_agent(seller_key, {
                     "total_earned": seller.get("total_earned", 0),
                     "volume_30d": seller.get("volume_30d", 0),
+                    "tier": seller.get("tier", "BRONZE"),
                 })
     except Exception as e:
         print(f"[PublicAPI] DB tx save error: {e}")
