@@ -16,6 +16,12 @@ class AP2Manager:
     def __init__(self):
         self._active_mandates: dict = {}
         self._completed: list = []
+        # #8: Bounded in-memory storage limits
+        self._max_mandates = 10000
+        self._max_completed = 5000
+        # #5: Warn if AP2_SIGNING_KEY is not set
+        if not AP2_SIGNING_KEY:
+            print("[AP2] WARNING: AP2_SIGNING_KEY not set — signatures will be weak")
         if AP2_ENABLED:
             print(f"[AP2] Manager active (agent: {AP2_AGENT_ID})")
         else:
@@ -26,6 +32,14 @@ class AP2Manager:
     def create_intent_mandate(self, user_wallet: str, max_amount: float = 1000.0,
                               categories: list = None,
                               ttl_seconds: int = 3600) -> dict:
+        # #8: Evict expired mandates when storage limit exceeded
+        if len(self._active_mandates) > self._max_mandates:
+            now = int(time.time())
+            expired = [k for k, v in self._active_mandates.items()
+                       if v.get("constraints", {}).get("validUntil", 0) < now]
+            for k in expired:
+                del self._active_mandates[k]
+
         mandate = {
             "mandateId": str(uuid.uuid4()),
             "agentId": AP2_AGENT_ID,
@@ -75,26 +89,46 @@ class AP2Manager:
                               cart_mandate: dict = None,
                               payment_payload: str = None,
                               network: str = "solana-mainnet") -> dict:
-        # 1. validate signature
-        if not self._verify_sig(intent_mandate):
-            return {"success": False, "error": "Invalid intent mandate signature"}
+        # #13: Network validation
+        from config import SUPPORTED_NETWORKS
+        if network not in SUPPORTED_NETWORKS:
+            return {"success": False, "error": "Unsupported network"}
 
-        # 2. check expiry
+        # 1. validate signature (#10: generic error message)
+        if not self._verify_sig(intent_mandate):
+            return {"success": False, "error": "Invalid signature"}
+
+        # 2. check expiry (#11: 5 second grace period for race conditions)
         constraints = intent_mandate.get("constraints", {})
-        if int(time.time()) > constraints.get("validUntil", 0):
+        if int(time.time()) > constraints.get("validUntil", 0) + 5:
             return {"success": False, "error": "Mandate expired"}
 
         # 3. validate cart
         amount = 0.0
         if cart_mandate:
+            # #2/#3: Verify cart signature
+            if not self._verify_sig(cart_mandate):
+                return {"success": False, "error": "Invalid cart signature"}
             if cart_mandate.get("intentMandateId") != intent_mandate.get("mandateId"):
-                return {"success": False, "error": "Cart does not reference intent"}
+                # #10: Generic error message
+                return {"success": False, "error": "Invalid request"}
             amount = cart_mandate.get("totalUsdc", 0)
             if amount > constraints.get("maxAmount", 0):
                 return {"success": False, "error": "Cart exceeds mandate limit"}
 
+        # #4: Zero amount validation
+        if amount <= 0:
+            return {"success": False, "error": "Payment amount must be positive"}
+
+        # #9: Fraud prevention — validate intent creator matches payment wallet
+        intent_wallet = intent_mandate.get("userId", "")
+        payment_wallet = payment_payload.get("wallet", "") if isinstance(payment_payload, dict) else ""
+        if intent_wallet and payment_wallet and intent_wallet != payment_wallet:
+            return {"success": False, "error": "Payment wallet does not match intent creator"}
+
         # 4. verify on-chain payment
-        pay_ok = await self._verify_onchain(payment_payload, network, amount)
+        tx_payload = payment_payload if isinstance(payment_payload, str) else (payment_payload.get("txHash", "") if isinstance(payment_payload, dict) else "")
+        pay_ok = await self._verify_onchain(tx_payload, network, amount)
         if not pay_ok.get("valid"):
             return {"success": False, "error": pay_ok.get("error", "Payment verification failed")}
 
@@ -109,14 +143,31 @@ class AP2Manager:
             "completedAt": int(time.time()),
         }
         self._completed.append(completion)
+        # #8: Trim completed list when exceeding limit
+        if len(self._completed) > self._max_completed:
+            self._completed = self._completed[-self._max_completed:]
         return {"success": True, **completion}
 
     # ── Outgoing AP2 ──
 
     async def pay_external(self, service_url: str, amount_usdc: float,
-                           user_wallet: str, from_privkey: str = "",
-                           purpose: str = "ai_service") -> dict:
+                           user_wallet: str, provider_wallet: str = "",
+                           purpose: str = "ai_service",
+                           from_privkey: str = "") -> dict:
         """Paiement AP2 sortant avec vraie transaction on-chain."""
+        # #1: Validate provider_wallet is specified
+        if not provider_wallet:
+            return {"success": False, "error": "provider_wallet required"}
+
+        # #14: Use treasury/micro wallet if no privkey provided
+        if not from_privkey:
+            from config import MICRO_WALLET_PRIVKEY, MICRO_WALLET_ADDRESS
+            if MICRO_WALLET_PRIVKEY:
+                from_privkey = MICRO_WALLET_PRIVKEY
+                user_wallet = MICRO_WALLET_ADDRESS
+            else:
+                return {"success": False, "error": "No wallet configured for outgoing payments"}
+
         intent = self.create_intent_mandate(
             user_wallet=user_wallet,
             max_amount=amount_usdc * 1.1,
@@ -131,24 +182,24 @@ class AP2Manager:
             return {"success": False, **cart}
 
         # Creer une vraie transaction USDC on-chain
-        tx_signature = ""
-        if from_privkey:
-            from solana_tx import send_usdc_transfer
-            tx_result = await send_usdc_transfer(
-                to_address=user_wallet,
-                amount_usdc=amount_usdc,
-                from_privkey=from_privkey,
-                from_address=user_wallet,
-            )
-            if not tx_result.get("success"):
-                return {"success": False, "error": f"Transaction echouee: {tx_result.get('error')}"}
-            tx_signature = tx_result.get("signature", "")
+        # #1: Send to provider_wallet, not user_wallet
+        from solana_tx import send_usdc_transfer
+        tx_result = await send_usdc_transfer(
+            to_address=provider_wallet,
+            amount_usdc=amount_usdc,
+            from_privkey=from_privkey,
+            from_address=user_wallet,
+        )
+        if not tx_result.get("success"):
+            return {"success": False, "error": f"Transaction echouee: {tx_result.get('error')}"}
+        tx_signature = tx_result.get("signature", "")
 
         if not tx_signature:
-            return {"success": False, "error": "Cle privee requise pour creer une transaction reelle"}
+            return {"success": False, "error": "Transaction did not return a signature"}
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            # #12: Reduced timeout to 15s for external calls
+            async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
                     service_url,
                     json={
@@ -177,18 +228,23 @@ class AP2Manager:
                 "ai_inference", "gpu_compute", "data_marketplace",
                 "code_audit", "image_generation",
             ],
+            # #17: ETH threshold / min amounts in info
+            "constraints": {
+                "ethereum_min_usdc": 10,
+            },
             "active": AP2_ENABLED,
             "activeMandates": len(self._active_mandates),
             "completedPayments": len(self._completed),
         }
 
-    def get_stats(self) -> dict:
+    # #16: Stats with pagination limit parameter
+    def get_stats(self, limit: int = 10) -> dict:
         total_vol = sum(c.get("amount", 0) for c in self._completed)
         return {
             "activeMandates": len(self._active_mandates),
             "completedPayments": len(self._completed),
             "totalVolumeUsdc": total_vol,
-            "recentPayments": self._completed[-10:],
+            "recentPayments": self._completed[-limit:],
         }
 
     # ── Internal ──
@@ -200,12 +256,13 @@ class AP2Manager:
         payload = json.dumps(data, sort_keys=True, default=str).encode()
         return hmac.new(key, payload, hashlib.sha256).hexdigest()
 
+    # #15: Thread-safe signature verification — copy before popping
     def _verify_sig(self, mandate: dict) -> bool:
-        sig = mandate.pop("signature", "")
+        mandate_copy = dict(mandate)
+        sig = mandate_copy.pop("signature", mandate_copy.pop("merchantSignature", ""))
         if not sig:
             return False
-        expected = self._sign(mandate)
-        mandate["signature"] = sig          # restore
+        expected = self._sign(mandate_copy)
         return hmac.compare_digest(sig, expected)
 
     async def _verify_onchain(self, payment_payload: str,
@@ -243,7 +300,7 @@ class AP2Manager:
                 )
                 result["txHash"] = payment_payload
                 return result
-            return {"valid": False, "error": f"Unsupported network: {network}"}
+            return {"valid": False, "error": "Unsupported network"}
         except Exception as e:
             return {"valid": False, "error": str(e)}
 

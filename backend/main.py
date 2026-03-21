@@ -2267,24 +2267,37 @@ async def ap2_create_cart(req: dict, wallet: str = Depends(require_auth)):
 
 
 @app.post("/api/ap2/pay")
-async def ap2_pay_incoming(req: dict):
+async def ap2_pay_incoming(req: AP2PaymentRequest):
     """Accept incoming AP2 payment from external agent."""
+    # #7: Content safety on any string fields
+    if hasattr(req, 'network') and req.network:
+        check_content_safety(req.network, "network")
     return await ap2_manager.process_payment(
-        intent_mandate=req.get("intent_mandate", {}),
-        cart_mandate=req.get("cart_mandate"),
-        payment_payload=req.get("payment_payload"),
-        network=req.get("network", "solana-mainnet"),
+        intent_mandate=req.intent_mandate,
+        cart_mandate=req.cart_mandate,
+        payment_payload=req.payment_payload,
+        network=req.network,
     )
 
 
 @app.post("/api/ap2/pay-external")
 async def ap2_pay_outgoing(req: dict, wallet: str = Depends(require_auth)):
     """Use AP2 to pay for an external agent service."""
+    # #7: Content safety on purpose field
+    purpose = req.get("purpose", "ai_service")
+    if purpose:
+        check_content_safety(purpose, "purpose")
+    # #7: SSRF validation on service_url
+    service_url = req.get("service_url", "")
+    if service_url:
+        from webhook_dispatcher import validate_callback_url
+        validate_callback_url(service_url)
     return await ap2_manager.pay_external(
-        service_url=req.get("service_url", ""),
+        service_url=service_url,
         amount_usdc=float(req.get("amount_usdc", 0)),
         user_wallet=wallet,
-        purpose=req.get("purpose", "ai_service"),
+        provider_wallet=req.get("provider_wallet", ""),
+        purpose=purpose,
     )
 
 
