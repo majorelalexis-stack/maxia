@@ -157,19 +157,23 @@ import random
 
 TWEET_TEMPLATES = [
     # Tips techniques
-    "Your AI agent can earn USDC on Solana with one API call:\n\nPOST /api/public/sell\n→ Service listed\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist. Just code.\nmaxiaworld.app",
-    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service. Payments in USDC on Solana.\n\n1 API call to list. That's it.\nmaxiaworld.app",
-    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 15 tokens. 210 pairs. Via Jupiter.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
+    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 4 chains (Solana, Base, ETH, XRP)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
+    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on Solana, Base, Ethereum, or XRP.\n\n1 API call to list. That's it.\nmaxiaworld.app",
+    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 15 tokens. 210 pairs. 4 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
     # Stats
-    "MAXIA stats:\n- 15 tokens, 210 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 3 chains (Solana + Base + ETH)\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
+    "MAXIA stats:\n- 15 tokens, 210 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 4 chains: Solana + Base + ETH + XRP\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
     # Dev-focused
-    "If you're building an AI agent on Solana and want it to earn money autonomously:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={{'name': 'my-agent', 'price': 0.50}})\n```\n\nDone. Other AIs will find and pay you.",
+    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on Solana, Base, ETH, and XRP.\nOther AIs will find and pay you.",
     # Comparative
-    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nSame GPU, same price as RunPod, but integrated with AI marketplace.\nmaxiaworld.app",
+    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 4 chains, 22 MCP tools.\nmaxiaworld.app",
     # Community
-    "Devs building AI agents: what's your biggest pain point?\n\n- Finding users?\n- Getting paid?\n- Managing infra?\n\nWe built MAXIA to solve all three. Open source.\nmaxiaworld.app",
+    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 4 chains (Solana/Base/ETH/XRP), USDC payments, 1 API.\nmaxiaworld.app",
     # Thread starter
-    "Thread: How to monetize your AI agent in 5 minutes\n\n1/ You have an AI bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.",
+    "How to monetize your AI agent in 5 minutes:\n\n1/ You have a bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.\n\nHere's the fix (thread)",
+    # XRP specific
+    "XRP devs: MAXIA now supports XRPL natively.\n\nUSDC on XRP Ledger (Circle). 3-5 sec settlement. Fees < $0.01.\n\nList your AI service, get paid in USDC on XRPL.\nmaxiaworld.app/api/xrpl/info",
+    # Multi-chain
+    "One marketplace. Four chains.\n\nSolana: fast, cheap\nBase: Coinbase ecosystem\nEthereum: big money\nXRP: instant settlement\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
 ]
 
 TWEET_VARIANTS = {
@@ -274,6 +278,23 @@ async def check_ab_results() -> list:
 # ══════════════════════════════════════════
 # Reply intelligent aux mentions
 # ══════════════════════════════════════════
+
+async def generate_conversation_reply(messages: list, contact: str, platform: str) -> str:
+    """Genere une reponse contextuelle dans une conversation DM."""
+    history = "\n".join(f"  - {m[:100]}" for m in messages[-5:])
+    prompt = (
+        f"You are in a DM conversation on {platform} with @{contact}.\n"
+        f"Recent messages:\n{history}\n\n"
+        f"Write the next reply. Be helpful, technical, and natural.\n"
+        f"If they ask about MAXIA: explain (AI marketplace, 4 chains, USDC, 1 API call to list).\n"
+        f"If they ask a technical question: answer it.\n"
+        f"If they seem uninterested: politely end the conversation.\n"
+        f"Keep it short (<200 chars). English only.\n"
+        f"Reply ONLY the text, nothing else."
+    )
+    reply = await call_local_llm(prompt, max_tokens=100)
+    return reply.strip().strip('"').strip("'")[:280]
+
 
 async def generate_smart_reply(mention_text: str, username: str) -> str:
     """Genere une reponse pertinente a une mention via Ollama."""
@@ -590,7 +611,8 @@ ACTIONS (all vert unless noted):
 - scrape_followers: competitor followers (params: competitor) [VERT]
 - post_reddit: post (params: subreddit, title, body) [VERT]
 - comment_reddit: comment (params: post_url, text) [VERT]
-- dm_twitter: DM (params: username, text) [ORANGE]
+- dm_twitter: send first DM (params: username, text) [ORANGE]
+- manage_dms: read & reply all unread DMs on Twitter/Telegram [VERT]
 - send_telegram: telegram (params: target, text) [ORANGE]
 - update_price: VPS price (params: service_id, new_price) [ORANGE]
 - search_groups: find & join Telegram/Discord groups (params: platform) [VERT]
@@ -665,7 +687,16 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[A/B] Check error: {e}")
 
-                # 7. SEARCH GROUPS (toutes les 12 cycles = ~2h)
+                # 7. MANAGE CONVERSATIONS (toutes les 5 cycles = ~50 min)
+                if self._cycle % 5 == 0:
+                    try:
+                        dm_result = await self._manage_conversations()
+                        if dm_result.get("detail", "") != "0 conversations gerees":
+                            _log(f"[DMs] {dm_result.get('detail', '')}")
+                    except Exception as e:
+                        _log(f"[DMs] Erreur: {e}")
+
+                # 8. SEARCH GROUPS (toutes les 12 cycles = ~2h)
                 if self._cycle % 12 == 1:
                     try:
                         groups = self.memory.get("groups_joined", [])
@@ -995,6 +1026,8 @@ class CEOLocal:
             res_b = await self._do_browser("post_tweet", {"text": text_b})
             test = start_ab_test(text_a, text_b)
             return {"success": True, "detail": f"A/B test lance: {test['test_id']}"}
+        elif action == "manage_dms":
+            return await self._manage_conversations()
         elif action == "check_ab":
             results = await check_ab_results()
             return {"success": True, "detail": f"{len(results)} tests completes", "data": results}
@@ -1083,6 +1116,65 @@ class CEOLocal:
                 print(f"[ACT] Browser {method} error: {e}, fallback VPS")
                 return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
             return {"success": False, "detail": str(e)}
+
+    async def _manage_conversations(self) -> dict:
+        """Lit les DMs non lus sur Twitter, Telegram, Discord et repond."""
+        replied = 0
+
+        # Twitter DMs
+        try:
+            dms = await browser.read_twitter_dms(10)
+            unread = [d for d in dms if d.get("unread")]
+            for dm in unread[:3]:
+                name = dm.get("name", "")
+                if not name:
+                    continue
+                # Lire la conversation
+                messages = await browser.read_twitter_dm_conversation(name)
+                if not messages:
+                    continue
+                # Verifier si le dernier message est le notre (pas besoin de repondre)
+                last = messages[-1] if messages else ""
+                if "maxia" in last.lower() and len(messages) > 1:
+                    continue  # On a deja repondu
+                # Generer et envoyer la reponse
+                reply = await generate_conversation_reply(messages, name, "Twitter")
+                if reply:
+                    result = await browser.reply_twitter_dm(name, reply)
+                    if result.get("success"):
+                        replied += 1
+                        _log(f"  [DM] Twitter @{name}: {reply[:60]}")
+                        # CRM update
+                        self.memory.setdefault("contacts", []).append({
+                            "target": name, "canal": "twitter_dm",
+                            "ts": time.strftime("%Y-%m-%d"), "status": "replied",
+                            "last_message": reply[:50],
+                        })
+        except Exception as e:
+            _log(f"  [DM] Twitter error: {e}")
+
+        # Telegram — lire les groupes rejoints et repondre si pertinent
+        try:
+            groups = self.memory.get("groups_joined", [])
+            for group in groups[:2]:  # Max 2 groupes par cycle
+                if "t.me" not in group and "telegram" not in group.lower():
+                    continue
+                group_name = group.split("/")[-1]
+                messages = await browser.read_telegram_messages(group_name, 5)
+                # Chercher un message ou on peut apporter de la valeur
+                for msg in messages:
+                    if any(kw in msg.lower() for kw in ["ai agent", "marketplace", "solana", "earn", "monetize", "no users", "no revenue"]):
+                        reply = await generate_conversation_reply([msg], group_name, "Telegram")
+                        if reply:
+                            result = await browser.send_telegram(group_name, reply)
+                            if result.get("success"):
+                                replied += 1
+                                _log(f"  [DM] Telegram {group_name}: {reply[:60]}")
+                            break  # 1 message par groupe max
+        except Exception as e:
+            _log(f"  [DM] Telegram error: {e}")
+
+        return {"success": True, "detail": f"{replied} conversations gerees"}
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune."""

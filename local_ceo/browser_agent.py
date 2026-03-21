@@ -1339,6 +1339,189 @@ class BrowserAgent:
             print(f"[BrowserAgent] Scrape followers error: {e}")
             return []
 
+    # ── Conversation Manager (DM inbox) ──
+
+    async def read_twitter_dms(self, max_conversations: int = 10) -> list:
+        """Lit la boite de reception DMs Twitter."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            conversations = []
+            # Lister les conversations
+            convs = await page.locator('[data-testid="conversation"]').all()
+            if not convs:
+                convs = await page.locator('[data-testid="cellInnerDiv"]').all()
+
+            for conv in convs[:max_conversations]:
+                try:
+                    # Nom de l'interlocuteur
+                    name_el = conv.locator('span').first
+                    name = await name_el.inner_text() if await name_el.is_visible(timeout=1000) else ""
+                    # Dernier message preview
+                    preview_el = conv.locator('span[dir="auto"]').last
+                    preview = await preview_el.inner_text() if await preview_el.is_visible(timeout=1000) else ""
+                    # Indicateur non lu
+                    unread = await conv.locator('[aria-label*="unread"], [data-testid="unread"]').count() > 0
+
+                    if name:
+                        conversations.append({
+                            "name": name[:50],
+                            "preview": preview[:100],
+                            "unread": unread,
+                        })
+                except Exception:
+                    continue
+
+            print(f"[BrowserAgent] Twitter DMs: {len(conversations)} conversations")
+            return conversations
+
+        except Exception as e:
+            print(f"[BrowserAgent] Read DMs error: {e}")
+            return []
+
+    async def read_twitter_dm_conversation(self, contact_name: str) -> list:
+        """Lit les messages d'une conversation DM specifique."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Cliquer sur la conversation
+            conv = page.locator(f'[data-testid="conversation"]:has-text("{contact_name}"), [data-testid="cellInnerDiv"]:has-text("{contact_name}")').first
+            if await conv.is_visible(timeout=3000):
+                await conv.click()
+                await page.wait_for_timeout(2000)
+            else:
+                return []
+
+            # Lire les messages
+            messages = []
+            msg_els = await page.locator('[data-testid="messageEntry"], [data-testid="tweetText"]').all()
+            for msg in msg_els[-10:]:  # 10 derniers messages
+                try:
+                    text = await msg.inner_text()
+                    if text:
+                        messages.append(text[:500])
+                except Exception:
+                    continue
+
+            return messages
+
+        except Exception as e:
+            print(f"[BrowserAgent] Read DM conversation error: {e}")
+            return []
+
+    async def reply_twitter_dm(self, contact_name: str, text: str) -> dict:
+        """Repond dans une conversation DM Twitter existante."""
+        err = self._check_rate("dm")
+        if err:
+            return {"success": False, "error": err}
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Cliquer sur la conversation
+            conv = page.locator(f'[data-testid="conversation"]:has-text("{contact_name}"), [data-testid="cellInnerDiv"]:has-text("{contact_name}")').first
+            if await conv.is_visible(timeout=3000):
+                await conv.click()
+                await page.wait_for_timeout(2000)
+            else:
+                return {"success": False, "error": f"Conversation with {contact_name} not found"}
+
+            # Taper et envoyer
+            filled = await self._find_and_fill(page, [
+                '[data-testid="dmComposerTextInput"]',
+                'div[role="textbox"][contenteditable]',
+            ], text[:1000], "DM reply")
+            if not filled:
+                return {"success": False, "error": "DM input not found"}
+
+            sent = await self._find_and_click(page, [
+                '[data-testid="dmComposerSendButton"]',
+                'button[aria-label*="Send" i]',
+            ], "Send DM")
+
+            if sent:
+                self._record_action("dm", self._content_hash("dm_reply", f"{contact_name}:{text[:30]}"))
+                return {"success": True, "contact": contact_name}
+            return {"success": False, "error": "Send button not found"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def read_telegram_messages(self, group_name: str, max_messages: int = 10) -> list:
+        """Lit les derniers messages d'un groupe/chat Telegram."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            # Chercher le groupe
+            search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
+            if await search.is_visible(timeout=3000):
+                await search.click()
+                await search.fill(group_name)
+                await page.wait_for_timeout(2000)
+                result = page.locator(f'.ListItem:has-text("{group_name}")').first
+                if await result.is_visible(timeout=3000):
+                    await result.click()
+                    await page.wait_for_timeout(2000)
+                else:
+                    return []
+
+            # Lire les messages
+            messages = []
+            msg_els = await page.locator('.message .text-content, .Message .text-content').all()
+            for msg in msg_els[-max_messages:]:
+                try:
+                    text = await msg.inner_text()
+                    if text:
+                        messages.append(text[:500])
+                except Exception:
+                    continue
+
+            return messages
+
+        except Exception as e:
+            print(f"[BrowserAgent] Read Telegram error: {e}")
+            return []
+
+    async def read_discord_messages(self, channel_url: str, max_messages: int = 10) -> list:
+        """Lit les derniers messages d'un channel Discord."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(channel_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            messages = []
+            msg_els = await page.locator('[id^="message-content-"], div[class*="messageContent"]').all()
+            for msg in msg_els[-max_messages:]:
+                try:
+                    text = await msg.inner_text()
+                    if text:
+                        messages.append(text[:500])
+                except Exception:
+                    continue
+
+            return messages
+
+        except Exception as e:
+            print(f"[BrowserAgent] Read Discord error: {e}")
+            return []
+
     # ── Veille concurrentielle ──
 
     async def competitive_scan(self, urls: list) -> list:
