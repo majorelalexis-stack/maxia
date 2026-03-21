@@ -440,8 +440,28 @@ class CEOLocal:
                 _log(f"ERREUR cycle #{self._cycle}: {e}")
                 await audit.log(f"cycle_error: {e}", success=False)
 
-            # 6. SLEEP
-            await asyncio.sleep(OODA_INTERVAL_S)
+            # 7. SLEEP (respecte le dashboard control)
+            ctrl = self._load_control()
+            interval = ctrl.get("interval_s", OODA_INTERVAL_S)
+            if ctrl.get("paused"):
+                _log("[CEO Local] PAUSE (via dashboard). Attente resume...")
+                while ctrl.get("paused"):
+                    await asyncio.sleep(10)
+                    ctrl = self._load_control()
+                _log("[CEO Local] RESUME")
+            else:
+                await asyncio.sleep(interval)
+
+    @staticmethod
+    def _load_control() -> dict:
+        ctrl_file = os.path.join(os.path.dirname(__file__), "ceo_control.json")
+        try:
+            if os.path.exists(ctrl_file):
+                with open(ctrl_file, "r") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {"paused": False, "interval_s": 600}
 
     def stop(self):
         self._running = False
@@ -473,41 +493,79 @@ class CEOLocal:
         )
 
         analysis = await call_local_llm(
-            summary + "\n\nResume la situation en 3 points cles et identifie le probleme principal.",
-            system="Tu es un analyste business. Sois concis et factuel.",
-            max_tokens=300,
+            summary + "\n\n3 points cles. 1 probleme principal. Max 3 phrases.",
+            system="Analyste concis. Reponds en 3 phrases max.",
+            max_tokens=150,
         )
         _log(f"  Analyse: {analysis[:150]}")
         return analysis
 
+    def _get_memory_context(self) -> str:
+        """Resume compact de la memoire pour le prompt DECIDE."""
+        mem = self.memory
+        parts = []
+        # Dernieres actions (eviter repetitions)
+        recent = mem.get("actions_done", [])[-5:]
+        if recent:
+            done = [f"{a['action']}({'OK' if a.get('success') else 'FAIL'})" for a in recent]
+            parts.append(f"DEJA FAIT: {', '.join(done)}")
+        # Regles apprises
+        regles = mem.get("regles", [])[-3:]
+        if regles:
+            parts.append(f"REGLES: {'; '.join(str(r)[:50] for r in regles)}")
+        # Tweets postes (eviter doublons)
+        tweets = mem.get("tweets_posted", [])[-3:]
+        if tweets:
+            parts.append(f"TWEETS RECENTS: {len(mem.get('tweets_posted', []))} postes")
+        return "\n".join(parts) if parts else "Pas d historique."
+
+    def _is_good_hour(self) -> dict:
+        """Calendrier de publication. Retourne les actions recommandees selon l'heure."""
+        import datetime
+        hour = datetime.datetime.utcnow().hour
+        # Heures de pointe (UTC) pour les devs crypto/AI
+        if 9 <= hour <= 11 or 17 <= hour <= 19:
+            return {"post_ok": True, "reason": "Heure de pointe"}
+        elif 0 <= hour <= 6:
+            return {"post_ok": False, "reason": "Nuit — pas de post, monitoring seulement"}
+        else:
+            return {"post_ok": True, "reason": "Heure normale"}
+
     async def _decide(self, analysis: str, state: dict) -> list:
-        """DECIDE — Ollama classifie la situation, Claude decide si necessaire."""
+        """DECIDE — Ollama classifie, memoire + calendrier + scoring."""
         _log("[DECIDE] Classification locale...")
         kpis = state.get("kpi", {})
 
+        # Calendrier
+        schedule = self._is_good_hour()
+        _log(f"  Calendrier: {schedule['reason']}")
+
+        # Contexte compact
+        memory_ctx = self._get_memory_context()
         context = (
-            f"ANALYSE: {analysis[:300]}\n"
-            f"Rev=${kpis.get('revenue_24h', 0)}, Clients={kpis.get('clients_actifs', 0)}, "
-            f"Emergency={kpis.get('emergency_stop', False)}"
+            f"Rev=${kpis.get('revenue_24h', 0)} Clients={kpis.get('clients_actifs', 0)}\n"
+            f"ANALYSE: {analysis[:200]}\n"
+            f"{memory_ctx}\n"
+            f"HEURE: {schedule['reason']}"
         )
 
-        # Etape 1: Ollama classifie — routine ou strategique ? (0 cout)
-        classify_prompt = (
-            f"{context}\n\n"
-            "Cette situation necessite-t-elle une reflexion strategique (changement de prix, "
-            "nouveau canal marketing, decision budget) ou juste des actions de routine "
-            "(tweet, monitoring, rapport) ?\n"
-            "Reponds UN MOT: routine ou strategique"
+        if not schedule["post_ok"]:
+            _log("  Nuit — skip marketing, monitoring only")
+            return []
+
+        # Etape 1: Ollama classifie (0 cout, prompt ultra court)
+        classification = await call_local_llm(
+            f"{context}\nRoutine ou strategique? UN MOT:", max_tokens=5
         )
-        classification = await call_local_llm(classify_prompt, max_tokens=10)
         is_strategic = "strateg" in classification.lower()
-        _log(f"  Classification: {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
+        _log(f"  {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
 
         # Etape 2: Generer les decisions
         decide_prompt = (
-            f"{context}\n\n"
-            "Max 3 actions. Pas d actions vagues.\n"
-            "JSON: {\"decisions\": [{\"action\": \"...\", \"agent\": \"...\", \"params\": {...}, \"priority\": \"vert|orange|rouge\"}]}"
+            f"{context}\n"
+            f"{'IMPORTANT: ne refais PAS ce qui est dans DEJA FAIT.' if memory_ctx else ''}\n"
+            "Max 3 actions concretes.\n"
+            "JSON: {\"decisions\": [{\"action\": \"...\", \"agent\": \"...\", \"params\": {...}, \"priority\": \"vert\"}]}"
         )
 
         if is_strategic:
@@ -611,6 +669,9 @@ class CEOLocal:
         elif action == "get_mentions":
             mentions = await browser.get_mentions(params.get("max", 20))
             return {"success": bool(mentions), "detail": f"{len(mentions)} mentions", "data": mentions}
+        elif action == "score_profile":
+            result = await browser.score_twitter_profile(params.get("username", ""))
+            return {"success": bool(result.get("score", 0)), "detail": f"Score: {result.get('score', 0)} -> {result.get('recommend', '?')}", "data": result}
         # Reddit (local)
         elif action == "post_reddit":
             return await self._do_browser("post_reddit", params)

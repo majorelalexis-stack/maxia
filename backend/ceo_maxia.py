@@ -1593,6 +1593,18 @@ async def execute(decisions: list, memory: Memory):
         await alert_rouge("Emergency Stop actif", "Toutes les decisions sont bloquees. Revenue: $0. Reset manuel requis.", deadline_h=1)
         return
 
+    # Si le CEO local est actif, le VPS skip le marketing (eviter double-post)
+    try:
+        from main import is_local_ceo_active, local_ceo_did_action
+        if is_local_ceo_active():
+            _marketing = {"GHOST-WRITER", "HUNTER"}
+            decisions = [d for d in decisions if d.get("cible", "").upper() not in _marketing]
+            if not decisions:
+                print("[CEO] VPS skip marketing — CEO local actif")
+                return
+    except ImportError:
+        pass
+
     from ceo_executor import execute_decision
 
     VALID_CIBLES = {"GHOST-WRITER", "HUNTER", "SCOUT", "WATCHDOG", "SOL-TREASURY", "RESPONDER", "RADAR", "TESTIMONIAL", "DEPLOYER", "FONDATEUR", "NEGOTIATOR", "COMPLIANCE", "PARTNERSHIP", "ANALYTICS", "CRISIS-MANAGER"}

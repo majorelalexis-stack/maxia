@@ -726,6 +726,82 @@ class BrowserAgent:
             return {"success": False, "error": str(e)}
 
 
+    # ── Prospect Scoring ──
+
+    async def score_twitter_profile(self, username: str) -> dict:
+        """Score un profil Twitter pour savoir s'il vaut la peine d'etre contacte.
+        Score 0-100 base sur : bio, followers, activite, pertinence AI/crypto."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            clean = username.lstrip("@")
+            await page.goto(f"https://x.com/{clean}", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            score = 0
+            details = {}
+
+            # Bio
+            bio = ""
+            for sel in ['div[data-testid="UserDescription"]', '[data-testid="UserDescription"] span']:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=2000):
+                    bio = await el.inner_text()
+                    break
+            details["bio"] = bio[:200]
+
+            # Mots-cles pertinents dans la bio
+            keywords_high = ["AI agent", "solana", "web3", "developer", "dev", "builder", "python", "rust", "blockchain", "defi", "bot"]
+            keywords_mid = ["crypto", "nft", "ethereum", "coding", "software", "engineer", "startup", "founder"]
+            bio_lower = bio.lower()
+            for kw in keywords_high:
+                if kw in bio_lower:
+                    score += 15
+            for kw in keywords_mid:
+                if kw in bio_lower:
+                    score += 8
+
+            # Followers count
+            try:
+                followers_el = page.locator('a[href$="/verified_followers"] span, a[href$="/followers"] span').first
+                followers_text = await followers_el.inner_text() if await followers_el.is_visible(timeout=2000) else "0"
+                followers_text = followers_text.replace(",", "").replace(".", "").strip()
+                if "K" in followers_text.upper():
+                    followers = int(float(followers_text.upper().replace("K", "")) * 1000)
+                elif "M" in followers_text.upper():
+                    followers = int(float(followers_text.upper().replace("M", "")) * 1000000)
+                else:
+                    followers = int(followers_text) if followers_text.isdigit() else 0
+                details["followers"] = followers
+
+                # Sweet spot: 100-10000 followers (pas un bot, pas un gros compte inaccessible)
+                if 100 <= followers <= 1000:
+                    score += 20
+                elif 1000 < followers <= 10000:
+                    score += 15
+                elif 50 <= followers < 100:
+                    score += 10
+                elif followers > 10000:
+                    score += 5  # Trop gros, peu de chance de reponse
+            except Exception:
+                details["followers"] = 0
+
+            # "no revenue" signals dans la bio
+            frustration_kw = ["no revenue", "side project", "building", "shipping", "0 users", "looking for"]
+            for kw in frustration_kw:
+                if kw in bio_lower:
+                    score += 10
+
+            details["score"] = min(score, 100)
+            details["username"] = clean
+            details["recommend"] = "follow+engage" if score >= 40 else "like only" if score >= 20 else "skip"
+
+            return details
+
+        except Exception as e:
+            return {"username": username, "score": 0, "error": str(e), "recommend": "skip"}
+
     # ── Twitter DMs ──
 
     async def dm_twitter(self, username: str, text: str) -> dict:
