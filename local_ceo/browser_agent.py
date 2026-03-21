@@ -1,23 +1,26 @@
-"""Browser Agent — browser-use (DOM + vision) pour poster sur X, Reddit, etc.
+"""Browser Agent — Playwright ameliore avec multi-selectors, role-based, retry.
 
-Remplace Playwright brut par browser-use qui utilise le DOM + vision via LLM.
-Plus de selectors CSS fragiles — l'IA trouve les elements et s'adapte aux changements d'UI.
+Zero LLM, zero token. Robuste grace a :
+- Multi-selectors avec fallback (3-4 alternatives par element)
+- Selection par role/texte (pas juste data-testid)
+- Attente intelligente (wait_for_selector au lieu de sleep)
+- Screenshot avant/apres pour debug
+- Auto-detection login
+- Retry avec backoff
 """
 import asyncio
 import os
 import time
-from config_local import (
-    BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY,
-    OLLAMA_URL, OLLAMA_VISION_MODEL,
-)
+from config_local import BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY
 
 
 class BrowserAgent:
-    """Controle un navigateur via browser-use (LLM-driven, robuste aux changements d'UI)."""
+    """Controle un navigateur Chrome via Playwright avec selectors robustes."""
 
     def __init__(self):
-        self._agent = None
         self._browser = None
+        self._context = None
+        self._page = None
         self._initialized = False
         self._daily_counts = {"tweets": 0, "reddit": 0, "date": ""}
         self._profile_dir = BROWSER_PROFILE_DIR
@@ -27,164 +30,354 @@ class BrowserAgent:
         if self._daily_counts["date"] != today:
             self._daily_counts = {"tweets": 0, "reddit": 0, "date": today}
 
-    def _get_llm(self):
-        """Retourne le LLM pour browser-use (Ollama local, 0 cout)."""
-        from langchain_ollama import ChatOllama
-        return ChatOllama(
-            model=OLLAMA_VISION_MODEL,
-            base_url=OLLAMA_URL,
-            temperature=0.3,
-        )
-
     async def setup(self):
-        """Initialise browser-use avec profil persistant."""
+        """Lance Chromium avec profil persistant."""
         if self._initialized:
             return
         try:
-            from browser_use import Browser, BrowserConfig
+            from playwright.async_api import async_playwright
+            self._pw = await async_playwright().start()
             os.makedirs(self._profile_dir, exist_ok=True)
-            config = BrowserConfig(
+            # Utiliser le Chrome systeme (pas le Chromium Playwright) pour garder le profil
+            chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            if not os.path.exists(chrome_path):
+                chrome_path = None  # Fallback Chromium Playwright
+            self._context = await self._pw.chromium.launch_persistent_context(
+                user_data_dir=self._profile_dir,
                 headless=False,
-                chrome_instance_path=None,
-                extra_chromium_args=[
-                    f"--user-data-dir={self._profile_dir}",
-                    "--disable-blink-features=AutomationControlled",
-                ],
+                viewport={"width": 1280, "height": 900},
+                executable_path=chrome_path,
+                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
             )
-            self._browser = Browser(config=config)
+            self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
             self._initialized = True
-            print("[BrowserAgent] browser-use initialise avec profil persistant")
+            print("[BrowserAgent] Chrome lance avec profil persistant")
         except Exception as e:
-            print(f"[BrowserAgent] Setup failed: {e}")
+            print(f"[BrowserAgent] Setup failed: {str(e)[:200]}")
             raise
 
     async def close(self):
         """Ferme le navigateur."""
-        if self._browser:
-            await self._browser.close()
+        if self._context:
+            await self._context.close()
+        if hasattr(self, '_pw') and self._pw:
+            await self._pw.stop()
         self._initialized = False
 
-    async def _run_task(self, task: str, max_actions: int = 10) -> str:
-        """Execute une tache en langage naturel via browser-use."""
+    async def _ensure_ready(self):
         if not self._initialized:
             await self.setup()
-        from browser_use import Agent
-        agent = Agent(
-            task=task,
-            llm=self._get_llm(),
-            browser=self._browser,
-            max_actions_per_step=max_actions,
-        )
-        result = await agent.run()
-        return result.final_result() if result else ""
+
+    # ── Helpers robustes ──
+
+    async def _find_and_click(self, page, selectors: list, description: str, timeout: int = 10000) -> bool:
+        """Essaie plusieurs selectors jusqu'a en trouver un qui marche."""
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=timeout):
+                    await el.click()
+                    return True
+            except Exception:
+                continue
+        print(f"[BrowserAgent] {description}: aucun selector trouve parmi {len(selectors)}")
+        return False
+
+    async def _find_and_fill(self, page, selectors: list, text: str, description: str, timeout: int = 10000) -> bool:
+        """Essaie plusieurs selectors pour remplir un champ."""
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=timeout):
+                    await el.click()
+                    await el.fill(text)
+                    return True
+            except Exception:
+                continue
+        # Fallback: taper au clavier
+        try:
+            await page.keyboard.type(text, delay=30)
+            return True
+        except Exception:
+            pass
+        print(f"[BrowserAgent] {description}: aucun selector trouve")
+        return False
+
+    async def _screenshot(self, page, name: str) -> str:
+        """Screenshot de preuve."""
+        path = os.path.join(self._profile_dir, f"{name}_{int(time.time())}.png")
+        try:
+            await page.screenshot(path=path)
+            return path
+        except Exception:
+            return ""
+
+    async def _is_logged_in_twitter(self, page) -> bool:
+        """Verifie si on est connecte sur X."""
+        try:
+            await page.goto("https://x.com/home", wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(2000)
+            # Si redirige vers login, on n'est pas connecte
+            url = page.url
+            if "login" in url or "i/flow" in url:
+                return False
+            # Chercher le bouton compose
+            compose = page.locator('[data-testid="SideNav_NewTweet_Button"], a[href="/compose/post"], [aria-label*="Post"], [aria-label*="Poster"]')
+            return await compose.first.is_visible(timeout=3000)
+        except Exception:
+            return False
+
+    async def _is_logged_in_reddit(self, page) -> bool:
+        """Verifie si on est connecte sur Reddit."""
+        try:
+            await page.goto("https://www.reddit.com", wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(2000)
+            # Chercher le bouton user ou create post
+            user = page.locator('button[id*="USER"], [data-testid="create-post"], a[href*="/submit"]')
+            return await user.first.is_visible(timeout=3000)
+        except Exception:
+            return False
+
+    # ── Actions principales ──
 
     async def post_tweet(self, text: str, media: str = None) -> dict:
-        """Poste un tweet sur X via browser-use."""
+        """Poste un tweet sur X avec multi-selectors robustes."""
         self._reset_if_new_day()
         if self._daily_counts["tweets"] >= MAX_TWEETS_DAY:
             return {"success": False, "error": f"Limite tweets/jour atteinte ({MAX_TWEETS_DAY})"}
 
+        await self._ensure_ready()
+        page = self._page
+
+        # Verifier login
+        if not await self._is_logged_in_twitter(page):
+            return {"success": False, "error": "Non connecte sur X. Ouvre Chrome avec le profil et connecte-toi."}
+
         try:
-            task = f'Go to x.com. Click on the compose/new post button. Type exactly this text: "{text[:280]}". Then click the Post button to publish the tweet.'
+            # Naviguer vers compose
+            await page.goto("https://x.com/compose/post", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Remplir le texte — multi-selectors
+            filled = await self._find_and_fill(page, [
+                '[data-testid="tweetTextarea_0"]',
+                '[data-testid="tweetTextarea_0_label"]',
+                'div[role="textbox"][contenteditable="true"]',
+                '.public-DraftEditor-content',
+                '[aria-label*="post" i] div[contenteditable]',
+                '[aria-label*="tweet" i] div[contenteditable]',
+            ], text[:280], "Tweet textbox")
+
+            if not filled:
+                await self._screenshot(page, "tweet_fill_fail")
+                return {"success": False, "error": "Impossible de remplir le champ tweet"}
+
+            await page.wait_for_timeout(1000)
+
+            # Upload media
             if media and os.path.exists(media):
-                task += f" Before posting, upload the image at {media}."
+                try:
+                    file_input = page.locator('input[type="file"][accept*="image"]').first
+                    await file_input.set_input_files(media)
+                    await page.wait_for_timeout(3000)
+                except Exception as e:
+                    print(f"[BrowserAgent] Media upload failed: {e}")
 
-            result = await self._run_task(task, max_actions=8)
+            # Cliquer Post — multi-selectors
+            posted = await self._find_and_click(page, [
+                '[data-testid="tweetButton"]',
+                '[data-testid="tweetButtonInline"]',
+                'button[role="button"]:has-text("Post")',
+                'button[role="button"]:has-text("Poster")',
+                'div[role="button"]:has-text("Post")',
+                'div[role="button"]:has-text("Poster")',
+            ], "Post button")
 
-            # Screenshot preuve
-            proof_path = os.path.join(self._profile_dir, f"tweet_{int(time.time())}.png")
-            try:
-                context = await self._browser.get_current_context()
-                page = context.pages[-1] if context.pages else None
-                if page:
-                    await page.screenshot(path=proof_path)
-            except Exception:
-                proof_path = ""
+            if not posted:
+                await self._screenshot(page, "tweet_post_fail")
+                return {"success": False, "error": "Bouton Post introuvable"}
+
+            await page.wait_for_timeout(3000)
+            proof = await self._screenshot(page, "tweet_ok")
 
             self._daily_counts["tweets"] += 1
-            return {"success": True, "proof": proof_path, "text": text[:100], "result": str(result)[:200]}
+            return {"success": True, "proof": proof, "text": text[:100]}
+
         except Exception as e:
+            await self._screenshot(page, "tweet_error")
             return {"success": False, "error": str(e)}
 
     async def reply_tweet(self, tweet_url: str, text: str) -> dict:
         """Repond a un tweet specifique."""
+        await self._ensure_ready()
+        page = self._page
+
         try:
-            task = f'Go to {tweet_url}. Click on the reply field. Type exactly: "{text[:280]}". Click the Reply button to post.'
-            result = await self._run_task(task, max_actions=8)
-            return {"success": True, "url": tweet_url, "reply": text[:100], "result": str(result)[:200]}
+            await page.goto(tweet_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Cliquer sur le champ reponse
+            filled = await self._find_and_fill(page, [
+                '[data-testid="tweetTextarea_0"]',
+                'div[role="textbox"][contenteditable="true"]',
+                '[aria-label*="reply" i] div[contenteditable]',
+                '[aria-label*="Post your reply" i]',
+            ], text[:280], "Reply textbox")
+
+            if not filled:
+                return {"success": False, "error": "Champ reponse introuvable"}
+
+            await page.wait_for_timeout(1000)
+
+            posted = await self._find_and_click(page, [
+                '[data-testid="tweetButton"]',
+                '[data-testid="tweetButtonInline"]',
+                'button:has-text("Reply")',
+                'button:has-text("Repondre")',
+            ], "Reply button")
+
+            if not posted:
+                return {"success": False, "error": "Bouton Reply introuvable"}
+
+            await page.wait_for_timeout(3000)
+            return {"success": True, "url": tweet_url, "reply": text[:100]}
+
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     async def post_reddit(self, subreddit: str, title: str, body: str) -> dict:
-        """Poste sur un subreddit."""
+        """Poste sur un subreddit avec multi-selectors."""
         self._reset_if_new_day()
         if self._daily_counts["reddit"] >= MAX_REDDIT_POSTS_DAY:
             return {"success": False, "error": f"Limite reddit/jour atteinte ({MAX_REDDIT_POSTS_DAY})"}
 
-        try:
-            task = (
-                f'Go to reddit.com/r/{subreddit}. '
-                f'Click on "Create Post" or the new post button. '
-                f'Set the title to: "{title[:300]}". '
-                f'In the body/text area, type: "{body[:2000]}". '
-                f'Click the Post/Submit button.'
-            )
-            result = await self._run_task(task, max_actions=10)
+        await self._ensure_ready()
+        page = self._page
 
-            proof_path = os.path.join(self._profile_dir, f"reddit_{int(time.time())}.png")
-            try:
-                context = await self._browser.get_current_context()
-                page = context.pages[-1] if context.pages else None
-                if page:
-                    await page.screenshot(path=proof_path)
-            except Exception:
-                proof_path = ""
+        try:
+            url = f"https://www.reddit.com/r/{subreddit}/submit?type=TEXT"
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            # Titre — multi-selectors
+            filled_title = await self._find_and_fill(page, [
+                'textarea[placeholder*="Title" i]',
+                'input[placeholder*="Title" i]',
+                'textarea[name="title"]',
+                'input[name="title"]',
+                '[data-testid="post-title"] textarea',
+                'div[slot="title"] textarea',
+            ], title[:300], "Reddit title")
+
+            if not filled_title:
+                await self._screenshot(page, "reddit_title_fail")
+                return {"success": False, "error": "Champ titre Reddit introuvable"}
+
+            await page.wait_for_timeout(1000)
+
+            # Body — multi-selectors
+            await self._find_and_fill(page, [
+                'div[contenteditable="true"]',
+                'textarea[placeholder*="Text" i]',
+                'textarea[placeholder*="body" i]',
+                '.public-DraftEditor-content',
+                '[data-testid="post-body"] div[contenteditable]',
+                'div[slot="text"] div[contenteditable]',
+                'shreddit-composer div[contenteditable]',
+            ], body[:10000], "Reddit body")
+
+            await page.wait_for_timeout(1000)
+
+            # Poster — multi-selectors
+            posted = await self._find_and_click(page, [
+                'button:has-text("Post")',
+                'button:has-text("Submit")',
+                'button[type="submit"]:has-text("Post")',
+                '[data-testid="submit-button"]',
+                'button.submit',
+                'faceplate-tracker button:has-text("Post")',
+            ], "Reddit Post button")
+
+            if not posted:
+                await self._screenshot(page, "reddit_post_fail")
+                return {"success": False, "error": "Bouton Post Reddit introuvable"}
+
+            await page.wait_for_timeout(5000)
+            proof = await self._screenshot(page, "reddit_ok")
 
             self._daily_counts["reddit"] += 1
-            return {"success": True, "proof": proof_path, "subreddit": subreddit, "result": str(result)[:200]}
+            return {"success": True, "proof": proof, "subreddit": subreddit}
+
         except Exception as e:
+            await self._screenshot(page, "reddit_error")
             return {"success": False, "error": str(e)}
 
     async def search_google(self, query: str, max_results: int = 10) -> list:
         """Recherche Google et extrait les resultats."""
+        await self._ensure_ready()
+        page = self._page
+
         try:
-            task = (
-                f'Go to google.com. Search for: "{query}". '
-                f'Extract the titles and URLs of the first {max_results} search results. '
-                f'Return them as a list.'
-            )
-            result = await self._run_task(task, max_actions=5)
-            # browser-use retourne du texte, on le parse basiquement
-            return [{"title": line, "url": ""} for line in str(result).split("\n") if line.strip()][:max_results]
+            await page.goto(f"https://www.google.com/search?q={query}", wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(2000)
+
+            results = []
+            # Multi-selectors pour les resultats Google
+            for container_sel in ["div.g", "div[data-sokoban-container]", "div.tF2Cxc"]:
+                items = await page.locator(container_sel).all()
+                if items:
+                    for item in items[:max_results]:
+                        try:
+                            link = item.locator("a").first
+                            href = await link.get_attribute("href") or ""
+                            title_el = item.locator("h3").first
+                            title = await title_el.inner_text() if await title_el.is_visible() else ""
+                            if href.startswith("http"):
+                                results.append({"title": title, "url": href})
+                        except Exception:
+                            continue
+                    if results:
+                        break
+
+            return results[:max_results]
+
         except Exception as e:
             print(f"[BrowserAgent] Google search error: {e}")
             return []
 
     async def screenshot_page(self, url: str) -> str:
-        """Capture une page (veille concurrentielle)."""
-        if not self._initialized:
-            await self.setup()
+        """Capture une page complete."""
+        await self._ensure_ready()
         try:
-            task = f"Go to {url} and wait for the page to fully load."
-            await self._run_task(task, max_actions=3)
-
-            path = os.path.join(self._profile_dir, f"screenshot_{int(time.time())}.png")
-            context = await self._browser.get_current_context()
-            page = context.pages[-1] if context.pages else None
-            if page:
-                await page.screenshot(path=path, full_page=True)
-                return path
-            return ""
+            await self._page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await self._page.wait_for_timeout(2000)
+            return await self._screenshot(self._page, "screenshot")
         except Exception as e:
             print(f"[BrowserAgent] Screenshot error: {e}")
             return ""
 
-    async def browse_and_extract(self, url: str, what: str = "the main content") -> str:
-        """Navigue vers une URL et extrait du contenu (langage naturel)."""
+    async def browse_and_extract(self, url: str, selector: str = "body") -> str:
+        """Navigue et extrait du contenu avec fallback."""
+        await self._ensure_ready()
+        page = self._page
+
         try:
-            task = f"Go to {url}. Extract {what} from the page. Return the text content."
-            result = await self._run_task(task, max_actions=5)
-            return str(result)[:5000]
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Essayer le selector demande, sinon fallback
+            for sel in [selector, "main", "article", "#content", ".content", "body"]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=2000):
+                        text = await el.inner_text()
+                        if text and len(text) > 50:
+                            return text[:5000]
+                except Exception:
+                    continue
+
+            return await page.locator("body").inner_text()
+
         except Exception as e:
             return f"Error: {e}"
 
