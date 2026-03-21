@@ -1,6 +1,7 @@
 """MAXIA Health Monitor — Checks all endpoints every 5 minutes"""
 import asyncio, time
 import httpx
+from config import PORT
 
 ENDPOINTS = [
     ("/health", 200),
@@ -17,7 +18,7 @@ async def run_health_monitor():
     while True:
         await asyncio.sleep(300)  # 5 minutes
         failures = []
-        async with httpx.AsyncClient(base_url="http://127.0.0.1:8000", timeout=10) as client:
+        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{PORT}", timeout=10) as client:
             for path, expected in ENDPOINTS:
                 try:
                     r = await client.get(path)

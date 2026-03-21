@@ -119,6 +119,11 @@ def _check_rate(api_key: str):
     _rate_limits.setdefault(key, 0)
     _rate_limits[key] += 1
 
+    # Cleanup stale date keys to avoid memory leak
+    stale = [k for k in _rate_limits if not k.endswith(f":{today}")]
+    for k in stale:
+        _rate_limits.pop(k, None)
+
     # Determine tier-based limit
     agent = _registered_agents.get(api_key, {})
     tier = agent.get("tier", "BRONZE")

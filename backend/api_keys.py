@@ -89,8 +89,7 @@ def _generate_key(scopes: list[str]) -> str:
 
 async def ensure_tables(db):
     """Create api_keys_v2 and api_audit_log tables if they don't exist."""
-    await db._db.executescript(API_KEYS_SCHEMA)
-    await db._db.commit()
+    await db.raw_executescript(API_KEYS_SCHEMA)
     print("[APIKeys] Tables ensured")
 
 
@@ -120,12 +119,11 @@ async def create_key(
     key_id = str(uuid.uuid4())
     rate_limit = TIER_LIMITS[tier]
 
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO api_keys_v2(key_id, api_key_hash, agent_wallet, name, scopes, tier, rate_limit_day) "
         "VALUES(?,?,?,?,?,?,?)",
         (key_id, key_hash, wallet, name, json.dumps(sorted(scopes)), tier, rate_limit),
     )
-    await db._db.commit()
 
     return {
         "key_id": key_id,
@@ -151,7 +149,7 @@ async def validate_key(
     key_hash = _hash_key(raw_key)
 
     # Look up in api_keys_v2
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM api_keys_v2 WHERE api_key_hash=?", (key_hash,)
     )
     row = rows[0] if rows else None
@@ -179,10 +177,9 @@ async def validate_key(
 
         # Update last_used_at
         now = int(time.time())
-        await db._db.execute(
+        await db.raw_execute(
             "UPDATE api_keys_v2 SET last_used_at=? WHERE key_id=?", (now, info["key_id"])
         )
-        await db._db.commit()
 
         return {
             "key_id": info["key_id"],
@@ -195,7 +192,7 @@ async def validate_key(
 
     # ── Backward compatibility: check legacy agents table ──
     try:
-        legacy_rows = await db._db.execute_fetchall(
+        legacy_rows = await db.raw_execute_fetchall(
             "SELECT * FROM agents WHERE api_key=?", (raw_key,)
         )
         legacy = legacy_rows[0] if legacy_rows else None
@@ -242,19 +239,18 @@ async def log_audit(
     """Write an entry to the audit log."""
     entry_id = str(uuid.uuid4())
     try:
-        await db._db.execute(
+        await db.raw_execute(
             "INSERT INTO api_audit_log(id, api_key_id, action, endpoint, ip, status_code) "
             "VALUES(?,?,?,?,?,?)",
             (entry_id, key_id, action, endpoint, ip, status_code),
         )
-        await db._db.commit()
     except Exception as e:
         print(f"[APIKeys] Audit log error: {e}")
 
 
 async def revoke_key(db, key_id: str, wallet: str) -> dict:
     """Revoke a key. Only the owner (by wallet) can revoke."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM api_keys_v2 WHERE key_id=?", (key_id,)
     )
     row = rows[0] if rows else None
@@ -269,10 +265,9 @@ async def revoke_key(db, key_id: str, wallet: str) -> dict:
         raise HTTPException(400, "Key already revoked")
 
     now = int(time.time())
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE api_keys_v2 SET revoked_at=? WHERE key_id=?", (now, key_id)
     )
-    await db._db.commit()
 
     await log_audit(db, key_id, "revoke", ip="", status_code=200)
     return {"key_id": key_id, "revoked_at": now}
@@ -280,7 +275,7 @@ async def revoke_key(db, key_id: str, wallet: str) -> dict:
 
 async def list_keys(db, wallet: str) -> list[dict]:
     """List all keys for a wallet. Key hashes are masked — only last 8 chars shown."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM api_keys_v2 WHERE agent_wallet=? ORDER BY created_at DESC",
         (wallet,),
     )
@@ -303,7 +298,7 @@ async def list_keys(db, wallet: str) -> list[dict]:
 
 async def get_audit_log(db, wallet: str, limit: int = 50) -> list[dict]:
     """Return recent audit entries for all keys belonging to a wallet."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT a.* FROM api_audit_log a "
         "JOIN api_keys_v2 k ON a.api_key_id = k.key_id "
         "WHERE k.agent_wallet=? "

@@ -2,6 +2,8 @@
 import json, time, os
 import asyncpg
 
+from database import ALLOWED_AGENT_COLUMNS, ALLOWED_SERVICE_COLUMNS
+
 
 class PostgresDatabase:
     """Drop-in replacement for the SQLite Database class, backed by PostgreSQL."""
@@ -23,6 +25,21 @@ class PostgresDatabase:
     async def _execute(self, sql: str, params: tuple = ()):
         async with self._pool.acquire() as conn:
             await conn.execute(sql, *params)
+
+    # ── Public raw DB access helpers (mirrors database.py) ──
+
+    async def raw_execute(self, sql, params=()):
+        """Execute a raw SQL statement."""
+        await self._execute(sql, params)
+
+    async def raw_execute_fetchall(self, sql, params=()):
+        """Execute a raw SELECT and return all rows."""
+        return await self._fetchall(sql, params)
+
+    async def raw_executescript(self, sql):
+        """Execute a raw SQL script (PostgreSQL: single execute)."""
+        async with self._pool.acquire() as conn:
+            await conn.execute(sql)
 
     # ── lifecycle ──
 
@@ -453,11 +470,12 @@ class PostgresDatabase:
         return [dict(r) for r in rows]
 
     async def update_agent(self, api_key: str, updates: dict):
-        if not updates:
+        safe = {k: v for k, v in updates.items() if k in ALLOWED_AGENT_COLUMNS}
+        if not safe:
             return
         parts = []
         vals = []
-        for i, (k, v) in enumerate(updates.items(), 1):
+        for i, (k, v) in enumerate(safe.items(), 1):
             parts.append(f"{k}=${i}")
             vals.append(v)
         vals.append(api_key)
@@ -499,11 +517,12 @@ class PostgresDatabase:
         return dict(row) if row else None
 
     async def update_service(self, service_id: str, updates: dict):
-        if not updates:
+        safe = {k: v for k, v in updates.items() if k in ALLOWED_SERVICE_COLUMNS}
+        if not safe:
             return
         parts = []
         vals = []
-        for i, (k, v) in enumerate(updates.items(), 1):
+        for i, (k, v) in enumerate(safe.items(), 1):
             parts.append(f"{k}=${i}")
             vals.append(v)
         vals.append(service_id)

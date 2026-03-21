@@ -1625,6 +1625,12 @@ function showPage(name, el) {
   if (name === 'roi-tracking') loadROI();
 }
 
+// ── HTML escape helper (XSS protection for user-generated content) ──
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Toast ──
 function toast(msg, type) {
   type = type || 'info';
@@ -1722,13 +1728,13 @@ async function loadListings() {
       <div class="service-card">
         <div class="service-icon" style="background:rgba(124,107,248,.1)">${(s.seller && s.seller !== 'MAXIA') ? '🤖' : '⚡'}</div>
         <div class="service-body">
-          <div class="service-name">${s.name || s.id} ${(s.seller && s.seller !== 'MAXIA') ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
-          <div class="service-desc">${s.description || 'Service IA'}</div>
+          <div class="service-name">${esc(s.name || s.id)} ${(s.seller && s.seller !== 'MAXIA') ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
+          <div class="service-desc">${esc(s.description || 'Service IA')}</div>
           <div class="service-footer">
-            <span class="service-price">${s.price_usdc || s.priceUsdc || '?'} USDC</span>
-            <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${s.type || 'AI'}</span>
-            ${(s.seller && s.seller !== 'MAXIA') ? '<span style="font-size:10px;color:var(--muted)">by ' + s.seller + '</span>' : ''}
-            <span class="badge green">★ ${s.rating || 5}</span>
+            <span class="service-price">${esc(s.price_usdc || s.priceUsdc || '?')} USDC</span>
+            <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${esc(s.type || 'AI')}</span>
+            ${(s.seller && s.seller !== 'MAXIA') ? '<span style="font-size:10px;color:var(--muted)">by ' + esc(s.seller) + '</span>' : ''}
+            <span class="badge green">★ ${esc(s.rating || 5)}</span>
           </div>
         </div>
       </div>`).join('');
@@ -1764,7 +1770,7 @@ async function loadSwarmData() {
       const clones = r.data.clones || [];
       if (clones.length > 0) {
         el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Bot</th><th>Niche</th><th>Prix</th><th>Requetes</th><th>Revenu</th><th>Status</th></tr>' +
-          clones.map(c => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-weight:600">' + (c.name||'') + '</td><td>' + (c.niche||'') + '</td><td style="color:var(--green)">$' + (c.base_price||0) + '</td><td>' + (c.total_requests||0) + '</td><td style="color:var(--green)">$' + (c.total_revenue||0).toFixed(2) + '</td><td style="color:' + (c.status==='active' ? 'var(--green)' : 'var(--muted)') + '">' + (c.status||'') + '</td></tr>').join('') + '</table>';
+          clones.map(c => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-weight:600">' + esc(c.name||'') + '</td><td>' + esc(c.niche||'') + '</td><td style="color:var(--green)">$' + esc(c.base_price||0) + '</td><td>' + esc(c.total_requests||0) + '</td><td style="color:var(--green)">$' + (c.total_revenue||0).toFixed(2) + '</td><td style="color:' + (c.status==='active' ? 'var(--green)' : 'var(--muted)') + '">' + esc(c.status||'') + '</td></tr>').join('') + '</table>';
       } else {
         el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Bots en cours de deploiement... Actualisez dans 1 minute.</div>';
       }
@@ -1823,7 +1829,7 @@ async function loadPublicAPIData() {
     const svcs = sv.ok ? (sv.data.services || []) : [];
     if (svcs.length > 0) {
       el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' +
-        svcs.map(s => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + (s.name||'') + '</td><td>' + (s.type||'') + '</td><td style="color:var(--green)">' + (s.price_usdc||'?') + ' USDC</td><td>' + (s.provider||s.seller||'MAXIA') + '</td></tr>').join('') + '</table>';
+        svcs.map(s => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + esc(s.name||'') + '</td><td>' + esc(s.type||'') + '</td><td style="color:var(--green)">' + esc(s.price_usdc||'?') + ' USDC</td><td>' + esc(s.provider||s.seller||'MAXIA') + '</td></tr>').join('') + '</table>';
     } else {
       el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Aucun service externe. POST /api/public/sell pour lister.</div>';
     }
@@ -1887,11 +1893,11 @@ async function loadActivity() {
     const typeMap = {gpu_auction:'GPU Auction',subscription:'Abonnement',data_purchase:'Data',marketplace:'Marketplace',exchange:'Exchange'};
     const colorMap = {gpu_auction:'gold',subscription:'purple',data_purchase:'cyan',marketplace:'green',exchange:'cyan'};
     tb.innerHTML = r.data.map(a => {
-      const label = typeMap[a.purpose] || a.purpose;
+      const label = typeMap[a.purpose] || esc(a.purpose);
       const color = colorMap[a.purpose] || 'green';
       const ago   = Math.round((Date.now()/1000 - (a.created_at||0)) / 60);
       const time  = ago < 60 ? 'il y a ' + ago + 'm' : 'il y a ' + Math.round(ago/60) + 'h';
-      const w     = a.wallet || '';
+      const w     = esc(a.wallet || '');
       return '<tr>' +
         '<td><span class="badge ' + color + '">' + label + '</span></td>' +
         '<td class="mono" style="font-size:11px">' + w.slice(0,6) + '...' + w.slice(-4) + '</td>' +
@@ -2548,12 +2554,12 @@ async function loadAnalytics() {
 
     // Recommendations
     const recs = analytics.recommendations || [];
-    document.getElementById('a-recs').innerHTML = recs.length ? recs.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">${r}</div>`).join('') : '<span style="color:var(--muted)">No recommendations</span>';
+    document.getElementById('a-recs').innerHTML = recs.length ? recs.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">${esc(r)}</div>`).join('') : '<span style="color:var(--muted)">No recommendations</span>';
 
     // Disabled agents
     const dis = disabled.disabled || {};
     const disKeys = Object.keys(dis);
-    document.getElementById('a-disabled').innerHTML = disKeys.length ? disKeys.map(k=>`<span class="badge red">${k}</span> <span style="font-size:11px;color:var(--muted)">${dis[k].reason||''}</span><br>`).join('') : '<span class="badge green">All agents active</span>';
+    document.getElementById('a-disabled').innerHTML = disKeys.length ? disKeys.map(k=>`<span class="badge red">${esc(k)}</span> <span style="font-size:11px;color:var(--muted)">${esc(dis[k].reason||'')}</span><br>`).join('') : '<span class="badge green">All agents active</span>';
 
     // Circuit breakers
     const cbs = cache.circuit_breakers || {};
@@ -2568,7 +2574,7 @@ async function loadBus() {
     document.getElementById('b-pending').textContent = data.pending || 0;
     document.getElementById('b-processed').textContent = data.processed || 0;
     const recent = data.recent || [];
-    document.getElementById('b-log').innerHTML = recent.length ? recent.map(m=>`<div class="log-line"><span class="log-ts">${(m.ts||'').substr(11,8)}</span><span class="log-info">${m.sender}→${m.receiver}</span> <span>${m.type}</span></div>`).join('') : '<span style="color:var(--muted)">No recent messages</span>';
+    document.getElementById('b-log').innerHTML = recent.length ? recent.map(m=>`<div class="log-line"><span class="log-ts">${esc((m.ts||'').substr(11,8))}</span><span class="log-info">${esc(m.sender)}→${esc(m.receiver)}</span> <span>${esc(m.type)}</span></div>`).join('') : '<span style="color:var(--muted)">No recent messages</span>';
   } catch(e) { console.error('Bus error:', e); }
 }
 
@@ -2580,12 +2586,12 @@ async function loadROI() {
       fetch('/api/ceo/ab-tests').then(r=>r.json()),
     ]);
     const agents = roi.by_agent || {};
-    document.getElementById('r-agents').innerHTML = Object.keys(agents).length ? Object.entries(agents).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">${k}</span><span class="mono">${v.actions} actions, ${v.conversions} conv, $${v.revenue.toFixed(2)}</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+    document.getElementById('r-agents').innerHTML = Object.keys(agents).length ? Object.entries(agents).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">${esc(k)}</span><span class="mono">${v.actions} actions, ${v.conversions} conv, $${v.revenue.toFixed(2)}</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
     const types = roi.by_type || {};
-    document.getElementById('r-types').innerHTML = Object.keys(types).length ? Object.entries(types).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${k}</span><span class="mono">${v.conversions}/${v.actions} (${v.actions>0?((v.conversions/v.actions)*100).toFixed(0):0}%)</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+    document.getElementById('r-types').innerHTML = Object.keys(types).length ? Object.entries(types).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(k)}</span><span class="mono">${v.conversions}/${v.actions} (${v.actions>0?((v.conversions/v.actions)*100).toFixed(0):0}%)</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
 
     const abKeys = Object.keys(ab);
-    document.getElementById('r-ab').innerHTML = abKeys.length ? abKeys.map(k=>{const t=ab[k];return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>${k}</strong> — <span class="badge ${t.status==='completed'?'green':'cyan'}">${t.status}</span>${t.winner?` Winner: <strong>${t.winner}</strong>`:''}</div>`;}).join('') : '<span style="color:var(--muted)">No A/B tests</span>';
+    document.getElementById('r-ab').innerHTML = abKeys.length ? abKeys.map(k=>{const t=ab[k];return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>${esc(k)}</strong> — <span class="badge ${t.status==='completed'?'green':'cyan'}">${esc(t.status)}</span>${t.winner?` Winner: <strong>${esc(t.winner)}</strong>`:''}</div>`;}).join('') : '<span style="color:var(--muted)">No A/B tests</span>';
   } catch(e) { console.error('ROI error:', e); }
 }
 

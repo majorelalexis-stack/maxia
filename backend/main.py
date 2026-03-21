@@ -118,11 +118,10 @@ async def lifespan(app: FastAPI):
     await ensure_sla_tables(db)
     # Ensure disputes table exists (even on existing DB)
     try:
-        await db._db.execute(
+        await db.raw_execute(
             "CREATE TABLE IF NOT EXISTS disputes ("
             "id TEXT PRIMARY KEY, data TEXT NOT NULL,"
             "created_at INTEGER DEFAULT (strftime('%s','now')))")
-        await db._db.commit()
     except Exception:
         pass
 
@@ -174,15 +173,14 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 now = int(time.time())
-                rows = await db._db.execute_fetchall("SELECT id, data FROM disputes")
+                rows = await db.raw_execute_fetchall("SELECT id, data FROM disputes")
                 for row in (rows or []):
                     dispute = json.loads(row["data"])
                     if dispute.get("status") == "open" and dispute.get("auto_resolve_at", 0) <= now:
                         dispute["status"] = "auto_resolved"
                         dispute["resolution"] = "Auto-resolved after 48h. Buyer refund initiated."
-                        await db._db.execute("UPDATE disputes SET data=? WHERE id=?",
+                        await db.raw_execute("UPDATE disputes SET data=? WHERE id=?",
                             (json.dumps(dispute), row["id"]))
-                        await db._db.commit()
                         print(f"[Disputes] Auto-resolved: {row['id']}")
             except Exception as e:
                 if "no such table" not in str(e):
@@ -278,7 +276,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "X-Wallet", "X-Signature", "X-Nonce", "X-Admin-Key", "X-CEO-Key", "X-API-Key"],
     allow_credentials=True,
 )
 app.middleware("http")(x402_middleware)
@@ -765,14 +763,19 @@ async def health():
         "version": "12.0.0",
         "timestamp": int(time.time()),
         "checks": checks,
-        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet"],
+        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet"],
         "protocols": ["x402-v2", "ap2", "kite-air"],
     }
 
 
 @app.get("/api/events/stream")
-async def event_stream():
+async def event_stream(request: Request):
     """SSE endpoint — stream de donnees temps reel pour le dashboard."""
+    # Simple API key check — accept admin key via header or query param
+    _admin_key = os.getenv("ADMIN_KEY", "")
+    _provided = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
+    if not _admin_key or _provided != _admin_key:
+        raise HTTPException(403, "Unauthorized — provide X-Admin-Key header")
     from starlette.responses import StreamingResponse
 
     async def generate():
@@ -882,7 +885,9 @@ async def get_activity(limit: int = 30):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/ceo/status")
-async def ceo_status():
+async def ceo_status(request: Request):
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return ceo.get_status()
@@ -893,6 +898,8 @@ async def ceo_status():
 @app.post("/api/ceo/message")
 async def ceo_message(request: Request):
     """Envoie un message au CEO — il repond automatiquement."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         body = await request.json()
@@ -910,6 +917,8 @@ async def ceo_message(request: Request):
 @app.post("/api/ceo/feedback")
 async def ceo_feedback(request: Request):
     """Envoie un feedback client au CEO (TESTIMONIAL)."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         body = await request.json()
@@ -953,6 +962,8 @@ async def ceo_reset_emergency(request: Request):
 @app.post("/api/ceo/negotiate")
 async def ceo_negotiate(request: Request):
     """Negociation automatique de prix avec un agent acheteur."""
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         from ceo_maxia import ceo
@@ -982,6 +993,8 @@ async def ceo_negotiate_bundle(request: Request):
 @app.post("/api/ceo/compliance/wallet")
 async def ceo_compliance_wallet(request: Request):
     """Verifie la conformite AML d'un wallet."""
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         from ceo_maxia import ceo
@@ -993,6 +1006,8 @@ async def ceo_compliance_wallet(request: Request):
 @app.post("/api/ceo/compliance/transaction")
 async def ceo_compliance_tx(request: Request):
     """Verifie la conformite d'une transaction."""
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         from ceo_maxia import ceo
@@ -1006,8 +1021,10 @@ async def ceo_compliance_tx(request: Request):
 
 
 @app.get("/api/ceo/partnerships")
-async def ceo_partnerships():
+async def ceo_partnerships(request: Request):
     """Liste les opportunites de partenariat detectees."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return {"opportunities": await ceo.scan_partners()}
@@ -1016,8 +1033,10 @@ async def ceo_partnerships():
 
 
 @app.get("/api/ceo/analytics")
-async def ceo_analytics():
+async def ceo_analytics(request: Request):
     """Metriques avancees : LTV, churn, funnel, health score."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return await ceo.get_analytics()
@@ -1026,8 +1045,10 @@ async def ceo_analytics():
 
 
 @app.get("/api/ceo/analytics/weekly")
-async def ceo_analytics_weekly():
+async def ceo_analytics_weekly(request: Request):
     """Rapport hebdomadaire enrichi pour le fondateur."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return await ceo.weekly_report()
@@ -1036,8 +1057,10 @@ async def ceo_analytics_weekly():
 
 
 @app.get("/api/ceo/crises")
-async def ceo_crises():
+async def ceo_crises(request: Request):
     """Detecte les crises en cours."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         crises = await ceo.detect_crises()
@@ -1047,8 +1070,10 @@ async def ceo_crises():
 
 
 @app.get("/api/ceo/agent-bus")
-async def ceo_agent_bus():
+async def ceo_agent_bus(request: Request):
     """Statistiques du bus inter-agents."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import agent_bus
         return agent_bus.get_stats()
@@ -1060,18 +1085,24 @@ async def ceo_agent_bus():
 #  CEO AUTONOME — Endpoints securises PC local <-> VPS
 # ═══════════════════════════════════════════════════════════
 
-# Rate limit CEO endpoints: 30 req/min
-_ceo_rate: list = []
+# Rate limit CEO endpoints: 30 req/min per IP
+_ceo_rate: dict = {}
 _CEO_RATE_LIMIT = 30
 _CEO_RATE_WINDOW = 60
 
 
 def _check_ceo_rate(ip: str):
     now = time.time()
-    _ceo_rate[:] = [t for t in _ceo_rate if t > now - _CEO_RATE_WINDOW]
-    if len(_ceo_rate) >= _CEO_RATE_LIMIT:
+    _ceo_rate.setdefault(ip, [])
+    _ceo_rate[ip] = [t for t in _ceo_rate[ip] if t > now - _CEO_RATE_WINDOW]
+    if len(_ceo_rate[ip]) >= _CEO_RATE_LIMIT:
         raise HTTPException(429, "CEO API rate limit: 30 req/min")
-    _ceo_rate.append(now)
+    _ceo_rate[ip].append(now)
+    # Prune stale IPs
+    if len(_ceo_rate) > 500:
+        stale_ips = [k for k, v in _ceo_rate.items() if not v or v[-1] < now - _CEO_RATE_WINDOW * 2]
+        for k in stale_ips:
+            _ceo_rate.pop(k, None)
 
 
 @app.get("/api/ceo/state")
@@ -1172,10 +1203,7 @@ async def ceo_update_price(request: Request):
         raise HTTPException(400, "new_price required")
 
     try:
-        await db.execute(
-            "UPDATE services SET price = ? WHERE id = ?",
-            (float(new_price), service_id),
-        )
+        await db.update_service(service_id, {"price_usdc": float(new_price)})
         audit_log("ceo_update_price", ip, f"service={service_id} price={new_price} reason={reason}", "ceo-local")
         return {"success": True, "service_id": service_id, "new_price": new_price}
     except Exception as e:
@@ -1212,9 +1240,7 @@ async def ceo_transactions(request: Request, limit: int = 50):
     from auth import require_ceo_auth
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
     try:
-        rows = await db.fetch_all(
-            "SELECT * FROM transactions ORDER BY id DESC LIMIT ?", (limit,)
-        )
+        rows = await db.get_activity(limit)
         return {"transactions": rows, "count": len(rows)}
     except Exception as e:
         return {"error": str(e), "transactions": []}
@@ -1242,7 +1268,7 @@ async def ceo_health_check(request: Request):
         }
         # Check DB
         try:
-            await db.fetch_one("SELECT 1")
+            await db.get_stats()
         except Exception:
             health["components"]["database"] = "error"
             health["healthy"] = False
@@ -1839,7 +1865,7 @@ async def ws_candles(websocket: WebSocket):
         interval = params.get("interval", "1m")
         while True:
             try:
-                rows = await db._db.execute_fetchall(
+                rows = await db.raw_execute_fetchall(
                     "SELECT symbol, interval, open, high, low, close, volume, timestamp FROM price_candles "
                     "WHERE symbol=? AND interval=? ORDER BY timestamp DESC LIMIT 1", (symbol, interval))
                 if rows:
@@ -1908,8 +1934,8 @@ async def create_command(req: CommandRequest, wallet: str = Depends(require_auth
 
 @app.get("/api/marketplace/commands/{command_id}")
 async def get_command(command_id: str, wallet: str = Depends(require_auth)):
-    async with db._db.execute("SELECT data FROM commands WHERE command_id=?", (command_id,)) as c:
-        row = await c.fetchone()
+    rows = await db.raw_execute_fetchall("SELECT data FROM commands WHERE command_id=?", (command_id,))
+    row = rows[0] if rows else None
     if not row:
         raise HTTPException(404, "Commande introuvable.")
     cmd = json.loads(row[0])
@@ -2590,7 +2616,7 @@ async def seed_datasets(request: Request):
     from security import require_admin
     require_admin(request)
     try:
-        existing = await db._db.execute_fetchall("SELECT data FROM datasets")
+        existing = await db.raw_execute_fetchall("SELECT data FROM datasets")
         existing_list = [json.loads(r[0]) for r in existing] if existing else []
     except Exception:
         existing_list = []
@@ -2614,11 +2640,10 @@ async def seed_datasets(request: Request):
                 "purchases": 0,
                 "createdAt": int(time.time()),
             }
-            await db._db.execute(
+            await db.raw_execute(
                 "INSERT OR REPLACE INTO datasets(dataset_id,seller,data) VALUES(?,?,?)",
                 (dataset["datasetId"], TREASURY_ADDRESS, json.dumps(dataset)),
             )
-            await db._db.commit()
             added += 1
     return {"message": f"{added} datasets ajoutes", "total": len(existing_list) + added}
 

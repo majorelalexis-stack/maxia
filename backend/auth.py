@@ -9,6 +9,20 @@ import base58
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 NONCES: dict = {}
 NONCE_TTL = 300
+_NONCES_MAX_SIZE = 5000
+
+
+def _cleanup_nonces():
+    """Prune expired nonces to prevent unbounded memory growth."""
+    now = time.time()
+    expired = [w for w, (_, exp) in NONCES.items() if exp < now]
+    for w in expired:
+        NONCES.pop(w, None)
+    # If still too large after expiry cleanup, remove oldest entries
+    if len(NONCES) > _NONCES_MAX_SIZE:
+        sorted_keys = sorted(NONCES, key=lambda w: NONCES[w][1])
+        for w in sorted_keys[:len(NONCES) - _NONCES_MAX_SIZE]:
+            NONCES.pop(w, None)
 
 # JWT-like session tokens (HMAC-signed, not ed25519)
 _JWT_SECRET = os.getenv("JWT_SECRET", "")
@@ -82,6 +96,8 @@ def _record_failed(wallet: str):
 
 @router.post("/nonce")
 async def get_nonce(req: NonceRequest):
+    if len(NONCES) > _NONCES_MAX_SIZE:
+        _cleanup_nonces()
     nonce = secrets.token_hex(16)
     NONCES[req.wallet] = (nonce, time.time() + NONCE_TTL)
     return {"nonce": nonce, "message": f"MAXIA login: {nonce}"}

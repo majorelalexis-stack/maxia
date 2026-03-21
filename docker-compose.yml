@@ -6,15 +6,17 @@ services:
     container_name: maxia-api
     restart: always
     ports:
-      - "8000:8000"
+      - "8001:8001"
     env_file:
       - backend/.env
+    environment:
+      - PORT=8001
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
       - maxia-data:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 60s
       timeout: 10s
       retries: 3

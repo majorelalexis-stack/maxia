@@ -30,7 +30,7 @@ class EscrowClient:
         if not self._db:
             return
         try:
-            rows = await self._db._db.execute_fetchall(
+            rows = await self._db.raw_execute_fetchall(
                 "SELECT data FROM escrow_records WHERE status='locked'")
             for row in rows:
                 escrow = json.loads(row["data"])
@@ -44,11 +44,10 @@ class EscrowClient:
         self._escrows[escrow["escrowId"]] = escrow
         if self._db:
             try:
-                await self._db._db.execute(
+                await self._db.raw_execute(
                     "INSERT OR REPLACE INTO escrow_records(escrow_id, buyer, seller, status, data) VALUES(?,?,?,?,?)",
                     (escrow["escrowId"], escrow["buyer"], escrow["seller"],
                      escrow["status"], json.dumps(escrow)))
-                await self._db._db.commit()
             except Exception as e:
                 print(f"[EscrowClient] Erreur sauvegarde DB: {e}")
 
@@ -60,6 +59,17 @@ class EscrowClient:
         """
         if not ESCROW_ADDRESS:
             return {"success": False, "error": "ESCROW_ADDRESS non configure"}
+
+        # D-02: Uniqueness check — prevent duplicate escrows for the same tx
+        if self._db:
+            try:
+                existing = await self._db.raw_execute_fetchall(
+                    "SELECT escrow_id FROM escrow_records WHERE data LIKE ?",
+                    (f'%"txSignature": "{tx_signature}"%',))
+                if existing:
+                    return {"success": False, "error": f"Escrow already exists for tx {tx_signature[:16]}..."}
+            except Exception:
+                pass  # Table may not exist yet
 
         escrow_id = str(uuid.uuid4())
 

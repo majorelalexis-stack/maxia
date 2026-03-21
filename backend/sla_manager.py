@@ -31,8 +31,7 @@ SLA_TABLES = (
 async def ensure_tables(db):
     """Create SLA tables if they don't exist."""
     try:
-        await db._db.executescript(SLA_TABLES)
-        await db._db.commit()
+        await db.raw_executescript(SLA_TABLES)
         print("[SLA] Tables initialisees")
     except Exception as e:
         print(f"[SLA] Erreur creation tables: {e}")
@@ -52,11 +51,11 @@ async def set_sla(db, service_id: str, config_dict: dict) -> dict:
     if max_response < 1:
         return {"success": False, "error": "max_response_time_s doit etre >= 1"}
 
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT OR REPLACE INTO service_sla(service_id, max_response_time_s, min_quality_rating, "
         "guarantee_refund_pct, auto_refund_enabled) VALUES(?,?,?,?,?)",
         (service_id, max_response, min_quality, refund_pct, auto_refund))
-    await db._db.commit()
+    # commit handled by raw_execute
 
     return {
         "success": True,
@@ -70,7 +69,7 @@ async def set_sla(db, service_id: str, config_dict: dict) -> dict:
 
 async def get_sla(db, service_id: str) -> dict:
     """Returns SLA config for a service, or defaults if not set."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM service_sla WHERE service_id=?", (service_id,))
     if rows:
         row = dict(rows[0])
@@ -131,12 +130,12 @@ async def auto_refund_sla(db, escrow_client, escrow_id: str, service_id: str, vi
     violation_id = str(uuid.uuid4())
     refund_tx = result.get("releaseTx", result.get("refundTx", ""))
 
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO sla_violations(id, service_id, violation_type, details, refund_tx, refund_amount_usdc) "
         "VALUES(?,?,?,?,?,?)",
         (violation_id, service_id, violation.split(":")[0] if ":" in violation else violation,
          violation, refund_tx, refund_amount))
-    await db._db.commit()
+    # commit handled by raw_execute
 
     return {
         "success": result.get("success", False),
@@ -155,18 +154,18 @@ async def rate_service(db, service_id: str, buyer_wallet: str,
         return {"success": False, "error": "rating doit etre entre 1 et 5"}
 
     # Check uniqueness: 1 rating per buyer per tx
-    existing = await db._db.execute_fetchall(
+    existing = await db.raw_execute_fetchall(
         "SELECT id FROM service_ratings WHERE buyer_wallet=? AND tx_id=?",
         (buyer_wallet, tx_id))
     if existing:
         return {"success": False, "error": "Rating deja soumis pour cette transaction"}
 
     rating_id = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO service_ratings(id, service_id, buyer_wallet, rating, comment, tx_id) "
         "VALUES(?,?,?,?,?,?)",
         (rating_id, service_id, buyer_wallet, rating, comment, tx_id))
-    await db._db.commit()
+    # commit handled by raw_execute
 
     return {
         "success": True,

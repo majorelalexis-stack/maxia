@@ -90,8 +90,7 @@ def _sign_payload(payload_bytes: bytes, secret: str) -> str:
 
 async def ensure_tables(db):
     """Create webhook_callbacks table if it doesn't exist."""
-    await db._db.executescript(WEBHOOK_SCHEMA)
-    await db._db.commit()
+    await db.raw_executescript(WEBHOOK_SCHEMA)
     print("[Webhooks] Tables ensured")
 
 
@@ -108,12 +107,12 @@ async def register_callback(
     validated_url = validate_callback_url(callback_url)
     webhook_id = str(uuid.uuid4())
 
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO webhook_callbacks(id, buyer_wallet, callback_url, service_id, command_id, status) "
         "VALUES(?,?,?,?,?,?)",
         (webhook_id, buyer_wallet, validated_url, service_id, command_id, "pending"),
     )
-    await db._db.commit()
+    # commit handled by raw_execute
 
     return {
         "webhook_id": webhook_id,
@@ -129,7 +128,7 @@ async def _get_signing_secret(db, buyer_wallet: str) -> str:
     of the wallet address if no scoped key exists.
     """
     try:
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT api_key_hash FROM api_keys_v2 WHERE agent_wallet=? AND revoked_at IS NULL "
             "ORDER BY created_at DESC LIMIT 1",
             (buyer_wallet,),
@@ -167,11 +166,11 @@ async def _deliver(
             resp = await client.post(callback_url, content=payload_bytes, headers=headers)
 
         if 200 <= resp.status_code < 300:
-            await db._db.execute(
+            await db.raw_execute(
                 "UPDATE webhook_callbacks SET status='delivered', attempts=attempts+1 WHERE id=?",
                 (webhook_id,),
             )
-            await db._db.commit()
+            # commit handled by raw_execute
             return True
         else:
             print(f"[Webhooks] Delivery to {callback_url} returned {resp.status_code}")
@@ -185,7 +184,7 @@ async def _deliver(
 
 async def dispatch(db, command_id: str, result_payload: dict) -> dict:
     """Dispatch result to all registered callbacks for a command_id."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM webhook_callbacks WHERE command_id=? AND status='pending'",
         (command_id,),
     )
@@ -211,22 +210,22 @@ async def dispatch(db, command_id: str, result_payload: dict) -> dict:
         secret = await _get_signing_secret(db, buyer_wallet)
 
         # Store payload for potential retries
-        await db._db.execute(
+        await db.raw_execute(
             "UPDATE webhook_callbacks SET payload=? WHERE id=?",
             (payload_bytes.decode(), webhook_id),
         )
-        await db._db.commit()
+        # commit handled by raw_execute
 
         success = await _deliver(db, webhook_id, callback_url, payload_bytes, secret)
 
         if not success:
             # Schedule first retry
             next_retry = int(time.time()) + RETRY_DELAYS[0]
-            await db._db.execute(
+            await db.raw_execute(
                 "UPDATE webhook_callbacks SET attempts=1, next_retry_at=? WHERE id=?",
                 (next_retry, webhook_id),
             )
-            await db._db.commit()
+            # commit handled by raw_execute
 
         results.append({
             "webhook_id": webhook_id,
@@ -245,7 +244,7 @@ async def retry_worker(db):
     while True:
         try:
             now = int(time.time())
-            rows = await db._db.execute_fetchall(
+            rows = await db.raw_execute_fetchall(
                 "SELECT * FROM webhook_callbacks WHERE status='pending' "
                 "AND next_retry_at IS NOT NULL AND next_retry_at<=? "
                 "AND attempts < ?",
@@ -262,11 +261,11 @@ async def retry_worker(db):
 
                 if not stored_payload:
                     # No payload stored — mark as failed
-                    await db._db.execute(
+                    await db.raw_execute(
                         "UPDATE webhook_callbacks SET status='failed' WHERE id=?",
                         (webhook_id,),
                     )
-                    await db._db.commit()
+                    # commit handled by raw_execute
                     continue
 
                 payload_bytes = stored_payload.encode()
@@ -276,18 +275,18 @@ async def retry_worker(db):
                 if not success:
                     new_attempts = attempts + 1
                     if new_attempts >= MAX_ATTEMPTS:
-                        await db._db.execute(
+                        await db.raw_execute(
                             "UPDATE webhook_callbacks SET status='failed', attempts=? WHERE id=?",
                             (new_attempts, webhook_id),
                         )
                     else:
                         delay_idx = min(new_attempts - 1, len(RETRY_DELAYS) - 1)
                         next_retry = int(time.time()) + RETRY_DELAYS[delay_idx]
-                        await db._db.execute(
+                        await db.raw_execute(
                             "UPDATE webhook_callbacks SET attempts=?, next_retry_at=? WHERE id=?",
                             (new_attempts, next_retry, webhook_id),
                         )
-                    await db._db.commit()
+                    # commit handled by raw_execute
 
             if rows:
                 print(f"[Webhooks] Retried {len(rows)} webhook(s)")
@@ -300,7 +299,7 @@ async def retry_worker(db):
 
 async def get_webhook_history(db, wallet: str, limit: int = 20) -> list[dict]:
     """Return recent webhooks for a wallet."""
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT id, callback_url, service_id, command_id, status, attempts, created_at "
         "FROM webhook_callbacks WHERE buyer_wallet=? ORDER BY created_at DESC LIMIT ?",
         (wallet, limit),

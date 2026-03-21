@@ -63,23 +63,18 @@ def get_audit_log(limit: int = 50) -> list:
 # ── Admin auth helper ──
 
 def require_admin(request: Request) -> str:
-    """Verifie l'admin key depuis le header X-Admin-Key (prioritaire) ou query param key (legacy).
+    """Verifie l'admin key depuis le header X-Admin-Key uniquement.
     Log chaque tentative dans l'audit log."""
     admin_key = os.getenv("ADMIN_KEY", "")
     if not admin_key:
         raise HTTPException(500, "ADMIN_KEY not configured")
     ip = request.client.host if request.client else "unknown"
-    # Header d'abord (securise)
+    # Header only (secure)
     key = request.headers.get("X-Admin-Key", "")
-    method = "header"
-    # Fallback query param (legacy — deprecie)
-    if not key:
-        key = request.query_params.get("key", "")
-        method = "query_param"
     if key != admin_key:
-        audit_log("admin_auth_failed", ip, f"method={method} path={request.url.path}")
+        audit_log("admin_auth_failed", ip, f"method=header path={request.url.path}")
         raise HTTPException(403, "Unauthorized")
-    audit_log("admin_auth_ok", ip, f"method={method} path={request.url.path}")
+    audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")
     return key
 
 
@@ -200,6 +195,11 @@ def check_rate_limit_smart(identifier: str, endpoint: str = "") -> bool:
     _rate_store[identifier].append(now)
     if len(_rate_store) > _RATE_STORE_MAX_KEYS:
         _cleanup_rate_store()
+    # Prune stale entries from _smart_rate_info to avoid memory leak
+    if len(_smart_rate_info) > 5000:
+        keys_to_remove = list(_smart_rate_info.keys())[:len(_smart_rate_info) - 5000]
+        for k in keys_to_remove:
+            _smart_rate_info.pop(k, None)
     return True
 
 

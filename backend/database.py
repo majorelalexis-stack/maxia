@@ -2,6 +2,17 @@
 import json, time, os, aiosqlite
 from pathlib import Path
 
+# ── Column whitelists for safe dynamic UPDATE (S-03) ──
+ALLOWED_AGENT_COLUMNS = frozenset({
+    "name", "wallet", "description", "tier",
+    "volume_30d", "total_spent", "total_earned", "services_listed",
+})
+ALLOWED_SERVICE_COLUMNS = frozenset({
+    "agent_api_key", "agent_name", "agent_wallet",
+    "name", "description", "type", "price_usdc",
+    "endpoint", "status", "rating", "sales",
+})
+
 DB_PATH = str(Path(__file__).parent / "maxia.db")
 
 DB_SCHEMA = (
@@ -128,6 +139,23 @@ class Database:
         """Compat: fetchone via fetchall."""
         rows = await self._db.execute_fetchall(sql, params)
         return rows[0] if rows else None
+
+    # ── Public raw DB access helpers (avoids direct _db usage) ──
+
+    async def raw_execute(self, sql, params=()):
+        """Execute a raw SQL statement (INSERT, UPDATE, CREATE, etc.)."""
+        await self._db.execute(sql, params)
+        await self._db.commit()
+
+    async def raw_execute_fetchall(self, sql, params=()):
+        """Execute a raw SELECT and return all rows."""
+        rows = await self._db.execute_fetchall(sql, params)
+        return rows
+
+    async def raw_executescript(self, sql):
+        """Execute a raw SQL script (multiple statements)."""
+        await self._db.executescript(sql)
+        await self._db.commit()
 
     async def connect(self):
         self._db = await aiosqlite.connect(DB_PATH)
@@ -308,8 +336,11 @@ class Database:
         return [dict(r) for r in rows]
 
     async def update_agent(self, api_key: str, updates: dict):
-        sets = ", ".join(f"{k}=?" for k in updates.keys())
-        vals = list(updates.values()) + [api_key]
+        safe = {k: v for k, v in updates.items() if k in ALLOWED_AGENT_COLUMNS}
+        if not safe:
+            return
+        sets = ", ".join(f"{k}=?" for k in safe.keys())
+        vals = list(safe.values()) + [api_key]
         await self._db.execute(f"UPDATE agents SET {sets} WHERE api_key=?", vals)
         await self._db.commit()
 
@@ -344,8 +375,11 @@ class Database:
         return dict(rows[0]) if rows else None
 
     async def update_service(self, service_id: str, updates: dict):
-        sets = ", ".join(f"{k}=?" for k in updates.keys())
-        vals = list(updates.values()) + [service_id]
+        safe = {k: v for k, v in updates.items() if k in ALLOWED_SERVICE_COLUMNS}
+        if not safe:
+            return
+        sets = ", ".join(f"{k}=?" for k in safe.keys())
+        vals = list(safe.values()) + [service_id]
         await self._db.execute(f"UPDATE agent_services SET {sets} WHERE id=?", vals)
         await self._db.commit()
 
