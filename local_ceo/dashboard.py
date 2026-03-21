@@ -304,11 +304,6 @@ async function load(){
       document.getElementById('approvals').innerHTML='<span style="color:#555">Aucune action en attente</span>';
     }
 
-    // Regles
-    let rh='';
-    (d.regles||[]).forEach((r,i)=>{rh+=`<div style="margin:3px 0">• ${r}</div>`;});
-    document.getElementById('regles').innerHTML=rh||'<span style="color:#555">Aucune regle</span>';
-
     document.getElementById('logs').textContent=(d.logs||[]).join('\\n');
     document.getElementById('logs').scrollTop=document.getElementById('logs').scrollHeight;
     document.getElementById('refresh').textContent='Mis a jour: '+new Date().toLocaleTimeString();
@@ -365,10 +360,37 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(csv.encode("utf-8"))
         elif self.path == "/" or self.path == "/index.html":
+            # Inject data directly into HTML to avoid fetch issues
+            data = _get_dashboard_data()
+            data_json = json.dumps(data, default=str, ensure_ascii=False)
+            html_with_data = _HTML.replace(
+                "load();setInterval(load,10000);",
+                f"var _initialData = {data_json};\n"
+                "function loadFromData(d){\n"
+                "  try{\n"
+                "    isPaused=d.paused;\n"
+                "    document.getElementById('status').className='status '+(isPaused?'status-pause':'status-run');\n"
+                "    document.getElementById('status').textContent=isPaused?'PAUSE':'ACTIF';\n"
+                "    document.getElementById('pauseBtn').textContent=isPaused?'Resume':'Pause';\n"
+                "    document.getElementById('pauseBtn').className='btn '+(isPaused?'btn-resume':'btn-pause');\n"
+                "    document.getElementById('interval').value=d.interval_s;\n"
+                "    document.getElementById('kpis').innerHTML=\n"
+                "      '<div class=\"card\"><div class=\"num\">'+d.cycle_count+'</div><div class=\"label\">Cycles</div></div>'+\n"
+                "      '<div class=\"card\"><div class=\"num\">'+d.decisions_total+'</div><div class=\"label\">Decisions</div></div>'+\n"
+                "      '<div class=\"card\"><div class=\"num\">'+d.actions_today+'</div><div class=\"label\">Actions today</div></div>'+\n"
+                "      '<div class=\"card\"><div class=\"num\">'+d.actions_total+'</div><div class=\"label\">Actions total</div></div>'+\n"
+                "      '<div class=\"card\"><div class=\"num\">'+d.tweets_posted+'</div><div class=\"label\">Tweets</div></div>'+\n"
+                "      '<div class=\"card\"><div class=\"num\">'+(d.follows||0)+'</div><div class=\"label\">Follows</div></div>';\n"
+                "    document.getElementById('refresh').textContent='Loaded: '+new Date().toLocaleTimeString();\n"
+                "  }catch(e){document.getElementById('refresh').textContent='Error: '+e;}\n"
+                "}\n"
+                "loadFromData(_initialData);\n"
+                "load();setInterval(load,10000);"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(_HTML.encode("utf-8"))
+            self.wfile.write(html_with_data.encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
