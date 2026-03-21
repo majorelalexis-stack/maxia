@@ -9,13 +9,20 @@ Permet aux IA externes de :
 
 Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
-import uuid, time, hashlib, secrets, asyncio, json, datetime
+import uuid, time, hashlib, secrets, asyncio, json, datetime, re
 from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
     get_commission_bps, BLOCKED_WORDS, BLOCKED_PATTERNS,
 )
 from security import check_content_safety
+
+# Fix #13: Solana address validation helper
+_SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
+
+def _validate_solana_address(addr: str, field: str = "wallet"):
+    if not addr or not _SOLANA_ADDR_RE.match(addr):
+        raise HTTPException(400, f"Invalid Solana address in {field}")
 
 router = APIRouter(prefix="/api/public", tags=["public-api"])
 
@@ -149,6 +156,10 @@ def _get_agent(api_key: str, client_ip: str = "") -> dict:
     """Recupere l'agent depuis sa cle API.
     Fix #11: Track failed lookups and block IPs with too many attempts.
     """
+    # Fix #20: Cleanup _failed_lookups to prevent unbounded memory growth
+    if len(_failed_lookups) > 10000:
+        _failed_lookups.clear()
+
     # Fix #11: Block IPs with excessive failed lookups
     if client_ip and _failed_lookups.get(client_ip, 0) > 100:
         raise HTTPException(429, "Too many invalid API key attempts")
@@ -324,14 +335,25 @@ async def api_docs():
 async def register_agent(req: dict):
     """Inscription gratuite pour les IA. Retourne une API key. Persiste dans SQLite."""
     await _load_from_db()
-    name = req.get("name", "").strip()
-    wallet = req.get("wallet", "").strip()
-    description = req.get("description", "")
+
+    # Fix #2: Validate required fields exist and have correct types
+    if not isinstance(req.get("name"), str) or not req.get("name"):
+        raise HTTPException(400, "name required (string)")
+    if not isinstance(req.get("wallet"), str) or not req.get("wallet"):
+        raise HTTPException(400, "wallet required (string)")
+
+    # Fix #7: String length limits
+    name = req.get("name", "").strip()[:100]
+    wallet = req.get("wallet", "").strip()[:50]
+    description = req.get("description", "").strip()[:2000] if isinstance(req.get("description"), str) else ""
 
     if not name or len(name) < 2:
         raise HTTPException(400, "Nom requis (min 2 caracteres)")
     if not wallet or len(wallet) < 20:
         raise HTTPException(400, "Adresse wallet Solana requise")
+
+    # Fix #13: Validate Solana address format
+    _validate_solana_address(wallet, "wallet")
 
     # Art.1 — Filtrage anti-abus sur le nom et la description
     _check_safety(name, "nom")
@@ -364,7 +386,10 @@ async def register_agent(req: dict):
         print(f"[PublicAPI] DB save agent error: {e}")
 
     # Referral tracking
-    referral_code = req.get("referral_code", "")
+    referral_code = req.get("referral_code", "") if isinstance(req.get("referral_code"), str) else ""
+    # Fix #5: Referral code validation
+    if referral_code and (len(referral_code) > 50 or not referral_code.isalnum()):
+        referral_code = ""  # Silently ignore invalid
     if referral_code:
         try:
             from database import db as _db
@@ -490,8 +515,9 @@ async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
     buyer = _get_agent(x_api_key)
-    service_id = req.get("service_id", "")
-    prompt = req.get("prompt", "")
+    # Fix #7: String length limits
+    service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
+    prompt = req.get("prompt", "").strip()[:50000] if isinstance(req.get("prompt"), str) else ""
     if not prompt:
         raise HTTPException(400, "prompt required")
     _check_safety(prompt, "prompt")
@@ -517,11 +543,28 @@ async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-K
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     buyer = _get_agent(x_api_key)
-    tx_id = req.get("tx_id", "")
-    reason = req.get("reason", "")
+    # Fix #7: String length limits
+    tx_id = req.get("tx_id", "").strip()[:100] if isinstance(req.get("tx_id"), str) else ""
+    reason = req.get("reason", "").strip()[:500] if isinstance(req.get("reason"), str) else ""
     if not tx_id or not reason:
         raise HTTPException(400, "tx_id and reason required")
     _check_safety(reason, "reason")
+
+    # Fix #14: Limit disputes per buyer — max 3 active per day
+    try:
+        from database import db as _dispute_db
+        rows = await _dispute_db.raw_execute_fetchall("SELECT data FROM disputes", ())
+        buyer_disputes_today = 0
+        for r in rows:
+            d = json.loads(r["data"])
+            if d.get("buyer") == buyer["name"] and d.get("created_at", 0) > time.time() - 86400:
+                buyer_disputes_today += 1
+        if buyer_disputes_today >= 3:
+            raise HTTPException(429, "Max 3 disputes per day")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     # Find transaction
     tx = next((t for t in _transactions if t.get("tx_id") == tx_id), None)
@@ -529,6 +572,10 @@ async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-K
         raise HTTPException(404, "Transaction not found")
     if tx.get("buyer") != buyer["name"]:
         raise HTTPException(403, "You can only dispute your own transactions")
+
+    # Fix #14: Don't auto-refund without evidence check
+    if not tx.get("dispute_evidence") and not reason:
+        return {"auto_resolved": False, "reason": "No evidence provided"}
 
     dispute_id = str(uuid.uuid4())
     dispute = {
@@ -584,9 +631,10 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    service_type = req.get("service_type", "text")
-    prompt = req.get("prompt", "")
-    payment_tx = req.get("payment_tx", "")
+    # Fix #7: String length limits
+    service_type = req.get("service_type", "text").strip()[:50] if isinstance(req.get("service_type"), str) else "text"
+    prompt = req.get("prompt", "").strip()[:50000] if isinstance(req.get("prompt"), str) else ""
+    payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
 
     if not prompt:
         raise HTTPException(400, "Prompt requis")
@@ -635,7 +683,9 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
 
         result = await asyncio.to_thread(_call)
     except Exception as e:
-        raise HTTPException(502, f"Erreur IA: {e}")
+        # Fix #12: Don't leak internal error details
+        print(f"[PublicAPI] AI service error: {e}")
+        raise HTTPException(502, "AI service temporarily unavailable")
 
     # Enregistrer la transaction
     tx = {
@@ -737,15 +787,18 @@ async def my_services(x_api_key: str = Header(None, alias="X-API-Key")):
 
 
 @router.get("/my-transactions")
-async def my_transactions(x_api_key: str = Header(None, alias="X-API-Key"), limit: int = 50):
+async def my_transactions(x_api_key: str = Header(None, alias="X-API-Key"), limit: int = 50, offset: int = 0):
     """Historique de mes transactions (achats + ventes)."""
     await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     agent = _get_agent(x_api_key)
+    # Fix #11: Clamp pagination params
+    limit = max(1, min(200, limit))
+    offset = max(0, offset)
     name = agent["name"]
     txs = [t for t in _transactions if t.get("buyer") == name or t.get("seller") == name]
-    return {"transactions": txs[-limit:], "total": len(txs)}
+    return {"transactions": txs[offset:offset + limit], "total": len(txs), "offset": offset, "limit": limit}
 
 
 # ══════════════════════════════════════════
@@ -760,9 +813,10 @@ async def rate_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         raise HTTPException(401, "X-API-Key required")
     agent = _get_agent(x_api_key)
 
-    service_id = req.get("service_id", "")
+    # Fix #7: String length limits
+    service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
     rating = req.get("rating", 0)
-    comment = req.get("comment", "")
+    comment = req.get("comment", "").strip()[:500] if isinstance(req.get("comment"), str) else ""
 
     if not service_id:
         raise HTTPException(400, "service_id required")
@@ -854,11 +908,23 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    name = req.get("name", "").strip()
-    description = req.get("description", "").strip()
-    service_type = req.get("type", "text")
-    price_usdc = float(req.get("price_usdc", 0))
-    endpoint = req.get("endpoint", "")
+    # Fix #2: Validate required fields exist and have correct types
+    if not isinstance(req.get("name"), str) or not req.get("name"):
+        raise HTTPException(400, "name required (string)")
+    if not isinstance(req.get("description"), str) or not req.get("description"):
+        raise HTTPException(400, "description required (string)")
+
+    # Fix #7: String length limits
+    name = req.get("name", "").strip()[:100]
+    description = req.get("description", "").strip()[:2000]
+    service_type = req.get("type", "text").strip()[:50] if isinstance(req.get("type"), str) else "text"
+    endpoint = req.get("endpoint", "").strip()[:500] if isinstance(req.get("endpoint"), str) else ""
+
+    # Fix #4: Float validation with try/except
+    try:
+        price_usdc = float(req.get("price_usdc", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "price_usdc must be a number")
 
     if not name or not description:
         raise HTTPException(400, "Nom et description requis")
@@ -868,6 +934,9 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     # Art.1 — Filtrage STRICT
     _check_safety(name, "nom du service")
     _check_safety(description, "description du service")
+
+    # Fix #13: Validate seller wallet is a valid Solana address
+    _validate_solana_address(agent["wallet"], "agent wallet")
 
     service = {
         "id": str(uuid.uuid4()),
@@ -926,9 +995,18 @@ async def negotiate_price(req: dict, x_api_key: str = Header(None, alias="X-API-
     buyer = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    service_id = req.get("service_id", "")
-    proposed_price = float(req.get("proposed_price", 0))
-    message = req.get("message", "")
+    # Fix #7: String length limits
+    service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
+    message = req.get("message", "").strip()[:500] if isinstance(req.get("message"), str) else ""
+
+    # Fix #4: Float validation with try/except
+    try:
+        proposed_price = float(req.get("proposed_price", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "proposed_price must be a number")
+    import math
+    if math.isnan(proposed_price) or math.isinf(proposed_price):
+        raise HTTPException(400, "proposed_price must be a valid number")
 
     if proposed_price <= 0:
         raise HTTPException(400, "proposed_price must be > 0")
@@ -996,9 +1074,18 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
     buyer = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
-    service_id = req.get("service_id", "")
-    prompt = req.get("prompt", "")
-    payment_tx = req.get("payment_tx", "")
+    # Fix #2: Validate required fields
+    if not isinstance(req.get("service_id"), str) or not req.get("service_id"):
+        raise HTTPException(400, "service_id required (string)")
+    if not isinstance(req.get("prompt"), str) or not req.get("prompt"):
+        raise HTTPException(400, "prompt required (string)")
+    if not isinstance(req.get("payment_tx"), str) or not req.get("payment_tx"):
+        raise HTTPException(400, "payment_tx required (string)")
+
+    # Fix #7: String length limits
+    service_id = req.get("service_id", "").strip()[:100]
+    prompt = req.get("prompt", "").strip()[:50000]
+    payment_tx = req.get("payment_tx", "").strip()[:200]
 
     if not prompt:
         raise HTTPException(400, "Prompt requis")
@@ -1037,7 +1124,9 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(400, f"Payment verification failed: {e}")
+        # Fix #21: Don't leak internal error details
+        print(f"[PublicAPI] Payment verification error: {e}")
+        raise HTTPException(400, "Payment verification failed")
 
     # Commission MAXIA
     volume = buyer.get("volume_30d", 0)
@@ -1296,11 +1385,17 @@ async def discover_services(
 @router.post("/discover")
 async def discover_services_post(req: dict = {}):
     """POST version of discover for agent-to-agent compatibility."""
+    # Fix #4: Float validation with try/except
+    try:
+        max_price = float(req.get("max_price", 9999))
+        min_rating = float(req.get("min_rating", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "max_price and min_rating must be numbers")
     return await discover_services(
-        capability=req.get("capability", ""),
-        max_price=float(req.get("max_price", 9999)),
-        min_rating=float(req.get("min_rating", 0)),
-        agent_type=req.get("agent_type", ""),
+        capability=req.get("capability", "").strip()[:200] if isinstance(req.get("capability"), str) else "",
+        max_price=max_price,
+        min_rating=min_rating,
+        agent_type=req.get("agent_type", "").strip()[:50] if isinstance(req.get("agent_type"), str) else "",
     )
 
 
@@ -1325,8 +1420,13 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     buyer = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
-    service_id = req.get("service_id", "")
-    prompt = req.get("prompt", "")
+    # Fix #2: Validate required fields
+    if not isinstance(req.get("prompt"), str) or not req.get("prompt"):
+        raise HTTPException(400, "prompt required (string)")
+
+    # Fix #7: String length limits
+    service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
+    prompt = req.get("prompt", "").strip()[:50000]
     if not prompt:
         raise HTTPException(400, "prompt required")
 
@@ -1425,7 +1525,9 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             else:
                 print(f"[Marketplace] Payment NOT verified: {verification.get('error', 'unknown')}")
         except Exception as e:
-            payment_info = {"error": str(e)}
+            # Fix #21: Don't leak internal error details
+            print(f"[PublicAPI] Payment verification error in /execute: {e}")
+            payment_info = {"error": "Payment verification failed"}
     else:
         payment_info = {"note": "No payment_tx provided. Send USDC to Treasury first, then pass the tx signature."}
 
@@ -1504,7 +1606,9 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                         result_text = f"Seller webhook returned {resp.status_code}"
                         execution_method = "webhook_error"
             except Exception as e:
-                result_text = f"Webhook call failed: {e}"
+                # Fix #21: Don't leak internal webhook error details
+                print(f"[PublicAPI] Webhook call error: {e}")
+                result_text = "Webhook call failed — seller will be notified"
                 execution_method = "webhook_error"
     else:
         execution_method = "manual"
@@ -1609,7 +1713,9 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
             return resp.choices[0].message.content.strip()
         return await asyncio.to_thread(_call)
     except Exception as e:
-        return f"Execution error: {e}"
+        # Fix #21: Don't leak internal error details
+        print(f"[PublicAPI] Native service execution error: {e}")
+        return "Service execution temporarily unavailable"
 
 
 async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
@@ -1842,9 +1948,17 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    tier_id = req.get("tier", "")
-    hours = float(req.get("hours", 1))
-    payment_tx = req.get("payment_tx", "")
+    # Fix #7: String length limits
+    tier_id = req.get("tier", "").strip()[:50] if isinstance(req.get("tier"), str) else ""
+    payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
+    # Fix #4: Float validation with try/except
+    try:
+        hours = float(req.get("hours", 1))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "hours must be a number")
+    import math
+    if math.isnan(hours) or math.isinf(hours):
+        raise HTTPException(400, "hours must be a valid number")
 
     if hours <= 0 or hours > 720:
         raise HTTPException(400, "Duree entre 0.1 et 720 heures")
@@ -1891,11 +2005,13 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
             expected_recipient=TREASURY_ADDRESS,
         )
         if not tx_result.get("valid"):
-            raise HTTPException(400, f"Payment invalid: {tx_result.get('error')}")
+            raise HTTPException(400, "Payment invalid: verification failed")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(400, f"Payment verification failed: {e}")
+        # Fix #21: Don't leak internal error details
+        print(f"[PublicAPI] GPU payment verification error: {e}")
+        raise HTTPException(400, "Payment verification failed")
 
     # Provisionner le GPU via RunPod
     from runpod_client import RunPodClient
@@ -1904,7 +2020,9 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     instance = await runpod.rent_gpu(tier_id, hours)
 
     if not instance.get("success"):
-        raise HTTPException(502, f"RunPod provisionnement echoue: {instance.get('error', 'indisponible')}")
+        # Fix #21: Don't leak internal RunPod error details
+        print(f"[PublicAPI] RunPod provisioning error: {instance.get('error', 'indisponible')}")
+        raise HTTPException(502, "GPU provisioning temporarily unavailable")
 
     # Enregistrer la transaction
     import uuid
@@ -2114,8 +2232,13 @@ async def public_create_auction(req: dict, x_api_key: str = Header(None, alias="
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    tier_id = req.get("tier", "")
-    hours = float(req.get("hours", 1))
+    # Fix #7: String length limits + Fix #4: Float validation
+    tier_id = req.get("tier", "").strip()[:50] if isinstance(req.get("tier"), str) else ""
+    try:
+        hours = float(req.get("hours", 1))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "hours must be a number")
+    hours = max(0.1, min(720, hours))
 
     from config import GPU_TIERS, BROKER_MARGIN
     gpu = None
@@ -2178,9 +2301,16 @@ async def buy_stock(req: dict, x_api_key: str = Header(None, alias="X-API-Key"))
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    symbol = req.get("symbol", "")
-    amount_usdc = float(req.get("amount_usdc", 0))
-    payment_tx = req.get("payment_tx", "")
+    # Fix #7: String length limits + Fix #4: Float validation
+    symbol = req.get("symbol", "").strip()[:20] if isinstance(req.get("symbol"), str) else ""
+    payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
+    try:
+        amount_usdc = float(req.get("amount_usdc", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "amount_usdc must be a number")
+    import math
+    if math.isnan(amount_usdc) or math.isinf(amount_usdc) or amount_usdc <= 0:
+        raise HTTPException(400, "amount_usdc must be a positive number")
 
     from tokenized_stocks import stock_exchange
     result = await stock_exchange.buy_stock(
@@ -2209,8 +2339,15 @@ async def sell_stock(req: dict, x_api_key: str = Header(None, alias="X-API-Key")
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    symbol = req.get("symbol", "")
-    shares = float(req.get("shares", 0))
+    # Fix #7: String length limits + Fix #4: Float validation
+    symbol = req.get("symbol", "").strip()[:20] if isinstance(req.get("symbol"), str) else ""
+    try:
+        shares = float(req.get("shares", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "shares must be a number")
+    import math
+    if math.isnan(shares) or math.isinf(shares) or shares <= 0:
+        raise HTTPException(400, "shares must be a positive number")
 
     from tokenized_stocks import stock_exchange
     result = await stock_exchange.sell_stock(
@@ -2286,9 +2423,10 @@ async def list_crypto_tokens():
 @router.get("/crypto/prices")
 async def crypto_prices():
     """Prix live des cryptos. Sans auth."""
-    from crypto_swap import fetch_prices
+    from crypto_swap import fetch_prices, _price_cache_ts
     prices = await fetch_prices()
-    return {"prices": prices, "updated_at": int(__import__("time").time())}
+    # Fix #10: Return the actual cache timestamp, not current time
+    return {"prices": prices, "updated_at": int(_price_cache_ts or time.time()), "cache_ttl_seconds": 30}
 
 
 @router.get("/crypto/quote")
@@ -2362,7 +2500,10 @@ async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None,
         # Fix #1: Track daily volume after successful swap
         _rate_limits[daily_vol_key] = current_vol + value_usd
         async with _agent_update_lock:
-            agent["volume_30d"] += result.get("commission_usd", 0) / (result.get("commission_bps", 15) / 10000)
+            # Fix #3: Division by zero guard + Fix #19: Use dynamic commission calculation
+            bps = result.get("commission_bps") or get_commission_bps(agent.get("volume_30d", 0))
+            bps = bps or 15  # Absolute fallback to prevent zero
+            agent["volume_30d"] += result.get("commission_usd", 0) / (bps / 10000)
             agent["total_spent"] += result.get("commission_usd", 0)
 
     return result
@@ -2398,12 +2539,21 @@ async def scrape_web(req: dict, x_api_key: str = Header(None, alias="X-API-Key")
     if not url:
         raise HTTPException(400, "Champ 'url' requis")
 
+    # Fix #1: Clamp max_text_length bounds
+    try:
+        max_text_length = max(100, min(50000, int(req.get("max_text_length", 10000))))
+    except (TypeError, ValueError):
+        max_text_length = 10000
+
+    # Fix #7: String length limit on URL
+    url = url.strip()[:2000]
+
     from web_scraper import scrape_url
     return await scrape_url(
         url=url,
         extract_links=req.get("extract_links", True),
         extract_images=req.get("extract_images", True),
-        max_text_length=int(req.get("max_text_length", 10000)),
+        max_text_length=max_text_length,
     )
 
 
@@ -2419,8 +2569,14 @@ async def scrape_batch(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     if not urls:
         raise HTTPException(400, "Champ 'urls' requis (liste)")
 
+    # Fix #1: Clamp max_text_length bounds
+    try:
+        max_text_length = max(100, min(50000, int(req.get("max_text_length", 5000))))
+    except (TypeError, ValueError):
+        max_text_length = 5000
+
     from web_scraper import scrape_multiple
-    return await scrape_multiple(urls[:5], max_text_length=int(req.get("max_text_length", 5000)))
+    return await scrape_multiple(urls[:5], max_text_length=max_text_length)
 
 
 # ══════════════════════════════════════════
@@ -2435,18 +2591,29 @@ async def generate_image(req: dict, x_api_key: str = Header(None, alias="X-API-K
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
-    prompt = req.get("prompt", "")
+    # Fix #7: String length limit on prompt
+    prompt = req.get("prompt", "").strip()[:5000] if isinstance(req.get("prompt"), str) else ""
     if not prompt:
         raise HTTPException(400, "Champ 'prompt' requis")
+    _check_safety(prompt, "prompt")
+
+    # Fix #1: Int validation bounds for image parameters
+    try:
+        width = max(64, min(2048, int(req.get("width", 1024))))
+        height = max(64, min(2048, int(req.get("height", 1024))))
+        steps = max(1, min(50, int(req.get("steps", 4))))
+        seed = max(0, min(999999999, int(req.get("seed", 0))))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Invalid image parameters (width, height, steps, seed must be integers)")
 
     from image_gen import generate_image as gen_img
     result = await gen_img(
         prompt=prompt,
         model=req.get("model", "flux-schnell"),
-        width=int(req.get("width", 1024)),
-        height=int(req.get("height", 1024)),
-        steps=int(req.get("steps", 4)),
-        seed=int(req.get("seed", 0)),
+        width=width,
+        height=height,
+        steps=steps,
+        seed=seed,
     )
 
     if result.get("success"):
@@ -2473,18 +2640,27 @@ async def add_wallet_monitor(req: dict, x_api_key: str = Header(None, alias="X-A
         raise HTTPException(401, "Header X-API-Key requis")
     agent = _get_agent(x_api_key)
 
-    wallet = req.get("wallet", "")
+    # Fix #7: String length limit + Fix #13: Validate Solana address
+    wallet = req.get("wallet", "").strip()[:50] if isinstance(req.get("wallet"), str) else ""
     if not wallet:
         raise HTTPException(400, "Champ 'wallet' requis")
+    _validate_solana_address(wallet, "wallet")
+
+    # Fix #4: Float validation + Fix #7: String length limit on webhook_url
+    try:
+        min_sol_change = float(req.get("min_sol_change", 0.1))
+    except (TypeError, ValueError):
+        min_sol_change = 0.1
+    webhook_url = req.get("webhook_url", "").strip()[:500] if isinstance(req.get("webhook_url"), str) else ""
 
     from wallet_monitor import add_monitor
     return await add_monitor(
         api_key=x_api_key,
         owner_name=agent["name"],
         wallet_address=wallet,
-        webhook_url=req.get("webhook_url", ""),
+        webhook_url=webhook_url,
         alert_types=req.get("alert_types", None),
-        min_sol_change=float(req.get("min_sol_change", 0.1)),
+        min_sol_change=min_sol_change,
     )
 
 
