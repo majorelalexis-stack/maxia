@@ -23,6 +23,8 @@ from config_local import (
 from audit_local import audit
 from notifier import notify_all, request_approval, get_pending_approvals
 from browser_agent import browser
+from conversion_tracker import track_action, get_failing_actions, generate_learned_rules, get_action_report
+from self_updater import check_for_updates, apply_updates, needs_check
 
 # ══════════════════════════════════════════
 # Memoire locale persistante (JSON)
@@ -617,6 +619,13 @@ ACTIONS (all vert unless noted):
 - update_price: VPS price (params: service_id, new_price) [ORANGE]
 - search_groups: find & join Telegram/Discord groups (params: platform) [VERT]
 - ab_test: A/B test 2 variants (params: text_a, text_b) [VERT]
+- comment_github_ai: comment on AI project issues (ElizaOS, LangChain) [VERT]
+- write_blog: write article (params: topic) [VERT]
+- watch_prices: check competitor prices + auto-lower [VERT]
+- analyze_trends: trending tokens + topics [VERT]
+- handle_support: answer support message (params: message, user) [VERT]
+- generate_quote: auto quote (params: services, quantity) [VERT]
+- negotiate: negotiate price (params: service, price, volume) [VERT]
 
 DO NOT repeat what is in ALREADY DONE. Use LEARNED RULES. Max 3 actions.
 JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
@@ -712,7 +721,33 @@ class CEOLocal:
                 if self._cycle % 50 == 0:
                     self._clean_screenshots()
 
-                # 9. SYNC — envoyer les actions au VPS (eviter double-post)
+                # 9. SELF-LEARNING (toutes les 10 cycles = ~100 min)
+                if self._cycle % 10 == 0:
+                    try:
+                        rules = generate_learned_rules()
+                        if rules:
+                            for r in rules:
+                                if r not in self.memory.get("regles", []):
+                                    self.memory.setdefault("regles", []).append(r)
+                                    _log(f"[LEARN] {r}")
+                    except Exception as e:
+                        _log(f"[LEARN] Error: {e}")
+
+                # 10. SELF-UPDATE (toutes les 36 cycles = ~6h)
+                if self._cycle % 36 == 0 and needs_check():
+                    try:
+                        updates = check_for_updates()
+                        if updates.get("updates"):
+                            _log(f"[UPDATE] New commits: {updates.get('commits', '')[:100]}")
+                            result = apply_updates()
+                            if result.get("success"):
+                                _log("[UPDATE] Updated! Restarting...")
+                                await notify_all("CEO Updated", "New code pulled. Restarting...", "orange")
+                                self._running = False
+                    except Exception as e:
+                        _log(f"[UPDATE] Error: {e}")
+
+                # 11. SYNC — envoyer les actions au VPS (eviter double-post)
                 recent = self.memory.get("actions_done", [])[-10:]
                 sync_result = await self.vps.sync(recent, active=True)
                 vps_actions = sync_result.get("vps_actions", [])
@@ -938,6 +973,9 @@ class CEOLocal:
                 detail = result.get("detail", result.get("result", ""))
                 _log(f"  {'OK' if success else 'ECHEC'}: {str(detail)[:100]}")
 
+                # Track pour self-learning (#13)
+                track_action(action, success)
+
                 # Sauvegarder en memoire + CRM
                 self.memory["actions_done"].append({
                     "action": action, "agent": agent, "priority": priority,
@@ -1035,6 +1073,47 @@ class CEOLocal:
             return await self._search_and_join_groups(params.get("platform", "telegram"))
         elif action == "clean_screenshots":
             return self._clean_screenshots()
+        # #3 GitHub community
+        elif action == "comment_github_ai":
+            return await self._comment_github_ai_projects()
+        # #8 Blog
+        elif action == "write_blog":
+            from blog_manager import generate_blog_post
+            post = await generate_blog_post(params.get("topic", "How to monetize your AI agent"), call_local_llm)
+            return {"success": bool(post), "detail": f"Blog: {post.get('filename', '?')} ({post.get('words', 0)} words)"}
+        # #10 Price watch
+        elif action == "watch_prices":
+            from price_watcher import check_competitor_prices
+            alerts = await check_competitor_prices(browser)
+            if alerts:
+                for a in alerts:
+                    _log(f"  [PRICE] {a['competitor']} is cheaper: ${a['their_price']} vs ${a['our_price']}")
+                    await self.vps.execute("update_price", "SOL-TREASURY", {"new_price": a["their_price"], "reason": f"Match {a['competitor']}"}, "orange")
+            return {"success": True, "detail": f"{len(alerts)} price alerts"}
+        # #11 Trends
+        elif action == "analyze_trends":
+            from price_watcher import analyze_trends
+            trends = await analyze_trends(browser)
+            return {"success": True, "detail": f"Tokens: {len(trends.get('tokens', []))}, Topics: {len(trends.get('topics', []))}", "data": trends}
+        # #15 Support
+        elif action == "handle_support":
+            from support_agent import handle_support_message
+            reply = await handle_support_message(params.get("message", ""), params.get("user", "anon"), call_local_llm)
+            return {"success": bool(reply), "detail": reply[:100]}
+        # #22 Quote
+        elif action == "generate_quote":
+            from support_agent import generate_quote
+            quote = await generate_quote(params.get("services", []), params.get("quantity", 1), call_local_llm)
+            return {"success": True, "detail": f"Quote: ${quote.get('total_usdc', 0)} USDC", "data": quote}
+        # #23 Negotiate
+        elif action == "negotiate":
+            from support_agent import negotiate_price
+            result = await negotiate_price(params.get("service", ""), params.get("price", 0), params.get("volume", 1), call_local_llm)
+            return {"success": True, "detail": result.get("message", ""), "data": result}
+        # #21 List services
+        elif action == "list_services":
+            from support_agent import list_services
+            return {"success": True, "detail": f"{len(list_services())} services", "data": list_services()}
         # Reddit (local)
         elif action == "post_reddit":
             return await self._do_browser("post_reddit", params)
@@ -1220,6 +1299,35 @@ class CEOLocal:
         # On ne peut pas facilement retrouver l'URL du tweet poste
         # mais on peut verifier l'engagement du profil
         _log("[FEEDBACK] Verification engagement (a implementer avec URL tracking)")
+
+    async def _comment_github_ai_projects(self) -> dict:
+        """#3: Commente sur des issues/discussions de projets AI."""
+        projects = [
+            "elizaOS/eliza", "langchain-ai/langchain", "Significant-Gravitas/AutoGPT",
+            "microsoft/autogen", "crewai/crewai",
+        ]
+        commented = 0
+        for project in projects[:2]:  # Max 2 par cycle
+            try:
+                # Chercher des issues ouvertes pertinentes
+                results = await browser.search_google(f"site:github.com/{project}/issues AI agent marketplace", 3)
+                for r in results:
+                    url = r.get("url", "")
+                    if "/issues/" in url and not browser._is_duplicate("github_comment", url):
+                        comment = (
+                            f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
+                            f"where agents can discover and trade services using USDC on 4 chains "
+                            f"(Solana, Base, ETH, XRP). Happy to collaborate or integrate. "
+                            f"Check it out: maxiaworld.app"
+                        )
+                        result = await browser.comment_github_discussion(url, comment)
+                        if result.get("success"):
+                            commented += 1
+                            browser._record_action("github_comment", browser._content_hash("github_comment", url))
+                        break
+            except Exception:
+                pass
+        return {"success": commented > 0, "detail": f"{commented} GitHub comments"}
 
     async def _search_and_join_groups(self, platform: str = "telegram") -> dict:
         """Cherche et rejoint des groupes pertinents sur Telegram/Discord."""
