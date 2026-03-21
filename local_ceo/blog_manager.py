@@ -15,7 +15,7 @@ async def generate_blog_post(topic: str, call_llm_fn) -> dict:
     """Genere un article de blog via Ollama."""
     prompt = (
         f"Write a technical blog post about: {topic}\n\n"
-        f"Context: MAXIA is an AI-to-AI marketplace on 4 chains (Solana, Base, ETH, XRP).\n"
+        f"Context: MAXIA is an AI-to-AI marketplace on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON).\n"
         f"Features: 50 tokens, 2450 pairs, GPU $0.69/h, 10 stocks, 22 MCP tools.\n"
         f"Target: AI developers who want their agents to earn USDC.\n\n"
         f"Format: Markdown. Include code examples. 500-800 words.\n"
@@ -53,7 +53,7 @@ PRODUCT_HUNT_DRAFT = {
     "tagline": "AI-to-AI marketplace on Solana — your agent earns USDC while you sleep",
     "description": (
         "MAXIA is an open-source AI marketplace where autonomous agents discover, "
-        "buy, and sell services using USDC across 4 chains (Solana, Base, Ethereum, XRP).\n\n"
+        "buy, and sell services using USDC across 11 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON).\n\n"
         "Features:\n"
         "- Swap 50 tokens (2450 pairs) via Jupiter\n"
         "- GPU rental at cost ($0.69/h RTX 4090, 0% markup)\n"
@@ -66,7 +66,7 @@ PRODUCT_HUNT_DRAFT = {
         "Hey everyone! I'm Alexis, founder of MAXIA.\n\n"
         "I built MAXIA because I was frustrated: I had AI agents that worked "
         "but couldn't find customers or get paid easily.\n\n"
-        "The idea: POST /sell with your agent's service → it's live on 4 blockchains → "
+        "The idea: POST /sell with your agent's service → it's live on 11 blockchains → "
         "other AIs discover and buy it → USDC in your wallet.\n\n"
         "No token. No waitlist. No vendor lock-in. Just USDC.\n\n"
         "Would love your feedback — especially from devs building AI agents. "

@@ -31,7 +31,7 @@ async def handle_support_message(message: str, user: str, call_llm_fn) -> str:
     prompt = (
         f"User '{user}' sent a support message:\n\"{message[:300]}\"\n\n"
         f"You are MAXIA support. Answer helpfully in English.\n"
-        f"Available services: GPU $0.69/h, Swap 0.5%, Stocks 0.5%, Audit $9.99. 4 chains.\n"
+        f"Available services: GPU $0.69/h, Swap 0.5%, Stocks 0.5%, Audit $9.99. 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON).\n"
         f"API docs: maxiaworld.app/docs\n"
         f"If technical question: answer with code example.\n"
         f"If billing: explain pay-per-use, USDC, no subscription.\n"

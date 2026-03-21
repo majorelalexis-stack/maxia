@@ -7,14 +7,14 @@
   },
   "action_stats": {
     "write_blog": {
-      "attempts": 3,
-      "successes": 3,
+      "attempts": 7,
+      "successes": 7,
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 4,
-      "successes": 3,
-      "failures": 1
+      "attempts": 13,
+      "successes": 10,
+      "failures": 3
     },
     "handle_support": {
       "attempts": 1,
@@ -27,8 +27,8 @@
       "failures": 1
     },
     "analyze_trends": {
-      "attempts": 1,
-      "successes": 1,
+      "attempts": 5,
+      "successes": 5,
       "failures": 0
     },
     "Lancer une campagne de prospection cibl\u00e9e sur les d\u00e9veloppeurs Solana via Discord et Reddit (r/solanadev) avec un message direct sur la g\u00e9n\u00e9ration de revenus automatiques pour les agents IA.": {
@@ -47,9 +47,9 @@
       "failures": 0
     },
     "post_template_tweet": {
-      "attempts": 1,
+      "attempts": 2,
       "successes": 0,
-      "failures": 1
+      "failures": 2
     },
     "comment_github_ai": {
       "attempts": 1,
@@ -72,13 +72,33 @@
       "failures": 1
     },
     "reply_mentions": {
-      "attempts": 1,
-      "successes": 1,
+      "attempts": 5,
+      "successes": 5,
       "failures": 0
     },
     "post_reddit": {
-      "attempts": 1,
-      "successes": 1,
+      "attempts": 4,
+      "successes": 3,
+      "failures": 1
+    },
+    "post_tweet": {
+      "attempts": 8,
+      "successes": 8,
+      "failures": 0
+    },
+    "scrape_followers": {
+      "attempts": 4,
+      "successes": 4,
+      "failures": 0
+    },
+    "search_profiles": {
+      "attempts": 3,
+      "successes": 3,
+      "failures": 0
+    },
+    "detect_opportunities": {
+      "attempts": 3,
+      "successes": 3,
       "failures": 0
     }
   },

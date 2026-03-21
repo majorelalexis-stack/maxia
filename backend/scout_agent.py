@@ -1,6 +1,6 @@
-"""MAXIA SCOUT Agent — Prospection IA-to-IA sur 4 chains
+"""MAXIA SCOUT Agent — Prospection IA-to-IA sur 11 chains
 
-Scanne Solana, Base (L2), Ethereum mainnet, et XRP Ledger pour trouver
+Scanne Solana, Base (L2), Ethereum mainnet, XRP Ledger, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, et TRON pour trouver
 des agents IA autonomes deployes, puis les contacte machine-to-machine
 pour qu'ils s'inscrivent sur MAXIA comme acheteurs ou vendeurs.
 
@@ -118,15 +118,15 @@ class ScoutAgent:
         self._total_contacted = 0
         self._max_contacts_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_agent = 2
-        print("[SCOUT] Agent IA-to-IA prospection initialise (Solana + Base + Ethereum + XRP)")
+        print("[SCOUT] Agent IA-to-IA prospection initialise (11 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON)")
 
     async def run(self):
         """Boucle principale — scan toutes les 6 heures."""
         self._running = True
-        print(f"[SCOUT] Demarre — scan 4 chains, max {self._max_contacts_day} contacts/jour")
+        print(f"[SCOUT] Demarre — scan 11 chains, max {self._max_contacts_day} contacts/jour")
         await alert_system(
             "SCOUT Agent IA-to-IA demarre",
-            f"Scan: Solana + Base + Ethereum + XRP\n"
+            f"Scan: 11 chains (Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON)\n"
             f"Cibles: ElizaOS, Autonolas, Fetch.ai, SingularityNET, Virtuals\n"
             f"Max {self._max_contacts_day} contacts/jour"
         )
@@ -148,11 +148,11 @@ class ScoutAgent:
         self._running = False
 
     # ══════════════════════════════════════════
-    # Scan — 4 chains
+    # Scan — 11 chains
     # ══════════════════════════════════════════
 
     async def scan_all_chains(self) -> list:
-        """Scan les 4 chains en parallele pour trouver des agents IA."""
+        """Scan les 11 chains en parallele pour trouver des agents IA."""
         results = await asyncio.gather(
             self._scan_solana(),
             self._scan_ethereum(),
@@ -175,7 +175,7 @@ class ScoutAgent:
                 seen.add(addr)
                 unique.append(a)
         self._total_discovered += len(unique)
-        print(f"[SCOUT] {len(unique)} agents IA trouves sur 4 chains")
+        print(f"[SCOUT] {len(unique)} agents IA trouves sur 11 chains")
         return unique
 
     async def _scan_solana(self) -> list:

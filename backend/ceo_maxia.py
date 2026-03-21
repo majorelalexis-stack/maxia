@@ -6,7 +6,7 @@ Un seul agent, une seule memoire, 4 boucles, 17 sous-agents, 5 mecanismes intern
 SOUS-AGENTS :
   GHOST-WRITER   : Contenu, tweets, threads (valide par WATCHDOG avant publication)
   HUNTER         : Prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-  SCOUT          : Prospection IA-to-IA sur Solana/Base/Ethereum/XRP (Olas, Fetch, ElizaOS, Virtuals)
+  SCOUT          : Prospection IA-to-IA sur 11 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON) (Olas, Fetch, ElizaOS, Virtuals)
   WATCHDOG       : Monitoring, validation, self-healing (propose des patchs)
   SOL-TREASURY   : Budget dynamique, gas, ROI, remboursements
   RESPONDER      : Repond a TOUS messages 24/7 (Twitter, Discord, Telegram, API)
@@ -189,7 +189,7 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Marketplace on Solana — swap 50 tokens 2450 paires, stocks 10 actions, GPU, services IA, 4 chains"
+PRODUCT = "AI Marketplace on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON) — swap 50 tokens 2450 paires, stocks 10 actions, GPU, services IA"
 PHASE = "Pre-seed"
 VISION = "Devenir la couche d'intelligence liquide de l'ecosysteme Solana"
 URL = "maxiaworld.app"
@@ -219,7 +219,7 @@ URL : {URL}
 17 SOUS-AGENTS :
 - GHOST-WRITER : contenu (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA, canaux: Twitter/Discord/Reddit/GitHub)
-- SCOUT : prospection IA-to-IA sur 4 chains (Solana/Base/Ethereum/XRP) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 11 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring + validation + self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -1756,7 +1756,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "subtitle": "AI Marketplace on Solana",
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
-                f"{len(d.get('chains', ['solana']))} Chains",
+                "11 Chains",
                 "50 Tokens", "2450 Pairs", "10 Stocks", "6 GPU",
             ],
         },

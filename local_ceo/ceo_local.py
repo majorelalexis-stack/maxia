@@ -186,23 +186,23 @@ import random
 
 TWEET_TEMPLATES = [
     # Tips techniques
-    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 4 chains (Solana, Base, ETH, XRP)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
-    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on Solana, Base, Ethereum, or XRP.\n\n1 API call to list. That's it.\nmaxiaworld.app",
-    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 4 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
+    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
+    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on 11 chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\n1 API call to list. That's it.\nmaxiaworld.app",
+    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 11 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
     # Stats
-    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 4 chains: Solana + Base + ETH + XRP\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
+    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 11 chains including Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
     # Dev-focused
-    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on Solana, Base, ETH, and XRP.\nOther AIs will find and pay you.",
+    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on 11 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\nOther AIs will find and pay you.",
     # Comparative
-    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 4 chains, 22 MCP tools.\nmaxiaworld.app",
+    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 11 chains, 22 MCP tools.\nmaxiaworld.app",
     # Community
-    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 4 chains (Solana/Base/ETH/XRP), USDC payments, 1 API.\nmaxiaworld.app",
+    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON), USDC payments, 1 API.\nmaxiaworld.app",
     # Thread starter
     "How to monetize your AI agent in 5 minutes:\n\n1/ You have a bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.\n\nHere's the fix (thread)",
     # XRP specific
     "XRP devs: MAXIA now supports XRPL natively.\n\nUSDC on XRP Ledger (Circle). 3-5 sec settlement. Fees < $0.01.\n\nList your AI service, get paid in USDC on XRPL.\nmaxiaworld.app/api/xrpl/info",
     # Multi-chain
-    "One marketplace. Four chains.\n\nSolana: fast, cheap\nBase: Coinbase ecosystem\nEthereum: big money\nXRP: instant settlement\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
+    "One marketplace. Eleven chains.\n\nSolana: fast, cheap\nBase: Coinbase ecosystem\nEthereum: big money\nXRP: instant settlement\nPolygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
 ]
 
 TWEET_VARIANTS = {
@@ -315,7 +315,7 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
         f"You are in a DM conversation on {platform} with @{contact}.\n"
         f"Recent messages:\n{history}\n\n"
         f"Write the next reply. Be helpful, technical, and natural.\n"
-        f"If they ask about MAXIA: explain (AI marketplace, 4 chains, USDC, 1 API call to list).\n"
+        f"If they ask about MAXIA: explain (AI marketplace, 11 chains, USDC, 1 API call to list).\n"
         f"If they ask a technical question: answer it.\n"
         f"If they seem uninterested: politely end the conversation.\n"
         f"Keep it short (<200 chars). English only.\n"
@@ -523,8 +523,8 @@ class VPSClient:
 # Boucle OODA principale
 # ══════════════════════════════════════════
 
-CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur Solana + Base + Ethereum + XRP.
-Produit : AI Marketplace — swap 50 tokens 2450 paires, stocks 10 actions, GPU 0% marge, services IA, MCP 22 tools, 4 chains.
+CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur 11 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON).
+Produit : AI Marketplace — swap 50 tokens 2450 paires, stocks 10 actions, GPU 0% marge, services IA, MCP 22 tools, 11 chains.
 Phase : Pre-seed | Vision : Devenir la couche d intelligence liquide de l ecosysteme Solana.
 Fondateur : Alexis (autorite finale sur decisions rouges)
 URL : maxiaworld.app
@@ -532,7 +532,7 @@ URL : maxiaworld.app
 17 SOUS-AGENTS SUR LE VPS (tu leur donnes des ordres via l API) :
 - GHOST-WRITER : contenu, tweets, threads (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-- SCOUT : prospection IA-to-IA sur 4 chains (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 11 chains (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring, validation, self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -623,7 +623,7 @@ FORMAT REPONSE (JSON strict) :
 {"analysis": "2 phrases max", "decisions": [{"action": "...", "agent": "...", "params": {...}, "priority": "vert|orange|rouge"}], "next_focus": "1 phrase"}"""
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
-CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on Solana. maxiaworld.app
+CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). maxiaworld.app
 Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
 
 ACTIONS (all vert unless noted):
@@ -971,7 +971,7 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on Solana, 50 tokens, 4 chains, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
+                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on 11 chains, 50 tokens, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
                         {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'} Do NOT mention any revenue or user statistics."},
                     ],
                     max_tokens=100,
@@ -996,7 +996,7 @@ class CEOLocal:
         for d in decisions:
             if d["action"] == "post_template_tweet":
                 # Don't pass revenue/user stats to tweet generation
-                clean_context = "Focus on MAXIA features: 50 tokens, 4 chains, GPU at cost, AI agent marketplace"
+                clean_context = "Focus on MAXIA features: 50 tokens, 11 chains, GPU at cost, AI agent marketplace"
                 tweet = await self._generate_tweet_via_groq(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
@@ -1353,7 +1353,7 @@ class CEOLocal:
 
     async def _auto_engage(self):
         """Search Twitter -> Like top tweets -> Score profiles -> Follow best ones."""
-        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana"]
+        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana", "AI agent polygon", "AI agent arbitrum", "AI agent avalanche", "AI agent BNB", "AI agent TON", "AI agent SUI", "AI agent TRON"]
         query = queries[self._cycle % len(queries)]
 
         # Search tweets
@@ -1452,8 +1452,8 @@ class CEOLocal:
                     if "/issues/" in url and not browser._is_duplicate("github_comment", url):
                         comment = (
                             f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
-                            f"where agents can discover and trade services using USDC on 4 chains "
-                            f"(Solana, Base, ETH, XRP). Happy to collaborate or integrate. "
+                            f"where agents can discover and trade services using USDC on 11 chains "
+                            f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). Happy to collaborate or integrate. "
                             f"Check it out: maxiaworld.app"
                         )
                         result = await browser.comment_github_discussion(url, comment)
@@ -1534,7 +1534,7 @@ class CEOLocal:
                 params["tweets"] = [
                     "How to monetize your AI agent (thread):",
                     "1/ List your service on MAXIA with one API call. POST /api/public/sell. Done.",
-                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 4 chains. maxiaworld.app",
+                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 11 chains. maxiaworld.app",
                 ]
         elif action == "follow_user":
             if not params.get("username"):
@@ -1552,12 +1552,12 @@ class CEOLocal:
             if not params.get("subreddit"):
                 params["subreddit"] = "solanadev"
             if not params.get("title"):
-                params["title"] = "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)"
+                params["title"] = "MAXIA - AI-to-AI Marketplace on 11 Chains (Solana/Base/ETH/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON)"
             if not params.get("body"):
                 params["body"] = (
                     "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n"
                     "- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n"
-                    "- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\n"
+                    "- 11 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n- 22 MCP tools\n\n"
                     "One API call to list your agent. maxiaworld.app"
                 )
         elif action == "comment_reddit":
@@ -1583,7 +1583,7 @@ class CEOLocal:
                 params["topic"] = random.choice([
                     "How to monetize your AI agent with MAXIA",
                     "GPU rental at cost: why MAXIA charges 0% markup",
-                    "4 chains, 1 marketplace: MAXIA multi-chain architecture",
+                    "11 chains, 1 marketplace: MAXIA multi-chain architecture",
                 ])
         elif action == "watch_prices":
             pass
