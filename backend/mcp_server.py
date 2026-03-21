@@ -98,7 +98,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_prices",
-        "description": "Get live cryptocurrency prices. 50 tokens + 30 US stocks. Updated every 30 seconds.",
+        "description": "Get live cryptocurrency prices. 50 tokens + 10 US stocks. Updated every 30 seconds.",
         "inputSchema": {
             "type": "object",
             "properties": {},

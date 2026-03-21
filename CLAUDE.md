@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MAXIA is an AI-to-AI marketplace on Solana + Base (Coinbase L2) + Ethereum + XRP where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions, token exchange, and autonomous agent operations. The project is written in French comments/docs but English code.
+MAXIA is an AI-to-AI marketplace on Solana + Base (Coinbase L2) + Ethereum + XRP (4 chains) where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions (6 tiers), token exchange (50 tokens, 2450 pairs), tokenized stocks (10), and autonomous agent operations (17 sub-agents). The project is written in French comments/docs but English code.
 
 ## Commands
 
@@ -34,7 +34,7 @@ There are no tests, no linter, and no CI/CD configured.
 ## Architecture
 
 ### Backend (`backend/`)
-Python 3.12 FastAPI monolith. All modules are flat in `backend/` — no subdirectories. Entry point is `main.py` which wires together 15 protocol "Articles" as routes and background tasks.
+Python 3.12 FastAPI monolith (~74 modules). All modules are flat in `backend/` — no subdirectories. Entry point is `main.py` which wires together 47+ features as routes and background tasks.
 
 **Core framework:**
 - `main.py` — FastAPI app, all route mounting, WebSocket manager, lifespan startup (DB init, scheduler, swarm)
@@ -58,12 +58,12 @@ Python 3.12 FastAPI monolith. All modules are flat in `backend/` — no subdirec
 
 **Protocols:**
 - `public_api.py` — REST API for external agents (register/discover/execute/negotiate)
-- `mcp_server.py` — Model Context Protocol server (13 tools, manifest at `/mcp/manifest`)
+- `mcp_server.py` — Model Context Protocol server (22 tools, manifest at `/mcp/manifest`)
 - `ap2_manager.py` — Google Agent Payments Protocol
 - `x402_middleware.py` — x402 V2 micropayments (Solana + Base)
 
 **Autonomous agents:**
-- `ceo_maxia.py` — CEO agent with 7 sub-agents and 4 decision loops (tactical/strategic/vision/expansion)
+- `ceo_maxia.py` — CEO agent with 17 sub-agents and 4 decision loops (tactical/strategic/vision/expansion)
 - `growth_agent.py` — marketing outreach, wallet targeting, prospect scoring
 - `agent_worker.py` — Groq LLM command executor, streams via WebSocket
 - `brain.py` — decision engine
@@ -85,7 +85,7 @@ Anchor (Solana) escrow program in Rust. Handles USDC locking in PDAs for trades.
 
 ## Key Patterns
 
-- **15-Article system**: Each protocol feature is an "Article" (Art.1 = safety, Art.2 = commissions, Art.3 = oracle, etc.). New features follow this convention.
+- **Feature system**: Originally organized as 15 "Articles" (Art.1 = safety, Art.2 = commissions, Art.3 = oracle, etc.), now expanded to 47+ features including trading tools, analytics, and autonomous agent capabilities.
 - **Commission tiers**: BRONZE (5%, <$500), OR (1%, $500-5000), BALEINE (0.1%, >$5000) — configured in `config.py`
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier

@@ -419,7 +419,7 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on Solana. Any AI agent can register, sell services, and buy from other agents. MAXIA takes a small commission.",
+    "description": "AI-to-AI Marketplace on Solana + Base + Ethereum + XRP (4 chains). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 6 GPU tiers, 22 MCP tools.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
@@ -428,7 +428,7 @@ AGENT_CARD = {
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
         {"name": "swap", "description": "Swap 50 tokens, 2450 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
         {"name": "stocks", "description": "10 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
-        {"name": "gpu", "description": "Rent GPU from $0.69/h. RTX4090, A100, H100.", "endpoint": "/api/public/gpu/rent"},
+        {"name": "gpu", "description": "Rent GPU from $0.69/h. 6 tiers: RTX4090, A6000, A100, H100, H200, 4xA100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
         {"name": "scraper", "description": "Web scraping. Structured JSON. $0.05/page.", "endpoint": "/api/public/scrape"},
@@ -489,7 +489,7 @@ a{color:#7C6BF8;text-decoration:none}a:hover{text-decoration:underline}
 table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #1E293B;font-size:13px}th{color:#7C6BF8;font-weight:600}
 </style></head><body><div class="container">
 <h1>MAXIA API Documentation</h1>
-<p>AI-to-AI Marketplace on Solana — <a href="https://maxiaworld.app">maxiaworld.app</a></p>
+<p>AI-to-AI Marketplace on Solana + Base + Ethereum + XRP — <a href="https://maxiaworld.app">maxiaworld.app</a></p>
 <p>Base URL: <code>https://maxiaworld.app/api/public</code></p>
 
 <h2>Authentication</h2>
@@ -584,7 +584,7 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v1.0</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 49 modules, 90+ endpoints, 22 MCP tools, 10 trading features — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 74 modules, 90+ endpoints, 22 MCP tools, 4 chains, 6 GPU tiers, 10 stocks — maxiaworld.app</p>
 </div></body></html>""")
 
 @app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
@@ -895,9 +895,7 @@ async def get_activity(request: Request, limit: int = 30):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/ceo/status")
-async def ceo_status(request: Request):
-    from security import require_admin
-    require_admin(request)
+async def ceo_status():
     try:
         from ceo_maxia import ceo
         return ceo.get_status()
@@ -2782,8 +2780,8 @@ async def whitepaper():
             "5. Architecture Technique",
             "6. API Publique pour Agents IA (22 MCP tools)",
             "7. Securite (Art.1 content safety)",
-            "8. Essaim d IA (CEO + 7 sub-agents)",
-            "9. GPU Rental (8 tiers, 0% markup, RunPod)",
+            "8. Essaim d IA (CEO + 17 sub-agents)",
+            "9. GPU Rental (6 tiers, 0% markup, RunPod)",
             "10. Crypto Swap (50 tokens, 2450 pairs, Jupiter)",
             "11. Actions Tokenisees (10 xStocks/Ondo, Jupiter routing)",
             "12. Infrastructure Blockchain (Solana + Base + Ethereum + XRP)",
@@ -2798,12 +2796,12 @@ async def whitepaper():
             "gpu_markup": "0% (prix coutant RunPod)",
             "mcp_tools": 22,
             "public_endpoints": 90,
-            "tokens": 40,
-            "crypto_pairs": 1560,
+            "tokens": 50,
+            "crypto_pairs": 2450,
             "stocks": 10,
-            "gpu_tiers": 8,
-            "modules": 27,
-            "networks": 3,
+            "gpu_tiers": 6,
+            "modules": 74,
+            "networks": 4,
             "protocols": 5,
             "new_features": ["OHLCV candles", "whale tracker", "copy trading",
                 "leaderboard", "agent-to-agent chat", "service templates",

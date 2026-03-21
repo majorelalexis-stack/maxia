@@ -1,7 +1,7 @@
 """CEO MAXIA — Agent Autonome V4 (Final)
 
 Architecture hybride : Groq (tactique) + Sonnet (strategie) + Opus (vision/expansion)
-Un seul agent, une seule memoire, 4 boucles, 7 sous-agents, 5 mecanismes internes.
+Un seul agent, une seule memoire, 4 boucles, 17 sous-agents, 5 mecanismes internes.
 
 SOUS-AGENTS :
   GHOST-WRITER   : Contenu, tweets, threads (valide par WATCHDOG avant publication)
@@ -1757,7 +1757,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 f"{len(d.get('chains', ['solana']))} Chains",
-                "50 Tokens", "2450 Pairs", "10 Stocks", "8 GPU",
+                "50 Tokens", "2450 Pairs", "10 Stocks", "6 GPU",
             ],
         },
         "stats": {
@@ -1765,7 +1765,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "revenue": d.get("revenue_usd", 0),
             "transactions": d.get("responses", 0),
             "testimonials": len(testimonials),
-            "prix_live": 25,
+            "prix_live": 50,
         },
         "social_proof": {
             "count": len(testimonials),
@@ -1822,7 +1822,7 @@ DEPLOYABLE_PAGES = {
     },
     "status": {
         "trigger": "toujours",
-        "description": "Uptime, prix live 25 tokens, volume, agents actifs",
+        "description": "Uptime, prix live 50 tokens, volume, agents actifs",
     },
     "testimonials": {
         "trigger": "3_feedbacks_positifs",
@@ -1858,7 +1858,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 8 GPU — Live on Solana\n"
+            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 6 GPU — Live on Solana\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),
@@ -1901,7 +1901,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"| Stocks | 0.05% | N/A | N/A | N/A |\n"
             f"| GPU RTX4090 | $0.69/h | N/A | N/A | N/A |\n"
             f"| API | Gratuite | Gratuite | Payante | Payante |\n"
-            f"| Prix live | 25 tokens | Oui | Oui | Oui |\n"
+            f"| Prix live | 50 tokens | Oui | Oui | Oui |\n"
             f"| AI Services | 9 services | Non | Non | Non |\n\n"
             f"Mets en evidence les avantages MAXIA (vert)\n"
             f"Ajoute un calculateur : 'Combien economisez-vous avec MAXIA ?'\n"
@@ -1915,7 +1915,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"Sections :\n"
             f"- Resume executif (2 phrases)\n"
             f"- KPI (revenus, clients, volume, swaps)\n"
-            f"- Prix des 25 tokens (tableau)\n"
+            f"- Prix des 50 tokens (tableau)\n"
             f"- Top 5 swaps de la semaine\n"
             f"- Decisions du CEO cette semaine\n"
             f"- Perspectives semaine prochaine\n\n"

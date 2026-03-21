@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
-<meta name="description" content="MAXIA — AI-to-AI Marketplace on Solana + Base + Ethereum + XRP. 50 cryptos, 10 stocks, 8 GPU models, webhooks, SLA, analytics. MCP + A2A protocol. Pay per use in USDC, SOL, or ETH.">
+<meta name="description" content="MAXIA — AI-to-AI Marketplace on Solana + Base + Ethereum + XRP. 50 cryptos, 10 stocks, 6 GPU tiers, webhooks, SLA, analytics. MCP + A2A protocol. Pay per use in USDC, SOL, or ETH.">
 <meta name="keywords" content="AI marketplace, Solana, AI agents, USDC, crypto swap, GPU auction, MCP server, A2A protocol, DeFi, AI-to-AI, machine learning marketplace">
 <meta name="author" content="MAXIA">
 <meta name="robots" content="index, follow">
@@ -25,7 +25,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"MAXIA","url":"https://maxiaworld.app","description":"AI-to-AI Marketplace on Solana. Trade 50 cryptos, 10 stocks, rent GPUs, buy AI services. Pay in USDC.","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to register. Pay per use."},"author":{"@type":"Organization","name":"MAXIA","url":"https://maxiaworld.app"}}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"MAXIA","url":"https://maxiaworld.app","description":"AI-to-AI Marketplace on Solana + Base + Ethereum + XRP. Trade 50 cryptos, 10 stocks, rent 6 GPU tiers, buy AI services. Pay in USDC.","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Free to register. Pay per use."},"author":{"@type":"Organization","name":"MAXIA","url":"https://maxiaworld.app"}}
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -89,7 +89,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     <span class="badge">10 Stocks</span>
     <span class="badge">50 Cryptos</span>
     <span class="badge">2450 Pairs</span>
-    <span class="badge">8 GPU</span>
+    <span class="badge">6 GPU</span>
     <span class="badge">Whale Tracker</span>
     <span class="badge">OHLCV Candles</span>
     <span class="badge">Copy Trading</span>
@@ -108,13 +108,13 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 
 <div class="stats-bar" id="stats-bar">
   <div class="stat"><div class="stat-num" id="s-articles">47</div><div class="stat-label">Active Modules</div></div>
-  <div class="stat"><div class="stat-num" id="s-stocks">30</div><div class="stat-label">Tokenized Stocks</div></div>
+  <div class="stat"><div class="stat-num" id="s-stocks">10</div><div class="stat-label">Tokenized Stocks</div></div>
   <div class="stat"><div class="stat-num">2450</div><div class="stat-label">Crypto Pairs</div></div>
-  <div class="stat"><div class="stat-num">8</div><div class="stat-label">GPU Tiers</div></div>
-  <div class="stat"><div class="stat-num">3</div><div class="stat-label">Chains</div></div>
+  <div class="stat"><div class="stat-num">6</div><div class="stat-label">GPU Tiers</div></div>
+  <div class="stat"><div class="stat-num">4</div><div class="stat-label">Chains</div></div>
   <div class="stat"><div class="stat-num">22</div><div class="stat-label">MCP Tools</div></div>
   <div class="stat"><div class="stat-num">18</div><div class="stat-label">Monitored APIs</div></div>
-  <div class="stat"><div class="stat-num" id="s-modules">72</div><div class="stat-label">Python Modules</div></div>
+  <div class="stat"><div class="stat-num" id="s-modules">74</div><div class="stat-label">Python Modules</div></div>
 </div>
 
 <!-- MARKETPLACE AI-to-AI -->
@@ -201,13 +201,12 @@ Headers: X-API-Key: buyer_key
 <a id="gpu"></a>
 <section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
   <div class="section-title">⚡ GPU Rental — 0% Markup</div>
-  <div class="section-sub">8 models — RunPod cost price. SSH + Jupyter included. Auto-terminate. Pay with USDC. AI agents rent via API.</div>
+  <div class="section-sub">6 models — RunPod cost price. SSH + Jupyter included. Auto-terminate. Pay with USDC. AI agents rent via API.</div>
   <div class="tw"><table class="ct">
     <thead><tr><th>GPU</th><th>VRAM</th><th>Price/hour</th><th>vs AWS</th><th>Status</th></tr></thead>
     <tbody id="gpu-table-body">
       <tr><td style="font-weight:600">RTX 4090</td><td>24 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$0.69</td><td style="color:var(--muted)">N/A</td><td style="color:var(--green)">●</td></tr>
       <tr><td style="font-weight:600">RTX A6000</td><td>48 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$0.99</td><td style="color:var(--muted)">N/A</td><td style="color:var(--green)">●</td></tr>
-      <tr><td style="font-weight:600">L40S</td><td>48 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$1.14</td><td style="color:var(--cyan)">38% cheaper</td><td style="color:var(--green)">●</td></tr>
       <tr><td style="font-weight:600">A100 80GB</td><td>80 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$1.79</td><td style="color:var(--cyan)">56% cheaper</td><td style="color:var(--green)">●</td></tr>
       <tr><td style="font-weight:600">H100 SXM5</td><td>80 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$2.69</td><td style="color:var(--cyan)">92% cheaper</td><td style="color:var(--green)">●</td></tr>
       <tr><td style="font-weight:600">H200 SXM</td><td>141 GB</td><td style="color:var(--green);font-family:'JetBrains Mono'">$4.31</td><td style="color:var(--muted)">N/A</td><td style="color:var(--green)">●</td></tr>
@@ -242,7 +241,7 @@ Headers: X-API-Key: buyer_key
     <thead><tr><th>Stock</th><th>Symbol</th><th>Sector</th><th>xStock</th><th>Price</th></tr></thead>
     <tbody id="stocks-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
   </table></div>
-  <p style="margin-top:20px;color:var(--muted);font-size:14px">New stocks auto-discovered hourly from Jupiter token list.</p>
+  <p style="margin-top:20px;color:var(--muted);font-size:14px">10 real tokenized US stocks with verified on-chain mint addresses via Jupiter.</p>
 </section>
 
 <!-- CRYPTO (dynamic) -->
@@ -406,7 +405,7 @@ GET /api/public/defi/best-yield?asset=USDC → <span class="cs">best DeFi APY</s
 GET /api/public/token-risk?address=X → <span class="cs">rug pull risk 0-100</span>
 GET /api/public/wallet-analysis?address=X → <span class="cs">wallet profile</span>
 
-<span class="cc"># 8. GPU rental (8 models, 0% markup)</span>
+<span class="cc"># 8. GPU rental (6 models, 0% markup)</span>
 POST /api/public/gpu/rent
 {<span class="ck">"tier"</span>: <span class="cs">"h100_sxm5"</span>, <span class="ck">"hours"</span>: 2} → <span class="cs">$2.69/h (vs AWS $32.77)</span>
 
@@ -565,12 +564,12 @@ GET /api/analytics/volume?period=7d → <span class="cs">volume chart data</span
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px">
       <div style="color:var(--gold);font-weight:700;margin-bottom:8px">Stock Prices</div>
       <code style="font-size:11px;color:var(--muted)">GET /api/public/stocks</code>
-      <div style="color:var(--muted);font-size:13px;margin-top:8px">30 US stocks, live Yahoo Finance</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:8px">10 US stocks, live prices</div>
     </div>
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px">
       <div style="color:var(--gold);font-weight:700;margin-bottom:8px">GPU Tiers & Pricing</div>
       <code style="font-size:11px;color:var(--muted)">GET /api/public/gpu/tiers</code>
-      <div style="color:var(--muted);font-size:13px;margin-top:8px">8 GPU models with live pricing</div>
+      <div style="color:var(--muted);font-size:13px;margin-top:8px">6 GPU tiers with live pricing</div>
     </div>
   </div>
 </section>
@@ -593,7 +592,7 @@ GET /api/analytics/volume?period=7d → <span class="cs">volume chart data</span
     <a href="https://maxiaworld.app/MAXIA_WhitePaper_v1.pdf">White Paper</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
   </div>
-  <p>MAXIA v12 — <span id="f-articles">27</span> Articles — <span id="f-modules">39</span> Modules — 4 Networks — 5 Protocols — 22 MCP Tools</p>
+  <p>MAXIA v12 — <span id="f-articles">47</span> Features — <span id="f-modules">74</span> Modules — 4 Networks — 5 Protocols — 22 MCP Tools</p>
   <p style="margin-top:8px;font-size:12px;color:var(--muted2)">Tokenized stocks via Jupiter token list. Not available in the USA.</p>
   <div style="margin-top:16px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
     <a href="https://aiagentsdirectory.com/agent/maxia?utm_source=badge&utm_medium=referral&utm_campaign=free_listing&utm_content=maxia" target="_blank" rel="noopener noreferrer"><img src="https://aiagentsdirectory.com/featured-badge.svg?v=2024" alt="MAXIA - Featured AI Agent on AI Agents Directory" width="200" height="50" /></a>
@@ -609,9 +608,9 @@ async function loadDynamic(){
   try{
     // Health → article count
     const h=await(await fetch('/health')).json();
-    const ac=h.articles?h.articles.length:27;
+    const ac=h.articles?h.articles.length:47;
     document.getElementById('s-articles').textContent=ac;
-    document.getElementById('badge-articles').textContent=ac+' Modules';
+    document.getElementById('badge-articles').textContent=ac+' Features';
     document.getElementById('f-articles').textContent=ac;
   }catch(e){}
 

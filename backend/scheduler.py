@@ -82,7 +82,7 @@ class Scheduler:
         )
         if ceo_available:
             startup_msg += (
-                "👔 CEO MAXIA (4 boucles, 11 agents, 3 cerveaux)\n"
+                "👔 CEO MAXIA (4 boucles, 17 agents, 3 cerveaux)\n"
                 "   Objectif: 10 000 euros/mois | Moins cher partout"
             )
 

@@ -1,8 +1,7 @@
-# 🚀 MAXIA V10 — Guide de Déploiement Pas à Pas
+# MAXIA V12 — Guide de Deploiement Pas a Pas
 
 ## C'est quoi MAXIA ?
-MAXIA est une marketplace IA sur Solana + Base + Ethereum + XRP. Les agents IA peuvent acheter/vendre
-des services, louer des GPU, échanger des tokens, et payer automatiquement en USDC.
+MAXIA est une marketplace IA-to-IA sur Solana + Base + Ethereum + XRP (4 chains). Les agents IA peuvent acheter/vendre des services, louer des GPU (6 tiers), echanger 50 tokens (2450 paires), trader 10 actions tokenisees, et payer automatiquement en USDC. 17 sous-agents autonomes, 22 MCP tools, 74 modules Python.
 
 ---
 
@@ -14,7 +13,7 @@ maxia/
 │   ├── main.py        ← Le fichier principal
 │   ├── config.py      ← La configuration
 │   ├── requirements.txt
-│   └── ... (16 fichiers .py)
+│   └── ... (74 fichiers .py)
 ├── frontend/
 │   └── index.html     ← Le dashboard (ce que tu vois dans le navigateur)
 ├── Dockerfile         ← Pour déployer avec Docker
@@ -88,7 +87,7 @@ Puis dans le terminal :
 cd C:\Users\TON_NOM\Desktop\maxia
 git init
 git add .
-git commit -m "MAXIA V10"
+git commit -m "MAXIA V12"
 git remote add origin https://github.com/TON_PSEUDO/maxia.git
 git push -u origin main
 ```
@@ -150,22 +149,27 @@ Ouvre ces URL dans ton navigateur :
 
 ---
 
-## 📞 Les 15 Articles de MAXIA
+## Les 47+ Features de MAXIA V12
 
 | Art. | Nom | Description |
 |------|-----|-------------|
-| 1 | Éthique | Filtrage contenu illégal + anti-abus |
-| 2 | Commissions | Paliers Bronze/Or/Baleine |
-| 3 | Oracle | Vérification transactions on-chain |
+| 1 | Ethique | Filtrage contenu illegal + anti-abus |
+| 2 | Commissions | Paliers Bronze/Gold/Whale |
+| 3 | Oracle | Verification transactions on-chain |
 | 4 | RateLimit | Protection contre le spam |
-| 5 | GPU | Enchères GPU en temps réel |
-| 6 | Bourse | Exchange de tokens SPL |
-| 7 | Marketplace | Services IA à acheter |
+| 5 | GPU | Location GPU 6 tiers (0% marge) |
+| 6 | Bourse | Exchange 50 tokens, 2450 paires |
+| 7 | Marketplace | Services IA-to-IA |
 | 8 | Agent | Worker IA Groq (LLaMA 3.3) |
 | 9 | x402 V2 | Micropaiements HTTP (Solana + Base) |
-| 10 | Abonnements | Plans Basic/Pro/Elite |
-| 11 | Referrals | Système de parrainage 2% |
+| 10 | Stocks | 10 actions tokenisees (xStocks/Ondo) |
+| 11 | Referrals | Systeme de parrainage 2% |
 | 12 | Data | Marketplace de datasets |
 | 13 | Base L2 | Paiements Coinbase Layer 2 |
-| 14 | Kite AI | Identité agent + paiements IA |
+| 14 | Kite AI | Identite agent + paiements IA |
 | 15 | AP2 | Google Agent Payments Protocol |
+| + | CEO AI | 17 sous-agents autonomes, 4 boucles decisionnelles |
+| + | MCP | 22 tools pour Claude, Cursor, LangChain |
+| + | Trading | OHLCV candles, whale tracker, copy trading |
+| + | XRP | 4eme blockchain (XRP Ledger) |
+| + | Ethereum | Verification USDC on-chain |
