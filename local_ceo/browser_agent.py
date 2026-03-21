@@ -998,30 +998,47 @@ class BrowserAgent:
             await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(5000)
 
-            # Chercher le groupe/user
-            search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
-            if await search.is_visible(timeout=5000):
-                await search.click()
-                await search.fill(group_or_user)
-                await page.wait_for_timeout(2000)
+            # Cliquer directement sur le chat dans la liste (plus fiable)
+            found = False
+            items = await page.locator('.ListItem').all()
+            for item in items[:15]:
+                try:
+                    item_text = await item.inner_text()
+                    if group_or_user.lower() in item_text.lower():
+                        await item.click()
+                        found = True
+                        break
+                except Exception:
+                    continue
 
-                # Cliquer sur le resultat
-                result = page.locator(f'.ListItem:has-text("{group_or_user}")').first
-                if await result.is_visible(timeout=5000):
-                    await result.click()
-                else:
-                    return {"success": False, "error": f"Groupe/user '{group_or_user}' introuvable"}
-            else:
-                return {"success": False, "error": "Champ recherche Telegram introuvable"}
+            # Fallback: recherche
+            if not found:
+                search = page.locator('#telegram-search-input, input[placeholder*="Search" i]').first
+                if await search.is_visible(timeout=3000):
+                    await search.click()
+                    await search.fill(group_or_user)
+                    await page.wait_for_timeout(3000)
+                    items2 = await page.locator('.ListItem').all()
+                    for item in items2[:5]:
+                        try:
+                            item_text = await item.inner_text()
+                            if group_or_user.lower() in item_text.lower():
+                                await item.click()
+                                found = True
+                                break
+                        except Exception:
+                            continue
 
-            await page.wait_for_timeout(1500)
+            if not found:
+                return {"success": False, "error": f"Groupe/user '{group_or_user}' introuvable"}
+
+            await page.wait_for_timeout(2000)
 
             # Taper le message
             filled = await self._find_and_fill(page, [
                 'div.input-message-input[contenteditable="true"]',
                 '#editable-message-text',
-                'div[contenteditable="true"][data-peer-id]',
-                'div.input-message-container div[contenteditable]',
+                'div[contenteditable="true"]',
             ], text[:4000], "Telegram message")
             if not filled:
                 return {"success": False, "error": "Champ message Telegram introuvable"}
@@ -1491,17 +1508,25 @@ class BrowserAgent:
             await page.wait_for_timeout(5000)
 
             # Chercher le groupe
-            search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
-            if await search.is_visible(timeout=3000):
+            search = page.locator('#telegram-search-input, input[placeholder*="Search" i]').first
+            if await search.is_visible(timeout=5000):
                 await search.click()
                 await search.fill(group_name)
-                await page.wait_for_timeout(2000)
-                result = page.locator(f'.ListItem:has-text("{group_name}")').first
-                if await result.is_visible(timeout=3000):
-                    await result.click()
-                    await page.wait_for_timeout(2000)
-                else:
+                await page.wait_for_timeout(3000)
+                found = False
+                items = await page.locator('.ListItem').all()
+                for item in items[:5]:
+                    try:
+                        text = await item.inner_text()
+                        if group_name.lower() in text.lower():
+                            await item.click()
+                            found = True
+                            break
+                    except Exception:
+                        continue
+                if not found:
                     return []
+                await page.wait_for_timeout(2000)
 
             # Lire les messages
             messages = []
