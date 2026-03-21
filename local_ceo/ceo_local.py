@@ -229,6 +229,20 @@ class VPSClient:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def sync(self, local_actions: list, active: bool = True) -> dict:
+        """POST /api/ceo/sync — Synchronise les actions avec le VPS."""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{self._base}/api/ceo/sync",
+                    headers=self._headers,
+                    json={"actions": local_actions, "active": active},
+                )
+                resp.raise_for_status()
+                return resp.json()
+        except Exception as e:
+            return {"error": str(e)}
+
     async def think(self, prompt: str, tier: str = "fast", max_tokens: int = 1000) -> str:
         """POST /api/ceo/think — Delegue la reflexion strategique a Claude sur le VPS."""
         try:
@@ -409,7 +423,14 @@ class CEOLocal:
                 # 4. ACT — executer les actions
                 await self._act(decisions)
 
-                # 5. LOG
+                # 5. SYNC — envoyer les actions au VPS (eviter double-post)
+                recent = self.memory.get("actions_done", [])[-10:]
+                sync_result = await self.vps.sync(recent, active=True)
+                vps_actions = sync_result.get("vps_actions", [])
+                if vps_actions:
+                    _log(f"[SYNC] VPS a fait {len(vps_actions)} actions recemment")
+
+                # 6. LOG
                 elapsed = time.time() - start
                 _log(f"Cycle #{self._cycle} complete en {elapsed:.1f}s")
                 self.memory["cycle_count"] = self._cycle

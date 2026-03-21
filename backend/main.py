@@ -1271,6 +1271,59 @@ async def ceo_emergency_stop(request: Request):
         return {"success": False, "error": str(e)}
 
 
+# ── Coordination locale ↔ VPS ──
+
+_local_ceo_state = {
+    "active": False,
+    "last_sync": 0,
+    "recent_actions": [],  # Actions faites par le CEO local
+}
+
+
+@app.post("/api/ceo/sync")
+async def ceo_sync(request: Request):
+    """Synchronisation CEO local <-> VPS. Evite les double-posts."""
+    from auth import require_ceo_auth
+    _check_ceo_rate(request.client.host if request.client else "?")
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    body = await request.json()
+    local_actions = body.get("actions", [])
+    local_active = body.get("active", False)
+
+    # Enregistrer l'etat du CEO local
+    _local_ceo_state["active"] = local_active
+    _local_ceo_state["last_sync"] = time.time()
+    # Garder les 100 dernieres actions locales
+    _local_ceo_state["recent_actions"].extend(local_actions)
+    _local_ceo_state["recent_actions"] = _local_ceo_state["recent_actions"][-100:]
+
+    # Retourner les actions recentes du VPS CEO
+    try:
+        from ceo_maxia import ceo
+        vps_actions = ceo.memory._data.get("decisions", [])[-20:]
+        return {
+            "vps_actions": vps_actions,
+            "local_registered": len(local_actions),
+            "vps_marketing_paused": _local_ceo_state["active"],
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def is_local_ceo_active() -> bool:
+    """Le VPS CEO verifie si le local est actif (sync < 15 min)."""
+    return _local_ceo_state["active"] and time.time() - _local_ceo_state["last_sync"] < 900
+
+
+def local_ceo_did_action(action_type: str) -> bool:
+    """Verifie si le CEO local a deja fait cette action recemment."""
+    for a in _local_ceo_state["recent_actions"][-50:]:
+        if a.get("action") == action_type:
+            return True
+    return False
+
+
 @app.post("/api/ceo/think")
 async def ceo_think(request: Request):
     """Le CEO local delegue une reflexion strategique a Claude sur le VPS.
