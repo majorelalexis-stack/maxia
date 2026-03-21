@@ -119,6 +119,29 @@ class BrowserAgent:
     async def _ensure_ready(self):
         if not self._initialized:
             await self.setup()
+        # Verifier que le browser est toujours vivant
+        try:
+            if self._page and self._page.is_closed():
+                raise Exception("Page closed")
+            # Test rapide
+            await self._page.evaluate("1+1")
+        except Exception:
+            print("[BrowserAgent] Browser mort, reconnexion...")
+            self._initialized = False
+            try:
+                if self._context:
+                    await self._context.close()
+            except Exception:
+                pass
+            try:
+                if hasattr(self, '_pw') and self._pw:
+                    await self._pw.stop()
+            except Exception:
+                pass
+            self._context = None
+            self._page = None
+            self._pw = None
+            await self.setup()
 
     async def _new_page(self):
         """Cree un nouvel onglet pour les actions paralleles."""

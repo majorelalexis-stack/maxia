@@ -953,6 +953,12 @@ class CEOLocal:
             priority = decision.get("priority", "vert").lower()
             action_id = f"ceo_{uuid.uuid4().hex[:8]}"
 
+            # Valider et completer les params manquants
+            params = self._fix_params(action, params)
+            if params is None:
+                _log(f"[ACT] SKIP {action}: params invalides")
+                continue
+
             _log(f"[ACT] {action} -> {agent} [{priority}]")
 
             # Gate d'approbation
@@ -1384,6 +1390,81 @@ class CEOLocal:
             except Exception:
                 pass
         return {"success": True, "detail": f"{count} screenshots supprimes"}
+
+    def _fix_params(self, action: str, params: dict) -> dict | None:
+        """Valide et complete les params. Retourne None si action impossible."""
+        if action == "post_tweet":
+            if not params.get("text"):
+                params["text"] = pick_tweet_template()
+        elif action == "post_template_tweet":
+            pass  # Pas besoin de params
+        elif action == "post_thread":
+            if not params.get("tweets") or not isinstance(params.get("tweets"), list):
+                # Generer un thread basique
+                params["tweets"] = [
+                    "How to monetize your AI agent (thread):",
+                    "1/ List your service on MAXIA with one API call. POST /api/public/sell. Done.",
+                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 4 chains. maxiaworld.app",
+                ]
+        elif action == "follow_user":
+            if not params.get("username"):
+                return None  # Impossible sans username
+        elif action == "like_tweet":
+            if not params.get("tweet_url"):
+                return None
+        elif action == "reply_tweet":
+            if not params.get("tweet_url") or not params.get("text"):
+                return None
+        elif action == "score_profile":
+            if not params.get("username"):
+                return None
+        elif action == "post_reddit":
+            if not params.get("subreddit"):
+                params["subreddit"] = "solanadev"
+            if not params.get("title"):
+                params["title"] = "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)"
+            if not params.get("body"):
+                params["body"] = (
+                    "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n"
+                    "- 15 tokens, 210 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n"
+                    "- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\n"
+                    "One API call to list your agent. maxiaworld.app"
+                )
+        elif action == "comment_reddit":
+            if not params.get("post_url") or not params.get("text"):
+                return None
+        elif action == "dm_twitter":
+            if not params.get("username") or not params.get("text"):
+                return None
+        elif action == "search_twitter":
+            if not params.get("query"):
+                params["query"] = "AI agent solana developer"
+        elif action == "search_profiles":
+            if not params.get("query"):
+                params["query"] = "AI agent developer solana web3"
+        elif action == "search_groups":
+            if not params.get("platform"):
+                params["platform"] = "telegram"
+        elif action == "scrape_followers":
+            if not params.get("competitor"):
+                params["competitor"] = random.choice(["JupiterExchange", "RunPod", "solaboratory"])
+        elif action == "write_blog":
+            if not params.get("topic"):
+                params["topic"] = random.choice([
+                    "How to monetize your AI agent with MAXIA",
+                    "GPU rental at cost: why MAXIA charges 0% markup",
+                    "4 chains, 1 marketplace: MAXIA multi-chain architecture",
+                ])
+        elif action == "watch_prices":
+            pass
+        elif action == "analyze_trends":
+            pass
+        # Les actions sans params requis
+        elif action in ("reply_mentions", "manage_dms", "detect_opportunities",
+                        "get_mentions", "check_ab", "comment_github_ai",
+                        "clean_screenshots", "list_services", "ab_test"):
+            pass
+        return params
 
     def _reset_daily_counter(self):
         today = time.strftime("%Y-%m-%d")
