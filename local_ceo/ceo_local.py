@@ -278,11 +278,11 @@ async def check_ab_results() -> list:
 async def generate_smart_reply(mention_text: str, username: str) -> str:
     """Genere une reponse pertinente a une mention via Ollama."""
     prompt = (
-        f"Un user @{username} a mentionne MAXIA:\n\"{mention_text[:200]}\"\n\n"
-        f"Redige une reponse courte (<200 chars), utile et technique.\n"
-        f"Ton: dev qui aide un autre dev. Pas de marketing.\n"
-        f"Si c'est une question: reponds. Si c'est un compliment: remercie. Si c'est une plainte: excuse+solution.\n"
-        f"Reponds JUSTE le texte de la reponse, rien d'autre."
+        f"User @{username} mentioned MAXIA:\n\"{mention_text[:200]}\"\n\n"
+        f"Write a short reply (<200 chars), helpful and technical. In ENGLISH.\n"
+        f"Tone: dev helping another dev. No marketing.\n"
+        f"Question: answer it. Compliment: thank them. Complaint: apologize+solution.\n"
+        f"Reply ONLY the text, nothing else."
     )
     reply = await call_local_llm(prompt, max_tokens=100)
     # Nettoyer
@@ -573,31 +573,30 @@ FORMAT REPONSE (JSON strict) :
 {"analysis": "2 phrases max", "decisions": [{"action": "...", "agent": "...", "params": {...}, "priority": "vert|orange|rouge"}], "next_focus": "1 phrase"}"""
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
-CEO_SYSTEM_SHORT = """CEO MAXIA — marketplace IA sur Solana. maxiaworld.app
-Objectif 10k€/mois. Cible: devs AI sans revenus.
+CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on Solana. maxiaworld.app
+Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
 
-ACTIONS (toutes vert sauf mention):
-- post_template_tweet: tweet depuis templates (pas de params) [VERT]
-- post_tweet: tweet custom (params: text) [VERT]
-- post_thread: thread Twitter (params: tweets=[str,str,...]) [VERT]
-- reply_mentions: repond aux mentions automatiquement [VERT]
-- like_tweet: liker (params: tweet_url) [VERT]
+ACTIONS (all vert unless noted):
+- post_template_tweet: tweet from templates [VERT]
+- post_tweet: custom tweet (params: text) [VERT]
+- post_thread: Twitter thread (params: tweets=[str,str,...]) [VERT]
+- reply_mentions: auto-reply to mentions [VERT]
+- like_tweet: like (params: tweet_url) [VERT]
 - follow_user: follow (params: username) [VERT]
-- search_twitter: chercher tweets (params: query) [VERT]
-- search_profiles: profils (params: query) [VERT]
-- score_profile: scorer prospect (params: username) [VERT]
-- detect_opportunities: trouver devs frustres [VERT]
-- scrape_followers: followers concurrent (params: competitor) [VERT]
-- post_reddit: poster (params: subreddit, title, body) [VERT]
-- comment_reddit: commenter (params: post_url, text) [VERT]
+- search_twitter: search tweets (params: query) [VERT]
+- search_profiles: find profiles (params: query) [VERT]
+- score_profile: score prospect (params: username) [VERT]
+- detect_opportunities: find frustrated devs [VERT]
+- scrape_followers: competitor followers (params: competitor) [VERT]
+- post_reddit: post (params: subreddit, title, body) [VERT]
+- comment_reddit: comment (params: post_url, text) [VERT]
 - dm_twitter: DM (params: username, text) [ORANGE]
 - send_telegram: telegram (params: target, text) [ORANGE]
-- update_price: prix VPS (params: service_id, new_price) [ORANGE]
-- search_groups: chercher et rejoindre groupes Telegram/Discord (params: platform) [VERT]
-- ab_test: A/B test 2 variantes (params: text_a, text_b) [VERT]
-- clean_screenshots: nettoyer les vieux screenshots [VERT]
+- update_price: VPS price (params: service_id, new_price) [ORANGE]
+- search_groups: find & join Telegram/Discord groups (params: platform) [VERT]
+- ab_test: A/B test 2 variants (params: text_a, text_b) [VERT]
 
-NE REFAIS PAS ce qui est dans DEJA FAIT. Utilise REGLES APPRISES. Max 3 actions.
+DO NOT repeat what is in ALREADY DONE. Use LEARNED RULES. Max 3 actions.
 JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
 
 
@@ -752,8 +751,8 @@ class CEOLocal:
         )
 
         analysis = await call_local_llm(
-            summary + "\n\n3 points cles. 1 probleme principal. Max 3 phrases.",
-            system="Analyste concis. Reponds en 3 phrases max.",
+            summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
+            system="Concise business analyst. Answer in English, 3 sentences max.",
             max_tokens=150,
         )
         _log(f"  Analyse: {analysis[:150]}")
