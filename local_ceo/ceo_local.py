@@ -787,7 +787,7 @@ class CEOLocal:
     def _is_good_hour(self) -> dict:
         """Calendrier de publication 24/7 — cible la bonne region selon l'heure UTC."""
         import datetime
-        hour = datetime.datetime.utcnow().hour
+        hour = datetime.datetime.now(datetime.timezone.utc).hour
 
         # 24/7 : toujours une region active quelque part
         if 7 <= hour <= 11:
