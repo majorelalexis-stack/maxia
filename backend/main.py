@@ -388,6 +388,14 @@ async def serve_landing():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
 
+REGISTER_PAGE = Path(__file__).parent.parent / "frontend" / "register.html"
+
+@app.get("/register", response_class=HTMLResponse, include_in_schema=False)
+async def serve_register():
+    if REGISTER_PAGE.exists():
+        return HTMLResponse(REGISTER_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Register</h1><p>Page not found.</p>")
+
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
