@@ -16,7 +16,6 @@ from database import db, create_database
 from auth import router as auth_router, require_auth
 from auction_manager import AuctionManager
 from agent_worker import agent_worker
-from subscription_manager import router as sub_router
 from referral_manager import router as ref_router
 from data_marketplace import router as data_router
 from models import (
@@ -310,10 +309,22 @@ async def rate_limit_headers_middleware(request, call_next):
             headers={"Retry-After": str(ban_remaining)},
         )
 
-    response = await call_next(request)
+    # Rate limit check BEFORE processing the request (H-06 fix)
     try:
         path = request.url.path
-        check_rate_limit_smart(ip, path)
+        if not check_rate_limit_smart(ip, path):
+            info = get_rate_limit_info(ip)
+            from starlette.responses import JSONResponse as _JSONResp
+            return _JSONResp(
+                status_code=429,
+                content={"error": "Rate limit exceeded", "retry_after": 60},
+                headers={**info, "Retry-After": "60"},
+            )
+    except Exception:
+        pass
+
+    response = await call_next(request)
+    try:
         info = get_rate_limit_info(ip)
         for k, v in info.items():
             response.headers[k] = v
@@ -323,7 +334,6 @@ async def rate_limit_headers_middleware(request, call_next):
 
 # ── Routers ──
 app.include_router(auth_router)
-app.include_router(sub_router)
 app.include_router(ref_router)
 app.include_router(data_router)
 app.include_router(public_router)
@@ -575,7 +585,7 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <tr><td>Whale</td><td>$5,000+</td><td>0.1%</td></tr></table>
 
 <h2>Resources</h2>
-<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v2.0</a></p>
+<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v1.0</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
 <p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 49 modules, 90+ endpoints, 22 MCP tools, 10 trading features — maxiaworld.app</p>
@@ -652,7 +662,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
       <li>Agent-to-agent chat</li>
       <li>Escrow protection</li>
       <li>Webhook notifications</li>
-      <li>100 req/day</li>
+      <li>60 req/min</li>
     </ul>
   </div>
   <div class="card">
@@ -977,6 +987,8 @@ async def ceo_negotiate(request: Request):
 @app.post("/api/ceo/negotiate/bundle")
 async def ceo_negotiate_bundle(request: Request):
     """Negociation de pack de services avec remise volume."""
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         from ceo_maxia import ceo
@@ -1091,6 +1103,14 @@ _CEO_RATE_WINDOW = 60
 
 def _check_ceo_rate(ip: str):
     now = time.time()
+    # Hard cap: if dict exceeds 1000 entries, prune all stale and force cleanup
+    if len(_ceo_rate) > 1000:
+        stale_ips = [k for k, v in _ceo_rate.items() if not v or v[-1] < now - _CEO_RATE_WINDOW * 2]
+        for k in stale_ips:
+            _ceo_rate.pop(k, None)
+        # If still over limit after pruning, clear everything
+        if len(_ceo_rate) > 1000:
+            _ceo_rate.clear()
     _ceo_rate.setdefault(ip, [])
     _ceo_rate[ip] = [t for t in _ceo_rate[ip] if t > now - _CEO_RATE_WINDOW]
     if len(_ceo_rate[ip]) >= _CEO_RATE_LIMIT:
@@ -1510,22 +1530,28 @@ async def admin_enable_agent(request: Request):
 
 
 @app.get("/api/ceo/disabled-agents")
-async def ceo_disabled():
+async def ceo_disabled(request: Request):
     """Liste les agents desactives."""
+    from security import require_admin
+    require_admin(request)
     from ceo_maxia import ceo
     return {"disabled": ceo.get_disabled_agents()}
 
 
 @app.get("/api/ceo/roi")
-async def ceo_roi():
+async def ceo_roi(request: Request):
     """Stats ROI par agent et par type d'action."""
+    from security import require_admin
+    require_admin(request)
     from ceo_maxia import ceo
     return ceo.get_roi()
 
 
 @app.get("/api/ceo/ab-tests")
-async def ceo_ab_tests():
+async def ceo_ab_tests(request: Request):
     """Resultats des tests A/B en cours."""
+    from security import require_admin
+    require_admin(request)
     from ceo_maxia import ceo
     return ceo.get_ab_results()
 
@@ -1533,6 +1559,8 @@ async def ceo_ab_tests():
 @app.post("/api/ceo/ab-tests")
 async def ceo_create_ab_test(request: Request):
     """Cree un nouveau test A/B."""
+    from security import require_admin
+    require_admin(request)
     body = await request.json()
     from ceo_maxia import ceo
     ceo.create_test(body.get("name", ""), body.get("variant_a", ""), body.get("variant_b", ""))
@@ -1540,8 +1568,10 @@ async def ceo_create_ab_test(request: Request):
 
 
 @app.get("/api/ceo/llm-costs")
-async def ceo_llm_costs():
+async def ceo_llm_costs(request: Request):
     """LLM token usage and estimated cost per model."""
+    from security import require_admin
+    require_admin(request)
     from ceo_maxia import get_llm_costs
     return get_llm_costs()
 
@@ -1621,11 +1651,15 @@ async def watchdog_health():
 @app.post("/api/ceo/ask")
 async def ceo_ask(request: Request):
     """Chat with the CEO MAXIA. Ask questions, give orders, get updates."""
+    from security import require_admin
+    require_admin(request)
     try:
         body = await request.json()
         message = body.get("message", body.get("text", ""))
         if not message:
             return {"error": "message required"}
+        if len(message) > 2000:
+            raise HTTPException(400, "Message too long (max 2000 chars)")
         from groq import Groq
         c = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
         resp = c.chat.completions.create(
@@ -1685,8 +1719,10 @@ async def admin_backup_verify(request: Request):
     return await verify_backup(body.get("file", ""))
 
 @app.get("/api/ceo/memory")
-async def ceo_memory_stats():
+async def ceo_memory_stats(request: Request):
     """Get CEO vector memory statistics."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_vector_memory import vector_memory
         return vector_memory.stats()
@@ -1695,8 +1731,10 @@ async def ceo_memory_stats():
 
 
 @app.get("/api/ceo/memory/search")
-async def ceo_memory_search(q: str = "", collection: str = ""):
+async def ceo_memory_search(request: Request, q: str = "", collection: str = ""):
     """Search CEO memory. Example: /api/ceo/memory/search?q=whale+conversion"""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_vector_memory import vector_memory
         results = vector_memory.search(q, collection=collection or None, max_results=5)
@@ -1727,12 +1765,15 @@ async def admin_post_tweet(request: Request):
 
 @app.get("/api/x402/info")
 async def x402_info():
+    from config import TREASURY_ADDRESS_ETH, TREASURY_ADDRESS_XRPL
     return {
         "version": 2,
         "networks": SUPPORTED_NETWORKS,
         "payTo": {
             "solana": TREASURY_ADDRESS,
             "base": TREASURY_ADDRESS_BASE,
+            "ethereum": TREASURY_ADDRESS_ETH,
+            "xrpl": TREASURY_ADDRESS_XRPL,
         },
         "priceMap": X402_PRICE_MAP,
         "protocols": ["x402-v2", "ap2"],
@@ -2654,7 +2695,7 @@ async def seed_datasets(request: Request):
 async def whitepaper():
     """Lien vers le White Paper MAXIA."""
     return {
-        "title": "MAXIA White Paper v2.0",
+        "title": "MAXIA White Paper v1.0",
         "version": "2.0",
         "date": "Mars 2026",
         "download": "https://github.com/majorelalexis-stack/maxia/blob/main/MAXIA_WhitePaper_v1.pdf",

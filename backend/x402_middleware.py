@@ -4,6 +4,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from config import (
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
+    TREASURY_ADDRESS_XRPL,
     BASE_USDC_CONTRACT, BASE_CHAIN_ID,
     ETH_USDC_CONTRACT, ETH_CHAIN_ID, ETH_MIN_TX_USDC,
     X402_PRICE_MAP,
@@ -77,6 +78,13 @@ async def x402_middleware(request: Request, call_next):
         elif "base" in pay_network:
             from base_verifier import x402_verify_payment_base
             result = await x402_verify_payment_base(pay_header, price)
+        elif "xrpl" in pay_network or "xrp" in pay_network:
+            from xrpl_verifier import verify_xrpl_transaction
+            result = await verify_xrpl_transaction(
+                tx_hash=pay_header,
+                expected_dest=TREASURY_ADDRESS_XRPL,
+                expected_amount=price,
+            )
         else:
             from solana_verifier import verify_transaction
             result = await verify_transaction(

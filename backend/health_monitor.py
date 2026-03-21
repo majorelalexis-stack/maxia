@@ -18,7 +18,11 @@ async def run_health_monitor():
     while True:
         await asyncio.sleep(300)  # 5 minutes
         failures = []
-        async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{PORT}", timeout=10) as client:
+        # Use X-Internal header so middleware can exempt localhost health checks
+        async with httpx.AsyncClient(
+            base_url=f"http://127.0.0.1:{PORT}", timeout=10,
+            headers={"X-Internal": "health-monitor", "User-Agent": "MAXIA-HealthMonitor/1.0"},
+        ) as client:
             for path, expected in ENDPOINTS:
                 try:
                     r = await client.get(path)

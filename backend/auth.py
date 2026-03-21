@@ -214,3 +214,16 @@ async def require_ceo_auth(
             raise HTTPException(403, f"IP {ip} not in CEO whitelist")
 
     return "ceo"
+
+
+async def require_session_auth(
+    authorization: str = Header(None, alias="Authorization"),
+) -> str:
+    """Dependency that accepts Authorization: Bearer <session_token> and validates it."""
+    if not authorization:
+        raise HTTPException(401, "Missing Authorization header")
+    parts = authorization.split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(401, "Invalid Authorization format. Expected: Bearer <token>")
+    token = parts[1]
+    return verify_session_token(token)

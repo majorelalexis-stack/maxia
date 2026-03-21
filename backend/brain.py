@@ -57,14 +57,13 @@ class Brain:
         await self._check_daily_report()
 
     async def _get_queue_size(self) -> int:
-        if self._db is None or self._db._db is None:
+        if self._db is None:
             return 0
         try:
-            async with self._db._db.execute(
+            rows = await self._db.raw_execute_fetchall(
                 "SELECT COUNT(*) as cnt FROM commands WHERE json_extract(data,'$.status')='pending'"
-            ) as c:
-                row = await c.fetchone()
-            return int(row[0]) if row else 0
+            )
+            return int(rows[0][0]) if rows else 0
         except Exception:
             return 0
 

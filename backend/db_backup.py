@@ -2,8 +2,8 @@
 import asyncio, shutil, time, os
 from pathlib import Path
 
-BACKUP_DIR = Path("/opt/maxia/backups")
-DB_PATH = Path("/opt/maxia/backend/maxia.db")
+DB_PATH = Path(__file__).parent / "maxia.db"
+BACKUP_DIR = Path(__file__).parent / "backups"
 MAX_BACKUPS = 30  # keep last 30 backups
 
 

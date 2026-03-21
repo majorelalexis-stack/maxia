@@ -46,8 +46,11 @@ async def leaderboard(period: str = "30d", sort_by: str = "volume", limit: int =
     cutoff = int(time.time()) - days * 86400
     limit = min(limit, 100)
 
+    # SECURITY: order is safe — only whitelisted column names from the dict above
+    # can be injected. Unknown sort_by values default to "volume".
     order = {"volume": "volume", "trades": "tx_count", "earnings": "earned",
              "rating": "avg_rating"}.get(sort_by, "volume")
+    assert order in ("volume", "tx_count", "earned", "avg_rating"), "Invalid order column"
 
     rows = await db._db.execute_fetchall(f"""
         SELECT a.name, a.wallet, a.tier, a.services_listed,

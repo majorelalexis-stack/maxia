@@ -38,7 +38,10 @@
       "Bash(\"C:/Users/Mini pc/Desktop/MAXIA V12/.gitignore\")",
       "Bash(ollama create:*)",
       "Bash(start:*)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(taskkill //f //im chrome.exe)",
+      "Bash(taskkill //f //im python.exe)",
+      "Bash(powershell -Command \"Start-Process -FilePath 'python' -ArgumentList 'C:\\\\\\\\Users\\\\\\\\Mini pc\\\\\\\\Desktop\\\\\\\\MAXIA V12\\\\\\\\local_ceo\\\\\\\\ceo_local.py' -WorkingDirectory 'C:\\\\\\\\Users\\\\\\\\Mini pc\\\\\\\\Desktop\\\\\\\\MAXIA V12\\\\\\\\local_ceo' -WindowStyle Normal\")"
     ]
   },
   "effortLevel": "high"

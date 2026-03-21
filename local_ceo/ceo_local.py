@@ -74,22 +74,28 @@ def _decrypt(data: str) -> str:
 
 
 def _load_memory() -> dict:
+    _default = {
+        "decisions": [], "actions_done": [], "regles": [],
+        "tweets_posted": [], "contacts": [], "follows": [],
+        "last_strategic": "", "cycle_count": 0,
+        "daily_stats": {},
+    }
     try:
         if os.path.exists(_MEMORY_FILE):
             with open(_MEMORY_FILE, "r", encoding="utf-8") as f:
                 raw = f.read()
             # Tenter de dechiffrer si c'est chiffre
             if raw.startswith("gAAAAA"):
-                raw = _decrypt(raw)
+                decrypted = _decrypt(raw)
+                # If decryption failed (returned same encrypted string), key is invalid
+                if decrypted == raw or decrypted.startswith("gAAAAA"):
+                    print("[Memory] Decryption failed (key mismatch?) — starting fresh memory")
+                    return _default
+                raw = decrypted
             return json.loads(raw)
-    except Exception:
-        pass
-    return {
-        "decisions": [], "actions_done": [], "regles": [],
-        "tweets_posted": [], "contacts": [], "follows": [],
-        "last_strategic": "", "cycle_count": 0,
-        "daily_stats": {},
-    }
+    except (json.JSONDecodeError, Exception) as e:
+        print(f"[Memory] Load error: {e} — starting fresh memory")
+    return _default
 
 
 def _save_memory(mem: dict):

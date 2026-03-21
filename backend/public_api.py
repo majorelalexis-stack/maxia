@@ -368,10 +368,11 @@ async def register_agent(req: dict):
         tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         tg_chat = os.getenv("TELEGRAM_CHANNEL", "")
         if tg_token and tg_chat:
-            await _httpx.AsyncClient(timeout=5).post(
-                f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                json={"chat_id": tg_chat, "text": f"NEW AGENT REGISTERED!\n\nName: {name}\nWallet: {wallet[:16]}...\n\nTotal agents: {len(_registered_agents)}"},
-            )
+            async with _httpx.AsyncClient(timeout=5) as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={"chat_id": tg_chat, "text": f"NEW AGENT REGISTERED!\n\nName: {name}\nWallet: {wallet[:16]}...\n\nTotal agents: {len(_registered_agents)}"},
+                )
     except Exception:
         pass
 
