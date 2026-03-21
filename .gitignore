@@ -4,3 +4,8 @@ backend/.env
 __pycache__/
 .maxia-browser/
 *.log
+.memory_key
+ceo_memory.json
+ceo_control.json
+ab_tests.json
+local_ceo/finetune/training_data.jsonl

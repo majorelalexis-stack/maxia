@@ -293,15 +293,16 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
 # LLM Router local (simplifie — Ollama + Mistral fallback)
 # ══════════════════════════════════════════
 
-async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Ollama local (0 cout)."""
+async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, model: str = None) -> str:
+    """Appel Ollama local (0 cout). Utilise maxia-ceo par defaut."""
+    _model = model or "maxia-ceo"  # Modele fine-tune MAXIA
     full = f"{system}\n\n{prompt}" if system else prompt
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
                 json={
-                    "model": OLLAMA_MODEL,
+                    "model": _model,
                     "prompt": full,
                     "stream": False,
                     "options": {"num_predict": max_tokens, "temperature": 0.7},
@@ -589,8 +590,11 @@ ACTIONS (toutes vert sauf mention):
 - dm_twitter: DM (params: username, text) [ORANGE]
 - send_telegram: telegram (params: target, text) [ORANGE]
 - update_price: prix VPS (params: service_id, new_price) [ORANGE]
+- search_groups: chercher et rejoindre groupes Telegram/Discord (params: platform) [VERT]
+- ab_test: A/B test 2 variantes (params: text_a, text_b) [VERT]
+- clean_screenshots: nettoyer les vieux screenshots [VERT]
 
-NE REFAIS PAS ce qui est dans DEJA FAIT. Max 3 actions.
+NE REFAIS PAS ce qui est dans DEJA FAIT. Utilise REGLES APPRISES. Max 3 actions.
 JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
 
 
@@ -659,7 +663,23 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[A/B] Check error: {e}")
 
-                # 7. SYNC — envoyer les actions au VPS (eviter double-post)
+                # 7. SEARCH GROUPS (toutes les 12 cycles = ~2h)
+                if self._cycle % 12 == 1:
+                    try:
+                        groups = self.memory.get("groups_joined", [])
+                        if len(groups) < 10:  # Max 10 groupes
+                            platform = "telegram" if self._cycle % 24 < 12 else "discord"
+                            gr = await self._search_and_join_groups(platform)
+                            if gr.get("groups"):
+                                _log(f"[GROUPS] {gr['detail']}")
+                    except Exception as e:
+                        _log(f"[GROUPS] Erreur: {e}")
+
+                # 8. CLEAN screenshots (toutes les 50 cycles = ~8h)
+                if self._cycle % 50 == 0:
+                    self._clean_screenshots()
+
+                # 9. SYNC — envoyer les actions au VPS (eviter double-post)
                 recent = self.memory.get("actions_done", [])[-10:]
                 sync_result = await self.vps.sync(recent, active=True)
                 vps_actions = sync_result.get("vps_actions", [])
@@ -745,14 +765,23 @@ class CEOLocal:
         if recent:
             done = [f"{a['action']}({'OK' if a.get('success') else 'FAIL'})" for a in recent]
             parts.append(f"DEJA FAIT: {', '.join(done)}")
-        # Regles apprises
-        regles = mem.get("regles", [])[-3:]
+        # Regles apprises (lues et utilisees dans les decisions)
+        regles = mem.get("regles", [])[-5:]
         if regles:
-            parts.append(f"REGLES: {'; '.join(str(r)[:50] for r in regles)}")
-        # Tweets postes (eviter doublons)
-        tweets = mem.get("tweets_posted", [])[-3:]
+            parts.append(f"REGLES APPRISES: {'; '.join(str(r)[:60] for r in regles)}")
+        # CRM — contacts et follows
+        contacts = mem.get("contacts", [])
+        follows = mem.get("follows", [])
+        if contacts or follows:
+            parts.append(f"CRM: {len(contacts)} contacts, {len(follows)} follows")
+        # Tweets postes
+        tweets = mem.get("tweets_posted", [])
         if tweets:
-            parts.append(f"TWEETS RECENTS: {len(mem.get('tweets_posted', []))} postes")
+            parts.append(f"TWEETS: {len(tweets)} postes")
+        # Groupes rejoints
+        groups = mem.get("groups_joined", [])
+        if groups:
+            parts.append(f"GROUPES: {', '.join(g[:20] for g in groups[-3:])}")
         return "\n".join(parts) if parts else "Pas d historique."
 
     def _is_good_hour(self) -> dict:
@@ -871,11 +900,31 @@ class CEOLocal:
                 detail = result.get("detail", result.get("result", ""))
                 _log(f"  {'OK' if success else 'ECHEC'}: {str(detail)[:100]}")
 
-                # Sauvegarder en memoire
+                # Sauvegarder en memoire + CRM
                 self.memory["actions_done"].append({
                     "action": action, "agent": agent, "priority": priority,
                     "success": success, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
                 })
+                # CRM tracking
+                if success:
+                    if action == "follow_user":
+                        self.memory.setdefault("follows", []).append({
+                            "username": params.get("username", ""), "ts": time.strftime("%Y-%m-%d"),
+                            "status": "followed",
+                        })
+                    elif action in ("dm_twitter", "contact_prospect", "send_telegram"):
+                        self.memory.setdefault("contacts", []).append({
+                            "target": params.get("username", params.get("target", params.get("wallet", ""))),
+                            "canal": action, "ts": time.strftime("%Y-%m-%d"), "status": "contacted",
+                        })
+                    elif action in ("post_tweet", "post_template_tweet"):
+                        self.memory.setdefault("tweets_posted", []).append({
+                            "text": params.get("text", "")[:50], "ts": time.strftime("%Y-%m-%d"),
+                        })
+                    elif action in ("join_telegram", "join_discord"):
+                        self.memory.setdefault("groups_joined", []).append(
+                            params.get("group_link", params.get("invite_link", ""))
+                        )
 
                 await audit.log(
                     action, agent, priority=priority,
@@ -942,6 +991,10 @@ class CEOLocal:
         elif action == "check_ab":
             results = await check_ab_results()
             return {"success": True, "detail": f"{len(results)} tests completes", "data": results}
+        elif action == "search_groups":
+            return await self._search_and_join_groups(params.get("platform", "telegram"))
+        elif action == "clean_screenshots":
+            return self._clean_screenshots()
         # Reddit (local)
         elif action == "post_reddit":
             return await self._do_browser("post_reddit", params)
@@ -1068,6 +1121,62 @@ class CEOLocal:
         # On ne peut pas facilement retrouver l'URL du tweet poste
         # mais on peut verifier l'engagement du profil
         _log("[FEEDBACK] Verification engagement (a implementer avec URL tracking)")
+
+    async def _search_and_join_groups(self, platform: str = "telegram") -> dict:
+        """Cherche et rejoint des groupes pertinents sur Telegram/Discord."""
+        queries = ["Solana dev", "AI agents", "ElizaOS", "LangChain", "DeFi builders", "Web3 dev"]
+        joined = []
+        already = self.memory.get("groups_joined", [])
+
+        if platform == "telegram":
+            # Chercher des groupes Telegram via Google
+            for q in queries[:3]:
+                results = await browser.search_google(f"telegram group {q} invite link t.me", 3)
+                for r in results:
+                    url = r.get("url", "")
+                    if "t.me" in url and url not in already:
+                        result = await browser.join_telegram_group(url)
+                        if result.get("success"):
+                            joined.append(url)
+                            self.memory.setdefault("groups_joined", []).append(url)
+                            _log(f"  Rejoint Telegram: {url}")
+                        if len(joined) >= 2:
+                            break
+                if len(joined) >= 2:
+                    break
+
+        elif platform == "discord":
+            for q in queries[:3]:
+                results = await browser.search_google(f"discord server {q} invite discord.gg", 3)
+                for r in results:
+                    url = r.get("url", "")
+                    if "discord" in url and url not in already:
+                        result = await browser.join_discord_server(url)
+                        if result.get("success"):
+                            joined.append(url)
+                            self.memory.setdefault("groups_joined", []).append(url)
+                            _log(f"  Rejoint Discord: {url}")
+                        if len(joined) >= 2:
+                            break
+                if len(joined) >= 2:
+                    break
+
+        return {"success": bool(joined), "detail": f"{len(joined)} groupes rejoints sur {platform}", "groups": joined}
+
+    def _clean_screenshots(self) -> dict:
+        """Nettoie les screenshots de preuve > 7 jours."""
+        import glob
+        profile_dir = os.path.expanduser("~/.maxia-browser")
+        count = 0
+        now = time.time()
+        for f in glob.glob(os.path.join(profile_dir, "*.png")):
+            try:
+                if now - os.path.getmtime(f) > 7 * 86400:
+                    os.remove(f)
+                    count += 1
+            except Exception:
+                pass
+        return {"success": True, "detail": f"{count} screenshots supprimes"}
 
     def _reset_daily_counter(self):
         today = time.strftime("%Y-%m-%d")

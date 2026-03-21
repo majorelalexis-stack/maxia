@@ -87,7 +87,23 @@ def _get_dashboard_data() -> dict:
         "regles": mem.get("regles", [])[-5:],
         # Historique 7 jours pour graphiques
         "daily_history": _compute_daily_history(mem),
+        "crm": {
+            "contacts": len(mem.get("contacts", [])),
+            "follows": len(mem.get("follows", [])),
+            "groups": len(mem.get("groups_joined", [])),
+            "groups_list": mem.get("groups_joined", [])[-5:],
+        },
+        "pending_approvals": _get_pending_approvals(),
     }
+
+
+def _get_pending_approvals() -> list:
+    """Lit les approbations en attente."""
+    try:
+        from notifier import get_pending_approvals
+        return get_pending_approvals()
+    except Exception:
+        return []
 
 
 def _compute_daily_history(mem: dict) -> list:
@@ -193,6 +209,10 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
 <div class="section"><h2>Actions executees</h2><table id="actions"></table></div>
 </div>
 <div class="section"><h2>Audit</h2><table id="audit"></table></div>
+<div class="cols">
+<div class="section"><h2>CRM</h2><div id="crm" style="font-size:12px"></div></div>
+<div class="section"><h2>Approbations en attente</h2><div id="approvals" style="font-size:12px"></div></div>
+</div>
 <div class="section"><h2>Regles actives</h2><div id="regles" style="font-size:12px;color:#aaa"></div></div>
 <div class="section"><h2>Logs</h2><div class="log-box" id="logs"></div></div>
 <div class="refresh" id="refresh"></div>
@@ -246,6 +266,28 @@ async function load(){
     gh+='</div>';
     document.getElementById('chart').innerHTML=gh;
 
+    // CRM
+    const crm=d.crm||{};
+    document.getElementById('crm').innerHTML=
+      `<div>Contacts: <b>${crm.contacts||0}</b> | Follows: <b>${crm.follows||0}</b> | Groupes: <b>${crm.groups||0}</b></div>`+
+      `<div style="color:#555;margin-top:4px">${(crm.groups_list||[]).map(g=>'• '+g.substring(0,40)).join('<br>')}</div>`;
+
+    // Approvals
+    const approvals=d.pending_approvals||[];
+    if(approvals.length>0){
+      let ah='';
+      approvals.forEach(a=>{
+        ah+=`<div style="margin:5px 0;padding:8px;background:#1a1a2a;border-radius:4px">
+          <b class="orange">${a.priority}</b> ${a.action}
+          <button class="btn btn-small" style="background:#00ff88;color:#000;margin-left:10px" onclick="approveAction('${a.id}',true)">Approve</button>
+          <button class="btn btn-small" style="background:#ff4444;color:#fff;margin-left:5px" onclick="approveAction('${a.id}',false)">Deny</button>
+        </div>`;
+      });
+      document.getElementById('approvals').innerHTML=ah;
+    } else {
+      document.getElementById('approvals').innerHTML='<span style="color:#555">Aucune action en attente</span>';
+    }
+
     // Regles
     let rh='';
     (d.regles||[]).forEach((r,i)=>{rh+=`<div style="margin:3px 0">• ${r}</div>`;});
@@ -273,6 +315,10 @@ async function addRule(){
 async function clearMemory(){
   if(!confirm('Reset toute la memoire du CEO local ?'))return;
   await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_memory'})});
+  load();
+}
+async function approveAction(id,approved){
+  await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'approve',value:id,approved:approved})});
   load();
 }
 async function exportCSV(){
@@ -333,6 +379,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 mem.setdefault("regles", []).append(str(value)[:200])
                 _save_memory(mem)
                 self._json_response({"regles": len(mem["regles"])})
+            elif action == "approve":
+                try:
+                    from notifier import approve_action
+                    approved = body.get("approved", True)
+                    approve_action(str(value), approved)
+                    self._json_response({"approved": approved, "id": value})
+                except Exception as e:
+                    self._json_response({"error": str(e)})
+                return
             elif action == "clear_memory":
                 _save_memory({"decisions": [], "actions_done": [], "regles": [],
                               "tweets_posted": [], "contacts": [], "follows": [],
