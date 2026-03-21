@@ -105,9 +105,25 @@ async def request_approval(action_id: str, decision: dict) -> str:
         "timestamp": time.time(),
     }
 
-    # Attendre l'approbation (poll toutes les 10s)
+    # Essayer l'approbation via Discord (poll les messages)
+    try:
+        from discord_approval import send_approval_request
+        discord_result = await send_approval_request(
+            action_id, action_desc, agent, priority,
+        )
+        if discord_result == "approved":
+            _pending_approvals.pop(action_id, None)
+            return "human"
+        elif discord_result == "denied":
+            _pending_approvals.pop(action_id, None)
+            return "denied"
+    except Exception:
+        pass
+
+    # Fallback: attendre via dashboard/poll
     start = time.time()
-    while time.time() - start < timeout:
+    remaining = max(0, timeout - (time.time() - start))
+    while time.time() - start < remaining:
         entry = _pending_approvals.get(action_id)
         if entry and entry["approved"] is not None:
             del _pending_approvals[action_id]
@@ -115,7 +131,7 @@ async def request_approval(action_id: str, decision: dict) -> str:
         await asyncio.sleep(10)
 
     # Timeout
-    del _pending_approvals[action_id]
+    _pending_approvals.pop(action_id, None)
     if priority == "orange" and amount <= AUTO_EXECUTE_MAX_USD:
         return "timeout"  # auto-execute pour orange sous seuil
     elif priority == "rouge":
