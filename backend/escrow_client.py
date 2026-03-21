@@ -1,5 +1,7 @@
-"""MAXIA Art.21 V12 — Escrow Client (wallet-based avec persistance DB)"""
-import uuid, time, json, asyncio
+"""MAXIA Art.21 V12 — Escrow Client (wallet-based avec persistance DB)
+Production-hardened: race-condition locks, DB-as-truth, input validation,
+safe SQL, audit trail, int amounts, releasing-state crash recovery."""
+import uuid, time, json, asyncio, re
 import httpx
 import base58
 from config import (
@@ -8,6 +10,12 @@ from config import (
 from alerts import alert_system, alert_error
 
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
+# #2: Global asyncio lock — prevents double-spend race conditions
+_escrow_lock = asyncio.Lock()
+
+# Solana base58 address regex (#3 / #13)
+_SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
 
 
 class EscrowClient:
@@ -31,7 +39,7 @@ class EscrowClient:
             return
         try:
             rows = await self._db.raw_execute_fetchall(
-                "SELECT data FROM escrow_records WHERE status='locked'")
+                "SELECT data FROM escrow_records WHERE status IN ('locked', 'releasing')")
             for row in rows:
                 escrow = json.loads(row["data"])
                 self._escrows[escrow["escrowId"]] = escrow
@@ -51,6 +59,21 @@ class EscrowClient:
             except Exception as e:
                 print(f"[EscrowClient] Erreur sauvegarde DB: {e}")
 
+    # #10: Load single escrow from DB (source of truth)
+    async def _load_escrow_from_db(self, escrow_id: str) -> dict | None:
+        """Reload a single escrow from DB to get latest state."""
+        if not self._db:
+            return None
+        try:
+            rows = await self._db.raw_execute_fetchall(
+                "SELECT data FROM escrow_records WHERE escrow_id = ?",
+                (escrow_id,))
+            if rows:
+                return json.loads(rows[0]["data"])
+        except Exception:
+            pass
+        return None
+
     async def create_escrow(self, buyer_wallet: str, seller_wallet: str,
                              amount_usdc: float, service_id: str,
                              tx_signature: str, timeout_hours: int = 72) -> dict:
@@ -60,12 +83,32 @@ class EscrowClient:
         if not ESCROW_ADDRESS:
             return {"success": False, "error": "ESCROW_ADDRESS non configure"}
 
-        # D-02: Uniqueness check — prevent duplicate escrows for the same tx
+        # #3 / #13: Validate seller_wallet (Solana address format)
+        if not seller_wallet or len(seller_wallet) < 32 or len(seller_wallet) > 44:
+            return {"success": False, "error": "Invalid seller wallet address"}
+        if not _SOLANA_ADDR_RE.match(seller_wallet):
+            return {"success": False, "error": "Invalid Solana address format"}
+        if seller_wallet == buyer_wallet:
+            return {"success": False, "error": "Seller cannot be the same as buyer"}
+        if seller_wallet == ESCROW_ADDRESS:
+            return {"success": False, "error": "Seller cannot be the escrow address"}
+
+        # #6: Validate timeout_hours (1-168h = 7 days max)
+        if not isinstance(timeout_hours, (int, float)) or timeout_hours < 1 or timeout_hours > 168:
+            return {"success": False, "error": "timeout_hours must be between 1 and 168 (7 days max)"}
+
+        # #8: Convert to int micro-USDC for precision
+        amount_raw = int(round(amount_usdc * 1_000_000))
+        if amount_raw <= 0:
+            return {"success": False, "error": "amount_usdc must be positive"}
+
+        # #11: SQL LIKE injection fix — escape wildcards in tx_signature
         if self._db:
             try:
+                safe_sig = tx_signature.replace("%", "").replace("_", "")
                 existing = await self._db.raw_execute_fetchall(
                     "SELECT escrow_id FROM escrow_records WHERE data LIKE ?",
-                    (f'%"txSignature": "{tx_signature}"%',))
+                    (f'%"txSignature":"{safe_sig}"%',))
                 if existing:
                     return {"success": False, "error": f"Escrow already exists for tx {tx_signature[:16]}..."}
             except Exception:
@@ -83,27 +126,31 @@ class EscrowClient:
         if not pay_ok.get("valid"):
             return {"success": False, "error": f"Paiement non verifie: {pay_ok.get('error')}"}
 
+        # #9: Use the VERIFIED on-chain amount, not the requested amount
+        verified_amount = pay_ok.get("amount_usdc", amount_usdc)
+        verified_raw = int(round(verified_amount * 1_000_000))
+
         escrow = {
             "escrowId": escrow_id,
             "buyer": buyer_wallet,
             "seller": seller_wallet,
-            "amount_usdc": amount_usdc,
-            "amount_raw": int(amount_usdc * 1e6),
+            "amount_usdc": verified_amount,       # #9: on-chain verified amount
+            "amount_raw": verified_raw,            # #8: int micro-USDC
             "serviceId": service_id,
             "txSignature": tx_signature,
             "status": "locked",
             "createdAt": int(time.time()),
-            "timeoutAt": int(time.time()) + timeout_hours * 3600,
-            "timeoutHours": timeout_hours,
-            "verified_amount": pay_ok.get("amount_usdc", 0),
+            "timeoutAt": int(time.time()) + int(timeout_hours) * 3600,
+            "timeoutHours": int(timeout_hours),
+            "verified_amount": verified_amount,
             "verified_from": pay_ok.get("from", ""),
         }
         await self._save_escrow(escrow)
 
-        print(f"[EscrowClient] Escrow cree: {amount_usdc} USDC | {buyer_wallet[:8]}... -> {seller_wallet[:8]}...")
+        print(f"[EscrowClient] Escrow cree: {verified_amount} USDC | {buyer_wallet[:8]}... -> {seller_wallet[:8]}...")
         await alert_system(
             "Nouvel Escrow",
-            f"**{amount_usdc} USDC** verrouilles\n"
+            f"**{verified_amount} USDC** verrouilles\n"
             f"Buyer: `{buyer_wallet[:8]}...`\n"
             f"Seller: `{seller_wallet[:8]}...`\n"
             f"Service: {service_id}\n"
@@ -114,97 +161,166 @@ class EscrowClient:
 
     async def confirm_delivery(self, escrow_id: str, buyer_wallet: str) -> dict:
         """Buyer confirme la livraison -> USDC liberes au seller."""
-        escrow = self._escrows.get(escrow_id)
-        if not escrow:
-            return {"success": False, "error": "Escrow introuvable"}
-        if escrow["status"] != "locked":
-            return {"success": False, "error": f"Status invalide: {escrow['status']}"}
-        if escrow["buyer"] != buyer_wallet:
-            return {"success": False, "error": "Seul le buyer peut confirmer"}
+        # #2: Lock to prevent race condition / double-spend
+        async with _escrow_lock:
+            # #10: Reload from DB (source of truth) before acting
+            db_escrow = await self._load_escrow_from_db(escrow_id)
+            if db_escrow:
+                escrow = db_escrow
+                self._escrows[escrow_id] = escrow
+            else:
+                escrow = self._escrows.get(escrow_id)
 
-        # Envoyer les USDC au seller
-        from solana_tx import send_usdc_transfer
-        result = await send_usdc_transfer(
-            to_address=escrow["seller"],
-            amount_usdc=escrow["amount_usdc"],
-            from_privkey=ESCROW_PRIVKEY_B58,
-            from_address=ESCROW_ADDRESS,
-        )
+            if not escrow:
+                return {"success": False, "error": "Escrow introuvable"}
+            if escrow["status"] != "locked":
+                return {"success": False, "error": f"Status invalide: {escrow['status']}"}
+            if escrow["buyer"] != buyer_wallet:
+                return {"success": False, "error": "Seul le buyer peut confirmer"}
 
-        if result.get("success"):
-            escrow["status"] = "released"
-            escrow["releasedAt"] = int(time.time())
-            escrow["releaseTx"] = result.get("signature", "")
+            # #5: Save "releasing" state BEFORE sending transfer (crash recovery)
+            escrow["status"] = "releasing"
             await self._save_escrow(escrow)
-            print(f"[EscrowClient] Released: {escrow['amount_usdc']} USDC -> {escrow['seller'][:8]}...")
-            await alert_system(
-                "Escrow libere",
-                f"**{escrow['amount_usdc']} USDC** envoyes au seller `{escrow['seller'][:8]}...`",
+
+            # Envoyer les USDC au seller
+            from solana_tx import send_usdc_transfer
+            result = await send_usdc_transfer(
+                to_address=escrow["seller"],
+                amount_usdc=escrow["amount_usdc"],
+                from_privkey=ESCROW_PRIVKEY_B58,
+                from_address=ESCROW_ADDRESS,
             )
-            return {"success": True, **escrow}
-        else:
-            return {"success": False, "error": f"Transfer echoue: {result.get('error')}"}
+
+            if result.get("success"):
+                escrow["status"] = "released"
+                escrow["releasedAt"] = int(time.time())
+                escrow["releaseTx"] = result.get("signature", "")
+                await self._save_escrow(escrow)
+                print(f"[EscrowClient] Released: {escrow['amount_usdc']} USDC -> {escrow['seller'][:8]}...")
+                await alert_system(
+                    "Escrow libere",
+                    f"**{escrow['amount_usdc']} USDC** envoyes au seller `{escrow['seller'][:8]}...`",
+                )
+                return {"success": True, **escrow}
+            else:
+                # #5: Revert to locked on failure
+                escrow["status"] = "locked"
+                await self._save_escrow(escrow)
+                # #14 / #16: Log and audit failed transfers
+                error_msg = result.get("error", "unknown")
+                print(f"[Escrow] FAILED transfer {escrow_id}: {error_msg}")
+                from security import audit_log
+                audit_log("escrow_transfer_failed", "system", f"escrow={escrow_id} error={error_msg}")
+                return {"success": False, "error": f"Transfer echoue: {error_msg}"}
 
     async def reclaim_timeout(self, escrow_id: str, buyer_wallet: str) -> dict:
         """Buyer reclame ses fonds apres timeout."""
-        escrow = self._escrows.get(escrow_id)
-        if not escrow:
-            return {"success": False, "error": "Escrow introuvable"}
-        if escrow["status"] != "locked":
-            return {"success": False, "error": f"Status invalide: {escrow['status']}"}
-        if escrow["buyer"] != buyer_wallet:
-            return {"success": False, "error": "Seul le buyer peut reclamer"}
-        if time.time() < escrow["timeoutAt"]:
-            remaining = (escrow["timeoutAt"] - time.time()) / 3600
-            return {"success": False, "error": f"Timeout non atteint — encore {remaining:.1f}h"}
+        # #2: Lock to prevent race condition / double-spend
+        async with _escrow_lock:
+            # #10: Reload from DB (source of truth) before acting
+            db_escrow = await self._load_escrow_from_db(escrow_id)
+            if db_escrow:
+                escrow = db_escrow
+                self._escrows[escrow_id] = escrow
+            else:
+                escrow = self._escrows.get(escrow_id)
 
-        # Refund USDC au buyer
-        from solana_tx import send_usdc_transfer
-        result = await send_usdc_transfer(
-            to_address=escrow["buyer"],
-            amount_usdc=escrow["amount_usdc"],
-            from_privkey=ESCROW_PRIVKEY_B58,
-            from_address=ESCROW_ADDRESS,
-        )
+            if not escrow:
+                return {"success": False, "error": "Escrow introuvable"}
+            if escrow["status"] != "locked":
+                return {"success": False, "error": f"Status invalide: {escrow['status']}"}
+            if escrow["buyer"] != buyer_wallet:
+                return {"success": False, "error": "Seul le buyer peut reclamer"}
 
-        if result.get("success"):
-            escrow["status"] = "refunded"
-            escrow["refundedAt"] = int(time.time())
+            # #12: Validate timeoutAt exists and is valid
+            timeout_at = escrow.get("timeoutAt")
+            if not timeout_at or not isinstance(timeout_at, (int, float)):
+                return {"success": False, "error": "Invalid escrow state: missing timeout"}
+
+            if time.time() < timeout_at:
+                remaining = (timeout_at - time.time()) / 3600
+                return {"success": False, "error": f"Timeout non atteint — encore {remaining:.1f}h"}
+
+            # #5: Save "releasing" state BEFORE sending transfer
+            escrow["status"] = "releasing"
             await self._save_escrow(escrow)
-            print(f"[EscrowClient] Refunded: {escrow['amount_usdc']} USDC -> {escrow['buyer'][:8]}...")
-            return {"success": True, **escrow}
-        return {"success": False, "error": f"Refund echoue: {result.get('error')}"}
+
+            # Refund USDC au buyer
+            from solana_tx import send_usdc_transfer
+            result = await send_usdc_transfer(
+                to_address=escrow["buyer"],
+                amount_usdc=escrow["amount_usdc"],
+                from_privkey=ESCROW_PRIVKEY_B58,
+                from_address=ESCROW_ADDRESS,
+            )
+
+            if result.get("success"):
+                escrow["status"] = "refunded"
+                escrow["refundedAt"] = int(time.time())
+                await self._save_escrow(escrow)
+                print(f"[EscrowClient] Refunded: {escrow['amount_usdc']} USDC -> {escrow['buyer'][:8]}...")
+                return {"success": True, **escrow}
+
+            # Revert to locked on failure
+            escrow["status"] = "locked"
+            await self._save_escrow(escrow)
+            error_msg = result.get("error", "unknown")
+            print(f"[Escrow] FAILED refund {escrow_id}: {error_msg}")
+            from security import audit_log
+            audit_log("escrow_refund_failed", "system", f"escrow={escrow_id} error={error_msg}")
+            return {"success": False, "error": f"Refund echoue: {error_msg}"}
 
     async def resolve_dispute(self, escrow_id: str, release_to_seller: bool) -> dict:
         """Admin resout un litige."""
-        escrow = self._escrows.get(escrow_id)
-        if not escrow:
-            return {"success": False, "error": "Escrow introuvable"}
-        if escrow["status"] != "locked":
-            return {"success": False, "error": f"Status invalide: {escrow['status']}"}
+        # #2: Lock to prevent race condition / double-spend
+        async with _escrow_lock:
+            # #10: Reload from DB (source of truth)
+            db_escrow = await self._load_escrow_from_db(escrow_id)
+            if db_escrow:
+                escrow = db_escrow
+                self._escrows[escrow_id] = escrow
+            else:
+                escrow = self._escrows.get(escrow_id)
 
-        from solana_tx import send_usdc_transfer
-        target = escrow["seller"] if release_to_seller else escrow["buyer"]
-        result = await send_usdc_transfer(
-            to_address=target,
-            amount_usdc=escrow["amount_usdc"],
-            from_privkey=ESCROW_PRIVKEY_B58,
-            from_address=ESCROW_ADDRESS,
-        )
+            if not escrow:
+                return {"success": False, "error": "Escrow introuvable"}
+            if escrow["status"] != "locked":
+                return {"success": False, "error": f"Status invalide: {escrow['status']}"}
 
-        if result.get("success"):
-            escrow["status"] = "released" if release_to_seller else "refunded"
-            escrow["resolvedAt"] = int(time.time())
-            escrow["resolvedTo"] = "seller" if release_to_seller else "buyer"
+            # #5: Save "releasing" state BEFORE transfer
+            escrow["status"] = "releasing"
             await self._save_escrow(escrow)
-            return {"success": True, **escrow}
-        return {"success": False, "error": f"Resolution echouee: {result.get('error')}"}
+
+            from solana_tx import send_usdc_transfer
+            target = escrow["seller"] if release_to_seller else escrow["buyer"]
+            result = await send_usdc_transfer(
+                to_address=target,
+                amount_usdc=escrow["amount_usdc"],
+                from_privkey=ESCROW_PRIVKEY_B58,
+                from_address=ESCROW_ADDRESS,
+            )
+
+            if result.get("success"):
+                escrow["status"] = "released" if release_to_seller else "refunded"
+                escrow["resolvedAt"] = int(time.time())
+                escrow["resolvedTo"] = "seller" if release_to_seller else "buyer"
+                await self._save_escrow(escrow)
+                return {"success": True, **escrow}
+
+            # Revert to locked on failure
+            escrow["status"] = "locked"
+            await self._save_escrow(escrow)
+            error_msg = result.get("error", "unknown")
+            print(f"[Escrow] FAILED resolution {escrow_id}: {error_msg}")
+            from security import audit_log
+            audit_log("escrow_resolution_failed", "system", f"escrow={escrow_id} to={'seller' if release_to_seller else 'buyer'} error={error_msg}")
+            return {"success": False, "error": f"Resolution echouee: {error_msg}"}
 
     def get_escrow(self, escrow_id: str) -> dict:
         return self._escrows.get(escrow_id, {"error": "Escrow introuvable"})
 
     def get_stats(self) -> dict:
-        locked = [e for e in self._escrows.values() if e["status"] == "locked"]
+        locked = [e for e in self._escrows.values() if e["status"] in ("locked", "releasing")]
         released = [e for e in self._escrows.values() if e["status"] == "released"]
         refunded = [e for e in self._escrows.values() if e["status"] == "refunded"]
         return {

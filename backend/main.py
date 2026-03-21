@@ -2539,13 +2539,17 @@ async def get_escrow(escrow_id: str):
 
 @app.post("/api/escrow/create")
 async def create_escrow(req: dict, wallet: str = Depends(require_auth)):
+    # #6: Validate timeout_hours at API level
+    timeout = int(req.get("timeout_hours", 72))
+    if timeout < 1 or timeout > 168:
+        raise HTTPException(400, "timeout_hours must be 1-168")
     return await escrow_client.create_escrow(
         buyer_wallet=wallet,
         seller_wallet=req.get("seller_wallet", ""),
         amount_usdc=float(req.get("amount_usdc", 0)),
         service_id=req.get("service_id", ""),
         tx_signature=req.get("tx_signature", ""),
-        timeout_hours=int(req.get("timeout_hours", 72)),
+        timeout_hours=timeout,
     )
 
 @app.post("/api/escrow/confirm")
@@ -2563,7 +2567,10 @@ async def reclaim_escrow(req: dict, wallet: str = Depends(require_auth)):
     )
 
 @app.post("/api/escrow/resolve")
-async def resolve_escrow_dispute(req: dict):
+async def resolve_escrow_dispute(req: dict, request: Request):
+    # #1 / #4 / #7: Admin-only endpoint for dispute resolution
+    from security import require_admin
+    require_admin(request)
     return await escrow_client.resolve_dispute(
         escrow_id=req.get("escrow_id", ""),
         release_to_seller=req.get("release_to_seller", False),
