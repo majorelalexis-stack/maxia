@@ -401,9 +401,8 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded d
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
     # Accept X-Admin-Key header OR ?key= query param (dashboard is browser-accessed)
-    header_key = request.headers.get("X-Admin-Key", "")
-    query_key = request.query_params.get("key", "")
-    if (header_key or query_key) != ADMIN_KEY:
+    key = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
+    if not key or key != ADMIN_KEY:
         return HTMLResponse(
             "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
             "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
