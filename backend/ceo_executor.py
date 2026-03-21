@@ -465,3 +465,57 @@ async def _do_scout_scan(memory) -> dict:
     except Exception as e:
         memory.log_error("ceo_executor_scout", str(e))
         return {"executed": False, "reason": f"SCOUT scan error: {e}"}
+
+
+# ══════════════════════════════════════════
+# CEO Local actions (PC -> VPS bridge)
+# ══════════════════════════════════════════
+
+async def execute_update_price(service_id, new_price: float, reason: str, memory, db=None) -> dict:
+    """Update a service price directly in DB (called from CEO local via API)."""
+    try:
+        if db is not None:
+            await db.execute(
+                "UPDATE services SET price = ? WHERE id = ?",
+                (new_price, service_id),
+            )
+            memory.log_decision("VERT", f"Price updated: service={service_id} -> ${new_price} ({reason})", "ceo-local", "SOL-TREASURY")
+            return {"executed": True, "detail": f"Price updated: {service_id} -> ${new_price}"}
+        return {"executed": False, "reason": "No DB available"}
+    except Exception as e:
+        return {"executed": False, "reason": f"Price update error: {e}"}
+
+
+async def execute_generate_report(topic: str, memory) -> dict:
+    """Generate a report using the LLM router."""
+    try:
+        from llm_router import router as llm_router, Tier
+        from ceo_maxia import CEO_IDENTITY
+        prompt = (
+            f"Generate a concise report about: {topic}\n"
+            f"Include: key metrics, trends, recommendations.\n"
+            f"Format: markdown with headers and bullet points.\n"
+            f"Max 500 words."
+        )
+        report = await llm_router.call(
+            prompt, tier=Tier.LOCAL,
+            system=CEO_IDENTITY + "\nMode ANALYTICS — rapport.",
+            max_tokens=1500,
+        )
+        if report:
+            memory.log_decision("VERT", f"Report generated: {topic}", "ceo-local", "ANALYTICS")
+            return {"executed": True, "detail": f"Report generated: {topic[:50]}"}
+        return {"executed": False, "reason": "Empty report"}
+    except Exception as e:
+        return {"executed": False, "reason": f"Report error: {e}"}
+
+
+async def execute_send_alert(message: str, memory) -> dict:
+    """Send a Discord alert."""
+    try:
+        from ceo_maxia import alert_info
+        await alert_info(message)
+        memory.log_decision("VERT", f"Alert sent: {message[:80]}", "ceo-local", "WATCHDOG")
+        return {"executed": True, "detail": f"Alert sent: {message[:60]}"}
+    except Exception as e:
+        return {"executed": False, "reason": f"Alert error: {e}"}

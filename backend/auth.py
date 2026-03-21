@@ -172,3 +172,29 @@ async def require_auth(
         _cleanup_used_nonces()
 
     return x_wallet
+
+
+# ── CEO API Auth (PC local <-> VPS) ──
+
+async def require_ceo_auth(
+    request: "Request" = None,
+    x_ceo_key: str = Header(None, alias="X-CEO-Key"),
+) -> str:
+    """Verifie l'authentification CEO (cle partagee PC <-> VPS + IP whitelist)."""
+    from config import CEO_API_KEY, CEO_ALLOWED_IPS
+
+    if not CEO_API_KEY:
+        raise HTTPException(500, "CEO_API_KEY not configured on server")
+    if not x_ceo_key:
+        raise HTTPException(401, "Missing X-CEO-Key header")
+    if not hmac.compare_digest(x_ceo_key, CEO_API_KEY):
+        raise HTTPException(403, "Invalid CEO API key")
+
+    # IP whitelist (optionnel)
+    if CEO_ALLOWED_IPS and request:
+        ip = request.client.host if request.client else ""
+        allowed = [i.strip() for i in CEO_ALLOWED_IPS.split(",") if i.strip()]
+        if allowed and ip not in allowed:
+            raise HTTPException(403, f"IP {ip} not in CEO whitelist")
+
+    return "ceo"

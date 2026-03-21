@@ -1056,6 +1056,226 @@ async def ceo_agent_bus():
         return {"error": str(e)}
 
 
+# ═══════════════════════════════════════════════════════════
+#  CEO AUTONOME — Endpoints securises PC local <-> VPS
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/ceo/state")
+async def ceo_full_state(request: Request):
+    """Etat complet du VPS pour le CEO local."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    try:
+        from ceo_maxia import ceo, get_llm_costs
+        status = ceo.get_status()
+        mem = ceo.memory._data
+        return {
+            "kpi": {
+                "revenue_24h": mem.get("revenue_usd", 0),
+                "clients_actifs": mem.get("clients", 0),
+                "services_actifs": mem.get("services", 0),
+                "emergency_stop": mem.get("emergency_stop", False),
+                "budget_vert": mem.get("budget_vert", 0),
+            },
+            "agents": {name: mem.get("agents", {}).get(name, {})
+                       for name in ["GHOST-WRITER", "HUNTER", "SCOUT", "WATCHDOG",
+                                    "NEGOTIATOR", "COMPLIANCE", "PARTNERSHIP", "ANALYTICS"]},
+            "errors": mem.get("erreurs_recurrentes", [])[-10:],
+            "decisions_recent": mem.get("decisions", [])[-20:],
+            "llm_costs": get_llm_costs(),
+            "cycle": status.get("cycle", 0),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/ceo/execute")
+async def ceo_execute_action(request: Request):
+    """Executer une action decidee par le CEO local."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import check_ceo_spending_limit, record_ceo_action, audit_log
+
+    body = await request.json()
+    action = body.get("action", "")
+    agent = body.get("agent", "")
+    params = body.get("params", {})
+    priority = body.get("priority", "vert")
+    ip = request.client.host if request.client else "unknown"
+
+    if not action:
+        raise HTTPException(400, "action required")
+
+    # Verifier les limites
+    amount = params.get("amount_usd", 0)
+    check = check_ceo_spending_limit(action, amount)
+    if not check["allowed"]:
+        audit_log("ceo_execute_blocked", ip, f"{action}: {check['reason']}", "ceo-local")
+        return {"success": False, "error": check["reason"]}
+
+    # ROUGE = jamais auto-execute depuis le PC
+    if priority == "rouge":
+        audit_log("ceo_execute_rouge_blocked", ip, f"{action} blocked (rouge)", "ceo-local")
+        return {"success": False, "error": "ROUGE actions cannot be auto-executed"}
+
+    # Executer via ceo_executor
+    try:
+        from ceo_maxia import ceo
+        from ceo_executor import execute_decision
+        decision = {
+            "action": _build_action_string(action, params),
+            "cible": agent.upper(),
+            "priorite": priority.upper(),
+        }
+        result = await execute_decision(decision, ceo.memory, db)
+        record_ceo_action(action)
+        audit_log("ceo_execute", ip, f"{action} -> {agent}: {result}", "ceo-local")
+        return {
+            "success": result.get("executed", False),
+            "result": result.get("detail", result.get("reason", "")),
+            "tx_id": result.get("action_id"),
+        }
+    except Exception as e:
+        audit_log("ceo_execute_error", ip, str(e), "ceo-local")
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/ceo/update-price")
+async def ceo_update_price(request: Request):
+    """Modifier le prix d'un service."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+    ip = request.client.host if request.client else "unknown"
+
+    body = await request.json()
+    service_id = body.get("service_id")
+    new_price = body.get("new_price")
+    reason = body.get("reason", "CEO decision")
+
+    if new_price is None:
+        raise HTTPException(400, "new_price required")
+
+    try:
+        await db.execute(
+            "UPDATE services SET price = ? WHERE id = ?",
+            (float(new_price), service_id),
+        )
+        audit_log("ceo_update_price", ip, f"service={service_id} price={new_price} reason={reason}", "ceo-local")
+        return {"success": True, "service_id": service_id, "new_price": new_price}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/ceo/toggle-agent")
+async def ceo_toggle_agent(request: Request):
+    """Activer/desactiver un sous-agent."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+    ip = request.client.host if request.client else "unknown"
+
+    body = await request.json()
+    agent_name = body.get("agent_name", "").upper()
+    enabled = body.get("enabled", True)
+
+    try:
+        from ceo_maxia import ceo
+        if enabled:
+            ceo.memory.enable_agent(agent_name)
+        else:
+            ceo.memory.disable_agent(agent_name, "Disabled by CEO local")
+        audit_log("ceo_toggle_agent", ip, f"{agent_name} -> {'enabled' if enabled else 'disabled'}", "ceo-local")
+        return {"success": True, "agent": agent_name, "enabled": enabled}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/ceo/transactions")
+async def ceo_transactions(request: Request, limit: int = 50):
+    """Dernieres transactions pour analyse."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    try:
+        rows = await db.fetch_all(
+            "SELECT * FROM transactions ORDER BY id DESC LIMIT ?", (limit,)
+        )
+        return {"transactions": rows, "count": len(rows)}
+    except Exception as e:
+        return {"error": str(e), "transactions": []}
+
+
+@app.get("/api/ceo/health")
+async def ceo_health_check(request: Request):
+    """Sante de tous les composants."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    try:
+        from ceo_maxia import ceo, get_llm_costs
+        from llm_router import router as llm_router
+
+        health = {
+            "healthy": True,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "components": {
+                "database": "ok",
+                "ceo": "running" if ceo._running else "stopped",
+                "emergency_stop": ceo.memory.is_stopped(),
+                "llm_costs": get_llm_costs(),
+                "router_stats": llm_router.get_stats(),
+            },
+        }
+        # Check DB
+        try:
+            await db.fetch_one("SELECT 1")
+        except Exception:
+            health["components"]["database"] = "error"
+            health["healthy"] = False
+
+        return health
+    except Exception as e:
+        return {"healthy": False, "error": str(e)}
+
+
+@app.post("/api/ceo/emergency-stop")
+async def ceo_emergency_stop(request: Request):
+    """Arret d'urgence du CEO."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+    ip = request.client.host if request.client else "unknown"
+
+    try:
+        from ceo_maxia import ceo
+        ceo.memory._data["emergency_stop"] = True
+        ceo.memory.save()
+        audit_log("ceo_emergency_stop", ip, "Emergency stop activated by CEO local", "ceo-local")
+        await alert_system.send("CEO EMERGENCY STOP", "Activated by CEO local agent")
+        return {"success": True, "emergency_stop": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def _build_action_string(action: str, params: dict) -> str:
+    """Construit une string d'action pour le ceo_executor existant."""
+    if action == "post_tweet":
+        return f"tweet: {params.get('text', '')}"
+    elif action == "update_price":
+        return f"adjust price service {params.get('service_id', '')} to {params.get('new_price', '')}: {params.get('reason', '')}"
+    elif action == "contact_prospect":
+        return f"contact wallet {params.get('wallet', '')} via {params.get('canal', 'solana_memo')}: {params.get('message', '')}"
+    elif action == "toggle_agent":
+        return f"{'enable' if params.get('enabled', True) else 'disable'} agent {params.get('agent_name', '')}"
+    elif action == "send_alert":
+        return f"alert: {params.get('message', '')}"
+    elif action == "deploy_page":
+        return f"deploy blog: {params.get('title', 'MAXIA Update')}"
+    elif action == "generate_report":
+        return f"generate report: {params.get('topic', 'weekly')}"
+    else:
+        return f"{action}: {json.dumps(params, default=str)[:200]}"
+
+
 @app.get("/api/cache/stats")
 async def cache_stats():
     """Statistiques du cache prix (hit rate, age)."""

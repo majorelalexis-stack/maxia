@@ -176,3 +176,14 @@ DATABASE_URL         = os.getenv("DATABASE_URL", "")           # postgresql://..
 REDIS_URL            = os.getenv("REDIS_URL", "")              # redis://localhost:6379/0
 ACCEPTED_CURRENCIES  = ["USDC", "SOL", "ETH"]
 CURRENCY_SLIPPAGE_PCT = float(os.getenv("CURRENCY_SLIPPAGE_PCT", "2"))
+
+# ── V12: LLM Router (CEO autonome) ──
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+CEO_LOCAL_MODE = os.getenv("CEO_LOCAL_MODE", "true").lower() == "true"
+
+# ── V12: CEO API (PC local <-> VPS) ──
+CEO_API_KEY = os.getenv("CEO_API_KEY", "")
+CEO_ALLOWED_IPS = os.getenv("CEO_ALLOWED_IPS", "")  # Comma-separated IP whitelist

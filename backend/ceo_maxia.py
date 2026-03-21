@@ -36,6 +36,17 @@ MECANISMES INTERNES :
 import asyncio, json, time, os
 from datetime import datetime, date
 
+# LLM Router — route vers le bon tier (LOCAL/FAST/MID/STRATEGIC)
+try:
+    from llm_router import router as llm_router, Tier
+except ImportError:
+    llm_router = None
+    class Tier:
+        LOCAL = "local"
+        FAST = "fast"
+        MID = "mid"
+        STRATEGIC = "strategic"
+
 
 # ══════════════════════════════════════════
 # AGENT BUS — Communication inter-agents
@@ -320,8 +331,10 @@ def get_llm_costs() -> dict:
     }
 
 
-async def _call_groq(system: str, user: str, max_tokens: int = 1500) -> str:
+async def _call_groq(system: str, user: str, max_tokens: int = 1500, _fallback: bool = True) -> str:
     if not GROQ_API_KEY:
+        if _fallback and ANTHROPIC_API_KEY:
+            return await _call_anthropic(SONNET_MODEL, system, user, max_tokens, _fallback=False)
         return ""
     try:
         from groq import Groq
@@ -339,13 +352,14 @@ async def _call_groq(system: str, user: str, max_tokens: int = 1500) -> str:
             return resp.choices[0].message.content.strip()
         return await asyncio.to_thread(_c)
     except Exception as e:
-        print(f"[CEO] Groq error: {e}")
+        if _fallback and ANTHROPIC_API_KEY:
+            return await _call_anthropic(SONNET_MODEL, system, user, max_tokens, _fallback=False)
         return ""
 
 
-async def _call_anthropic(model: str, system: str, user: str, max_tokens: int = 3000) -> str:
+async def _call_anthropic(model: str, system: str, user: str, max_tokens: int = 3000, _fallback: bool = True) -> str:
     if not ANTHROPIC_API_KEY:
-        return await _call_groq(system, user, min(max_tokens, 1500))
+        return await _call_groq(system, user, min(max_tokens, 1500), _fallback=False)
     try:
         import httpx
         async with httpx.AsyncClient(timeout=90) as client:
@@ -362,8 +376,9 @@ async def _call_anthropic(model: str, system: str, user: str, max_tokens: int = 
             ct = data.get("content", [])
             return ct[0].get("text", "") if ct else ""
     except Exception as e:
-        print(f"[CEO] Anthropic error: {e}")
-        return await _call_groq(system, user, min(max_tokens, 1500))
+        if _fallback:
+            return await _call_groq(system, user, min(max_tokens, 1500), _fallback=False)
+        return ""
 
 
 def _pj(response: str) -> dict:
@@ -1020,7 +1035,11 @@ async def watchdog_self_heal(source: str, error: str, memory: Memory):
         f"Si c'est un DNS, propose un fallback.\n\n"
         f"JSON: {{\"diagnostic\": \"...\", \"patch\": \"code Python\", \"fichier\": \"nom.py\", \"urgence\": \"haute|moyenne|basse\"}}"
     )
-    result = _pj(await _call_anthropic(SONNET_MODEL, "Tu es un debugger Python expert.", prompt))
+    # Router: MID pour le diagnostic (raisonnement moyen, pas besoin de Claude)
+    if llm_router:
+        result = _pj(await llm_router.call(prompt, tier=Tier.MID, system="Tu es un debugger Python expert.", max_tokens=500))
+    else:
+        result = _pj(await _call_anthropic(SONNET_MODEL, "Tu es un debugger Python expert.", prompt))
     if result and result.get("patch"):
         memory.log_patch(source, json.dumps(result))
         err["patch_proposed"] = True
@@ -1449,7 +1468,11 @@ async def testimonial_process(user: str, feedback: str, memory: Memory) -> dict:
         f"2. Si positif, redige un tweet de temoignage (max 200 chars)\n"
         f"JSON: {{\"sentiment\": \"positif|neutre|negatif\", \"tweet\": \"...\" ou null}}"
     )
-    result = _pj(await _call_groq("Tu analyses des feedbacks.", prompt))
+    # Router: LOCAL pour analyse feedback (0 cout)
+    if llm_router:
+        result = _pj(await llm_router.call(prompt, tier=Tier.LOCAL, system="Tu analyses des feedbacks.", max_tokens=300))
+    else:
+        result = _pj(await _call_groq("Tu analyses des feedbacks.", prompt))
     if result.get("sentiment") == "positif" and result.get("tweet"):
         memory.log_testimonial(user, "", feedback, False)
         return {"publish": True, "tweet": result["tweet"]}
@@ -1479,7 +1502,11 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
         f"MAXIA: 15 tokens, 210 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
-    raw = await _call_groq(RESPONDER_PROMPT, ctx)
+    # Router: FAST pour les reponses (besoin de qualite, mais pas strategique)
+    if llm_router:
+        raw = await llm_router.call(ctx, tier=Tier.FAST, system=RESPONDER_PROMPT, max_tokens=500)
+    else:
+        raw = await _call_groq(RESPONDER_PROMPT, ctx)
     data = _pj(raw)
     if not data and raw:
         data = {"intention": "conversation", "reponse": raw, "alerte_fondateur": False}
@@ -1521,7 +1548,11 @@ async def ghost_write(content_type: str, sujet: str, canal: str, memory: "Memory
         f"Max 280 chars si tweet. Pas de emoji excessifs (max 1-2).\n"
         f"JSON: {{type, titre, contenu, services_mentionnes: [], hashtags, cta}}"
     )
-    data = _pj(await _call_groq(CEO_IDENTITY + "\nMode GHOST-WRITER.", prompt))
+    # Router: FAST pour la redaction de contenu
+    if llm_router:
+        data = _pj(await llm_router.call(prompt, tier=Tier.FAST, system=CEO_IDENTITY + "\nMode GHOST-WRITER.", max_tokens=500))
+    else:
+        data = _pj(await _call_groq(CEO_IDENTITY + "\nMode GHOST-WRITER.", prompt))
     if not data:
         return {}
     # Tag le variant A/B pour tracking
@@ -1603,12 +1634,12 @@ async def execute(decisions: list, memory: Memory):
                 print(f"[CEO] Decision REJETEE — cible inconnue: {cible}")
                 continue
 
-        # Translate vague actions into concrete ones via Groq re-prompt
+        # Translate vague actions into concrete ones via LLM re-prompt (LOCAL tier)
         if any(v in action.lower() for v in VAGUE_PATTERNS) and not any(kw in action.lower() for kw in CONCRETE_KW):
-            print(f"[CEO] Action vague detectee, re-prompt Groq: {action[:80]}")
+            print(f"[CEO] Action vague detectee, re-prompt: {action[:80]}")
             try:
-                concrete = await _call_groq(
-                    "Tu es un assistant qui transforme des objectifs vagues en actions concretes pour un sous-agent.",
+                _reprompt_system = "Tu es un assistant qui transforme des objectifs vagues en actions concretes pour un sous-agent."
+                _reprompt_user = (
                     f"Sous-agent cible: {cible}\n"
                     f"Objectif vague: {action}\n\n"
                     f"Transforme en UNE action concrete executable par {cible}.\n"
@@ -1620,9 +1651,18 @@ async def execute(decisions: list, memory: Memory):
                     f"- DEPLOYER: 'deploy blog: Why MAXIA is cheapest'\n"
                     f"- RADAR: 'scan trending tokens volume > 100k'\n"
                     f"- RESPONDER: 'send welcome message to new users on discord'\n\n"
-                    f"Reponds UNIQUEMENT l'action concrete, rien d'autre. Pas de JSON, pas d'explication.",
-                    max_tokens=150,
+                    f"Reponds UNIQUEMENT l'action concrete, rien d'autre. Pas de JSON, pas d'explication."
                 )
+                # Router: tier LOCAL pour la concretisation (0 cout)
+                if llm_router:
+                    concrete = await llm_router.call(
+                        _reprompt_user, tier=Tier.LOCAL,
+                        system=_reprompt_system, max_tokens=150,
+                    )
+                else:
+                    concrete = await _call_groq(
+                        _reprompt_system, _reprompt_user, max_tokens=150,
+                    )
                 if concrete and concrete.strip():
                     concrete = concrete.strip().strip('"').strip("'")
                     print(f"[CEO] Action concretisee: {concrete[:100]}")
@@ -1632,7 +1672,7 @@ async def execute(decisions: list, memory: Memory):
                     print(f"[CEO] Re-prompt echoue, action ignoree: {action[:80]}")
                     continue
             except Exception as e:
-                print(f"[CEO] Re-prompt Groq error: {e}, action ignoree")
+                print(f"[CEO] Re-prompt LLM error: {e}, action ignoree")
                 continue
 
         # Verifier le budget avant execution
@@ -1850,13 +1890,12 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
     if not prompt:
         return ""
 
-    # Utiliser Sonnet pour generer du HTML de qualite
-    html = await _call_anthropic(
-        SONNET_MODEL,
-        "Tu es un expert frontend. Genere du HTML/CSS/JS complet, moderne et responsive. Retourne UNIQUEMENT le code HTML, pas de markdown, pas d'explication.",
-        prompt,
-        max_tokens=4000,
-    )
+    # Router: MID pour la generation HTML (pas besoin de Claude pour du HTML)
+    _html_system = "Tu es un expert frontend. Genere du HTML/CSS/JS complet, moderne et responsive. Retourne UNIQUEMENT le code HTML, pas de markdown, pas d'explication."
+    if llm_router:
+        html = await llm_router.call(prompt, tier=Tier.MID, system=_html_system, max_tokens=4000)
+    else:
+        html = await _call_anthropic(SONNET_MODEL, _html_system, prompt, max_tokens=4000)
 
     # Nettoyer si markdown
     if html.startswith("```html"):
@@ -1970,7 +2009,11 @@ async def deployer_blog_post(titre: str, contenu_prompt: str, memory) -> dict:
         f"Style: dark, lisible, technique.\n"
         f"Retourne UNIQUEMENT le HTML."
     )
-    html = await _call_anthropic(SONNET_MODEL, "Expert frontend. HTML only.", prompt, 4000)
+    # Router: MID pour generation HTML
+    if llm_router:
+        html = await llm_router.call(prompt, tier=Tier.MID, system="Expert frontend. HTML only.", max_tokens=4000)
+    else:
+        html = await _call_anthropic(SONNET_MODEL, "Expert frontend. HTML only.", prompt, 4000)
     if html.startswith("```"):
         html = html.split("\n", 1)[-1]
     if html.endswith("```"):
@@ -2232,7 +2275,11 @@ async def partnership_outreach(partner: str, category: str, pitch: str, memory: 
         f"Inclure: proposition de valeur mutuelle, CTA concret (call, pilot, API test).\n"
         f"JSON: {{subject, message, cta, channel_suggested}}"
     )
-    result = _pj(await _call_groq(CEO_IDENTITY + "\nMode PARTNERSHIP.", prompt))
+    # Router: FAST pour la redaction d'outreach
+    if llm_router:
+        result = _pj(await llm_router.call(prompt, tier=Tier.FAST, system=CEO_IDENTITY + "\nMode PARTNERSHIP.", max_tokens=500))
+    else:
+        result = _pj(await _call_groq(CEO_IDENTITY + "\nMode PARTNERSHIP.", prompt))
     if result:
         if "partnerships" not in memory._data:
             memory._data["partnerships"] = []
@@ -2357,7 +2404,11 @@ async def analytics_weekly_report(memory: Memory) -> dict:
         f"Format: JSON {{resume_executif, kpi_cles, wins, problemes, actions_semaine_prochaine, message_fondateur}}\n"
         f"Ton: direct, factuel, avec les chiffres. Max 300 mots."
     )
-    report = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode ANALYTICS.", prompt, 2000))
+    # Router: MID pour le rapport hebdo (raisonnement moyen)
+    if llm_router:
+        report = _pj(await llm_router.call(prompt, tier=Tier.MID, system=CEO_IDENTITY + "\nMode ANALYTICS.", max_tokens=2000))
+    else:
+        report = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode ANALYTICS.", prompt, 2000))
     if report:
         report["metrics"] = metrics
         memory.log_decision("vert", f"ANALYTICS: rapport hebdo genere (health={metrics['health_score']})", "reporting", "ANALYTICS")
@@ -2510,7 +2561,11 @@ async def crisis_respond(crisis: dict, memory: Memory) -> dict:
             f"Analyse la cause racine et propose 3 actions concretes.\n"
             f"JSON: {{cause_racine, actions: [{{action, priorite, agent_cible}}], prevention}}"
         )
-        diag = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode CRISIS-MANAGER.", diag_prompt, 1500))
+        # Router: MID pour diagnostic de crise
+        if llm_router:
+            diag = _pj(await llm_router.call(diag_prompt, tier=Tier.MID, system=CEO_IDENTITY + "\nMode CRISIS-MANAGER.", max_tokens=1500))
+        else:
+            diag = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY + "\nMode CRISIS-MANAGER.", diag_prompt, 1500))
         if diag:
             response["diagnostic"] = diag
             response["actions_taken"].append("diagnostic_completed")
@@ -2550,10 +2605,12 @@ async def crisis_respond(crisis: dict, memory: Memory) -> dict:
 class CEOMaxia:
     def __init__(self):
         self.memory = Memory()
+        self.router = llm_router  # LLM Router pour optimiser les couts
         self._running = False
         self._cycle = 0
         self._last = {"strat": "", "vision": "", "expansion": ""}
         print("[CEO MAXIA] V4 initialise")
+        print(f"  Router: {'actif' if self.router else 'desactive (direct Groq/Claude)'}")
         print(f"  Groq: {'actif' if GROQ_API_KEY else 'MANQUANT'}")
         print(f"  Anthropic: {'actif' if ANTHROPIC_API_KEY else 'fallback Groq'}")
         print(f"  Discord: {'actif' if DISCORD_WEBHOOK_URL else 'absent'}")
@@ -2597,6 +2654,11 @@ class CEOMaxia:
         self._running = False
 
     async def _opus_summarize(self, prompt: str, data: str) -> str:
+        if self.router:
+            return await self.router.call(
+                f"{prompt}\n\nDATA:\n{data}",
+                tier=Tier.STRATEGIC, system="Analyste expert. Reponds en JSON.", max_tokens=2000,
+            )
         return await _call_anthropic(OPUS_MODEL, "Analyste expert. Reponds en JSON.", f"{prompt}\n\nDATA:\n{data}", 2000)
 
     async def _build_retrospective(self) -> str:
@@ -2917,7 +2979,14 @@ class CEOMaxia:
             "IMPORTANT — action DOIT etre une directive CONCRETE et EXECUTABLE (ex: 'tweet: MAXIA fees reduced', 'switch canal discord', 'contact wallet Xyz'). "
             "PAS de phrases vagues comme 'maximiser les chances de succes' ou 'ameliorer la visibilite'."
         )
-        result = _pj(await _call_groq(CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
+        # Router: tier FAST pour la generation de decisions tactiques
+        if self.router:
+            result = _pj(await self.router.call(
+                f"CONTEXTE:\n{ctx}\n\n{q}",
+                tier=Tier.FAST, system=CEO_IDENTITY, max_tokens=1500,
+            ))
+        else:
+            result = _pj(await _call_groq(CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
         if result:
             await execute(result.get("decisions", []), self.memory)
             for r in result.get("regles_apprises", []):
@@ -2956,7 +3025,14 @@ class CEOMaxia:
             "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
             "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'tweet: ...', 'switch canal discord'). PAS de phrases vagues."
         )
-        result = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
+        # Router: tier MID pour le SWOT, STRATEGIC seulement pour red teaming
+        if self.router:
+            result = _pj(await self.router.call(
+                f"CONTEXTE:\n{ctx}\n\n{q}",
+                tier=Tier.MID, system=CEO_IDENTITY, max_tokens=2000,
+            ))
+        else:
+            result = _pj(await _call_anthropic(SONNET_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}"))
         if result:
             self.memory.log_rapport(result)
             await execute(result.get("decisions", []), self.memory)
@@ -2999,7 +3075,14 @@ class CEOMaxia:
             "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
             "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'deploy blog: ...', 'adjust prix swap 0.01%'). PAS de phrases vagues."
         )
-        result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 4000))
+        # Router: tier STRATEGIC pour vision (inchange — c'est hebdo)
+        if self.router:
+            result = _pj(await self.router.call(
+                f"CONTEXTE:\n{ctx}\n\n{q}",
+                tier=Tier.STRATEGIC, system=CEO_IDENTITY, max_tokens=4000,
+            ))
+        else:
+            result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 4000))
         if result:
             if result.get("okr"):
                 self.memory.update_okr(result["okr"])
@@ -3067,7 +3150,14 @@ class CEOMaxia:
             "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
             "IMPORTANT — decisions[].action DOIT etre CONCRETE. PAS de phrases vagues."
         )
-        result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 5000))
+        # Router: tier STRATEGIC pour expansion (inchange — c'est mensuel)
+        if self.router:
+            result = _pj(await self.router.call(
+                f"CONTEXTE:\n{ctx}\n\n{q}",
+                tier=Tier.STRATEGIC, system=CEO_IDENTITY, max_tokens=5000,
+            ))
+        else:
+            result = _pj(await _call_anthropic(OPUS_MODEL, CEO_IDENTITY, f"CONTEXTE:\n{ctx}\n\n{q}", 5000))
         if result:
             if result.get("marche"):
                 self.memory._data["marche"] = result["marche"]
@@ -3234,11 +3324,12 @@ class CEOMaxia:
             "running": self._running, "cycle": self._cycle,
             "emergency_stop": d.get("emergency_stop", False),
             "cerveaux": {
-                "tactique": "Groq (gratuit)",
-                "strategique": f"Sonnet ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
-                "vision": f"Opus ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
-                "expansion": f"Opus ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
+                "tactique": "Router:FAST" if self.router else "Groq (gratuit)",
+                "strategique": "Router:MID" if self.router else f"Sonnet ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
+                "vision": "Router:STRATEGIC" if self.router else f"Opus ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
+                "expansion": "Router:STRATEGIC" if self.router else f"Opus ({'actif' if ANTHROPIC_API_KEY else 'Groq'})",
             },
+            "router_stats": self.router.get_stats() if self.router else None,
             "budget": {"vert": d.get("budget_vert", BASE_BUDGET_VERT), "sem_0rev": d.get("semaines_0rev", 0)},
             "hunter": {"canal": d.get("hunter_canal", "?"), "rate": f"{self.memory.hunter_rate():.1%}"},
             "fondateur": {"inactif_jours": self.memory.fondateur_days_inactive(), "alertes_ignorees": d.get("fondateur_alertes_ignorees", 0)},

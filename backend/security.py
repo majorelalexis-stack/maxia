@@ -327,3 +327,67 @@ def get_daily_spend_stats() -> dict:
         "limit_usdc": GROWTH_MAX_SPEND_DAY,
         "remaining_usdc": max(0, GROWTH_MAX_SPEND_DAY - log["total"]),
     }
+
+
+# ── CEO spending limits (Art.4 V12 — PC local -> VPS) ──
+
+_CEO_DAILY_LIMITS = {
+    "update_price": {"max_per_day": 20, "max_amount_usd": 0},
+    "post_tweet": {"max_per_day": 10, "max_amount_usd": 0},
+    "post_reddit": {"max_per_day": 5, "max_amount_usd": 0},
+    "send_alert": {"max_per_day": 50, "max_amount_usd": 0},
+    "contact_prospect": {"max_per_day": 10, "max_amount_usd": 1.0},
+    "toggle_agent": {"max_per_day": 10, "max_amount_usd": 0},
+    "adjust_budget": {"max_per_day": 5, "max_amount_usd": 50.0},
+    "execute_trade": {"max_per_day": 3, "max_amount_usd": 100.0},
+    "deploy_page": {"max_per_day": 5, "max_amount_usd": 0},
+    "browse_competitor": {"max_per_day": 20, "max_amount_usd": 0},
+    "generate_report": {"max_per_day": 10, "max_amount_usd": 0},
+}
+
+_ceo_action_counts: dict = {}
+_ceo_action_date: str = ""
+
+
+def check_ceo_spending_limit(action: str, amount_usd: float = 0) -> dict:
+    """Verifie les limites de depenses pour une action CEO.
+    Returns: {"allowed": True/False, "reason": "..."}
+    """
+    global _ceo_action_counts, _ceo_action_date
+
+    today = time.strftime("%Y-%m-%d")
+    if _ceo_action_date != today:
+        _ceo_action_counts = {}
+        _ceo_action_date = today
+
+    limits = _CEO_DAILY_LIMITS.get(action)
+    if not limits:
+        # Action inconnue — prudence
+        return {"allowed": True, "reason": "Unknown action type — no specific limit"}
+
+    # Limite par jour
+    count = _ceo_action_counts.get(action, 0)
+    if count >= limits["max_per_day"]:
+        return {
+            "allowed": False,
+            "reason": f"CEO daily limit reached for {action}: {count}/{limits['max_per_day']}",
+        }
+
+    # Limite par montant
+    if limits["max_amount_usd"] > 0 and amount_usd > limits["max_amount_usd"]:
+        return {
+            "allowed": False,
+            "reason": f"Amount ${amount_usd} exceeds CEO limit for {action} (${limits['max_amount_usd']})",
+        }
+
+    return {"allowed": True, "reason": "OK"}
+
+
+def record_ceo_action(action: str):
+    """Enregistre une action CEO dans le compteur quotidien."""
+    global _ceo_action_counts, _ceo_action_date
+    today = time.strftime("%Y-%m-%d")
+    if _ceo_action_date != today:
+        _ceo_action_counts = {}
+        _ceo_action_date = today
+    _ceo_action_counts[action] = _ceo_action_counts.get(action, 0) + 1
