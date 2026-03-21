@@ -300,7 +300,7 @@ class BrowserAgent:
                 try:
                     file_input = page.locator('input[type="file"][accept*="image"]').first
                     await file_input.set_input_files(media)
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(5000)
                 except Exception as e:
                     print(f"[BrowserAgent] Media upload failed: {e}")
 
@@ -318,7 +318,7 @@ class BrowserAgent:
                 await self._screenshot(page, "tweet_post_fail")
                 return {"success": False, "error": "Bouton Post introuvable"}
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "tweet_ok")
 
             self._record_action("tweet", self._content_hash("tweet", text))
@@ -360,7 +360,7 @@ class BrowserAgent:
             if not posted:
                 return {"success": False, "error": "Bouton Reply introuvable"}
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             return {"success": True, "url": tweet_url, "reply": text[:100]}
 
         except Exception as e:
@@ -380,7 +380,7 @@ class BrowserAgent:
         try:
             url = f"https://www.reddit.com/r/{subreddit}/submit?type=TEXT"
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             # Titre — multi-selectors
             filled_title = await self._find_and_fill(page, [
@@ -515,11 +515,11 @@ class BrowserAgent:
         try:
             encoded = query.replace(" ", "%20")
             await page.goto(f"https://x.com/search?q={encoded}&src=typed_query&f=live", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             results = []
             # Extraire les tweets du feed
-            tweets = await page.locator('article[data-testid="tweet"]').all()
+            tweets = await page.locator('article[data-testid="tweet"], article').all()
             for tweet in tweets[:max_results]:
                 try:
                     # Username
@@ -558,7 +558,7 @@ class BrowserAgent:
 
         try:
             await page.goto("https://x.com/notifications/mentions", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             mentions = []
             tweets = await page.locator('article[data-testid="tweet"]').all()
@@ -667,7 +667,7 @@ class BrowserAgent:
         try:
             encoded = query.replace(" ", "%20")
             await page.goto(f"https://x.com/search?q={encoded}&src=typed_query&f=user", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             profiles = []
             cells = await page.locator('[data-testid="UserCell"]').all()
@@ -774,7 +774,7 @@ class BrowserAgent:
 
         try:
             await page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             # Trouver et remplir le champ commentaire
             filled = await self._find_and_fill(page, [
@@ -817,7 +817,7 @@ class BrowserAgent:
                 await self._screenshot(page, "reddit_comment_btn_fail")
                 return {"success": False, "error": "Bouton Comment introuvable"}
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "reddit_comment_ok")
             self._record_action("reddit_comment", self._content_hash("reddit_comment", post_url))
             return {"success": True, "proof": proof, "url": post_url}
@@ -996,7 +996,7 @@ class BrowserAgent:
 
         try:
             await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             # Chercher le groupe/user
             search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
@@ -1043,7 +1043,7 @@ class BrowserAgent:
 
         try:
             await page.goto(group_link, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             # Cliquer Join
             joined = await self._find_and_click(page, [
@@ -1125,7 +1125,7 @@ class BrowserAgent:
                 'button[type="submit"]:has-text("Submit")',
             ], "Submit issue")
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             return {"success": submitted, "repo": repo_url, "title": title[:50]}
 
         except Exception as e:
@@ -1156,7 +1156,7 @@ class BrowserAgent:
                 'button[type="submit"]:has-text("Comment")',
             ], "Comment button")
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             return {"success": submitted, "url": discussion_url}
 
         except Exception as e:
@@ -1174,7 +1174,7 @@ class BrowserAgent:
 
         try:
             await page.goto(server_channel_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             filled = await self._find_and_fill(page, [
                 'div[role="textbox"][contenteditable="true"]',
@@ -1200,7 +1200,7 @@ class BrowserAgent:
 
         try:
             await page.goto(invite_link, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             joined = await self._find_and_click(page, [
                 'button:has-text("Accept Invite")',
@@ -1208,7 +1208,7 @@ class BrowserAgent:
                 'button:has-text("Accepter l\'invitation")',
             ], "Join Discord")
 
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             return {"success": joined, "invite": invite_link}
 
         except Exception as e:
@@ -1319,7 +1319,7 @@ class BrowserAgent:
             ], "Post thread")
 
             if posted:
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(5000)
                 for t in tweets:
                     self._record_action("tweet", self._content_hash("tweet", t))
                 return {"success": True, "tweets": len(tweets)}
@@ -1336,7 +1336,7 @@ class BrowserAgent:
         try:
             clean = competitor.lstrip("@")
             await page.goto(f"https://x.com/{clean}/followers", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             followers = []
             cells = await page.locator('[data-testid="UserCell"]').all()
@@ -1371,7 +1371,7 @@ class BrowserAgent:
 
         try:
             await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             conversations = []
             # Lister les conversations
@@ -1488,7 +1488,7 @@ class BrowserAgent:
 
         try:
             await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             # Chercher le groupe
             search = page.locator('#telegram-search-input, input[placeholder*="Search" i], .input-search input').first
@@ -1527,7 +1527,7 @@ class BrowserAgent:
 
         try:
             await page.goto(channel_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
 
             messages = []
             msg_els = await page.locator('[id^="message-content-"], div[class*="messageContent"]').all()
