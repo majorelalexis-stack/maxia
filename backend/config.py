@@ -61,7 +61,7 @@ AP2_SIGNING_KEY = os.getenv("AP2_SIGNING_KEY", "")
 
 # ── x402 ──
 X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
-SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet"]
+SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
     "/api/gpu/auctions":        1.00,
@@ -175,13 +175,47 @@ TWITTER_ACCESS_SECRET  = os.getenv("TWITTER_ACCESS_SECRET", "")
 # ── V12: PostgreSQL + Redis ──
 DATABASE_URL         = os.getenv("DATABASE_URL", "")           # postgresql://...
 REDIS_URL            = os.getenv("REDIS_URL", "")              # redis://localhost:6379/0
-ACCEPTED_CURRENCIES  = ["USDC", "SOL", "ETH"]
+ACCEPTED_CURRENCIES  = ["USDC", "SOL", "ETH", "TON", "SUI", "USDT"]
 CURRENCY_SLIPPAGE_PCT = float(os.getenv("CURRENCY_SLIPPAGE_PCT", "2"))
 
 # ── V12: XRP Ledger (3eme blockchain) ──
 XRPL_RPC = os.getenv("XRPL_RPC", "https://s2.ripple.com:51234/")
 XRPL_USDC_ISSUER = os.getenv("XRPL_USDC_ISSUER", "rcEGREd8NmkKRE8GE424sksyt1tJVFZwu")
 TREASURY_ADDRESS_XRPL = os.getenv("TREASURY_ADDRESS_XRPL", "")
+
+# ── V12: TON — The Open Network (4eme blockchain, non-EVM) ──
+TON_API_URL = os.getenv("TON_API_URL", "https://toncenter.com/api/v2")
+TREASURY_ADDRESS_TON = os.getenv("TREASURY_ADDRESS_TON", "")
+TON_USDT_JETTON = "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs"  # Tether USDT on TON
+
+# ── V12: SUI (5eme blockchain, non-EVM) ──
+SUI_RPC = os.getenv("SUI_RPC", "https://fullnode.mainnet.sui.io:443")
+TREASURY_ADDRESS_SUI = os.getenv("TREASURY_ADDRESS_SUI", "")
+SUI_USDC_TYPE = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC"
+
+# ── V12: Polygon PoS (6eme blockchain, EVM) ──
+POLYGON_RPC              = os.getenv("POLYGON_RPC", "https://polygon-rpc.com")
+POLYGON_CHAIN_ID         = 137
+POLYGON_USDC_CONTRACT    = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+TREASURY_ADDRESS_POLYGON = os.getenv("TREASURY_ADDRESS_POLYGON", "")
+
+# ── V12: Arbitrum One (7eme blockchain, EVM L2) ──
+ARBITRUM_RPC              = os.getenv("ARBITRUM_RPC", "https://arb1.arbitrum.io/rpc")
+ARBITRUM_CHAIN_ID         = 42161
+ARBITRUM_USDC_CONTRACT    = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+TREASURY_ADDRESS_ARBITRUM = os.getenv("TREASURY_ADDRESS_ARBITRUM", "")
+
+# ── V12: Avalanche C-Chain (8eme blockchain, EVM) ──
+AVALANCHE_RPC              = os.getenv("AVALANCHE_RPC", "https://api.avax.network/ext/bc/C/rpc")
+AVALANCHE_CHAIN_ID         = 43114
+AVALANCHE_USDC_CONTRACT    = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+TREASURY_ADDRESS_AVALANCHE = os.getenv("TREASURY_ADDRESS_AVALANCHE", "")
+
+# ── V12: BNB Chain (9eme blockchain, EVM) ──
+BNB_RPC              = os.getenv("BNB_RPC", "https://bsc-dataseed.binance.org")
+BNB_CHAIN_ID         = 56
+BNB_USDC_CONTRACT    = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"
+TREASURY_ADDRESS_BNB = os.getenv("TREASURY_ADDRESS_BNB", "")
 
 # ── V12: LLM Router (CEO autonome) ──
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")

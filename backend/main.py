@@ -1,4 +1,4 @@
-"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (Solana + Base + Ethereum + XRP + 17 AI Agents)"""
+"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (Solana + Base + Ethereum + XRP + TON + SUI + 17 AI Agents)"""
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,11 +29,17 @@ from redis_client import redis_client
 from config import (
     GPU_TIERS, get_commission_bps,
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE,
+    TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
+    TREASURY_ADDRESS_AVALANCHE, TREASURY_ADDRESS_BNB,
     SUPPORTED_NETWORKS, X402_PRICE_MAP,
 )
 
 # ── V10 imports ──
 from base_verifier import verify_base_transaction, verify_usdc_transfer_base
+from polygon_verifier import verify_polygon_transaction, verify_usdc_transfer_polygon
+from arbitrum_verifier import verify_arbitrum_transaction, verify_usdc_transfer_arbitrum
+from avalanche_verifier import verify_avalanche_transaction, verify_usdc_transfer_avalanche
+from bnb_verifier import verify_bnb_transaction, verify_usdc_transfer_bnb
 from kiteai_client import kite_client
 from ap2_manager import ap2_manager
 from x402_middleware import x402_middleware
@@ -1790,6 +1796,10 @@ async def x402_info():
             "base": TREASURY_ADDRESS_BASE,
             "ethereum": TREASURY_ADDRESS_ETH,
             "xrpl": TREASURY_ADDRESS_XRPL,
+            "polygon": TREASURY_ADDRESS_POLYGON,
+            "arbitrum": TREASURY_ADDRESS_ARBITRUM,
+            "avalanche": TREASURY_ADDRESS_AVALANCHE,
+            "bnb": TREASURY_ADDRESS_BNB,
         },
         "priceMap": X402_PRICE_MAP,
         "protocols": ["x402-v2", "ap2"],
@@ -2188,6 +2198,122 @@ async def verify_eth_usdc(req: BaseVerifyRequest, request: Request):
     check_rate_limit(request)
     from eth_verifier import verify_usdc_transfer_eth
     return await verify_usdc_transfer_eth(req.tx_hash, req.expected_amount_raw)
+
+
+# ═══════════════════════════════════════════════════════════
+#  POLYGON — PoS (Art.13 EVM)
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/polygon/info")
+async def polygon_info():
+    from config import POLYGON_RPC, POLYGON_CHAIN_ID, POLYGON_USDC_CONTRACT, TREASURY_ADDRESS_POLYGON
+    return {
+        "network": "polygon-mainnet",
+        "chainId": POLYGON_CHAIN_ID,
+        "rpc": POLYGON_RPC,
+        "usdcContract": POLYGON_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_POLYGON,
+        "status": "active" if TREASURY_ADDRESS_POLYGON else "not_configured",
+    }
+
+
+@app.post("/api/polygon/verify")
+async def verify_polygon_tx(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_polygon_transaction(req.tx_hash, req.expected_to)
+
+
+@app.post("/api/polygon/verify-usdc")
+async def verify_polygon_usdc(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_usdc_transfer_polygon(req.tx_hash, req.expected_amount_raw)
+
+
+# ═══════════════════════════════════════════════════════════
+#  ARBITRUM — One (Art.13 EVM L2)
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/arbitrum/info")
+async def arbitrum_info():
+    from config import ARBITRUM_RPC, ARBITRUM_CHAIN_ID, ARBITRUM_USDC_CONTRACT, TREASURY_ADDRESS_ARBITRUM
+    return {
+        "network": "arbitrum-mainnet",
+        "chainId": ARBITRUM_CHAIN_ID,
+        "rpc": ARBITRUM_RPC,
+        "usdcContract": ARBITRUM_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_ARBITRUM,
+        "status": "active" if TREASURY_ADDRESS_ARBITRUM else "not_configured",
+    }
+
+
+@app.post("/api/arbitrum/verify")
+async def verify_arbitrum_tx(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_arbitrum_transaction(req.tx_hash, req.expected_to)
+
+
+@app.post("/api/arbitrum/verify-usdc")
+async def verify_arbitrum_usdc(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_usdc_transfer_arbitrum(req.tx_hash, req.expected_amount_raw)
+
+
+# ═══════════════════════════════════════════════════════════
+#  AVALANCHE — C-Chain (Art.13 EVM)
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/avalanche/info")
+async def avalanche_info():
+    from config import AVALANCHE_RPC, AVALANCHE_CHAIN_ID, AVALANCHE_USDC_CONTRACT, TREASURY_ADDRESS_AVALANCHE
+    return {
+        "network": "avalanche-mainnet",
+        "chainId": AVALANCHE_CHAIN_ID,
+        "rpc": AVALANCHE_RPC,
+        "usdcContract": AVALANCHE_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_AVALANCHE,
+        "status": "active" if TREASURY_ADDRESS_AVALANCHE else "not_configured",
+    }
+
+
+@app.post("/api/avalanche/verify")
+async def verify_avalanche_tx(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_avalanche_transaction(req.tx_hash, req.expected_to)
+
+
+@app.post("/api/avalanche/verify-usdc")
+async def verify_avalanche_usdc(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_usdc_transfer_avalanche(req.tx_hash, req.expected_amount_raw)
+
+
+# ═══════════════════════════════════════════════════════════
+#  BNB CHAIN — BSC (Art.13 EVM)
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/bnb/info")
+async def bnb_info():
+    from config import BNB_RPC, BNB_CHAIN_ID, BNB_USDC_CONTRACT, TREASURY_ADDRESS_BNB
+    return {
+        "network": "bnb-mainnet",
+        "chainId": BNB_CHAIN_ID,
+        "rpc": BNB_RPC,
+        "usdcContract": BNB_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_BNB,
+        "status": "active" if TREASURY_ADDRESS_BNB else "not_configured",
+    }
+
+
+@app.post("/api/bnb/verify")
+async def verify_bnb_tx(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_bnb_transaction(req.tx_hash, req.expected_to)
+
+
+@app.post("/api/bnb/verify-usdc")
+async def verify_bnb_usdc(req: BaseVerifyRequest, request: Request):
+    check_rate_limit(request)
+    return await verify_usdc_transfer_bnb(req.tx_hash, req.expected_amount_raw)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2944,6 +3070,105 @@ async def xrpl_verify_usdc(request: Request):
         )
     except Exception as e:
         return {"verified": False, "error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
+#  V12: TON — The Open Network (5eme reseau, non-EVM)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/ton/info")
+async def ton_info():
+    """Infos reseau TON."""
+    from config import TON_API_URL, TREASURY_ADDRESS_TON, TON_USDT_JETTON
+    return {
+        "network": "ton-mainnet",
+        "api": TON_API_URL,
+        "usdt_jetton": TON_USDT_JETTON,
+        "treasury": TREASURY_ADDRESS_TON or "not configured",
+        "status": "active" if TREASURY_ADDRESS_TON else "not_configured",
+        "supported_currencies": ["TON", "USDT"],
+        "settlement_time": "5-10 seconds",
+        "fees": "< $0.01",
+        "note": "TON uses USDT (Tether) — no native USDC on TON yet",
+    }
+
+
+@app.post("/api/ton/verify")
+async def ton_verify(request: Request):
+    """Verifie une transaction sur TON."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from ton_verifier import verify_ton_transaction
+        return await verify_ton_transaction(
+            tx_hash,
+            expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+
+@app.get("/api/ton/balance/{address}")
+async def ton_balance(address: str):
+    """Solde TON d'un wallet."""
+    try:
+        from ton_verifier import get_ton_balance
+        return await get_ton_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
+#  V12: SUI (6eme reseau, non-EVM)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/sui/info")
+async def sui_info():
+    """Infos reseau SUI."""
+    from config import SUI_RPC, TREASURY_ADDRESS_SUI, SUI_USDC_TYPE
+    return {
+        "network": "sui-mainnet",
+        "rpc": SUI_RPC,
+        "usdc_type": SUI_USDC_TYPE,
+        "treasury": TREASURY_ADDRESS_SUI or "not configured",
+        "status": "active" if TREASURY_ADDRESS_SUI else "not_configured",
+        "supported_currencies": ["SUI", "USDC"],
+        "settlement_time": "2-3 seconds",
+        "fees": "< $0.01",
+    }
+
+
+@app.post("/api/sui/verify")
+async def sui_verify(request: Request):
+    """Verifie une transaction sur SUI."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_digest = body.get("tx_digest", "") or body.get("tx_hash", "")
+    if not tx_digest:
+        raise HTTPException(400, "tx_digest (or tx_hash) required")
+    try:
+        from sui_verifier import verify_sui_transaction
+        return await verify_sui_transaction(
+            tx_digest,
+            expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+
+@app.get("/api/sui/balance/{address}")
+async def sui_balance(address: str):
+    """Solde SUI d'un wallet."""
+    try:
+        from sui_verifier import get_sui_balance
+        return await get_sui_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ══════════════════════════════════════════════════════════

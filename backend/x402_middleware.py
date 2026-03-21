@@ -1,12 +1,19 @@
-"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRPL multi-chain)"""
+"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB multi-chain)"""
 import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from config import (
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
-    TREASURY_ADDRESS_XRPL,
+    TREASURY_ADDRESS_XRPL, TREASURY_ADDRESS_TON, TREASURY_ADDRESS_SUI,
+    TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
+    TREASURY_ADDRESS_AVALANCHE, TREASURY_ADDRESS_BNB,
     BASE_USDC_CONTRACT, BASE_CHAIN_ID,
     ETH_USDC_CONTRACT, ETH_CHAIN_ID, ETH_MIN_TX_USDC,
+    TON_USDT_JETTON, SUI_USDC_TYPE,
+    POLYGON_USDC_CONTRACT, POLYGON_CHAIN_ID,
+    ARBITRUM_USDC_CONTRACT, ARBITRUM_CHAIN_ID,
+    AVALANCHE_USDC_CONTRACT, AVALANCHE_CHAIN_ID,
+    BNB_USDC_CONTRACT, BNB_CHAIN_ID,
     X402_PRICE_MAP, SUPPORTED_NETWORKS,
 )
 
@@ -84,6 +91,88 @@ async def x402_middleware(request: Request, call_next):
                     "asset": "USD",
                     "maxTimeoutSeconds": 60,
                 })
+            # TON (non-EVM — uses USDT, not USDC)
+            if TREASURY_ADDRESS_TON:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "ton-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path} (TON — USDT)",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_TON,
+                    "asset": TON_USDT_JETTON,
+                    "maxTimeoutSeconds": 60,
+                })
+            # SUI (non-EVM)
+            if TREASURY_ADDRESS_SUI:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "sui-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_SUI,
+                    "asset": SUI_USDC_TYPE,
+                    "maxTimeoutSeconds": 60,
+                })
+            # Polygon PoS (EVM)
+            if TREASURY_ADDRESS_POLYGON:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "polygon-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_POLYGON,
+                    "asset": POLYGON_USDC_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                    "extra": {"chainId": POLYGON_CHAIN_ID},
+                })
+            # Arbitrum One (EVM L2)
+            if TREASURY_ADDRESS_ARBITRUM:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "arbitrum-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_ARBITRUM,
+                    "asset": ARBITRUM_USDC_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                    "extra": {"chainId": ARBITRUM_CHAIN_ID},
+                })
+            # Avalanche C-Chain (EVM)
+            if TREASURY_ADDRESS_AVALANCHE:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "avalanche-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_AVALANCHE,
+                    "asset": AVALANCHE_USDC_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                    "extra": {"chainId": AVALANCHE_CHAIN_ID},
+                })
+            # BNB Chain (EVM)
+            if TREASURY_ADDRESS_BNB:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "bnb-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": TREASURY_ADDRESS_BNB,
+                    "asset": BNB_USDC_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                    "extra": {"chainId": BNB_CHAIN_ID},
+                })
             return JSONResponse(
                 status_code=402,
                 content={"x402Version": 2, "accepts": accepts},
@@ -134,6 +223,32 @@ async def x402_middleware(request: Request, call_next):
                     expected_dest=TREASURY_ADDRESS_XRPL,
                     expected_amount=price,
                 )
+            elif "ton" in pay_network:
+                from ton_verifier import verify_ton_transaction
+                verify_call = verify_ton_transaction(
+                    tx_hash=pay_header,
+                    expected_dest=TREASURY_ADDRESS_TON,
+                    expected_amount=price,
+                )
+            elif "sui" in pay_network:
+                from sui_verifier import verify_sui_transaction
+                verify_call = verify_sui_transaction(
+                    tx_digest=pay_header,
+                    expected_dest=TREASURY_ADDRESS_SUI,
+                    expected_amount=price,
+                )
+            elif "polygon" in pay_network:
+                from polygon_verifier import x402_verify_payment_polygon
+                verify_call = x402_verify_payment_polygon(pay_header, price)
+            elif "arbitrum" in pay_network:
+                from arbitrum_verifier import x402_verify_payment_arbitrum
+                verify_call = x402_verify_payment_arbitrum(pay_header, price)
+            elif "avalanche" in pay_network:
+                from avalanche_verifier import x402_verify_payment_avalanche
+                verify_call = x402_verify_payment_avalanche(pay_header, price)
+            elif "bnb" in pay_network:
+                from bnb_verifier import x402_verify_payment_bnb
+                verify_call = x402_verify_payment_bnb(pay_header, price)
             else:
                 from solana_verifier import verify_transaction
                 verify_call = verify_transaction(
@@ -150,7 +265,8 @@ async def x402_middleware(request: Request, call_next):
             )
 
         # ── Standardize result key ──
-        if "xrpl" in pay_network or "xrp" in pay_network:
+        # XRPL, TON, SUI verifiers use "verified"; Solana/Base/ETH use "valid"
+        if any(net in pay_network for net in ("xrpl", "xrp", "ton", "sui")):
             is_valid = result.get("verified", False)
         else:
             is_valid = result.get("valid", False)
