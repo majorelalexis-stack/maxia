@@ -91,7 +91,13 @@ class BrowserAgent:
             self._pw = await async_playwright().start()
             os.makedirs(self._profile_dir, exist_ok=True)
             # Utiliser le Chrome systeme (pas le Chromium Playwright) pour garder le profil
-            chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            import platform
+            if platform.system() == "Windows":
+                chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+            elif platform.system() == "Darwin":
+                chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            else:
+                chrome_path = "/usr/bin/google-chrome"
             if not os.path.exists(chrome_path):
                 chrome_path = None  # Fallback Chromium Playwright
             self._context = await self._pw.chromium.launch_persistent_context(

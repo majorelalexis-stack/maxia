@@ -76,6 +76,14 @@ async def _get_http() -> httpx.AsyncClient:
         )
     return _http_pool
 
+
+async def close_http_pool():
+    """Close the shared HTTP client pool (call at shutdown)."""
+    global _http_pool
+    if _http_pool is not None and not getattr(_http_pool, 'is_closed', True):
+        await _http_pool.aclose()
+        _http_pool = None
+
 # Token mints pour getAsset
 TOKEN_MINTS = {
     # Crypto

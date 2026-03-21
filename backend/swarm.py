@@ -204,17 +204,15 @@ class Swarm:
             }
 
             # Analyser la demande via les commandes existantes
-            if db and db._db:
+            if db:
                 try:
                     keywords = template["target_keywords"]
                     count = 0
                     for kw in keywords:
-                        async with db._db.execute(
+                        rows = await db.raw_execute_fetchall(
                             "SELECT COUNT(*) FROM commands WHERE json_extract(data,'$.serviceId') LIKE ?",
-                            (f"%{kw}%",)
-                        ) as c:
-                            row = await c.fetchone()
-                            count += (row[0] if row else 0)
+                            (f"%{kw}%",))
+                        count += (rows[0][0] if rows else 0)
                     score["potential_score"] = min(100, count * 10)
                     score["market_demand"] = (
                         "high" if count > 10 else "medium" if count > 3 else "low"

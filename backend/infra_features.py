@@ -20,7 +20,7 @@ async def _get_agent(api_key):
 
 async def ensure_tables():
     db = await _get_db()
-    await db._db.executescript("""
+    await db.raw_executescript("""
         CREATE TABLE IF NOT EXISTS webhook_subscriptions (
             id TEXT PRIMARY KEY, api_key TEXT NOT NULL, callback_url TEXT NOT NULL,
             events TEXT DEFAULT 'all', filters TEXT DEFAULT '{}',
@@ -62,7 +62,6 @@ async def ensure_tables():
         CREATE INDEX IF NOT EXISTS idx_clone_orig ON clone_configs(original_seller_key);
         CREATE INDEX IF NOT EXISTS idx_clone_svc ON clone_configs(clone_service_id);
     """)
-    await db._db.commit()
 
 
 # ══════════════════════════════════════════
@@ -94,16 +93,15 @@ async def webhook_subscribe(req: dict, x_api_key: str = Header(None, alias="X-AP
 
     db = await _get_db()
     # Check limit
-    existing = await db._db.execute_fetchall(
+    existing = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt FROM webhook_subscriptions WHERE api_key=? AND active=1", (x_api_key,))
     count = existing[0]["cnt"] if existing else 0
 
     sid = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO webhook_subscriptions(id,api_key,callback_url,events,filters) VALUES(?,?,?,?,?)",
         (sid, x_api_key, callback_url, json.dumps(events), json.dumps(req.get("filters", {}))))
-    await db._db.commit()
-
+    
     return {"success": True, "subscription_id": sid, "events": events,
             "callback_url": callback_url,
             "note": "Free" if count < 3 else "0.99 USDC/month (4+ webhooks)"}
@@ -115,7 +113,7 @@ async def webhook_list(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM webhook_subscriptions WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     subs = []
     for r in rows:
@@ -132,7 +130,7 @@ async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet:
     import httpx
     db = await _get_db()
     query = "SELECT * FROM webhook_subscriptions WHERE active=1"
-    rows = await db._db.execute_fetchall(query)
+    rows = await db.raw_execute_fetchall(query)
 
     sent = 0
     for row in rows:
@@ -145,7 +143,7 @@ async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet:
         if filter_wallet:
             # Recuperer le wallet de l'agent via sa cle API
             try:
-                agent_rows = await db._db.execute_fetchall(
+                agent_rows = await db.raw_execute_fetchall(
                     "SELECT wallet FROM agents WHERE api_key=? LIMIT 1", (r["api_key"],))
                 if agent_rows:
                     row_data = dict(agent_rows[0]) if hasattr(agent_rows[0], 'keys') else {"wallet": agent_rows[0][0]}
@@ -190,9 +188,8 @@ async def webhook_unsubscribe(sub_id: str, x_api_key: str = Header(None, alias="
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE webhook_subscriptions SET active=0 WHERE id=? AND api_key=?", (sub_id, x_api_key))
-    await db._db.commit()
     return {"success": True, "subscription_id": sub_id}
 
 
@@ -223,7 +220,7 @@ async def webhook_history(x_api_key: str = Header(None, alias="X-API-Key"), limi
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall("""
+    rows = await db.raw_execute_fetchall("""
         SELECT l.* FROM webhook_delivery_log l
         JOIN webhook_subscriptions s ON l.subscription_id = s.id
         WHERE s.api_key=? ORDER BY l.created_at DESC LIMIT ?
@@ -235,7 +232,7 @@ async def notify_subscribers(event_type: str, data: dict):
     """Dispatch event to matching webhook subscribers."""
     try:
         db = await _get_db()
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM webhook_subscriptions WHERE active=1")
         import httpx
         for sub in rows:
@@ -249,13 +246,12 @@ async def notify_subscribers(event_type: str, data: dict):
                     resp = await client.post(sub["callback_url"], json=payload)
                     success = resp.status_code in (200, 201, 202)
                 did = str(uuid.uuid4())
-                await db._db.execute(
+                await db.raw_execute(
                     "INSERT INTO webhook_delivery_log(id,subscription_id,event_type,payload,status_code,success) VALUES(?,?,?,?,?,?)",
                     (did, sub["id"], event_type, json.dumps(payload)[:500], resp.status_code, int(success)))
-                await db._db.execute(
+                await db.raw_execute(
                     "UPDATE webhook_subscriptions SET deliveries=deliveries+1, last_delivery_at=? WHERE id=?",
                     (int(time.time()), sub["id"]))
-                await db._db.commit()
             except Exception:
                 pass
     except Exception:
@@ -292,11 +288,10 @@ async def public_escrow_create(req: dict, x_api_key: str = Header(None, alias="X
         "timeout_hours": req.get("timeout_hours", 72),
         "timeout_at": int(time.time()) + req.get("timeout_hours", 72) * 3600,
     }
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO escrow_records(escrow_id,buyer,seller,status,data) VALUES(?,?,?,?,?)",
         (eid, agent["wallet"], seller["wallet"], "locked", json.dumps(escrow_data)))
-    await db._db.commit()
-
+    
     return {"success": True, "escrow_id": eid, "amount_usdc": amount,
             "seller": seller["name"], "timeout_hours": req.get("timeout_hours", 72),
             "status": "locked"}
@@ -312,13 +307,13 @@ async def public_escrow_list(x_api_key: str = Header(None, alias="X-API-Key"),
     db = await _get_db()
 
     if role == "buyer":
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM escrow_records WHERE buyer=? ORDER BY created_at DESC", (agent["wallet"],))
     elif role == "seller":
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM escrow_records WHERE seller=? ORDER BY created_at DESC", (agent["wallet"],))
     else:
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM escrow_records WHERE buyer=? OR seller=? ORDER BY created_at DESC",
             (agent["wallet"], agent["wallet"]))
 
@@ -341,16 +336,15 @@ async def public_escrow_confirm(escrow_id: str, x_api_key: str = Header(None, al
     agent = await _get_agent(x_api_key)
     db = await _get_db()
 
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
         (escrow_id, agent["wallet"]))
     if not rows:
         raise HTTPException(404, "Escrow not found or not locked")
 
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE escrow_records SET status='released' WHERE escrow_id=?", (escrow_id,))
-    await db._db.commit()
-
+    
     data = json.loads(rows[0]["data"])
     return {"success": True, "escrow_id": escrow_id, "status": "released",
             "amount_usdc": data.get("amount_usdc", 0), "seller": data.get("seller", "")}
@@ -365,25 +359,23 @@ async def public_escrow_dispute(escrow_id: str, req: dict = None,
     agent = await _get_agent(x_api_key)
     db = await _get_db()
 
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
         (escrow_id, agent["wallet"]))
     if not rows:
         raise HTTPException(404, "Escrow not found or not locked")
 
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE escrow_records SET status='disputed' WHERE escrow_id=?", (escrow_id,))
-    await db._db.commit()
-
+    
     reason = (req or {}).get("reason", "")
     # Save dispute
     did = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT OR IGNORE INTO disputes(dispute_id,data) VALUES(?,?)",
         (did, json.dumps({"escrow_id": escrow_id, "reason": reason,
                           "buyer": agent["name"], "created_at": int(time.time())})))
-    await db._db.commit()
-
+    
     return {"success": True, "escrow_id": escrow_id, "status": "disputed",
             "dispute_id": did, "message": "Dispute filed. Admin will review within 48h."}
 
@@ -396,7 +388,7 @@ async def public_escrow_get(escrow_id: str, x_api_key: str = Header(None, alias=
     agent = await _get_agent(x_api_key)
     db = await _get_db()
 
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM escrow_records WHERE escrow_id=? AND (buyer=? OR seller=?)",
         (escrow_id, agent["wallet"], agent["wallet"]))
     if not rows:
@@ -427,14 +419,13 @@ async def sla_set(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(403, "Not your service")
 
     sid = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT OR REPLACE INTO service_slas(id,service_id,seller_api_key,max_response_time_ms,uptime_guarantee_pct,auto_refund) VALUES(?,?,?,?,?,?)",
         (sid, service_id, x_api_key,
          req.get("max_response_time_ms", 30000),
          req.get("uptime_guarantee_pct", 99.0),
          1 if req.get("auto_refund", True) else 0))
-    await db._db.commit()
-
+    
     return {"success": True, "sla_id": sid, "service_id": service_id,
             "max_response_time_ms": req.get("max_response_time_ms", 30000),
             "uptime_guarantee_pct": req.get("uptime_guarantee_pct", 99.0),
@@ -445,7 +436,7 @@ async def sla_set(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
 async def sla_get(service_id: str):
     """Get SLA for a service. Free, no auth."""
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM service_slas WHERE service_id=?", (service_id,))
     if not rows:
         return {"service_id": service_id, "sla": None, "note": "No SLA set for this service"}
@@ -458,7 +449,7 @@ async def sla_violations(service_id: str, x_api_key: str = Header(None, alias="X
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM sla_violations WHERE service_id=? ORDER BY created_at DESC LIMIT 100",
         (service_id,))
     return {"violations": [dict(r) for r in rows], "total": len(rows)}
@@ -468,7 +459,7 @@ async def check_sla(service_id: str, response_time_ms: int, price_usdc: float, b
     """Check SLA after service execution. Auto-refund if violated."""
     try:
         db = await _get_db()
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM service_slas WHERE service_id=?", (service_id,))
         if not rows:
             return
@@ -476,11 +467,10 @@ async def check_sla(service_id: str, response_time_ms: int, price_usdc: float, b
         if response_time_ms > sla["max_response_time_ms"]:
             vid = str(uuid.uuid4())
             refund = price_usdc if sla["auto_refund"] else 0
-            await db._db.execute(
+            await db.raw_execute(
                 "INSERT INTO sla_violations(id,service_id,sla_id,violation_type,response_time_ms,refunded,refund_amount_usdc,buyer_wallet) VALUES(?,?,?,?,?,?,?,?)",
                 (vid, service_id, sla["id"], "timeout", response_time_ms,
                  1 if refund > 0 else 0, refund, buyer_wallet))
-            await db._db.commit()
             if refund > 0:
                 print(f"[SLA] Violation: {service_id} took {response_time_ms}ms (max {sla['max_response_time_ms']}ms). Auto-refund ${refund}")
     except Exception as e:
@@ -531,11 +521,10 @@ async def clone_create(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 
     # Save clone config
     cid = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO clone_configs(id,original_service_id,original_seller_key,clone_api_key,clone_service_id,revenue_share_pct) VALUES(?,?,?,?,?,?)",
         (cid, service_id, original["agent_api_key"], x_api_key, clone_id, CLONE_REVENUE_SHARE_PCT))
-    await db._db.commit()
-
+    
     return {"success": True, "clone_id": cid, "clone_service_id": clone_id,
             "original_service": original["name"], "original_seller": original["agent_name"],
             "revenue_share": f"{CLONE_REVENUE_SHARE_PCT}% to original creator",
@@ -548,7 +537,7 @@ async def clone_list(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM clone_configs WHERE clone_api_key=? AND active=1 ORDER BY created_at DESC",
         (x_api_key,))
     return {"clones": [dict(r) for r in rows], "total": len(rows)}
@@ -560,7 +549,7 @@ async def clone_royalties(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM clone_configs WHERE original_seller_key=? ORDER BY total_royalties_usdc DESC",
         (x_api_key,))
     total = sum(float(r["total_royalties_usdc"]) for r in rows)
@@ -572,7 +561,7 @@ async def clone_royalties(x_api_key: str = Header(None, alias="X-API-Key")):
 async def clone_stats():
     """Global clone statistics. Free, no auth."""
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_revenue_usdc),0) AS rev, COALESCE(SUM(total_royalties_usdc),0) AS roy FROM clone_configs WHERE active=1")
     r = dict(rows[0]) if rows else {}
     return {"total_clones": r.get("cnt", 0),
@@ -585,16 +574,15 @@ async def process_clone_royalty(clone_service_id: str, sale_amount_usdc: float):
     """Process royalty payment after a clone service sale."""
     try:
         db = await _get_db()
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT * FROM clone_configs WHERE clone_service_id=? AND active=1", (clone_service_id,))
         if not rows:
             return
         config = rows[0]
         royalty = round(sale_amount_usdc * config["revenue_share_pct"] / 100, 4)
-        await db._db.execute(
+        await db.raw_execute(
             "UPDATE clone_configs SET total_revenue_usdc=total_revenue_usdc+?, total_royalties_usdc=total_royalties_usdc+? WHERE id=?",
             (sale_amount_usdc, royalty, config["id"]))
-        await db._db.commit()
         print(f"[Clone] Royalty ${royalty} to original creator for clone {clone_service_id}")
     except Exception as e:
         print(f"[Clone] Royalty error: {e}")

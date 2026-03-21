@@ -51,17 +51,15 @@ class AgentWorker:
             await asyncio.sleep(2)
 
     async def _tick(self):
-        if db is None or db._db is None:
+        if db is None:
             return
         try:
-            async with db._db.execute(
-                "SELECT data FROM commands WHERE json_extract(data,'$.status')='pending'"
-            ) as c:
-                rows = await c.fetchall()
+            rows = await db.raw_execute_fetchall(
+                "SELECT data FROM commands WHERE json_extract(data,'$.status')='pending'")
         except Exception:
             return
         for row in rows:
-            cmd = json.loads(row[0])
+            cmd = json.loads(row["data"] if isinstance(row, dict) else row[0])
             cid = cmd["commandId"]
             if cid in self._active:
                 continue
@@ -127,17 +125,16 @@ class AgentWorker:
         return "text"
 
     async def _save(self, cid: str, update: dict):
-        if db is None or db._db is None:
+        if db is None:
             return
         try:
-            async with db._db.execute("SELECT data FROM commands WHERE command_id=?", (cid,)) as c:
-                row = await c.fetchone()
+            rows = await db.raw_execute_fetchall("SELECT data FROM commands WHERE command_id=?", (cid,))
+            row = rows[0] if rows else None
             if not row:
                 return
-            d = json.loads(row[0])
+            d = json.loads(row[0] if not isinstance(row, dict) else row["data"])
             d.update(update)
-            await db._db.execute("UPDATE commands SET data=? WHERE command_id=?", (json.dumps(d), cid))
-            await db._db.commit()
+            await db.raw_execute("UPDATE commands SET data=? WHERE command_id=?", (json.dumps(d), cid))
         except Exception as e:
             print(f"[AgentWorker] DB error: {e}")
 

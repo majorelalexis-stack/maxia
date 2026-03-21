@@ -20,7 +20,7 @@ async def _get_agent(api_key):
 
 async def ensure_tables():
     db = await _get_db()
-    await db._db.executescript("""
+    await db.raw_executescript("""
         CREATE TABLE IF NOT EXISTS agent_messages (
             id TEXT PRIMARY KEY, channel_id TEXT NOT NULL,
             sender_api_key TEXT NOT NULL, sender_name TEXT DEFAULT '',
@@ -31,7 +31,6 @@ async def ensure_tables():
         CREATE INDEX IF NOT EXISTS idx_msg_channel ON agent_messages(channel_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_msg_recipient ON agent_messages(recipient_api_key, read);
     """)
-    await db._db.commit()
 
 
 # ══════════════════════════════════════════
@@ -52,7 +51,7 @@ async def leaderboard(period: str = "30d", sort_by: str = "volume", limit: int =
              "rating": "avg_rating"}.get(sort_by, "volume")
     assert order in ("volume", "tx_count", "earned", "avg_rating"), "Invalid order column"
 
-    rows = await db._db.execute_fetchall(f"""
+    rows = await db.raw_execute_fetchall(f"""
         SELECT a.name, a.wallet, a.tier, a.services_listed,
             COALESCE(SUM(t.amount_usdc), 0) AS volume,
             COUNT(t.tx_signature) AS tx_count,
@@ -82,7 +81,7 @@ async def leaderboard_services(limit: int = 20):
     """Top services by sales. Free, no auth."""
     db = await _get_db()
     limit = min(limit, 100)
-    rows = await db._db.execute_fetchall("""
+    rows = await db.raw_execute_fetchall("""
         SELECT s.name, s.agent_name AS seller, s.price_usdc, s.sales, s.rating,
             s.sales * s.price_usdc AS total_revenue
         FROM agent_services s WHERE s.status = 'active'
@@ -133,12 +132,11 @@ async def send_message(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     if msg_type not in ("text", "offer", "counter_offer", "accept", "reject"):
         msg_type = "text"
 
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO agent_messages(id,channel_id,sender_api_key,sender_name,recipient_api_key,message,msg_type,metadata) VALUES(?,?,?,?,?,?,?,?)",
         (mid, channel, x_api_key, agent["name"], recipient, message, msg_type,
          json.dumps(req.get("metadata", {}))))
-    await db._db.commit()
-
+    
     return {"success": True, "message_id": mid, "channel_id": channel,
             "to": rcpt["name"], "msg_type": msg_type}
 
@@ -149,7 +147,7 @@ async def message_inbox(x_api_key: str = Header(None, alias="X-API-Key"), limit:
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM agent_messages WHERE recipient_api_key=? AND read=0 ORDER BY created_at DESC LIMIT ?",
         (x_api_key, min(limit, 100)))
     return {"messages": [dict(r) for r in rows], "total": len(rows)}
@@ -162,7 +160,7 @@ async def message_conversation(other_api_key: str, x_api_key: str = Header(None,
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     channel = _channel_id(x_api_key, other_api_key)
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM agent_messages WHERE channel_id=? ORDER BY created_at DESC LIMIT ?",
         (channel, min(limit, 200)))
     return {"messages": [dict(r) for r in reversed(rows)], "channel_id": channel, "total": len(rows)}
@@ -174,10 +172,9 @@ async def message_read(message_id: str, x_api_key: str = Header(None, alias="X-A
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE agent_messages SET read=1 WHERE id=? AND recipient_api_key=?",
         (message_id, x_api_key))
-    await db._db.commit()
     return {"success": True}
 
 
@@ -187,7 +184,7 @@ async def unread_count(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt FROM agent_messages WHERE recipient_api_key=? AND read=0",
         (x_api_key,))
     return {"unread": rows[0]["cnt"] if rows else 0}

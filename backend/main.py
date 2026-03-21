@@ -253,6 +253,11 @@ async def lifespan(app: FastAPI):
     scheduler.stop()
     scout_agent.stop()
     # Close connections
+    try:
+        from price_oracle import close_http_pool
+        await close_http_pool()
+    except Exception:
+        pass
     await db.disconnect()
     await redis_client.close()
     print("[MAXIA] Shutdown complete")

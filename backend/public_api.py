@@ -343,12 +343,11 @@ async def register_agent(req: dict):
     if referral_code:
         try:
             from database import db as _db
-            await _db._db.execute(
+            await _db.raw_execute(
                 "INSERT OR IGNORE INTO referrals(ref_id,referrer,referee,data) VALUES(?,?,?,?)",
                 (str(uuid.uuid4()), referral_code, wallet,
                  json.dumps({"referralId": str(uuid.uuid4()), "referrer": referral_code,
                              "referee": wallet, "registeredAt": int(time.time()), "earnedUsdc": 0})))
-            await _db._db.commit()
             print(f"[PublicAPI] Referral: {name} referred by {referral_code}")
         except Exception as e:
             print(f"[PublicAPI] Referral error: {e}")
@@ -523,10 +522,9 @@ async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-K
     # Store dispute
     try:
         from database import db as _db
-        await _db._db.execute(
+        await _db.raw_execute(
             "INSERT OR IGNORE INTO disputes(id, data) VALUES(?, ?)",
             (dispute_id, json.dumps(dispute)))
-        await _db._db.commit()
     except Exception:
         pass
 
@@ -540,7 +538,7 @@ async def get_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-AP
         raise HTTPException(401, "X-API-Key required")
     try:
         from database import db as _db
-        rows = await _db._db.execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
+        rows = await _db.raw_execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
         if rows:
             return json.loads(rows[0]["data"])
     except Exception:
@@ -2298,13 +2296,13 @@ async def referral_my_code(x_api_key: str = Header(None, alias="X-API-Key")):
     agent = _get_agent(x_api_key)
     code = agent["wallet"][:8].upper() + "MAXIA"
     from database import db
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (code,))
     count = rows[0]["cnt"] if rows else 0
     # Calculate earnings
     earnings = 0.0
     try:
-        rows2 = await db._db.execute_fetchall(
+        rows2 = await db.raw_execute_fetchall(
             "SELECT data FROM referrals WHERE referrer=?", (code,))
         for r in rows2:
             d = json.loads(r["data"])
@@ -2334,7 +2332,7 @@ async def referral_list(x_api_key: str = Header(None, alias="X-API-Key")):
     agent = _get_agent(x_api_key)
     code = agent["wallet"][:8].upper() + "MAXIA"
     from database import db
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT data FROM referrals WHERE referrer=? ORDER BY rowid DESC", (code,))
     referrals = []
     total_earned = 0.0

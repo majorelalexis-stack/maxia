@@ -91,7 +91,7 @@ async def get_top_agents(db, limit: int = 20, period_days: int = 30) -> list:
     agents = []
 
     try:
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT wallet, SUM(amount_usdc) AS total_volume, COUNT(*) AS tx_count "
             "FROM transactions WHERE created_at >= ? "
             "GROUP BY wallet ORDER BY total_volume DESC LIMIT ?",
@@ -127,7 +127,7 @@ async def get_revenue_breakdown(db, period_days: int = 30) -> dict:
 
     try:
         # By purpose (service type)
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT purpose, SUM(amount_usdc) AS vol, COUNT(*) AS cnt "
             "FROM transactions WHERE created_at >= ? GROUP BY purpose ORDER BY vol DESC",
             (cutoff,))
@@ -169,7 +169,7 @@ async def get_service_popularity(db, limit: int = 10) -> list:
     services = []
     try:
         # From marketplace_tx
-        rows = await db._db.execute_fetchall(
+        rows = await db.raw_execute_fetchall(
             "SELECT service, COUNT(*) AS purchases, SUM(price_usdc) AS revenue "
             "FROM marketplace_tx GROUP BY service ORDER BY purchases DESC LIMIT ?",
             (limit,))
@@ -219,7 +219,7 @@ async def get_realtime_metrics(db) -> dict:
 
     try:
         # Pending commands
-        rows = await db._db.execute_fetchall("SELECT data FROM commands")
+        rows = await db.raw_execute_fetchall("SELECT data FROM commands")
         pending = 0
         for r in rows:
             try:

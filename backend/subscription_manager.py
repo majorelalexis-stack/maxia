@@ -33,17 +33,16 @@ async def subscribe(req: SubscribeRequest, wallet: str = Depends(require_auth)):
         "startedAt": int(time.time()), "expiresAt": expires_at,
         "status": "active", "durationMonths": req.duration_months
     }
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT OR REPLACE INTO subscriptions(sub_id,wallet,data) VALUES(?,?,?)",
         (sub["subscriptionId"], wallet, json.dumps(sub)))
-    await db._db.commit()
     await db.record_transaction(wallet, req.tx_signature, price, "subscription")
     return sub
 
 @router.get("/my")
 async def my_sub(wallet: str = Depends(require_auth)):
     db = _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT data FROM subscriptions WHERE wallet=? ORDER BY created_at DESC LIMIT 1",
         (wallet,))
     if not rows:
@@ -55,7 +54,7 @@ async def my_sub(wallet: str = Depends(require_auth)):
 @router.get("/revenue")
 async def revenue():
     db = _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT COALESCE(SUM(json_extract(data,'$.priceUsdc')),0) AS total FROM subscriptions")
     total = float(rows[0]["total"]) if rows and rows[0] else 0
     return {"total_usdc": total}

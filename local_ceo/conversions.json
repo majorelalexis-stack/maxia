@@ -12,9 +12,9 @@
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 3,
+      "attempts": 4,
       "successes": 3,
-      "failures": 0
+      "failures": 1
     },
     "handle_support": {
       "attempts": 1,
@@ -72,6 +72,11 @@
       "failures": 1
     },
     "reply_mentions": {
+      "attempts": 1,
+      "successes": 1,
+      "failures": 0
+    },
+    "post_reddit": {
       "attempts": 1,
       "successes": 1,
       "failures": 0

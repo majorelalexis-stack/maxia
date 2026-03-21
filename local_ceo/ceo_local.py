@@ -89,11 +89,26 @@ def _load_memory() -> dict:
                 decrypted = _decrypt(raw)
                 # If decryption failed (returned same encrypted string), key is invalid
                 if decrypted == raw or decrypted.startswith("gAAAAA"):
+                    # Try plaintext backup before giving up
+                    bak = _MEMORY_FILE + ".bak"
+                    if os.path.exists(bak):
+                        print("[Memory] Decryption failed — loading from plaintext backup")
+                        with open(bak, "r", encoding="utf-8") as fb:
+                            return json.loads(fb.read())
                     print("[Memory] Decryption failed (key mismatch?) — starting fresh memory")
                     return _default
                 raw = decrypted
             return json.loads(raw)
     except (json.JSONDecodeError, Exception) as e:
+        # Try plaintext backup as last resort
+        bak = _MEMORY_FILE + ".bak"
+        if os.path.exists(bak):
+            try:
+                print(f"[Memory] Load error: {e} — loading from plaintext backup")
+                with open(bak, "r", encoding="utf-8") as fb:
+                    return json.loads(fb.read())
+            except Exception:
+                pass
         print(f"[Memory] Load error: {e} — starting fresh memory")
     return _default
 
@@ -105,6 +120,12 @@ def _save_memory(mem: dict):
             if len(mem.get(key, [])) > 500:
                 mem[key] = mem[key][-500:]
         raw = json.dumps(mem, indent=2, default=str, ensure_ascii=False)
+        # Save plaintext backup before encrypting (recovery if key changes)
+        try:
+            with open(_MEMORY_FILE + ".bak", "w", encoding="utf-8") as fb:
+                fb.write(raw)
+        except Exception:
+            pass
         # Chiffrer les contacts et wallets
         sensitive_keys = ["contacts", "follows"]
         for k in sensitive_keys:

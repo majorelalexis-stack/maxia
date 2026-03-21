@@ -20,7 +20,7 @@ async def _get_agent(api_key):
 
 async def ensure_tables():
     db = await _get_db()
-    await db._db.executescript("""
+    await db.raw_executescript("""
         CREATE TABLE IF NOT EXISTS whale_monitors (
             id TEXT PRIMARY KEY, api_key TEXT NOT NULL, wallet_address TEXT NOT NULL,
             chain TEXT DEFAULT 'solana', threshold_usdc REAL DEFAULT 1000,
@@ -53,7 +53,6 @@ async def ensure_tables():
             token TEXT, side TEXT, amount_usdc REAL, commission_usdc REAL,
             tx_signature TEXT DEFAULT '', created_at INTEGER DEFAULT (strftime('%s','now')));
     """)
-    await db._db.commit()
 
 
 # ══════════════════════════════════════════
@@ -71,11 +70,10 @@ async def whale_track(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         raise HTTPException(400, "Valid wallet address required")
     db = await _get_db()
     mid = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO whale_monitors(id,api_key,wallet_address,chain,threshold_usdc,callback_url) VALUES(?,?,?,?,?,?)",
         (mid, x_api_key, wallet, req.get("chain", "solana"),
          req.get("threshold_usdc", 1000), req.get("callback_url", "")))
-    await db._db.commit()
     return {"success": True, "monitor_id": mid, "wallet": wallet,
             "threshold_usdc": req.get("threshold_usdc", 1000),
             "price": "0.99 USDC/month"}
@@ -87,7 +85,7 @@ async def whale_my_monitors(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM whale_monitors WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     return {"monitors": [dict(r) for r in rows], "total": len(rows)}
 
@@ -98,9 +96,8 @@ async def whale_untrack(monitor_id: str, x_api_key: str = Header(None, alias="X-
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE whale_monitors SET active=0 WHERE id=? AND api_key=?", (monitor_id, x_api_key))
-    await db._db.commit()
     return {"success": True, "monitor_id": monitor_id}
 
 
@@ -110,7 +107,7 @@ async def whale_alerts(x_api_key: str = Header(None, alias="X-API-Key"), limit: 
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall("""
+    rows = await db.raw_execute_fetchall("""
         SELECT a.* FROM whale_alerts a
         JOIN whale_monitors m ON a.monitor_id = m.id
         WHERE m.api_key=? ORDER BY a.created_at DESC LIMIT ?
@@ -123,7 +120,7 @@ async def check_whales():
     while True:
         try:
             db = await _get_db()
-            monitors = await db._db.execute_fetchall(
+            monitors = await db.raw_execute_fetchall(
                 "SELECT * FROM whale_monitors WHERE active=1")
             if not monitors:
                 await asyncio.sleep(60)
@@ -143,7 +140,7 @@ async def check_whales():
                         sigs = resp.json().get("result", [])
                         for sig_info in sigs:
                             sig = sig_info.get("signature", "")
-                            exists = await db._db.execute_fetchall(
+                            exists = await db.raw_execute_fetchall(
                                 "SELECT 1 FROM whale_alerts WHERE tx_signature=?", (sig,))
                             if exists:
                                 continue
@@ -164,10 +161,9 @@ async def check_whales():
                                 value_usdc = diff * 150  # rough SOL price estimate
                                 if value_usdc >= mon["threshold_usdc"]:
                                     aid = str(uuid.uuid4())
-                                    await db._db.execute(
+                                    await db.raw_execute(
                                         "INSERT OR IGNORE INTO whale_alerts(id,monitor_id,wallet,action,amount_usdc,tx_signature) VALUES(?,?,?,?,?,?)",
                                         (aid, mon["id"], wallet, "large_transfer", round(value_usdc, 2), sig))
-                                    await db._db.commit()
                                     # Notify via callback
                                     if mon["callback_url"]:
                                         try:
@@ -202,7 +198,7 @@ async def get_candles(symbol: str = "SOL", interval: str = "1h", limit: int = 10
         raise HTTPException(400, f"Invalid interval. Use: {list(CANDLE_INTERVALS.keys())}")
     limit = min(limit, 1000)
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT symbol, interval, open, high, low, close, volume, timestamp FROM price_candles "
         "WHERE symbol=? AND interval=? ORDER BY timestamp DESC LIMIT ?",
         (symbol, interval, limit))
@@ -215,7 +211,7 @@ async def get_candles(symbol: str = "SOL", interval: str = "1h", limit: int = 10
 async def candle_symbols():
     """List symbols with candle data."""
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT DISTINCT symbol FROM price_candles ORDER BY symbol")
     return {"symbols": [r["symbol"] for r in rows],
             "intervals": list(CANDLE_INTERVALS.keys())}
@@ -237,20 +233,19 @@ async def update_candles():
                 if price <= 0:
                     continue
                 # Upsert 1m candle
-                existing = await db._db.execute_fetchall(
+                existing = await db.raw_execute_fetchall(
                     "SELECT * FROM price_candles WHERE symbol=? AND interval='1m' AND timestamp=?",
                     (symbol, minute_ts))
                 if existing:
                     row = existing[0]
-                    await db._db.execute(
+                    await db.raw_execute(
                         "UPDATE price_candles SET high=MAX(high,?), low=MIN(low,?), close=? WHERE symbol=? AND interval='1m' AND timestamp=?",
                         (price, price, price, symbol, minute_ts))
                 else:
-                    await db._db.execute(
+                    await db.raw_execute(
                         "INSERT OR IGNORE INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?)",
                         (symbol, "1m", price, price, price, price, 0, minute_ts))
 
-            await db._db.commit()
 
             # Aggregate higher timeframes every 5 minutes
             if now % 300 < 62:
@@ -259,7 +254,7 @@ async def update_candles():
                         continue
                     bucket_ts = (now // seconds) * seconds
                     for symbol in list(prices.keys())[:40]:
-                        rows = await db._db.execute_fetchall(
+                        rows = await db.raw_execute_fetchall(
                             "SELECT open, high, low, close FROM price_candles "
                             "WHERE symbol=? AND interval='1m' AND timestamp>=? AND timestamp<? ORDER BY timestamp ASC",
                             (symbol, bucket_ts, bucket_ts + seconds))
@@ -268,20 +263,18 @@ async def update_candles():
                             h = max(r["high"] for r in rows)
                             l = min(r["low"] for r in rows)
                             c = rows[-1]["close"]
-                            await db._db.execute(
+                            await db.raw_execute(
                                 "INSERT OR REPLACE INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?)",
                                 (symbol, interval, o, h, l, c, 0, bucket_ts))
-                    await db._db.commit()
-
+        
             # Cleanup old candles daily
             if now % 86400 < 62:
                 for interval, retention_days in CANDLE_RETENTION.items():
                     cutoff = now - retention_days * 86400
-                    await db._db.execute(
+                    await db.raw_execute(
                         "DELETE FROM price_candles WHERE interval=? AND timestamp<?",
                         (interval, cutoff))
-                await db._db.commit()
-
+    
         except Exception as e:
             print(f"[Candles] Error: {e}")
         await asyncio.sleep(60)
@@ -302,11 +295,10 @@ async def copy_trade_follow(req: dict, x_api_key: str = Header(None, alias="X-AP
         raise HTTPException(400, "Valid target_wallet required")
     db = await _get_db()
     fid = str(uuid.uuid4())
-    await db._db.execute(
+    await db.raw_execute(
         "INSERT INTO copy_trades(id,api_key,target_wallet,chain,max_per_trade_usdc) VALUES(?,?,?,?,?)",
         (fid, x_api_key, target, req.get("chain", "solana"),
          req.get("max_per_trade_usdc", 100)))
-    await db._db.commit()
     return {"success": True, "follow_id": fid, "target_wallet": target,
             "max_per_trade_usdc": req.get("max_per_trade_usdc", 100),
             "commission": "1% per copied trade"}
@@ -318,7 +310,7 @@ async def copy_trade_follows(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall(
+    rows = await db.raw_execute_fetchall(
         "SELECT * FROM copy_trades WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     return {"follows": [dict(r) for r in rows], "total": len(rows)}
 
@@ -329,9 +321,8 @@ async def copy_trade_unfollow(follow_id: str, x_api_key: str = Header(None, alia
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    await db._db.execute(
+    await db.raw_execute(
         "UPDATE copy_trades SET active=0 WHERE id=? AND api_key=?", (follow_id, x_api_key))
-    await db._db.commit()
     return {"success": True, "follow_id": follow_id}
 
 
@@ -341,7 +332,7 @@ async def copy_trade_history(x_api_key: str = Header(None, alias="X-API-Key"), l
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
-    rows = await db._db.execute_fetchall("""
+    rows = await db.raw_execute_fetchall("""
         SELECT h.* FROM copy_trade_history h
         JOIN copy_trades c ON h.follow_id = c.id
         WHERE c.api_key=? ORDER BY h.created_at DESC LIMIT ?
