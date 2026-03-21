@@ -688,7 +688,13 @@ class CEOLocal:
                 # 4. ACT — executer les actions
                 await self._act(decisions)
 
-                # 5. AUTO-REPLY mentions (toutes les 3 cycles)
+                # 5. AUTO-ENGAGE: search -> like -> follow (every cycle)
+                try:
+                    await self._auto_engage()
+                except Exception as e:
+                    _log(f"[ENGAGE] Error: {e}")
+
+                # 6. AUTO-REPLY mentions (toutes les 3 cycles)
                 if self._cycle % 3 == 0:
                     try:
                         reply_result = await self._reply_to_mentions()
@@ -888,67 +894,96 @@ class CEOLocal:
             return {"post_ok": True, "region": "Asia/Oceania", "lang": "en", "hashtags": "#DeFi #AIagent #Solana #dev",
                     "reason": "Matin Oceanie/Asie Est — volume plus bas mais actif"}
 
-    async def _decide(self, analysis: str, state: dict) -> list:
-        """DECIDE — Ollama classifie, memoire + calendrier + scoring."""
-        _log("[DECIDE] Classification locale...")
-        kpis = state.get("kpi", {})
+    def _get_routine_actions(self) -> list:
+        """Routine quotidienne predefinie — pas besoin de LLM pour decider.
+        Chaque cycle fait 2-3 actions concretes selon la position dans le cycle."""
+        cycle = self._cycle
+        schedule = self._is_good_hour()
+        hashtags = schedule.get("hashtags", "#Solana #AI")
 
-        # Calendrier
+        # 6 routines qui alternent (cycle % 6)
+        routines = [
+            # Cycle 0: Tweet + Search profiles + Like
+            [
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": f"AI agent developer {hashtags.split()[0]}"}, "priority": "vert"},
+            ],
+            # Cycle 1: Search profiles + Score + Follow best
+            [
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "AI agent solana developer web3"}, "priority": "vert"},
+                {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 2: Reply mentions + Like tweets
+            [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI marketplace solana USDC"}, "priority": "vert"},
+            ],
+            # Cycle 3: Post Reddit + Search Reddit
+            [
+                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": "solanadev"}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "built a bot no users no revenue"}, "priority": "vert"},
+            ],
+            # Cycle 4: Tweet + Scrape followers concurrent
+            [
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "scrape_followers", "agent": "SCOUT", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 5: Blog + Analyze trends
+            [
+                {"action": "write_blog", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "analyze_trends", "agent": "RADAR", "params": {}, "priority": "vert"},
+            ],
+        ]
+
+        return routines[cycle % len(routines)]
+
+    async def _generate_tweet_via_groq(self, context: str = "") -> str:
+        """Genere un tweet via Groq (gratuit, rapide, anglais)."""
+        try:
+            from groq import Groq
+            groq_key = os.getenv("GROQ_API_KEY", "")
+            if not groq_key:
+                return pick_tweet_template()
+
+            def _gen():
+                c = Groq(api_key=groq_key)
+                resp = c.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on Solana, 50 tokens, 4 chains, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself."},
+                        {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'}"},
+                    ],
+                    max_tokens=100,
+                    temperature=0.9,
+                )
+                return resp.choices[0].message.content.strip().strip('"')
+            return await asyncio.to_thread(_gen)
+        except Exception as e:
+            _log(f"  [GROQ] Tweet gen error: {e}")
+            return pick_tweet_template()
+
+    async def _decide(self, analysis: str, state: dict) -> list:
+        """DECIDE — Routine predefinie + Groq pour le contenu."""
         schedule = self._is_good_hour()
         _log(f"  Calendrier: {schedule['reason']}")
 
-        # Contexte compact
-        memory_ctx = self._get_memory_context()
-        context = (
-            f"Rev=${kpis.get('revenue_24h', 0)} Clients={kpis.get('clients_actifs', 0)}\n"
-            f"ANALYSE: {analysis[:200]}\n"
-            f"{memory_ctx}\n"
-            f"HEURE: {schedule['reason']} | Region: {schedule.get('region', '?')} | Hashtags: {schedule.get('hashtags', '')}"
-        )
+        # Utiliser la routine predefinie (pas de LLM pour decider)
+        decisions = self._get_routine_actions()
+        _log(f"  Routine cycle {self._cycle % 6}: {len(decisions)} actions")
 
-        # Etape 1: Ollama classifie (0 cout, prompt ultra court)
-        classification = await call_local_llm(
-            f"{context}\nRoutine ou strategique? UN MOT:", max_tokens=5
-        )
-        is_strategic = "strateg" in classification.lower()
-        _log(f"  {'STRATEGIQUE -> Claude' if is_strategic else 'ROUTINE -> Ollama'}")
+        # Pour les tweets, generer le contenu via Groq (pas Ollama)
+        for d in decisions:
+            if d["action"] == "post_template_tweet":
+                tweet = await self._generate_tweet_via_groq(analysis[:100])
+                d["action"] = "post_tweet"
+                d["params"] = {"text": tweet}
+                _log(f"  [TWEET] {tweet[:80]}...")
 
-        # Etape 2: Generer les decisions
-        decide_prompt = (
-            f"{context}\n"
-            f"{'IMPORTANT: ne refais PAS ce qui est dans DEJA FAIT.' if memory_ctx else ''}\n"
-            "Max 3 actions concretes.\n"
-            "JSON: {\"decisions\": [{\"action\": \"...\", \"agent\": \"...\", \"params\": {...}, \"priority\": \"vert\"}]}"
-        )
+            action = d.get("action", "")
+            _log(f"    [{d.get('priority', '?')}] {action}")
 
-        if is_strategic:
-            # Delegue a Claude sur le VPS (prompt compact, pas le CEO_SYSTEM complet)
-            strategic_prompt = (
-                "Tu es CEO MAXIA (marketplace IA sur Solana, maxiaworld.app). "
-                "Decide les actions a executer.\n\n"
-                + decide_prompt
-            )
-            result_text = await self.vps.think(
-                strategic_prompt,
-                tier="mid",
-                max_tokens=1000,
-            )
-        else:
-            # Ollama local avec prompt court (0 cout)
-            result_text = await call_local_llm(decide_prompt, system=CEO_SYSTEM_SHORT, max_tokens=800)
-
-        result = parse_json(result_text)
-        decisions = result.get("decisions", [])
-
-        if decisions:
-            _log(f"  {len(decisions)} decisions generees")
-            for d in decisions:
-                _log(f"    [{d.get('priority', '?')}] {d.get('action', '?')} -> {d.get('agent', '?')}")
-            # Sauvegarder en memoire
-            self.memory["decisions"].extend(decisions)
-        else:
-            _log("  Aucune decision")
-
+        # Sauvegarder en memoire
+        self.memory.setdefault("decisions", []).extend(decisions)
         return decisions
 
     async def _act(self, decisions: list):
@@ -1208,7 +1243,17 @@ class CEOLocal:
                 result = {"success": False, "error": f"Unknown browser method: {method}"}
 
             if result.get("success"):
-                return {"success": True, "detail": f"{method} OK"}
+                detail = f"{method} OK"
+                # Log le contenu exact pour les tweets
+                if method == "post_tweet":
+                    tweet_text = params.get("text", "")
+                    _log(f"  [TWEET POSTED] {tweet_text[:120]}")
+                    self.memory.setdefault("tweets_posted", []).append({
+                        "text": tweet_text[:280], "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "proof": result.get("proof", ""),
+                    })
+                    detail = f"Tweet: {tweet_text[:60]}..."
+                return {"success": True, "detail": detail}
             else:
                 error = result.get("error", result.get("detail", "unknown error"))
                 _log(f"  [BROWSER] {method} failed: {str(error)[:100]}")
@@ -1282,6 +1327,46 @@ class CEOLocal:
             _log(f"  [DM] Telegram error: {e}")
 
         return {"success": True, "detail": f"{replied} conversations gerees"}
+
+    async def _auto_engage(self):
+        """Search Twitter -> Like top tweets -> Score profiles -> Follow best ones."""
+        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana"]
+        query = queries[self._cycle % len(queries)]
+
+        # Search tweets
+        tweets = await browser.search_twitter(query, 5)
+        if not tweets:
+            return
+
+        liked = 0
+        for t in tweets[:3]:
+            url = t.get("url", "")
+            if url and not browser._is_duplicate("like", url):
+                result = await browser.like_tweet(url)
+                if result.get("success"):
+                    liked += 1
+
+        if liked:
+            _log(f"[ENGAGE] Liked {liked} tweets for '{query}'")
+
+        # Score and follow profiles from search
+        profiles = await browser.search_twitter_profiles(query, 3)
+        followed = 0
+        for p in profiles[:2]:
+            username = p.get("url", "").split("/")[-1] if p.get("url") else ""
+            if not username or browser._is_duplicate("follow", username):
+                continue
+            score = await browser.score_twitter_profile(username)
+            if score.get("score", 0) >= 30:
+                result = await browser.follow_user(username)
+                if result.get("success") and not result.get("already"):
+                    followed += 1
+                    _log(f"[ENGAGE] Followed @{username} (score={score['score']})")
+
+        if followed:
+            self.memory.setdefault("follows", []).extend(
+                [{"username": p.get("url", "").split("/")[-1], "ts": time.strftime("%Y-%m-%d")} for p in profiles[:followed]]
+            )
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune."""
