@@ -1729,6 +1729,29 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     if purpose:
         _check_safety(purpose, "purpose")
 
+    # Fix #1/#2/#11: Verify payment BEFORE provisioning + idempotency
+    if not payment_tx:
+        raise HTTPException(400, "payment_tx required for GPU rental")
+
+    from database import db
+    if await db.tx_already_processed(payment_tx):
+        raise HTTPException(400, "Payment already used")
+
+    # Verify USDC payment on-chain
+    try:
+        from solana_verifier import verify_transaction
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=total_with_commission,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            raise HTTPException(400, f"Payment invalid: {tx_result.get('error')}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Payment verification failed: {e}")
+
     # Provisionner le GPU via RunPod
     from runpod_client import RunPodClient
     from config import RUNPOD_API_KEY
@@ -1740,6 +1763,7 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
 
     # Enregistrer la transaction
     import uuid
+    instance_id = instance.get("instanceId", str(uuid.uuid4()))
     tx = {
         "tx_id": str(uuid.uuid4()),
         "buyer": agent["name"],
@@ -1754,16 +1778,43 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
         "commission_bps": commission_bps,
         "total_with_commission": total_with_commission,
         "payment_tx": payment_tx,
-        "instance_id": instance.get("instanceId", ""),
-        "ssh_endpoint": instance.get("sshEndpoint", ""),
+        "instance_id": instance_id,
+        "ssh_endpoint": instance.get("ssh_endpoint", ""),
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)
+
+    # Fix #3: Persist transaction to database
+    await db.record_transaction(agent["wallet"], payment_tx, total_with_commission, "gpu_rental")
+
+    # Fix #7: Persist GPU instance to database
+    await db.save_gpu_instance({
+        "instance_id": instance_id,
+        "agent_wallet": agent["wallet"],
+        "agent_name": agent["name"],
+        "gpu_tier": tier_id,
+        "duration_hours": hours,
+        "price_per_hour": price_per_hour,
+        "total_cost": total_price,
+        "commission": commission,
+        "payment_tx": payment_tx,
+        "runpod_pod_id": instance_id,
+        "status": instance.get("status", "provisioning"),
+        "ssh_endpoint": instance.get("ssh_endpoint", ""),
+        "scheduled_end": int(time.time() + hours * 3600),
+    })
 
     # Mettre a jour les stats
     agent["volume_30d"] += total_with_commission
     agent["total_spent"] += total_with_commission
     agent["tier"] = _get_tier_name(agent["volume_30d"])
+
+    # Fix #4: Persist agent stats to database
+    await db.update_agent(agent["api_key"], {
+        "volume_30d": agent["volume_30d"],
+        "total_spent": agent["total_spent"],
+        "tier": agent["tier"],
+    })
 
     # Alerte Discord
     try:
@@ -1836,6 +1887,16 @@ async def public_gpu_terminate(pod_id: str, x_api_key: str = Header(None, alias=
     result = await runpod_client.terminate_pod(pod_id)
 
     if result.get("success"):
+        # Fix #6: Update DB with actual cost on termination
+        try:
+            from database import db
+            await db.update_gpu_instance(pod_id, {
+                "status": "terminated",
+                "actual_end": int(time.time()),
+                "actual_cost": result.get("actual_cost", 0),
+            })
+        except Exception:
+            pass
         try:
             from alerts import alert_system
             await alert_system("GPU Termine", f"Pod {pod_id} arrete par {agent['name']}")

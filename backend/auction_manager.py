@@ -40,6 +40,14 @@ class AuctionManager:
             "auctionId": auction_id, "bidUsdc": bid_usdc,
             "leader": wallet[:8] + "...", "timestamp": int(time.time() * 1000)
         }})
+        # Fix #12: Persist bid to database
+        try:
+            from database import db
+            await db.raw_execute(
+                "UPDATE auctions SET data=? WHERE auction_id=?",
+                (json.dumps(a), auction_id))
+        except Exception:
+            pass
         return {"ok": True}
 
     async def broadcast(self, msg: dict):

@@ -1,25 +1,29 @@
-"""MAXIA RunPod Client V11 — Location GPU complete
+"""MAXIA RunPod Client V12 — Location GPU complete (production-ready)
 
 Fonctionnalites :
 - Creer un pod GPU (provisionnement reel)
 - Recuperer les credentials SSH/API
 - Verifier le statut du pod
-- Arreter le pod apres la duree louee
+- Arreter le pod apres la duree louee (persistent monitor)
 - Estimer le cout final
+- Retry logic on terminate
+- Database persistence for GPU instances
 """
-import asyncio, time
+import asyncio, time, logging
 import httpx
 from config import RUNPOD_API_KEY
 
+log = logging.getLogger("runpod")
+
 BASE_URL = "https://api.runpod.io/graphql"
 
-# Mapping tier -> RunPod GPU ID
+# Mapping tier -> RunPod GPU ID (base_price_per_hour = fallback when RunPod returns 0)
 GPU_MAP = {
-    "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "SECURE"},
-    "a100_80":   {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE"},
-    "h100_sxm5": {"runpod_id": "NVIDIA H100 SXM5", "cloud_type": "SECURE"},
-    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE"},
-    "4xa100":    {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "gpu_count": 4},
+    "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "SECURE", "base_price_per_hour": 0.69},
+    "a100_80":   {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "base_price_per_hour": 1.79},
+    "h100_sxm5": {"runpod_id": "NVIDIA H100 SXM5", "cloud_type": "SECURE", "base_price_per_hour": 2.69},
+    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE", "base_price_per_hour": 0.99},
+    "4xa100":    {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "gpu_count": 4, "base_price_per_hour": 7.16},
 }
 
 # Pods actifs (en memoire)
@@ -35,6 +39,7 @@ class RunPodClient:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
+        self._monitor_started = False
 
     async def _query(self, query: str) -> dict:
         """Execute une requete GraphQL RunPod."""
@@ -88,14 +93,16 @@ class RunPodClient:
 
         pod_id = pod["id"]
         host_id = pod.get("machine", {}).get("podHostId", "")
-        cost_per_hr = pod.get("costPerHr", 0)
+        # Fix #10: Fallback if RunPod doesn't return cost
+        cost_per_hr = pod.get("costPerHr", 0) or gpu_config.get("base_price_per_hour", 0)
 
         print(f"[RunPod] Pod cree: {pod_id} ({gpu_id}) — host: {host_id}")
 
         # 2. Attendre que le pod soit pret (max 60 secondes)
         credentials = await self._wait_for_ready(pod_id, timeout=60)
 
-        # 3. Enregistrer le pod actif
+        # 3. Enregistrer le pod actif avec scheduled_termination
+        scheduled_end = int(time.time() + duration_hours * 3600)
         _active_pods[pod_id] = {
             "pod_id": pod_id,
             "gpu_tier": gpu_tier_id,
@@ -103,13 +110,14 @@ class RunPodClient:
             "host_id": host_id,
             "start_time": int(time.time()),
             "duration_hours": duration_hours,
-            "end_time": int(time.time() + duration_hours * 3600),
+            "end_time": scheduled_end,
+            "scheduled_termination": scheduled_end,
             "cost_per_hr": cost_per_hr,
             "status": credentials.get("status", "provisioning"),
         }
 
-        # 4. Programmer l'arret automatique
-        asyncio.create_task(self._auto_terminate(pod_id, duration_hours))
+        # 4. Start persistent monitor (replaces fire-and-forget task)
+        self._ensure_monitor_started()
 
         return {
             "success": True,
@@ -173,17 +181,65 @@ class RunPodClient:
         print(f"[RunPod] Pod {pod_id} timeout apres {timeout}s — status: provisioning")
         return {"status": "provisioning"}
 
-    async def _auto_terminate(self, pod_id: str, duration_hours: float):
-        """Arrete automatiquement le pod apres la duree louee."""
-        await asyncio.sleep(duration_hours * 3600)
-        print(f"[RunPod] Auto-terminate pod {pod_id} apres {duration_hours}h")
-        await self.terminate_pod(pod_id)
+    def _ensure_monitor_started(self):
+        """Start the persistent pod monitor if not already running."""
+        if not self._monitor_started:
+            self._monitor_started = True
+            asyncio.ensure_future(self._monitor_pods())
+
+    async def _monitor_pods(self):
+        """Fix #5: Persistent background loop that checks every 60s for expired pods."""
+        log.info("[RunPod] Pod monitor started")
+        print("[RunPod] Pod monitor started")
+        while True:
+            try:
+                now = int(time.time())
+                for pod_id, pod_info in list(_active_pods.items()):
+                    if pod_info.get("status") in ("terminated", "failed"):
+                        continue
+                    scheduled = pod_info.get("scheduled_termination", 0)
+                    if scheduled and now >= scheduled:
+                        print(f"[RunPod] Monitor: auto-terminating pod {pod_id} (expired)")
+                        result = await self.terminate_pod(pod_id)
+                        if not result.get("success"):
+                            log.warning(f"[RunPod] Monitor: failed to terminate {pod_id}: {result.get('error')}")
+                        else:
+                            # Update DB with termination info
+                            try:
+                                from database import db
+                                await db.update_gpu_instance(pod_id, {
+                                    "status": "terminated",
+                                    "actual_end": int(time.time()),
+                                    "actual_cost": result.get("actual_cost", 0),
+                                })
+                            except Exception as e:
+                                log.warning(f"[RunPod] Monitor: DB update failed for {pod_id}: {e}")
+            except Exception as e:
+                log.error(f"[RunPod] Monitor error: {e}")
+            await asyncio.sleep(60)
 
     async def terminate_pod(self, pod_id: str) -> dict:
-        """Arrete et supprime un pod."""
-        query = f'mutation {{ podTerminate(input: {{ podId: "{pod_id}" }}) }}'
-        data = await self._query(query)
+        """Arrete et supprime un pod. Fix #5: 3-attempt retry. Fix #6: returns actual_cost."""
+        last_error = None
+        for attempt in range(3):
+            query = f'mutation {{ podTerminate(input: {{ podId: "{pod_id}" }}) }}'
+            data = await self._query(query)
+            errors = data.get("errors")
+            if not errors:
+                break
+            last_error = errors[0].get("message", str(errors))
+            log.warning(f"[RunPod] Terminate attempt {attempt + 1}/3 failed for {pod_id}: {last_error}")
+            if attempt < 2:
+                await asyncio.sleep(5 * (attempt + 1))
+        else:
+            # All 3 attempts failed
+            log.error(f"[RunPod] Failed to terminate pod {pod_id} after 3 attempts: {last_error}")
+            if pod_id in _active_pods:
+                _active_pods[pod_id]["status"] = "failed"
+            return {"success": False, "error": last_error, "pod_id": pod_id}
 
+        # Calculate actual cost
+        actual_cost = 0
         if pod_id in _active_pods:
             pod_info = _active_pods[pod_id]
             elapsed_hours = (time.time() - pod_info["start_time"]) / 3600
@@ -193,11 +249,7 @@ class RunPodClient:
             _active_pods[pod_id]["actual_cost"] = actual_cost
             print(f"[RunPod] Pod {pod_id} termine — {elapsed_hours:.1f}h, cout: ${actual_cost}")
 
-        errors = data.get("errors")
-        if errors:
-            return {"success": False, "error": errors[0].get("message", str(errors))}
-
-        return {"success": True, "pod_id": pod_id, "status": "terminated"}
+        return {"success": True, "pod_id": pod_id, "status": "terminated", "actual_cost": actual_cost}
 
     async def get_pod_status(self, pod_id: str) -> dict:
         """Statut d'un pod."""

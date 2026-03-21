@@ -124,6 +124,16 @@ DB_SCHEMA = (
 
     "CREATE INDEX IF NOT EXISTS idx_services_status ON agent_services(status);"
 
+    "CREATE TABLE IF NOT EXISTS gpu_instances ("
+    "instance_id TEXT PRIMARY KEY, agent_wallet TEXT NOT NULL,"
+    "agent_name TEXT NOT NULL, gpu_tier TEXT NOT NULL,"
+    "duration_hours REAL NOT NULL, price_per_hour REAL NOT NULL,"
+    "total_cost REAL NOT NULL, commission REAL NOT NULL DEFAULT 0,"
+    "payment_tx TEXT, runpod_pod_id TEXT,"
+    "status TEXT DEFAULT 'provisioning', ssh_endpoint TEXT,"
+    "scheduled_end INTEGER, actual_end INTEGER, actual_cost REAL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
     "CREATE TABLE IF NOT EXISTS marketplace_tx ("
     "tx_id TEXT PRIMARY KEY, buyer TEXT NOT NULL, seller TEXT NOT NULL,"
     "service TEXT NOT NULL, price_usdc REAL NOT NULL,"
@@ -439,6 +449,44 @@ class Database:
         rows = await self._db.execute_fetchall(
             "SELECT data FROM stock_trades ORDER BY created_at DESC LIMIT ?", (limit,))
         return [json.loads(r["data"]) for r in rows]
+
+    # ── GPU Instances ──
+
+    async def save_gpu_instance(self, instance: dict):
+        await self._db.execute(
+            "INSERT INTO gpu_instances (instance_id, agent_wallet, agent_name, gpu_tier, "
+            "duration_hours, price_per_hour, total_cost, commission, payment_tx, "
+            "runpod_pod_id, status, ssh_endpoint, scheduled_end) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (instance["instance_id"], instance["agent_wallet"], instance["agent_name"],
+             instance["gpu_tier"], instance["duration_hours"], instance["price_per_hour"],
+             instance["total_cost"], instance.get("commission", 0),
+             instance.get("payment_tx", ""), instance.get("runpod_pod_id", ""),
+             instance.get("status", "provisioning"), instance.get("ssh_endpoint", ""),
+             instance.get("scheduled_end", 0)))
+        await self._db.commit()
+
+    async def update_gpu_instance(self, instance_id: str, updates: dict):
+        allowed = {"status", "actual_end", "actual_cost", "ssh_endpoint", "runpod_pod_id"}
+        filtered = {k: v for k, v in updates.items() if k in allowed}
+        if not filtered:
+            return
+        sets = ", ".join(f"{k}=?" for k in filtered)
+        await self._db.execute(
+            f"UPDATE gpu_instances SET {sets} WHERE instance_id=?",
+            (*filtered.values(), instance_id))
+        await self._db.commit()
+
+    async def get_active_gpu_instances(self) -> list:
+        rows = await self._db.execute_fetchall(
+            "SELECT * FROM gpu_instances WHERE status IN ('provisioning', 'running') "
+            "ORDER BY created_at DESC")
+        return [dict(r) for r in rows] if rows else []
+
+    async def get_gpu_instance(self, instance_id: str) -> dict:
+        rows = await self._db.execute_fetchall(
+            "SELECT * FROM gpu_instances WHERE instance_id=?", (instance_id,))
+        return dict(rows[0]) if rows else {}
 
     # ── Analytics (V12) ──
 
