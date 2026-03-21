@@ -85,7 +85,42 @@ def _get_dashboard_data() -> dict:
         "paused": ctrl.get("paused", False),
         "interval_s": ctrl.get("interval_s", 600),
         "regles": mem.get("regles", [])[-5:],
+        # Historique 7 jours pour graphiques
+        "daily_history": _compute_daily_history(mem),
     }
+
+
+def _compute_daily_history(mem: dict) -> list:
+    """Calcule les stats par jour sur 7 jours pour les graphiques."""
+    from collections import defaultdict
+    import datetime
+    days = defaultdict(lambda: {"actions": 0, "tweets": 0, "likes": 0, "follows": 0, "success": 0, "fail": 0})
+    for a in mem.get("actions_done", []):
+        day = a.get("ts", "")[:10]
+        if not day:
+            continue
+        days[day]["actions"] += 1
+        if a.get("success"):
+            days[day]["success"] += 1
+        else:
+            days[day]["fail"] += 1
+        act = a.get("action", "")
+        if "tweet" in act:
+            days[day]["tweets"] += 1
+        elif "like" in act:
+            days[day]["likes"] += 1
+        elif "follow" in act:
+            days[day]["follows"] += 1
+
+    # Derniers 7 jours
+    today = datetime.date.today()
+    result = []
+    for i in range(6, -1, -1):
+        d = (today - datetime.timedelta(days=i)).isoformat()
+        data = days.get(d, {"actions": 0, "tweets": 0, "likes": 0, "follows": 0, "success": 0, "fail": 0})
+        data["date"] = d[5:]  # MM-DD
+        result.append(data)
+    return result
 
 
 _HTML = """<!DOCTYPE html>
@@ -132,6 +167,7 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
   <div class="controls">
     <span id="status" class="status status-run">ACTIF</span>
     <button id="pauseBtn" class="btn btn-pause" onclick="togglePause()">Pause</button>
+    <button class="btn btn-small" style="background:#252535;color:#e0e0e0" onclick="exportCSV()">Export CSV</button>
     <button class="btn btn-danger btn-small" onclick="clearMemory()">Reset memoire</button>
   </div>
 </h1>
@@ -151,6 +187,7 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
   </div>
 </div>
 
+<div class="section"><h2>Activite 7 jours</h2><div id="chart"></div></div>
 <div class="cols">
 <div class="section"><h2>Decisions recentes</h2><table id="decisions"></table></div>
 <div class="section"><h2>Actions executees</h2><table id="actions"></table></div>
@@ -198,6 +235,22 @@ async function load(){
     let rh='';
     (d.regles||[]).forEach((r,i)=>{rh+=`<div style="margin:3px 0">• ${r}</div>`;});
     document.getElementById('regles').innerHTML=rh||'<span style="color:#555">Aucune regle</span>';
+    // Graphique 7 jours (barres CSS)
+    let gh='<div style="display:flex;gap:8px;align-items:flex-end;height:100px">';
+    const hist=d.daily_history||[];
+    const maxA=Math.max(1,...hist.map(h=>h.actions));
+    hist.forEach(h=>{
+      const pct=Math.max(3,h.actions/maxA*100);
+      gh+=`<div style="flex:1;text-align:center"><div style="background:linear-gradient(#00ff88,#008844);height:${pct}px;border-radius:3px 3px 0 0;margin:0 2px" title="${h.actions} actions"></div><div style="font-size:10px;color:#888;margin-top:3px">${h.date}</div><div style="font-size:11px;color:#00ff88">${h.actions}</div></div>`;
+    });
+    gh+='</div>';
+    document.getElementById('chart').innerHTML=gh;
+
+    // Regles
+    let rh='';
+    (d.regles||[]).forEach((r,i)=>{rh+=`<div style="margin:3px 0">• ${r}</div>`;});
+    document.getElementById('regles').innerHTML=rh||'<span style="color:#555">Aucune regle</span>';
+
     document.getElementById('logs').textContent=(d.logs||[]).join('\\n');
     document.getElementById('logs').scrollTop=document.getElementById('logs').scrollHeight;
     document.getElementById('refresh').textContent='Mis a jour: '+new Date().toLocaleTimeString();
@@ -222,6 +275,13 @@ async function clearMemory(){
   await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'clear_memory'})});
   load();
 }
+async function exportCSV(){
+  const r=await fetch('/api/export-csv');
+  const b=await r.blob();
+  const url=URL.createObjectURL(b);
+  const a=document.createElement('a');
+  a.href=url;a.download='ceo_audit.csv';a.click();
+}
 load();setInterval(load,10000);
 </script>
 </body>
@@ -232,6 +292,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/dashboard":
             self._json_response(_get_dashboard_data())
+        elif self.path == "/api/export-csv":
+            rows = _read_audit(500)
+            csv = "timestamp,action,agent,tier,priority,approved_by,success,result\n"
+            for r in rows:
+                csv += f"{r.get('timestamp','')},{r.get('action','')},{r.get('agent','')},{r.get('tier_used','')},{r.get('priority','')},{r.get('approved_by','')},{r.get('success','')},\"{r.get('result','')[:100]}\"\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Disposition", "attachment; filename=ceo_audit.csv")
+            self.end_headers()
+            self.wfile.write(csv.encode("utf-8"))
         elif self.path == "/" or self.path == "/index.html":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")

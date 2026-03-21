@@ -632,33 +632,61 @@ class BrowserAgent:
     # ── Reddit Marketing ──
 
     async def search_reddit(self, subreddit: str, query: str, max_results: int = 10) -> list:
-        """Cherche des posts sur un subreddit."""
+        """Cherche des posts sur un subreddit (new Reddit UI 2026)."""
         await self._ensure_ready()
         page = self._page
 
         try:
-            encoded = query.replace(" ", "%20")
-            await page.goto(f"https://www.reddit.com/r/{subreddit}/search/?q={encoded}&restrict_sr=1&sort=new", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            encoded = query.replace(" ", "+")
+            # Essayer l'URL de recherche Reddit
+            await page.goto(f"https://www.reddit.com/r/{subreddit}/search/?q={encoded}&restrict_sr=1&sort=new&type=link", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(4000)
 
             results = []
-            # Multi-selectors pour les posts Reddit
-            for post_sel in ['shreddit-post', 'div[data-testid="post-container"]', 'div.Post']:
+            # New Reddit (2026): posts sont dans des elements varies
+            for post_sel in [
+                'shreddit-post', 'article', 'faceplate-tracker',
+                'div[data-testid="post-container"]', 'div.Post',
+                'a[data-testid="post-title"]',
+            ]:
                 posts = await page.locator(post_sel).all()
-                if posts:
+                if len(posts) > 0:
                     for post in posts[:max_results]:
                         try:
-                            title_el = post.locator('a[slot="title"], a[data-click-id="body"], h3').first
-                            title = await title_el.inner_text() if await title_el.is_visible(timeout=1000) else ""
-                            href = await title_el.get_attribute("href") or ""
+                            # Chercher le titre dans plusieurs endroits
+                            title = ""
+                            href = ""
+                            for t_sel in ['a[slot="title"]', 'a[data-click-id="body"]', 'h3', 'a.title', '[slot="title"]', 'a[slot="full-post-link"]']:
+                                t_el = post.locator(t_sel).first
+                                if await t_el.is_visible(timeout=500):
+                                    title = await t_el.inner_text()
+                                    href = await t_el.get_attribute("href") or ""
+                                    break
+                            # Fallback: tout le texte du post
+                            if not title:
+                                title = (await post.inner_text())[:100]
                             if href and not href.startswith("http"):
                                 href = f"https://www.reddit.com{href}"
-                            if title:
+                            if title and len(title) > 5:
                                 results.append({"title": title[:200], "url": href})
                         except Exception:
                             continue
                     if results:
                         break
+
+            # Fallback: extraire les liens de la page
+            if not results:
+                links = await page.locator('a[href*="/comments/"]').all()
+                for link in links[:max_results]:
+                    try:
+                        title = await link.inner_text()
+                        href = await link.get_attribute("href") or ""
+                        if title and len(title) > 5 and href:
+                            if not href.startswith("http"):
+                                href = f"https://www.reddit.com{href}"
+                            results.append({"title": title[:200], "url": href})
+                    except Exception:
+                        continue
 
             print(f"[BrowserAgent] Reddit search r/{subreddit} '{query}': {len(results)}")
             return results
@@ -668,7 +696,12 @@ class BrowserAgent:
             return []
 
     async def comment_reddit(self, post_url: str, text: str) -> dict:
-        """Commente sur un post Reddit."""
+        """Commente sur un post Reddit (new Reddit UI 2026)."""
+        err = self._check_rate("reddit_comment")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("reddit_comment", post_url):
+            return {"success": False, "error": "Deja commente sur ce post"}
         await self._ensure_ready()
         page = self._page
 
@@ -719,6 +752,7 @@ class BrowserAgent:
 
             await page.wait_for_timeout(3000)
             proof = await self._screenshot(page, "reddit_comment_ok")
+            self._record_action("reddit_comment", self._content_hash("reddit_comment", post_url))
             return {"success": True, "proof": proof, "url": post_url}
 
         except Exception as e:
@@ -1112,6 +1146,154 @@ class BrowserAgent:
 
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    # ── Marketing avance ──
+
+    async def detect_opportunities(self, max_results: int = 5) -> list:
+        """Detecte des prospects chauds: devs qui se plaignent de 0 users/revenue."""
+        queries = [
+            '"my bot" "no users" OR "no revenue" OR "0 clients"',
+            '"AI agent" "looking for" users OR clients OR customers',
+            '"built a bot" BUT "no one uses"',
+            'solana bot "side project" no revenue',
+        ]
+        opportunities = []
+        for q in queries[:2]:  # Max 2 queries pour eviter le rate limit
+            tweets = await self.search_twitter(q, 5)
+            for t in tweets:
+                if t.get("url"):
+                    opportunities.append({
+                        "query": q[:40],
+                        "username": t.get("username", ""),
+                        "text": t.get("text", "")[:200],
+                        "url": t.get("url", ""),
+                    })
+            if opportunities:
+                break
+        print(f"[BrowserAgent] Opportunities: {len(opportunities)}")
+        return opportunities[:max_results]
+
+    async def verify_tweet_engagement(self, tweet_url: str) -> dict:
+        """Verifie l'engagement d'un tweet poste (likes, retweets, replies)."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(tweet_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            engagement = {"url": tweet_url, "likes": 0, "retweets": 0, "replies": 0}
+
+            for metric, selectors in [
+                ("likes", ['[data-testid="like"] span', 'button[aria-label*="Like"] span']),
+                ("retweets", ['[data-testid="retweet"] span', 'button[aria-label*="Repost"] span']),
+                ("replies", ['[data-testid="reply"] span', 'button[aria-label*="Repl"] span']),
+            ]:
+                for sel in selectors:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.is_visible(timeout=1000):
+                            text = await el.inner_text()
+                            text = text.strip().replace(",", "")
+                            if text and text[0].isdigit():
+                                engagement[metric] = int(text)
+                            break
+                    except Exception:
+                        continue
+
+            return engagement
+
+        except Exception as e:
+            return {"url": tweet_url, "error": str(e)}
+
+    async def post_thread(self, tweets: list) -> dict:
+        """Poste un thread Twitter (liste de tweets chaines)."""
+        if not tweets or len(tweets) < 2:
+            return {"success": False, "error": "Un thread necessite au moins 2 tweets"}
+
+        err = self._check_rate("tweet")
+        if err:
+            return {"success": False, "error": err}
+
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            # Premier tweet
+            await page.goto("https://x.com/compose/post", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            await self._find_and_fill(page, [
+                '[data-testid="tweetTextarea_0"]',
+                'div[role="textbox"][contenteditable="true"]',
+            ], tweets[0][:280], "Thread first tweet")
+            await page.wait_for_timeout(500)
+
+            # Ajouter les tweets suivants via le bouton "+"
+            for i, text in enumerate(tweets[1:], 1):
+                # Cliquer "Add another post"
+                add_btn = page.locator('[data-testid="addButton"], button[aria-label*="Add"]').first
+                if await add_btn.is_visible(timeout=3000):
+                    await add_btn.click()
+                    await page.wait_for_timeout(1000)
+
+                    # Remplir le tweet suivant
+                    textarea = page.locator(f'[data-testid="tweetTextarea_{i}"]').first
+                    if await textarea.is_visible(timeout=2000):
+                        await textarea.click()
+                        await textarea.fill(text[:280])
+                    await page.wait_for_timeout(500)
+
+            # Poster le thread
+            posted = await self._find_and_click(page, [
+                '[data-testid="tweetButton"]',
+                'button:has-text("Post all")',
+                'button:has-text("Tout poster")',
+            ], "Post thread")
+
+            if posted:
+                await page.wait_for_timeout(3000)
+                for t in tweets:
+                    self._record_action("tweet", self._content_hash("tweet", t))
+                return {"success": True, "tweets": len(tweets)}
+            return {"success": False, "error": "Bouton Post introuvable"}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def scrape_competitor_followers(self, competitor: str, max_results: int = 10) -> list:
+        """Liste les followers d'un concurrent pour trouver des prospects."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            clean = competitor.lstrip("@")
+            await page.goto(f"https://x.com/{clean}/followers", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            followers = []
+            cells = await page.locator('[data-testid="UserCell"]').all()
+            for cell in cells[:max_results]:
+                try:
+                    name_el = cell.locator('a[role="link"] span').first
+                    name = await name_el.inner_text() if await name_el.is_visible(timeout=1000) else ""
+                    link_el = cell.locator('a[role="link"]').first
+                    href = await link_el.get_attribute("href") if link_el else ""
+                    bio_el = cell.locator('[dir="auto"]').last
+                    bio = await bio_el.inner_text() if await bio_el.is_visible(timeout=1000) else ""
+                    username = href.split("/")[-1] if href else ""
+
+                    if name and username:
+                        followers.append({"name": name, "username": username, "bio": bio[:150]})
+                except Exception:
+                    continue
+
+            print(f"[BrowserAgent] Followers @{clean}: {len(followers)}")
+            return followers
+
+        except Exception as e:
+            print(f"[BrowserAgent] Scrape followers error: {e}")
+            return []
 
     # ── Veille concurrentielle ──
 

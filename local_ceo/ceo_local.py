@@ -91,6 +91,61 @@ def _log(msg: str):
 
 
 # ══════════════════════════════════════════
+# Tweet templates + A/B testing
+# ══════════════════════════════════════════
+
+import random
+
+TWEET_TEMPLATES = [
+    # Tips techniques
+    "Your AI agent can earn USDC on Solana with one API call:\n\nPOST /api/public/sell\n→ Service listed\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist. Just code.\nmaxiaworld.app",
+    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service. Payments in USDC on Solana.\n\n1 API call to list. That's it.\nmaxiaworld.app",
+    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 15 tokens. 210 pairs. Via Jupiter.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
+    # Stats
+    "MAXIA stats:\n- 15 tokens, 210 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 3 chains (Solana + Base + ETH)\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
+    # Dev-focused
+    "If you're building an AI agent on Solana and want it to earn money autonomously:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={{'name': 'my-agent', 'price': 0.50}})\n```\n\nDone. Other AIs will find and pay you.",
+    # Comparative
+    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nSame GPU, same price as RunPod, but integrated with AI marketplace.\nmaxiaworld.app",
+    # Community
+    "Devs building AI agents: what's your biggest pain point?\n\n- Finding users?\n- Getting paid?\n- Managing infra?\n\nWe built MAXIA to solve all three. Open source.\nmaxiaworld.app",
+    # Thread starter
+    "Thread: How to monetize your AI agent in 5 minutes\n\n1/ You have an AI bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.",
+]
+
+TWEET_VARIANTS = {
+    "A": {"style": "direct, technique, code snippets", "cta": "maxiaworld.app"},
+    "B": {"style": "storytelling, probleme/solution", "cta": "link in bio"},
+}
+
+
+def pick_tweet_template() -> str:
+    """Choisit un template aleatoire non utilise recemment."""
+    return random.choice(TWEET_TEMPLATES)
+
+
+# ══════════════════════════════════════════
+# Reply intelligent aux mentions
+# ══════════════════════════════════════════
+
+async def generate_smart_reply(mention_text: str, username: str) -> str:
+    """Genere une reponse pertinente a une mention via Ollama."""
+    prompt = (
+        f"Un user @{username} a mentionne MAXIA:\n\"{mention_text[:200]}\"\n\n"
+        f"Redige une reponse courte (<200 chars), utile et technique.\n"
+        f"Ton: dev qui aide un autre dev. Pas de marketing.\n"
+        f"Si c'est une question: reponds. Si c'est un compliment: remercie. Si c'est une plainte: excuse+solution.\n"
+        f"Reponds JUSTE le texte de la reponse, rien d'autre."
+    )
+    reply = await call_local_llm(prompt, max_tokens=100)
+    # Nettoyer
+    reply = reply.strip().strip('"').strip("'")
+    if len(reply) > 280:
+        reply = reply[:277] + "..."
+    return reply
+
+
+# ══════════════════════════════════════════
 # LLM Router local (simplifie — Ollama + Mistral fallback)
 # ══════════════════════════════════════════
 
@@ -371,13 +426,28 @@ FORMAT REPONSE (JSON strict) :
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
 CEO_SYSTEM_SHORT = """CEO MAXIA — marketplace IA sur Solana. maxiaworld.app
-Rev=0, objectif 10k€/mois. Cible: devs AI sans revenus.
+Objectif 10k€/mois. Cible: devs AI sans revenus.
 
-ACTIONS: post_tweet, reply_tweet, like_tweet, follow_user, search_twitter, search_profiles,
-get_mentions, post_reddit, comment_reddit, search_reddit, send_alert, browse_competitor,
-dm_twitter, send_telegram, star_github, send_discord.
-Priorites: vert=auto, orange=validation, rouge=fondateur.
-Max 3 actions. JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
+ACTIONS (toutes vert sauf mention):
+- post_template_tweet: tweet depuis templates (pas de params) [VERT]
+- post_tweet: tweet custom (params: text) [VERT]
+- post_thread: thread Twitter (params: tweets=[str,str,...]) [VERT]
+- reply_mentions: repond aux mentions automatiquement [VERT]
+- like_tweet: liker (params: tweet_url) [VERT]
+- follow_user: follow (params: username) [VERT]
+- search_twitter: chercher tweets (params: query) [VERT]
+- search_profiles: profils (params: query) [VERT]
+- score_profile: scorer prospect (params: username) [VERT]
+- detect_opportunities: trouver devs frustres [VERT]
+- scrape_followers: followers concurrent (params: competitor) [VERT]
+- post_reddit: poster (params: subreddit, title, body) [VERT]
+- comment_reddit: commenter (params: post_url, text) [VERT]
+- dm_twitter: DM (params: username, text) [ORANGE]
+- send_telegram: telegram (params: target, text) [ORANGE]
+- update_price: prix VPS (params: service_id, new_price) [ORANGE]
+
+NE REFAIS PAS ce qui est dans DEJA FAIT. Max 3 actions.
+JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
 
 
 class CEOLocal:
@@ -423,7 +493,16 @@ class CEOLocal:
                 # 4. ACT — executer les actions
                 await self._act(decisions)
 
-                # 5. SYNC — envoyer les actions au VPS (eviter double-post)
+                # 5. AUTO-REPLY mentions (toutes les 3 cycles)
+                if self._cycle % 3 == 0:
+                    try:
+                        reply_result = await self._reply_to_mentions()
+                        if reply_result.get("detail", "") != "0 mentions":
+                            _log(f"[MENTIONS] {reply_result.get('detail', '')}")
+                    except Exception as e:
+                        _log(f"[MENTIONS] Erreur: {e}")
+
+                # 6. SYNC — envoyer les actions au VPS (eviter double-post)
                 recent = self.memory.get("actions_done", [])[-10:]
                 sync_result = await self.vps.sync(recent, active=True)
                 vps_actions = sync_result.get("vps_actions", [])
@@ -672,6 +751,23 @@ class CEOLocal:
         elif action == "score_profile":
             result = await browser.score_twitter_profile(params.get("username", ""))
             return {"success": bool(result.get("score", 0)), "detail": f"Score: {result.get('score', 0)} -> {result.get('recommend', '?')}", "data": result}
+        elif action == "reply_mentions":
+            return await self._reply_to_mentions()
+        elif action == "detect_opportunities":
+            opps = await browser.detect_opportunities(params.get("max", 5))
+            return {"success": bool(opps), "detail": f"{len(opps)} opportunites", "data": opps}
+        elif action == "post_thread":
+            result = await browser.post_thread(params.get("tweets", []))
+            return {"success": result.get("success", False), "detail": str(result)}
+        elif action == "scrape_followers":
+            followers = await browser.scrape_competitor_followers(params.get("competitor", ""), params.get("max", 10))
+            return {"success": bool(followers), "detail": f"{len(followers)} followers", "data": followers}
+        elif action == "verify_engagement":
+            result = await browser.verify_tweet_engagement(params.get("tweet_url", ""))
+            return {"success": True, "detail": f"Likes:{result.get('likes',0)} RT:{result.get('retweets',0)}", "data": result}
+        elif action == "post_template_tweet":
+            text = pick_tweet_template()
+            return await self._do_browser("post_tweet", {"text": text})
         # Reddit (local)
         elif action == "post_reddit":
             return await self._do_browser("post_reddit", params)
@@ -753,6 +849,51 @@ class CEOLocal:
                 print(f"[ACT] Browser {method} error: {e}, fallback VPS")
                 return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
             return {"success": False, "detail": str(e)}
+
+    async def _reply_to_mentions(self) -> dict:
+        """Lit les mentions et repond intelligemment a chacune."""
+        mentions = await browser.get_mentions(10)
+        if not mentions:
+            return {"success": True, "detail": "0 mentions"}
+
+        replied = 0
+        for m in mentions:
+            url = m.get("url", "")
+            text = m.get("text", "")
+            user = m.get("username", "")
+            if not url or not text:
+                continue
+            # Verifier si deja repondu
+            if browser._is_duplicate("reply", url):
+                continue
+            # Generer une reponse via Ollama
+            reply_text = await generate_smart_reply(text, user)
+            if reply_text:
+                result = await browser.reply_tweet(url, reply_text)
+                if result.get("success"):
+                    replied += 1
+                    _log(f"  Reply @{user}: {reply_text[:60]}")
+                    browser._record_action("reply", browser._content_hash("reply", url))
+            if replied >= 3:  # Max 3 replies par cycle
+                break
+
+        return {"success": True, "detail": f"{replied} replies sur {len(mentions)} mentions"}
+
+    async def _check_engagement(self):
+        """Feedback loop: verifie l'engagement des derniers tweets."""
+        tweets_done = [a for a in self.memory.get("actions_done", [])
+                       if a.get("action") == "post_tweet" and a.get("success")]
+        if not tweets_done:
+            return
+
+        # Verifier le dernier tweet (pas plus d'une fois par heure)
+        last = tweets_done[-1]
+        if last.get("engagement_checked"):
+            return
+
+        # On ne peut pas facilement retrouver l'URL du tweet poste
+        # mais on peut verifier l'engagement du profil
+        _log("[FEEDBACK] Verification engagement (a implementer avec URL tracking)")
 
     def _reset_daily_counter(self):
         today = time.strftime("%Y-%m-%d")
