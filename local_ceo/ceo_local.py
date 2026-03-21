@@ -217,14 +217,41 @@ URL : maxiaworld.app
 - MICRO : wallet micro-depenses
 
 ACTIONS DISPONIBLES :
-- post_tweet: poster sur X via Playwright local (params: text) [VERT]
-- post_reddit: poster sur Reddit via Playwright local (params: subreddit, title, body) [VERT]
-- update_price: modifier un prix via VPS (params: service_id, new_price, reason) [ORANGE]
-- contact_prospect: contacter un wallet via VPS (params: wallet, message, canal) [ORANGE]
-- send_alert: alerte Discord via VPS (params: message) [VERT]
-- toggle_agent: activer/desactiver un agent VPS (params: agent_name, enabled) [ORANGE]
-- browse_competitor: screenshot concurrent local (params: url) [VERT]
-- generate_report: rapport via VPS (params: topic) [VERT]
+Twitter (local Playwright, 0 cout) :
+- post_tweet: poster sur X (params: text) [VERT]
+- reply_tweet: repondre a un tweet (params: tweet_url, text) [VERT]
+- like_tweet: liker un tweet (params: tweet_url) [VERT]
+- follow_user: follow un profil (params: username) [VERT]
+- search_twitter: chercher tweets/hashtags (params: query) [VERT]
+- search_profiles: chercher des profils dev AI/Solana (params: query) [VERT]
+- get_mentions: lire les mentions et y repondre [VERT]
+
+Reddit (local Playwright, 0 cout) :
+- post_reddit: poster sur un subreddit (params: subreddit, title, body) [VERT]
+- comment_reddit: commenter un post (params: post_url, text) [VERT]
+- search_reddit: chercher des posts (params: subreddit, query) [VERT]
+
+VPS (via API securisee) :
+- update_price: modifier un prix (params: service_id, new_price, reason) [ORANGE]
+- contact_prospect: contacter un wallet (params: wallet, message, canal) [ORANGE]
+- send_alert: alerte Discord (params: message) [VERT]
+- toggle_agent: activer/desactiver un agent (params: agent_name, enabled) [ORANGE]
+- browse_competitor: screenshot concurrent (params: url) [VERT]
+- generate_report: rapport (params: topic) [VERT]
+
+STRATEGIE MARKETING TWITTER :
+- Cherche des devs qui parlent de AI agents, Solana bots, ElizaOS, LangChain, no revenue
+- Like et repond a leurs tweets avec un message utile (pas commercial)
+- Follow les profils pertinents (max 10/jour)
+- Repond a TOUTES les mentions dans les 30 min
+- Hashtags cibles : #AIagent #Solana #Web3dev #DeFi #BuildOnSolana
+- Ton : dev qui aide un autre dev, PAS marketeur
+
+STRATEGIE MARKETING REDDIT :
+- Subreddits cibles : solanadev, artificial, LangChain, LocalLLaMA, SaaS, cryptocurrency
+- Commente des posts existants avec une reponse UTILE, puis mentionne MAXIA naturellement
+- Ne spamme PAS — max 3 commentaires/jour par subreddit
+- Poste du contenu educatif, pas promotionnel
 
 OBJECTIFS DU FONDATEUR (NON NEGOCIABLES) :
 1. MAXIA doit devenir MONDIALEMENT RECONNUE
@@ -460,55 +487,71 @@ class CEOLocal:
 
     async def _execute_action(self, action: str, agent: str, params: dict,
                               priority: str) -> dict:
-        """Execute une action : VPS ou Playwright local."""
-        # Actions browser (locales)
+        """Execute une action : Playwright local ou VPS."""
+        # Twitter (local)
         if action == "post_tweet":
-            return await self._browser_tweet(params)
+            return await self._do_browser("post_tweet", params, fallback_vps=True)
+        elif action == "reply_tweet":
+            return await self._do_browser("reply_tweet", params)
+        elif action == "like_tweet":
+            return await self._do_browser("like_tweet", params)
+        elif action == "follow_user":
+            return await self._do_browser("follow_user", params)
+        elif action == "search_twitter":
+            results = await browser.search_twitter(params.get("query", ""), params.get("max", 10))
+            return {"success": bool(results), "detail": f"{len(results)} tweets trouves", "data": results}
+        elif action == "search_profiles":
+            results = await browser.search_twitter_profiles(params.get("query", ""), params.get("max", 10))
+            return {"success": bool(results), "detail": f"{len(results)} profils trouves", "data": results}
+        elif action == "get_mentions":
+            mentions = await browser.get_mentions(params.get("max", 20))
+            return {"success": bool(mentions), "detail": f"{len(mentions)} mentions", "data": mentions}
+        # Reddit (local)
         elif action == "post_reddit":
-            return await self._browser_reddit(params)
+            return await self._do_browser("post_reddit", params)
+        elif action == "comment_reddit":
+            return await self._do_browser("comment_reddit", params)
+        elif action == "search_reddit":
+            results = await browser.search_reddit(params.get("subreddit", ""), params.get("query", ""))
+            return {"success": bool(results), "detail": f"{len(results)} posts trouves", "data": results}
+        # Veille (local)
         elif action == "browse_competitor":
-            return await self._browser_screenshot(params)
-        # Actions VPS
+            path = await browser.screenshot_page(params.get("url", ""))
+            return {"success": bool(path), "detail": f"Screenshot: {path}"}
+        # VPS
         else:
             return await self.vps.execute(action, agent, params, priority)
 
-    async def _browser_tweet(self, params: dict) -> dict:
-        """Post tweet via Playwright, fallback VPS."""
-        text = params.get("text", "")
-        if not text:
-            return {"success": False, "detail": "No tweet text"}
+    async def _do_browser(self, method: str, params: dict, fallback_vps: bool = False) -> dict:
+        """Execute une action browser avec fallback VPS optionnel."""
         try:
-            result = await browser.post_tweet(text, params.get("media"))
+            fn = getattr(browser, method)
+            # Mapper les params vers les arguments de la methode
+            if method == "post_tweet":
+                result = await fn(params.get("text", ""), params.get("media"))
+            elif method == "reply_tweet":
+                result = await fn(params.get("tweet_url", ""), params.get("text", ""))
+            elif method == "like_tweet":
+                result = await fn(params.get("tweet_url", ""))
+            elif method == "follow_user":
+                result = await fn(params.get("username", ""))
+            elif method == "post_reddit":
+                result = await fn(params.get("subreddit", ""), params.get("title", ""), params.get("body", ""))
+            elif method == "comment_reddit":
+                result = await fn(params.get("post_url", ""), params.get("text", ""))
+            else:
+                result = {"success": False, "error": f"Unknown browser method: {method}"}
+
             if result.get("success"):
-                return {"success": True, "detail": f"Tweet posted via browser: {text[:60]}"}
-            # Fallback VPS (tweepy)
-            print("[ACT] Browser tweet failed, fallback VPS...")
-            return await self.vps.execute("post_tweet", "GHOST-WRITER", params, "vert")
+                return {"success": True, "detail": f"{method} OK"}
+            elif fallback_vps:
+                print(f"[ACT] Browser {method} failed, fallback VPS...")
+                return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
+            return result
         except Exception as e:
-            print(f"[ACT] Browser tweet error: {e}, fallback VPS")
-            return await self.vps.execute("post_tweet", "GHOST-WRITER", params, "vert")
-
-    async def _browser_reddit(self, params: dict) -> dict:
-        """Post Reddit via Playwright."""
-        subreddit = params.get("subreddit", "")
-        title = params.get("title", "")
-        body = params.get("body", "")
-        if not subreddit or not title:
-            return {"success": False, "detail": "Missing subreddit or title"}
-        try:
-            return await browser.post_reddit(subreddit, title, body)
-        except Exception as e:
-            return {"success": False, "detail": str(e)}
-
-    async def _browser_screenshot(self, params: dict) -> dict:
-        """Screenshot concurrent via Playwright."""
-        url = params.get("url", "")
-        if not url:
-            return {"success": False, "detail": "No URL"}
-        try:
-            path = await browser.screenshot_page(url)
-            return {"success": bool(path), "detail": f"Screenshot saved: {path}"}
-        except Exception as e:
+            if fallback_vps:
+                print(f"[ACT] Browser {method} error: {e}, fallback VPS")
+                return await self.vps.execute(method, "GHOST-WRITER", params, "vert")
             return {"success": False, "detail": str(e)}
 
     def _reset_daily_counter(self):
