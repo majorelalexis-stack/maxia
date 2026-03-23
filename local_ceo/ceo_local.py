@@ -2021,45 +2021,55 @@ class CEOLocal:
                         )
 
     async def _generate_smart_comment(self, tweet_text: str) -> str:
-        """Genere un commentaire de qualite (insight, pas promo)."""
+        """Genere un commentaire positif et utile."""
         prompt = (
             f"Tweet: \"{tweet_text[:200]}\"\n\n"
-            f"Write a thoughtful reply IN ENGLISH (<200 chars) as Alexis, a senior dev:\n"
-            f"- Reference something SPECIFIC from the tweet\n"
-            f"- Share a concrete technical insight or ask a precise question\n"
-            f"- Tone: knowledgeable developer, not casual teenager. No 'lol', 'fr', 'ngl'\n"
+            f"Write a supportive reply IN ENGLISH (<200 chars) as Alexis, a senior dev:\n"
+            f"- Be POSITIVE — compliment their work, share enthusiasm, or ask a curious question\n"
+            f"- Add value: share a useful tip, your own experience, or genuine interest\n"
+            f"- NEVER criticize, disagree, or be negative. If you can't be positive, say nothing.\n"
             f"- Do NOT mention MAXIA or any product\n"
             f"- MUST be in English regardless of tweet language\n"
             f"Reply text ONLY. No quotes."
         )
         # Groq pour les commentaires publics (qualite critique)
-        comment = await call_groq_local(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=60)
+        comment = await call_groq_local(prompt, system="Supportive senior developer. Always positive and helpful. English only.", max_tokens=60)
         if not comment:
-            comment = await call_ollama(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=60)
+            comment = await call_ollama(prompt, system="Supportive senior developer. Always positive and helpful. English only.", max_tokens=60)
         comment = comment.strip().strip('"').strip("'")
         if len(comment) > 250:
             comment = comment[:247] + "..."
         if not comment or len(comment) < 10:
             return ""
+        # Filtre anti-negativite
+        negative_words = ["disagree", "wrong", "bad", "terrible", "awful", "hate", "stupid", "dumb", "worst", "sucks", "skeptical", "doubt"]
+        if any(w in comment.lower() for w in negative_words):
+            return ""
         return comment
 
     async def _generate_quote_tweet_text(self, original_text: str) -> str:
-        """Generate a quote tweet comment — personal take on someone's tweet."""
+        """Generate a quote tweet comment — positive and supportive."""
         prompt = (
             f"Someone tweeted: \"{original_text[:200]}\"\n\n"
-            f"Write a short quote tweet reaction as Alexis, a solo dev (<200 chars).\n"
-            f"- Share your honest take: agree, disagree, add context\n"
-            f"- Examples: 'exactly this.', 'been saying this for months', 'hot take but I disagree because...'\n"
+            f"Write a short supportive quote tweet as Alexis, a solo dev (<200 chars).\n"
+            f"- Be POSITIVE and SUPPORTIVE — celebrate what they built or shared\n"
+            f"- Add value: share your experience, a useful tip, or genuine excitement\n"
+            f"- Examples: 'this is exactly what the space needs', 'love this approach', 'been waiting for someone to build this'\n"
+            f"- NEVER disagree, criticize, or be negative. If you don't like it, don't quote it.\n"
             f"- Do NOT mention MAXIA unless directly relevant\n"
             f"- ENGLISH ONLY\n"
             f"Text ONLY:"
         )
         # Groq pour le contenu public, Ollama fallback
-        text = await call_groq_local(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=40)
+        text = await call_groq_local(prompt, system="Supportive solo dev. Always positive, never confrontational. English only.", max_tokens=40)
         if not text:
-            text = await call_ollama(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=40)
+            text = await call_ollama(prompt, system="Supportive solo dev. Always positive, never confrontational. English only.", max_tokens=40)
         text = text.strip().strip('"').strip("'")
         if len(text) < 5 or len(text) > 250:
+            return ""
+        # Filtre anti-negativite
+        negative_words = ["disagree", "wrong", "bad", "terrible", "awful", "hate", "stupid", "dumb", "worst", "sucks", "skeptical", "doubt"]
+        if any(w in text.lower() for w in negative_words):
             return ""
         return text
 
