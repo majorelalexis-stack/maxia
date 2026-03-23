@@ -461,13 +461,13 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Mistral (rapide, fiable) > Groq (gratuit mais rate-limited) > Ollama (local, lent)."""
-    # 1. Mistral — rapide, pas de rate limit dur, meilleure qualite
-    result = await call_mistral(prompt, system, max_tokens)
+    """Groq (meilleure qualite) > Mistral (fallback rapide) > Ollama (local, lent)."""
+    # 1. Groq — meilleur modele (Llama 3.3 70B), qualite superieure
+    result = await call_groq_local(prompt, system, max_tokens)
     if result:
         return result
-    # 2. Groq — gratuit mais 100k tokens/jour (souvent rate-limited)
-    result = await call_groq_local(prompt, system, max_tokens)
+    # 2. Mistral — fallback rapide, pas de rate limit dur
+    result = await call_mistral(prompt, system, max_tokens)
     if result:
         return result
     # 3. Ollama — local, 0 cout, plus lent
@@ -966,11 +966,14 @@ class CEOLocal:
         return state
 
     async def _orient(self, state: dict) -> str:
-        """ORIENT — Analyse locale via Ollama (0 cout)."""
+        """ORIENT — Analyse locale. Ollama par defaut, Groq tous les 5 cycles."""
         _log("[ORIENT] Analyse locale...")
         kpis = state.get("kpi", {})
         agents = state.get("agents", {})
         errors = state.get("errors", [])
+
+        # Utiliser Ollama (0 cout) par defaut, Groq seulement tous les 5 cycles
+        use_groq = (self._cycle % 5 == 0)
 
         summary = (
             f"Etat VPS MAXIA:\n"
@@ -982,11 +985,26 @@ class CEOLocal:
             f"- Erreurs recentes: {json.dumps(errors, default=str)[:300]}\n"
         )
 
-        analysis = await call_local_llm(
-            summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
-            system="Concise business analyst. Answer in English, 3 sentences max.",
-            max_tokens=150,
-        )
+        if use_groq:
+            # Groq pour analyse strategique (tous les 5 cycles)
+            analysis = await call_groq_local(
+                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
+                system="Concise business analyst. Answer in English, 3 sentences max.",
+                max_tokens=150,
+            )
+        else:
+            # Ollama pour analyse rapide (0 cout Groq)
+            analysis = await call_ollama(
+                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
+                system="Concise business analyst. Answer in English, 3 sentences max.",
+                max_tokens=150,
+            )
+        if not analysis:
+            analysis = await call_local_llm(
+                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
+                system="Concise business analyst. Answer in English, 3 sentences max.",
+                max_tokens=150,
+            )
         _log(f"  Analyse: {analysis[:150]}")
         return analysis
 

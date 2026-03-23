@@ -207,6 +207,67 @@ class BrowserAgent:
             except Exception as e:
                 print(f"[BrowserAgent] Reconnexion echouee: {e}")
 
+    async def _handle_dm_verification(self, page):
+        """Detecte et saisit le code de verification X pour acceder aux DMs (code: 0085)."""
+        try:
+            # Chercher un champ de saisie de code verification
+            code_input = page.locator('input[type="text"][name*="code" i], input[type="text"][name*="verify" i], input[type="text"][placeholder*="code" i], input[type="tel"], input[data-testid*="ocfEnterTextTextInput"]').first
+            if await code_input.is_visible(timeout=2000):
+                print("[BrowserAgent] DM verification code detected, entering 0085...")
+                await code_input.click()
+                await code_input.fill("0085")
+                await page.wait_for_timeout(500)
+                # Cliquer Next/Submit/Verify
+                for sel in ['button:has-text("Next")', 'button:has-text("Suivant")', 'button:has-text("Verify")', 'button:has-text("Submit")', 'button[type="submit"]', '[data-testid="ocfEnterTextNextButton"]']:
+                    btn = page.locator(sel).first
+                    if await btn.is_visible(timeout=1000):
+                        await btn.click()
+                        await page.wait_for_timeout(3000)
+                        print("[BrowserAgent] DM verification code submitted")
+                        return True
+        except Exception:
+            pass
+        return False
+
+    async def _goto_dms(self, page):
+        """Navigue vers les DMs et gere la verification si necessaire."""
+        await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
+        await page.wait_for_timeout(3000)
+        # Verifier si X demande un code
+        await self._handle_dm_verification(page)
+        await page.wait_for_timeout(2000)
+
+    async def _click_dm_conversation(self, page, index: int = 0) -> bool:
+        """Clique sur une conversation DM (gere la nouvelle UI X 2026).
+        Utilise mouse.click avec coordonnees exactes car les clicks Playwright
+        ne declenchent pas la navigation SPA de X sur les DMs."""
+        items = await page.locator('[data-testid^="dm-conversation-item-"]').all()
+        if not items or index >= len(items):
+            return False
+        try:
+            # Methode 1: mouse.click au centre exact (simule un vrai clic humain)
+            box = await items[index].bounding_box()
+            if box:
+                await page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                await page.wait_for_timeout(3000)
+                if await page.locator('[data-testid="dm-conversation-panel"]').first.is_visible(timeout=2000):
+                    return True
+            # Methode 2: double-click
+            if box:
+                await page.mouse.dblclick(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                await page.wait_for_timeout(3000)
+                if await page.locator('[data-testid="dm-conversation-panel"]').first.is_visible(timeout=2000):
+                    return True
+            # Methode 3: keyboard navigation (Tab + Enter)
+            await items[index].focus()
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(3000)
+            if await page.locator('[data-testid="dm-conversation-panel"]').first.is_visible(timeout=2000):
+                return True
+        except Exception:
+            pass
+        return False
+
     async def _new_page(self):
         """Cree un nouvel onglet pour les actions paralleles."""
         if not self._initialized:
@@ -489,6 +550,52 @@ class BrowserAgent:
 
             return {"success": True, "deleted": deleted}
 
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def delete_all_dms(self, max_delete: int = 50) -> dict:
+        """Supprime toutes les conversations DM via clic droit -> Delete conversation."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await self._goto_dms(page)
+
+            deleted = 0
+            for _ in range(max_delete):
+                items = await page.locator('[data-testid^="dm-conversation-item-"]').all()
+                if not items:
+                    break
+
+                # Clic droit sur la conversation (mouse.click button right)
+                box = await items[0].bounding_box()
+                if not box:
+                    break
+                await page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2, button='right')
+                await page.wait_for_timeout(1500)
+
+                # Chercher Delete conversation dans le menu contextuel
+                del_btn = page.locator('text=Delete conversation').first
+                if not await del_btn.is_visible(timeout=2000):
+                    del_btn = page.locator('[role="menuitem"]:has-text("Delete")').first
+                if await del_btn.is_visible(timeout=1000):
+                    await del_btn.click()
+                    await page.wait_for_timeout(1000)
+                    confirm = page.locator('[data-testid="confirmationSheetConfirm"]').first
+                    if await confirm.is_visible(timeout=3000):
+                        await confirm.click()
+                        await page.wait_for_timeout(2000)
+                        deleted += 1
+                        print(f"[BrowserAgent] Deleted DM #{deleted}")
+                        continue
+
+                await page.keyboard.press("Escape")
+                await page.wait_for_timeout(500)
+
+                if deleted == 0 and _ > 3:
+                    break
+
+            return {"success": True, "deleted": deleted}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -1280,8 +1387,7 @@ class BrowserAgent:
 
         try:
             clean = username.lstrip("@")
-            await page.goto(f"https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2000)
+            await self._goto_dms(page)
 
             # Nouveau message
             clicked = await self._find_and_click(page, [
@@ -1753,12 +1859,13 @@ class BrowserAgent:
         page = self._page
 
         try:
-            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(5000)
+            await self._goto_dms(page)
 
             conversations = []
-            # Lister les conversations
-            convs = await page.locator('[data-testid="conversation"]').all()
+            # Lister les conversations (nouvelle UI X 2026)
+            convs = await page.locator('[data-testid^="dm-conversation-item-"]').all()
+            if not convs:
+                convs = await page.locator('[data-testid="conversation"]').all()
             if not convs:
                 convs = await page.locator('[data-testid="cellInnerDiv"]').all()
 
@@ -1795,14 +1902,16 @@ class BrowserAgent:
         page = self._page
 
         try:
-            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2000)
+            await self._goto_dms(page)
 
-            # Cliquer sur la conversation
-            conv = page.locator(f'[data-testid="conversation"]:has-text("{contact_name}"), [data-testid="cellInnerDiv"]:has-text("{contact_name}")').first
+            # Cliquer sur la conversation (nouvelle UI + ancienne)
+            conv = page.locator(f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}"), [data-testid="conversation"]:has-text("{contact_name}")').first
             if await conv.is_visible(timeout=3000):
-                await conv.click()
-                await page.wait_for_timeout(2000)
+                await conv.click(force=True)
+                await page.wait_for_timeout(3000)
+                # Verifier si ouvert
+                if not await page.locator('[data-testid="dm-conversation-panel"]').first.is_visible(timeout=2000):
+                    return []
             else:
                 return []
 
@@ -1832,29 +1941,31 @@ class BrowserAgent:
         page = self._page
 
         try:
-            await page.goto("https://x.com/messages", wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2000)
+            await self._goto_dms(page)
 
-            # Cliquer sur la conversation
-            conv = page.locator(f'[data-testid="conversation"]:has-text("{contact_name}"), [data-testid="cellInnerDiv"]:has-text("{contact_name}")').first
+            # Cliquer sur la conversation (nouvelle UI + ancienne)
+            conv = page.locator(f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}"), [data-testid="conversation"]:has-text("{contact_name}")').first
             if await conv.is_visible(timeout=3000):
-                await conv.click()
-                await page.wait_for_timeout(2000)
+                await conv.click(force=True)
+                await page.wait_for_timeout(3000)
             else:
                 return {"success": False, "error": f"Conversation with {contact_name} not found"}
 
-            # Taper et envoyer
+            # Taper et envoyer (nouvelle UI X 2026: dm-composer-*)
             filled = await self._find_and_fill(page, [
+                '[data-testid="dm-composer-textarea"]',
                 '[data-testid="dmComposerTextInput"]',
+                'div[data-testid="dm-composer-input-container"] div[contenteditable]',
                 'div[role="textbox"][contenteditable]',
             ], text[:1000], "DM reply")
             if not filled:
                 return {"success": False, "error": "DM input not found"}
 
-            sent = await self._find_and_click(page, [
-                '[data-testid="dmComposerSendButton"]',
-                'button[aria-label*="Send" i]',
-            ], "Send DM")
+            # Envoyer avec Enter (plus fiable que chercher un bouton)
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(1000)
+
+            sent = True
 
             if sent:
                 self._record_action("dm", self._content_hash("dm_reply", f"{contact_name}:{text[:30]}"))
