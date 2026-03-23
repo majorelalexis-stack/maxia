@@ -360,6 +360,17 @@ async def register_agent(req: dict):
     if description:
         _check_safety(description, "description")
 
+    # Check capabilities
+    caps = req.get("capabilities", [])
+    if isinstance(caps, list):
+        for cap in caps:
+            if isinstance(cap, str):
+                _check_safety(cap, "capabilities")
+    # Check endpoint_url
+    endpoint = req.get("endpoint_url", "")
+    if endpoint and isinstance(endpoint, str):
+        _check_safety(endpoint, "endpoint URL")
+
     # Generer la cle API
     api_key = f"maxia_{secrets.token_hex(24)}"
 

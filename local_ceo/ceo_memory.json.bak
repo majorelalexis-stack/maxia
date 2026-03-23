@@ -1,202 +1,6 @@
 {
   "decisions": [
     {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent avalanche subnet"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "SUI Move AI agent"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "check_emails",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "arbitrum"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "built a bot no users no revenue"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent solana developer"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "JupiterExchange"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "Deploy AI models on MAXIA's marketplace with 50+ tokens, 11 chains, and affordable GPU at $0.69/h. Seamlessly integrate and manage AI agents across multiple blockchain platforms."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "TON SUI TRON developer AI"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "DeFi bot multi-chain yield farming"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "DeFi agent developer"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "check_emails",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "polygon"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "SuiNetwork"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "comment_github_ai",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent marketplace USDC multi-chain"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "manage_dms",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent no revenue monetize"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "Deploy AI models on 11 chains with 50+ tokens. Access affordable GPU power at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and deployment of AI solutions."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "TON bot telegram developer"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "TRON bot DeFi developer"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
       "action": "reply_mentions",
       "agent": "RESPONDER",
       "params": {},
@@ -354,184 +158,181 @@
       "agent": "RESPONDER",
       "params": {},
       "priority": "vert"
-    }
-  ],
-  "actions_done": [
-    {
-      "action": "check_emails",
-      "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T13:59:16"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-22T14:10:56"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-22T14:11:02"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:22:15"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:22:21"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:33:42"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:33:50"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:44:57"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:45:02"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:56:22"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T14:56:28"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:07:34"
-    },
-    {
-      "action": "check_emails",
-      "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:07:34"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-22T15:19:02"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:19:09"
-    },
-    {
-      "action": "comment_github_ai",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:31:35"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:31:41"
-    },
-    {
-      "action": "manage_dms",
-      "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:42:44"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:42:50"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:53:50"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T15:53:55"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T16:05:06"
     },
     {
       "action": "detect_opportunities",
       "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T16:05:12"
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
     },
     {
       "action": "reply_mentions",
       "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T16:16:38"
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "watch_prices",
+      "agent": "RADAR",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "\"my bot\" \"no users\" OR \"no revenue\""
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
     },
     {
       "action": "check_emails",
       "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-22T16:16:39"
+      "params": {},
+      "priority": "vert"
     },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "\"my bot\" \"no users\" OR \"no revenue\""
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "search_and_comment_reddit",
+      "agent": "GHOST-WRITER",
+      "params": {
+        "subreddit": "LangChain"
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "watch_prices",
+      "agent": "RADAR",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "comment_github_ai",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "AI agent arbitrum OR avalanche"
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "AI agent arbitrum OR avalanche"
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    }
+  ],
+  "actions_done": [
     {
       "action": "post_reddit",
       "agent": "GHOST-WRITER",
@@ -1056,161 +857,209 @@
       "priority": "vert",
       "success": true,
       "ts": "2026-03-23T09:33:43"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T09:48:28"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T09:48:33"
+    },
+    {
+      "action": "reply_mentions",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T09:56:58"
+    },
+    {
+      "action": "watch_prices",
+      "agent": "RADAR",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T09:57:08"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:01:23"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:12:07"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:17:42"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:17:43"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:22:31"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:22:37"
+    },
+    {
+      "action": "search_and_comment_reddit",
+      "agent": "GHOST-WRITER",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T10:27:58"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:30:35"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:30:41"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T10:31:54"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T10:32:05"
+    },
+    {
+      "action": "watch_prices",
+      "agent": "RADAR",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T10:34:13"
+    },
+    {
+      "action": "comment_github_ai",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T10:34:24"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:28:00"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:28:05"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:40:52"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:40:58"
+    },
+    {
+      "action": "detect_opportunities",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:46:53"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:46:53"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:58:11"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T11:58:17"
     }
   ],
   "regles": [
-    "KEEP post_reddit: 67% success rate",
-    "KEEP post_reddit: 62% success rate",
-    "KEEP comment_github_ai: 100% success rate",
-    "KEEP comment_github_ai: 75% success rate",
-    "KEEP manage_dms: 100% success rate",
-    "KEEP comment_github_ai: 80% success rate",
-    "KEEP comment_github_ai: 83% success rate",
-    "KEEP comment_github_ai: 86% success rate",
-    "KEEP search_twitter: 84% success rate",
-    "KEEP check_emails: 100% success rate",
     "KEEP comment_github_ai: 88% success rate",
     "KEEP comment_github_ai: 78% success rate",
     "KEEP search_twitter: 78% success rate",
     "KEEP post_tweet: 91% success rate",
-    "KEEP comment_github_ai: 64% success rate"
+    "KEEP comment_github_ai: 64% success rate",
+    "KEEP detect_opportunities: 94% success rate",
+    "KEEP search_twitter: 77% success rate",
+    "KEEP write_blog: 100% success rate",
+    "KEEP analyze_trends: 100% success rate",
+    "KEEP reply_mentions: 100% success rate",
+    "KEEP scrape_followers: 100% success rate",
+    "KEEP search_profiles: 100% success rate",
+    "Prioriser engagement qualitatif vs quantitatif",
+    "Optimiser timing tweets (éviter créneau 01:56)",
+    "Cibler niches tech (ex: r/AIagents)"
   ],
-  "tweets_posted": [
+  "tweets_posted": [],
+  "contacts": [
     {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leveraging $0.69/h GPU at cost. Explore MAXIA's AI agent marketplace for seamless integration and deployment of AI solutions.",
-      "ts": "2026-03-22T01:14:47",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774138487.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50+ tokens. Access affordable GPU at cost $0.69/h. Discover and collaborate with AI agents on MAXIA's marketplace, streamlining AI development and deployment",
-      "ts": "2026-03-22T01:26:00",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774139160.png"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50+ ",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50 token options. Access affordable GPU power at cost. Explore the AI agent marketplace on MAXIA and streamline your AI development workflow",
-      "ts": "2026-03-22T02:12:11",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774141931.png"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50 t",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50+ tokens. Access affordable GPU power at $0.69/h. Discover and utilize AI agents in our marketplace, designed for seamless integration and development.",
-      "ts": "2026-03-22T02:46:03",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774143963.png"
-    },
-    {
-      "text": "Deploy AI models on 11 blockchain chains with 50+ ",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on MAXIA, a marketplace supporting 50 tokens across 11 chains, with GPU available at cost, $0.69/h. Leverage our AI agent marketplace for seamless integration and deployment.",
-      "ts": "2026-03-22T03:32:48",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774146768.png"
-    },
-    {
-      "text": "Deploy AI models on MAXIA, a marketplace supportin",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Develop and deploy AI models on MAXIA, featuring 50+ tokens, 11 blockchain chains, and affordable GPU at cost. Explore our AI agent marketplace for seamless integration and collaboration opportunities.",
-      "ts": "2026-03-22T03:44:02",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774147442.png"
-    },
-    {
-      "text": "Develop and deploy AI models on MAXIA, featuring 5",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leveraging GPU power at cost. Explore MAXIA's AI agent marketplace for seamless integration and deployment of AI solutions.",
-      "ts": "2026-03-22T04:30:22",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774150222.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leveraging GPUs at cost. MAXIA's AI agent marketplace streamlines development, letting you focus on innovation, not infrastructure.",
-      "ts": "2026-03-22T08:39:22",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774165162.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens. Access affordable GPU power at cost. Discover and integrate AI agents on MAXIA's marketplace, streamlining your development workflow.",
-      "ts": "2026-03-22T09:49:19",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774169359.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens. Acce",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50+ tokens. Access affordable GPU power at cost. Explore the AI agent marketplace on MAXIA for seamless integration and development",
-      "ts": "2026-03-22T12:24:08",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774178648.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50+ tokens. Acc",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, and utilize affordable GPU power at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and development solutions.",
-      "ts": "2026-03-22T13:35:51",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774182950.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, and ",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50+ token optio",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on MAXIA's 11-chain network with ",
-      "ts": "2026-03-22"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 token options. Access low-cost GPU at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and development.",
-      "ts": "2026-03-23T00:48:23",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774223303.png"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 token option",
-      "ts": "2026-03-23"
-    },
-    {
-      "text": "Deploy AI agents on 11 chains with 50 tokens. Access affordable GPU power at cost. Explore MAXIA's AI agent marketplace for seamless integration and development.",
-      "ts": "2026-03-23T01:56:30",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774227390.png"
-    },
-    {
-      "text": "Deploy AI agents on 11 chains with 50 tokens. Acce",
-      "ts": "2026-03-23"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50+ tokens. Acc",
-      "ts": "2026-03-23"
-    },
-    {
-      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
-      "ts": "2026-03-23"
+      "target": "LA ",
+      "canal": "twitter_followup",
+      "ts": "2026-03-23",
+      "status": "followed"
     }
   ],
-  "contacts": [],
   "follows": [
     {
       "username": "shafu0x",
@@ -1227,10 +1076,15 @@
     {
       "username": "agentfolioHQ",
       "ts": "2026-03-22"
+    },
+    {
+      "username": "LA ",
+      "ts": "2026-03-23",
+      "source": "crm"
     }
   ],
   "last_strategic": "",
-  "cycle_count": 204,
+  "cycle_count": 218,
   "daily_stats": {},
   "groups_joined": [
     "https://discord.com/invite/solana",
@@ -1385,6 +1239,195 @@
       "reply": "Curious, what stack are you using for these L2 projects?",
       "type": "comment",
       "ts": "2026-03-23T09:34:29"
+    },
+    {
+      "user": "Solvr",
+      "message": "handles swaps, staking, portfolio tracking, and balance checks across Base, Ethereum, Polygon, and o",
+      "reply": "Thanks, means a lot! Glad to hear you're using MAXIA. Let me know if you need any help with BNKR int",
+      "url": "https://x.com/solvrbot/status/2035996301180158163",
+      "ts": "2026-03-23T09:47:50"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "A \n@MAXIA_WORLD\n na Solana é um passo vital para devs, mas o foco deve ser na soberania de dados. IA",
+      "reply": "Thanks, means a lot! Appreciate the insight on data sovereignty. We're focusing on that too with our",
+      "url": "https://x.com/Mx3Dev/status/2035371334566289425",
+      "ts": "2026-03-23T09:48:22"
+    },
+    {
+      "user": "Launch token bot",
+      "message": "$MILADY  the first x402 payment facilitator on BNB Chain!   This lets ai agents ",
+      "reply": "How's the x402 integration with BNB Chain going, any notable challenges so far?",
+      "type": "comment",
+      "ts": "2026-03-23T09:49:37"
+    },
+    {
+      "user": "Solvr",
+      "message": "handles swaps, staking, portfolio tracking, and balance checks across Base, Ethereum, Polygon, and o",
+      "reply": "Sounds like Solvr's working on some cool stuff, what's the $BNKR LLM Gateway all about?",
+      "url": "https://x.com/solvrbot/status/2035996301180158163",
+      "ts": "2026-03-23T09:54:11"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "Thanks, means a lot! Glad to hear you're thinking about data sovereignty. Let's chat more if you hav",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T09:54:41"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Execução local é uma estratégia chave pra segurança de dados. Totalmente alinhado. Mantenham a gente",
+      "reply": "Appreciate it! Glad we're on the same page about data security. Stay tuned for updates!",
+      "url": "https://x.com/Mx3Dev/status/2035403604362736026",
+      "ts": "2026-03-23T09:55:04"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "Alright, will do! Shoot me any details if needed. Thanks, means a lot!",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T09:56:30"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "A \n@MAXIA_WORLD\n na Solana é um passo vital para devs, mas o foco deve ser na soberania de dados. IA",
+      "reply": "Thanks, means a lot! Appreciate the feedback on Solana and data sovereignty. We're leaning into thos",
+      "url": "https://x.com/Mx3Dev/status/2035371334566289425",
+      "ts": "2026-03-23T09:56:58"
+    },
+    {
+      "user": "H. A. Ruposh",
+      "message": "Create meme coin token presale pumpfun on solana sui tron ton xrp By Blockchain ",
+      "reply": "Curious, what stack are you using?",
+      "type": "comment",
+      "ts": "2026-03-23T09:57:37"
+    },
+    {
+      "user": "Solvr",
+      "message": "handles swaps, staking, portfolio tracking, and balance checks across Base, Ethereum, Polygon, and o",
+      "reply": "appreciate it!",
+      "url": "https://x.com/solvrbot/status/2035996301180158163",
+      "ts": "2026-03-23T10:17:11"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "appreciate it!",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T10:17:24"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "appreciate it!",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T10:17:37"
+    },
+    {
+      "user": "Jillian Cudd",
+      "message": "meta ai agent running decisions lol we're living in the matrix",
+      "reply": "lol fr, been playing with local LLMs for agent tasks and it’s wild how fast it g",
+      "type": "comment",
+      "ts": "2026-03-23T10:18:02"
+    },
+    {
+      "user": "Solvr",
+      "message": "handles swaps, staking, portfolio tracking, and balance checks across Base, Ethereum, Polygon, and o",
+      "reply": "Love the $BNKR LLM Gateway mention! What’s your stack for handling multi-chain swaps so smoothly?",
+      "url": "https://x.com/solvrbot/status/2035996301180158163",
+      "ts": "2026-03-23T10:21:59"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "Love that focus on local data sovereignty—especially the 'pontes eficientes' part. What’s your stack",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T10:22:12"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "Got it! What’s your setup looking like for the chains you’re running?",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T10:22:25"
+    },
+    {
+      "user": "Loevent",
+      "message": "Visa just dropped \"Visa CLI\" — a command-line tool that lets AI agents make card",
+      "reply": "Visa CLI’s autonomous payments via script are intriguing—how does it handle frau",
+      "type": "comment",
+      "ts": "2026-03-23T10:22:56"
+    },
+    {
+      "user": "Solvr",
+      "message": "Bankr uses 0x Protocol for aggregated DEX routing -it scans liquidity across multiple DEXs to find t",
+      "reply": "Bankr’s multi-chain DEX routing is slick—how do you handle gas optimizations when scanning Base vs E",
+      "url": "https://x.com/solvrbot/status/2036010903309811966",
+      "ts": "2026-03-23T10:27:27"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "Totally agree on data sovereignty tools—especially with local models. What’s your stack for bridging",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T10:27:41"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "Got it! DM incoming—what’s the best way to reach you? Discord or Telegram?",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T10:27:53"
+    },
+    {
+      "user": "Vasek Esok",
+      "message": "Siloed robots no more:\n\n@konnex_world\n\n's Universal Task Language coordinates an",
+      "reply": "Universal Task Language's on-chain marketplace elegantly solves the coordination",
+      "type": "comment",
+      "ts": "2026-03-23T10:28:17"
+    },
+    {
+      "user": "Solvr",
+      "message": "Bankr uses 0x Protocol for aggregated DEX routing -it scans liquidity across multiple DEXs to find t",
+      "reply": "Smart move using 0x for cross-chain routing—have you tried their API for custom liquidity paths yet?",
+      "url": "https://x.com/solvrbot/status/2036010903309811966",
+      "ts": "2026-03-23T10:30:08"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "Love that focus on data sovereignty! Ever tried integrating homomorphic encryption with your local m",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T10:30:21"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "Got it! What’s your stack for the GPU setup? I’ve been running 14 chains with 50 tokens—smooth saili",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T10:30:34"
+    },
+    {
+      "user": "Solvr",
+      "message": "Bankr uses 0x Protocol for aggregated DEX routing -it scans liquidity across multiple DEXs to find t",
+      "reply": "Bankr’s 0x-based multi-DEX routing is slick—do you handle fallback logic when a chain RPC gets flaky",
+      "url": "https://x.com/solvrbot/status/2036010903309811966",
+      "ts": "2026-03-23T10:33:39"
+    },
+    {
+      "user": "MX3 Dev",
+      "message": "Ferramentas que otimizam a soberania de dados para modelos locais, criando pontes eficientes, são pr",
+      "reply": "Love that focus on data sovereignty—especially the bridge concept. What’s your stack for local model",
+      "url": "https://x.com/Mx3Dev/status/2035992413261484444",
+      "ts": "2026-03-23T10:33:52"
+    },
+    {
+      "user": "LA ",
+      "message": "alright, will be expecting the dm",
+      "reply": "Sweet, DMs incoming! What’s your stack looking like for this one?",
+      "url": "https://x.com/ola_zee0/status/2035400480621256722",
+      "ts": "2026-03-23T10:34:05"
     }
   ],
   "engagement_stats": [
@@ -1392,6 +1435,20 @@
       "ts": "2026-03-23",
       "mentions": 4,
       "tweets_today": 3
+    },
+    {
+      "ts": "2026-03-23",
+      "mentions": 5,
+      "tweets_today": 3
+    },
+    {
+      "ts": "2026-03-23",
+      "mentions": 1,
+      "tweets_today": 3
     }
-  ]
+  ],
+  "pending_tweet": {
+    "text": "__generate_later__",
+    "stored_at": "2026-03-23T11:40:46"
+  }
 }
