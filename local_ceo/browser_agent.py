@@ -388,20 +388,28 @@ class BrowserAgent:
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(5000)
 
-            # Titre — multi-selectors (Reddit shreddit redesign 2025+)
-            filled_title = await self._find_and_fill(page, [
-                'shreddit-composer textarea[name="title"]',
-                'shreddit-composer input[name="title"]',
-                'shreddit-post-composer textarea[name="title"]',
-                '#title-field textarea',
+            # Titre — Reddit 2026 UI: textarea avec placeholder "Title"
+            filled_title = False
+            for sel in [
                 'textarea[placeholder*="Title" i]',
                 'input[placeholder*="Title" i]',
                 'textarea[name="title"]',
                 'input[name="title"]',
-                '[data-testid="post-title"] textarea',
+                'shreddit-composer textarea',
+                '#title-field textarea',
                 'div[slot="title"] textarea',
                 'faceplate-form textarea',
-            ], title[:300], "Reddit title")
+            ]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3000):
+                        await el.click()
+                        await el.fill("")
+                        await page.keyboard.type(title[:300], delay=20)
+                        filled_title = True
+                        break
+                except Exception:
+                    continue
 
             if not filled_title:
                 await self._screenshot(page, "reddit_title_fail")
@@ -409,37 +417,51 @@ class BrowserAgent:
 
             await page.wait_for_timeout(1000)
 
-            # Body — multi-selectors (shreddit uses contenteditable or lexical editor)
-            await self._find_and_fill(page, [
-                'shreddit-composer div[contenteditable="true"]',
-                'shreddit-post-composer div[contenteditable="true"]',
-                'div[slot="text"] div[contenteditable="true"]',
-                'div[data-lexical-editor="true"]',
-                '.ql-editor[contenteditable="true"]',
+            # Body — Reddit 2026: contenteditable div ou textarea
+            body_filled = False
+            for sel in [
                 'div[contenteditable="true"][role="textbox"]',
+                'div[data-lexical-editor="true"]',
+                'div[contenteditable="true"][class*="editor"]',
                 'div[contenteditable="true"]',
+                '.ql-editor[contenteditable="true"]',
+                'textarea[placeholder*="Body" i]',
                 'textarea[placeholder*="Text" i]',
-                'textarea[placeholder*="body" i]',
                 '.public-DraftEditor-content',
-                '[data-testid="post-body"] div[contenteditable]',
-                'shreddit-composer div[contenteditable]',
-            ], body[:10000], "Reddit body")
+            ]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3000):
+                        await el.click()
+                        await page.keyboard.type(body[:5000], delay=10)
+                        body_filled = True
+                        break
+                except Exception:
+                    continue
+
+            if not body_filled:
+                print("[BrowserAgent] Reddit body: fallback keyboard type")
 
             await page.wait_for_timeout(1000)
 
-            # Poster — multi-selectors (shreddit redesign)
-            posted = await self._find_and_click(page, [
-                'shreddit-composer button[type="submit"]',
-                'shreddit-post-composer button[type="submit"]',
-                'faceplate-tracker[source="post_submit"] button',
-                'button[slot="submit-button"]',
-                'button:has-text("Post")',
-                'button:has-text("Submit")',
+            # Poster — bouton Post (attendre qu'il soit enabled)
+            posted = False
+            for sel in [
+                'button:has-text("Post"):not([disabled])',
                 'button[type="submit"]:has-text("Post")',
-                '[data-testid="submit-button"]',
-                'button.submit',
+                'button:has-text("Submit"):not([disabled])',
                 'faceplate-tracker button:has-text("Post")',
-            ], "Reddit Post button")
+                'button[slot="submit-button"]',
+                'shreddit-composer button[type="submit"]',
+            ]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3000):
+                        await el.click()
+                        posted = True
+                        break
+                except Exception:
+                    continue
 
             if not posted:
                 await self._screenshot(page, "reddit_post_fail")
