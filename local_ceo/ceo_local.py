@@ -1,7 +1,7 @@
 """CEO Local — Boucle OODA autonome sur le PC (cerveau + Playwright).
 
 Tourne 24/7, pilote le VPS via les endpoints CEO securises.
-Le LLM local (Ollama) fait le gros du travail, les API payantes sont reserves aux decisions critiques.
+Groq (llama-3.3-70b, gratuit) fait le gros du travail. Ollama en fallback si rate-limited.
 
 Usage:
     python ceo_local.py
@@ -25,6 +25,7 @@ from notifier import notify_all, request_approval, get_pending_approvals
 from browser_agent import browser
 from conversion_tracker import track_action, get_failing_actions, generate_learned_rules, get_action_report
 from self_updater import check_for_updates, apply_updates, needs_check
+from email_manager import process_inbox, send_outbound, read_inbox, reply_email, generate_email_reply, get_stats as email_stats
 
 # ══════════════════════════════════════════
 # Memoire locale persistante (JSON)
@@ -186,23 +187,31 @@ import random
 
 TWEET_TEMPLATES = [
     # Tips techniques
-    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
-    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on 11 chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\n1 API call to list. That's it.\nmaxiaworld.app",
-    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 11 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
+    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
+    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on 14 chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\n1 API call to list. That's it.\nmaxiaworld.app",
+    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 14 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
     # Stats
-    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 22 MCP tools\n- 11 chains including Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
+    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 31 MCP tools\n- 14 chains including Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
     # Dev-focused
-    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on 11 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\nOther AIs will find and pay you.",
+    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on 14 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\nOther AIs will find and pay you.",
     # Comparative
-    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 11 chains, 22 MCP tools.\nmaxiaworld.app",
+    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 14 chains, 31 MCP tools.\nmaxiaworld.app",
     # Community
-    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON), USDC payments, 1 API.\nmaxiaworld.app",
+    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI), USDC payments, 1 API.\nmaxiaworld.app",
     # Thread starter
     "How to monetize your AI agent in 5 minutes:\n\n1/ You have a bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.\n\nHere's the fix (thread)",
     # XRP specific
     "XRP devs: MAXIA now supports XRPL natively.\n\nUSDC on XRP Ledger (Circle). 3-5 sec settlement. Fees < $0.01.\n\nList your AI service, get paid in USDC on XRPL.\nmaxiaworld.app/api/xrpl/info",
     # Multi-chain
-    "One marketplace. Eleven chains.\n\nSolana: fast, cheap\nBase: Coinbase ecosystem\nEthereum: big money\nXRP: instant settlement\nPolygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
+    "One hub. Fourteen chains.\n\nSolana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI.\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
+    # Web3 Hub
+    "MAXIA is now a full Web3 hub:\n\n- DeFi yield aggregator\n- Cross-chain bridge\n- NFT minting\n- Agent ID on-chain\n- Trust score 0-100\n- Oracle + data marketplace\n- RPC proxy 14 chains\n\n31 MCP tools. All free to try.\nmaxiaworld.app",
+    # DeFi
+    "Where should you park your USDC?\n\nMAXIA aggregates yields from Aave, Marinade, Jito, Compound, Ref Finance across 14 chains.\n\nOne API call: GET /api/public/yield/best?asset=USDC\nmaxiaworld.app",
+    # Bridge
+    "Moving USDC between chains?\n\nMAXIA bridge: Wormhole + LayerZero + Portal. 14 chains. Zero MAXIA fee.\n\nGET /api/bridge/quote?from=solana&to=base&amount=100\nmaxiaworld.app",
+    # Agent ID
+    "Your AI agent deserves an identity.\n\nMAXIA Agent ID: on-chain reputation, trust score 0-100, badges, transaction history.\n\nOther agents verify who you are before buying.\nmaxiaworld.app",
 ]
 
 TWEET_VARIANTS = {
@@ -309,32 +318,46 @@ async def check_ab_results() -> list:
 # ══════════════════════════════════════════
 
 async def generate_conversation_reply(messages: list, contact: str, platform: str) -> str:
-    """Genere une reponse contextuelle dans une conversation DM."""
-    history = "\n".join(f"  - {m[:100]}" for m in messages[-5:])
+    """Genere une reponse contextuelle dans une conversation DM via Groq."""
+    history = "\n".join(f"  - {m[:150]}" for m in messages[-5:])
+    system = (
+        "You are the community manager of MAXIA, a Web3 hub on 14 blockchains. "
+        "You talk like a dev helping another dev — technical, direct, no marketing BS. "
+        "MAXIA features: swap 50 tokens, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 36 MCP tools. "
+        "URL: maxiaworld.app. Free to use, pay per use only."
+    )
     prompt = (
-        f"You are in a DM conversation on {platform} with @{contact}.\n"
+        f"DM conversation on {platform} with @{contact}.\n"
         f"Recent messages:\n{history}\n\n"
-        f"Write the next reply. Be helpful, technical, and natural.\n"
-        f"If they ask about MAXIA: explain (AI marketplace, 11 chains, USDC, 1 API call to list).\n"
-        f"If they ask a technical question: answer it.\n"
-        f"If they seem uninterested: politely end the conversation.\n"
-        f"Keep it short (<200 chars). English only.\n"
+        f"Write the next reply. Rules:\n"
+        f"1. Be genuinely helpful — answer their question first, mention MAXIA only if relevant\n"
+        f"2. If they built something: compliment it specifically, then suggest how MAXIA could help\n"
+        f"3. If they ask about MAXIA: give concrete examples (endpoints, prices, code snippets)\n"
+        f"4. If they seem uninterested: thank them and stop\n"
+        f"5. Max 250 chars. Natural tone, no emojis overload.\n"
         f"Reply ONLY the text, nothing else."
     )
-    reply = await call_local_llm(prompt, max_tokens=100)
+    reply = await call_local_llm(prompt, system, max_tokens=150)
     return reply.strip().strip('"').strip("'")[:280]
 
 
 async def generate_smart_reply(mention_text: str, username: str) -> str:
-    """Genere une reponse pertinente a une mention via Ollama."""
-    prompt = (
-        f"User @{username} mentioned MAXIA:\n\"{mention_text[:200]}\"\n\n"
-        f"Write a short reply (<200 chars), helpful and technical. In ENGLISH.\n"
-        f"Tone: dev helping another dev. No marketing.\n"
-        f"Question: answer it. Compliment: thank them. Complaint: apologize+solution.\n"
-        f"Reply ONLY the text, nothing else."
+    """Genere une reponse pertinente a une mention via Groq."""
+    system = (
+        "You are MAXIA's community manager. Dev tone, helpful, technical. "
+        "MAXIA: Web3 hub, 14 chains, 50 tokens, GPU $0.69/h, bridge, DeFi yields, 36 MCP tools. "
+        "maxiaworld.app. Never sound salesy."
     )
-    reply = await call_local_llm(prompt, max_tokens=100)
+    prompt = (
+        f"User @{username} tweeted:\n\"{mention_text[:200]}\"\n\n"
+        f"Write a reply (<200 chars). Rules:\n"
+        f"- Question about MAXIA: answer with specifics (endpoint, price, feature)\n"
+        f"- Compliment: thank them genuinely\n"
+        f"- Complaint/bug: apologize, ask for details, offer to fix\n"
+        f"- General AI/crypto topic: add value to the conversation, mention MAXIA only if truly relevant\n"
+        f"Reply ONLY the text."
+    )
+    reply = await call_local_llm(prompt, system, max_tokens=120)
     # Nettoyer
     reply = reply.strip().strip('"').strip("'")
     if len(reply) > 280:
@@ -343,12 +366,56 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
 
 
 # ══════════════════════════════════════════
-# LLM Router local (simplifie — Ollama + Mistral fallback)
+# LLM Router local — Groq (priorite) > Ollama (fallback) > Mistral (fallback)
 # ══════════════════════════════════════════
 
+_groq_last_call: float = 0
+_GROQ_MIN_INTERVAL: float = 3.0  # 3s entre chaque appel = max 20/min (safe sous la limite 30/min)
+
+
+async def call_groq_local(prompt: str, system: str = "", max_tokens: int = 500) -> str:
+    """Appel Groq (llama-3.3-70b, gratuit, 100k tokens/jour). Priorite pour tout."""
+    global _groq_last_call
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    if not groq_key:
+        return ""
+
+    # Rate limiting: 3s entre chaque appel
+    now = time.time()
+    elapsed = now - _groq_last_call
+    if elapsed < _GROQ_MIN_INTERVAL:
+        await asyncio.sleep(_GROQ_MIN_INTERVAL - elapsed)
+    _groq_last_call = time.time()
+
+    msgs = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    try:
+        from groq import Groq
+        def _call():
+            c = Groq(api_key=groq_key)
+            resp = c.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=msgs,
+                max_tokens=max_tokens,
+                temperature=0.7,
+            )
+            return resp.choices[0].message.content.strip()
+        result = await asyncio.to_thread(_call)
+        return result
+    except Exception as e:
+        err_str = str(e)
+        if "429" in err_str or "rate" in err_str.lower():
+            _log(f"[LLM] Groq rate limit — fallback Ollama")
+        else:
+            _log(f"[LLM] Groq error: {e}")
+        return ""
+
+
 async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, model: str = None) -> str:
-    """Appel Ollama local (0 cout). Utilise maxia-ceo par defaut."""
-    _model = model or "maxia-ceo"  # Modele fine-tune MAXIA
+    """Appel Ollama local (0 cout). Fallback si Groq est rate-limited."""
+    _model = model or "maxia-ceo"
     full = f"{system}\n\n{prompt}" if system else prompt
     try:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -364,12 +431,11 @@ async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, mode
             resp.raise_for_status()
             return resp.json().get("response", "")
     except Exception as e:
-        print(f"[Local LLM] Ollama error: {e}")
         return ""
 
 
 async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Mistral API (fallback si Ollama down)."""
+    """Appel Mistral API (dernier fallback)."""
     if not MISTRAL_API_KEY:
         return ""
     msgs = []
@@ -390,15 +456,20 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
             choices = resp.json().get("choices", [])
             return choices[0]["message"]["content"].strip() if choices else ""
     except Exception as e:
-        print(f"[Local LLM] Mistral error: {e}")
         return ""
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Ollama avec fallback Mistral."""
+    """Groq (priorite) > Ollama (fallback) > Mistral (fallback)."""
+    # 1. Groq — meilleur modele, gratuit, 100k tokens/jour
+    result = await call_groq_local(prompt, system, max_tokens)
+    if result:
+        return result
+    # 2. Ollama — local, 0 cout, plus lent
     result = await call_ollama(prompt, system, max_tokens)
     if result:
         return result
+    # 3. Mistral — dernier recours
     return await call_mistral(prompt, system, max_tokens)
 
 
@@ -523,8 +594,8 @@ class VPSClient:
 # Boucle OODA principale
 # ══════════════════════════════════════════
 
-CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur 11 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON).
-Produit : AI Marketplace — swap 50 tokens 2450 paires, stocks 10 actions, GPU 0% marge, services IA, MCP 22 tools, 11 chains.
+CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI).
+Produit : AI Web3 Hub — swap 50 tokens, 10 stocks, 8 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID on-chain, trust score, oracle, data marketplace, RPC service, subscriptions. 31 MCP tools, 14 chains, 91 modules.
 Phase : Pre-seed | Vision : Devenir la couche d intelligence liquide de l ecosysteme Solana.
 Fondateur : Alexis (autorite finale sur decisions rouges)
 URL : maxiaworld.app
@@ -532,7 +603,7 @@ URL : maxiaworld.app
 17 SOUS-AGENTS SUR LE VPS (tu leur donnes des ordres via l API) :
 - GHOST-WRITER : contenu, tweets, threads (JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-- SCOUT : prospection IA-to-IA sur 11 chains (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 14 chains (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring, validation, self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -563,6 +634,10 @@ Reddit (local Playwright, 0 cout) :
 - comment_reddit: commenter un post (params: post_url, text) [VERT]
 - search_reddit: chercher des posts (params: subreddit, query) [VERT]
 
+Email (ceo@maxiaworld.app, IMAP/SMTP OVH) :
+- check_emails: lire les emails non lus et repondre automatiquement [VERT]
+- send_email: envoyer un email (params: to, subject, body) [ORANGE]
+
 VPS (via API securisee) :
 - update_price: modifier un prix (params: service_id, new_price, reason) [ORANGE]
 - contact_prospect: contacter un wallet (params: wallet, message, canal) [ORANGE]
@@ -571,12 +646,16 @@ VPS (via API securisee) :
 - browse_competitor: screenshot concurrent (params: url) [VERT]
 - generate_report: rapport (params: topic) [VERT]
 
-STRATEGIE MARKETING TWITTER :
-- Cherche des devs qui parlent de AI agents, Solana bots, ElizaOS, LangChain, no revenue
-- Like et repond a leurs tweets avec un message utile (pas commercial)
+STRATEGIE TWITTER (OBLIGATOIRE) :
+- Max 2 tweets/jour de HAUTE QUALITE (technique, insight, valeur reelle)
+- PRIORITE ABSOLUE = ENGAGEMENT : liker et commenter les tweets d autres devs/influenceurs
+- Commentaires de QUALITE : apporter un insight technique, poser une question intelligente, partager une experience
+- JAMAIS de commentaire spam ou promo directe dans les reponses aux autres
+- Construire une REPUTATION d expert AI/crypto avant de promouvoir
+- Ratio ideal : 2 tweets max, 15+ commentaires de qualite, 30+ likes par jour
+- Mieux vaut 0 tweet et 20 bons commentaires que 5 tweets dans le vide
 - Follow les profils pertinents (max 10/jour)
-- Repond a TOUTES les mentions dans les 30 min
-- Hashtags cibles : #AIagent #Solana #Web3dev #DeFi #BuildOnSolana
+- Repond a TOUTES les mentions avec des reponses utiles (pas commerciales)
 - Ton : dev qui aide un autre dev, PAS marketeur
 
 STRATEGIE MARKETING REDDIT :
@@ -623,7 +702,7 @@ FORMAT REPONSE (JSON strict) :
 {"analysis": "2 phrases max", "decisions": [{"action": "...", "agent": "...", "params": {...}, "priority": "vert|orange|rouge"}], "next_focus": "1 phrase"}"""
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
-CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). maxiaworld.app
+CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). maxiaworld.app
 Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
 
 ACTIONS (all vert unless noted):
@@ -915,14 +994,78 @@ class CEOLocal:
             return {"post_ok": True, "region": "Asia/Oceania", "lang": "en", "hashtags": "#DeFi #AIagent #Solana #dev",
                     "reason": "Matin Oceanie/Asie Est — volume plus bas mais actif"}
 
+    def _check_special_events(self) -> dict | None:
+        """Verifie si un evenement special est programme aujourd'hui."""
+        from datetime import date
+        today = date.today().isoformat()
+        # Lire depuis le fichier special_events.json
+        try:
+            events_path = os.path.join(os.path.dirname(__file__), "special_events.json")
+            with open(events_path, "r", encoding="utf-8") as f:
+                import json as _json
+                events = _json.load(f)
+            for ev in events:
+                if ev.get("date") == today and ev.get("active", True):
+                    return ev
+        except (FileNotFoundError, Exception):
+            pass
+        return None
+
+    def _get_launch_day_actions(self, event: dict) -> list:
+        """Actions speciales pour un jour de launch (Product Hunt, etc.)."""
+        cycle = self._cycle
+        ph_url = event.get("url", "")
+        platform = event.get("platform", "Product Hunt")
+
+        routines = [
+            # Cycle 0: Tweet annonce + partage lien
+            [
+                {"action": "post_tweet", "agent": "GHOST-WRITER", "params": {"text": event.get("tweet_announce", f"We're live on {platform}! {ph_url}")}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 1: Partage Discord + Telegram
+            [
+                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"text": event.get("discord_msg", f"We're live on {platform}! Go check it out and share your feedback: {ph_url}")}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 2: Reply mentions (les gens vont mentionner MAXIA)
+            [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 3: Tweet de rappel + engagement
+            [
+                {"action": "post_tweet", "agent": "GHOST-WRITER", "params": {"text": event.get("tweet_reminder", f"Thank you for the support! Check out MAXIA on {platform}: {ph_url}")}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": event.get("search_query", "MAXIA AI marketplace")}, "priority": "vert"},
+            ],
+            # Cycle 4: Engagement pur (liker/commenter ceux qui parlent de MAXIA)
+            [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+            # Cycle 5: DMs + mentions + rapport
+            [
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "launch_report", "agent": "ANALYTICS", "params": {}, "priority": "vert"},
+            ],
+        ]
+        return routines[cycle % len(routines)]
+
     def _get_routine_actions(self) -> list:
         """Routine quotidienne predefinie — pas besoin de LLM pour decider.
         Chaque cycle fait 2-3 actions concretes selon la position dans le cycle."""
+
+        # Check si c'est un jour de launch special
+        event = self._check_special_events()
+        if event:
+            _log(f"  [EVENT] {event.get('name', 'Special Event')} — mode launch day actif!")
+            return self._get_launch_day_actions(event)
+
         cycle = self._cycle
         schedule = self._is_good_hour()
         hashtags = schedule.get("hashtags", "#Solana #AI")
 
-        # 12 routines qui alternent (cycle % 12) — couvrent les 11 chains
+        # 12 routines qui alternent (cycle % 12) — couvrent les 14 chains
         chain_queries = [
             "AI agent solana developer",
             "AI agent polygon DeFi",
@@ -934,35 +1077,38 @@ class CEOLocal:
             "TRON bot DeFi developer",
             "AI agent ethereum web3",
             "AI agent XRP XRPL",
+            "NEAR protocol AI agent",
+            "Aptos Move AI developer",
+            "SEI blockchain AI bot",
             "AI marketplace multi-chain",
         ]
-        chain_subreddits = ["solanadev", "polygon", "arbitrum", "BNBChainDev", "avax", "ethereum", "defi", "cryptocurrency"]
-        chain_competitors = ["JupiterExchange", "RunPod", "AaveAave", "UniswapProtocol", "1inch", "PancakeSwap", "SuiNetwork", "TONcoin"]
+        chain_subreddits = ["solana", "solanadev", "polygon", "arbitrum", "avax", "ethereum", "defi", "cryptocurrency", "LocalLLaMA", "artificial", "nearprotocol", "aptosnetwork"]
+        chain_competitors = ["JupiterExchange", "RunPod", "AaveAave", "UniswapProtocol", "1inch", "PancakeSwap", "SuiNetwork", "TONcoin", "AptosLabs", "SeiNetwork"]
 
         routines = [
-            # Cycle 0: Tweet + Search chain-specific
+            # Cycle 0: 1er tweet qualite du jour + Search chain-specific
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[cycle % len(chain_queries)]}, "priority": "vert"},
             ],
-            # Cycle 1: Search profiles on rotating chain
+            # Cycle 1: Search profiles + engagement (like/comment)
             [
                 {"action": "search_profiles", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 1) % len(chain_queries)]}, "priority": "vert"},
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
-            # Cycle 2: Reply mentions + Like
+            # Cycle 2: Reply mentions + Check emails
             [
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 2) % len(chain_queries)]}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
-            # Cycle 3: Post Reddit on rotating subreddit
+            # Cycle 3: Post Reddit + Search engagement targets
             [
                 {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[cycle % len(chain_subreddits)]}, "priority": "vert"},
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "built a bot no users no revenue"}, "priority": "vert"},
             ],
-            # Cycle 4: Tweet + Scrape rotating competitor
+            # Cycle 4: Engagement only (like/comment) + Scrape competitor
             [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 3) % len(chain_queries)]}, "priority": "vert"},
                 {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[cycle % len(chain_competitors)]}, "priority": "vert"},
             ],
             # Cycle 5: Blog + Trends
@@ -970,39 +1116,84 @@ class CEOLocal:
                 {"action": "write_blog", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "analyze_trends", "agent": "RADAR", "params": {}, "priority": "vert"},
             ],
-            # Cycle 6: Search TON/Telegram devs
-            [
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "telegram bot developer TON blockchain"}, "priority": "vert"},
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "TON SUI TRON developer AI"}, "priority": "vert"},
-            ],
-            # Cycle 7: Search DeFi agents across chains
+            # Cycle 6: 2eme tweet qualite du jour + Search TON/Telegram devs
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "DeFi bot multi-chain yield farming"}, "priority": "vert"},
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "TON SUI TRON developer AI"}, "priority": "vert"},
             ],
-            # Cycle 8: Reply + Search EVM devs
+            # Cycle 7: Engagement only — search + like + comment DeFi devs
+            [
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "DeFi bot multi-chain yield farming"}, "priority": "vert"},
+                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "DeFi agent developer"}, "priority": "vert"},
+            ],
+            # Cycle 8: Reply mentions + Check emails + Search EVM devs
             [
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "smart contract developer polygon arbitrum"}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
             # Cycle 9: Reddit cross-chain + competitive scan
             [
                 {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[(cycle + 3) % len(chain_subreddits)]}, "priority": "vert"},
                 {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[(cycle + 1) % len(chain_competitors)]}, "priority": "vert"},
             ],
-            # Cycle 10: GitHub AI projects + search
+            # Cycle 10: GitHub AI projects + engagement search
             [
                 {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent marketplace USDC multi-chain"}, "priority": "vert"},
             ],
-            # Cycle 11: Tweet + manage DMs
+            # Cycle 11: Manage DMs + engagement search
             [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent no revenue monetize"}, "priority": "vert"},
             ],
         ]
 
         return routines[cycle % len(routines)]
+
+    async def _generate_reddit_post(self, subreddit: str) -> dict:
+        """Genere un post Reddit unique et educatif via Groq. Min 600 chars pour les subreddits stricts."""
+        try:
+            from groq import Groq
+            groq_key = os.getenv("GROQ_API_KEY", "")
+            if not groq_key:
+                return {"title": "How AI agents can earn USDC autonomously",
+                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app | GitHub: github.com/MAXIAWORLD"}
+
+            def _gen():
+                c = Groq(api_key=groq_key)
+                resp = c.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": (
+                            f"You write Reddit posts for r/{subreddit}. You are an AI developer sharing a project.\n"
+                            "RULES:\n"
+                            "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
+                            "2. Body: minimum 600 characters. Be educational and genuine.\n"
+                            "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
+                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h, 31 MCP tools, USDC payments.\n"
+                            "5. End with a genuine question to the community.\n"
+                            "6. Include maxiaworld.app at the end.\n"
+                            "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
+                            "8. NEVER mention revenue numbers, user counts, or stats.\n"
+                            "9. English only.\n"
+                            "JSON output: {\"title\": \"...\", \"body\": \"...\"}"
+                        )},
+                        {"role": "user", "content": f"Write a Reddit post for r/{subreddit} about MAXIA. Make it unique and educational."},
+                    ],
+                    max_tokens=500,
+                    temperature=0.9,
+                )
+                text = resp.choices[0].message.content.strip()
+                import json as _json
+                # Extraire le JSON
+                if "{" in text:
+                    text = text[text.index("{"):text.rindex("}") + 1]
+                return _json.loads(text)
+            return await asyncio.to_thread(_gen)
+        except Exception as e:
+            _log(f"  [REDDIT] Groq gen error: {e}")
+            return {"title": "How AI agents can earn USDC autonomously",
+                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app | GitHub: github.com/MAXIAWORLD"}
 
     async def _generate_tweet_via_groq(self, context: str = "") -> str:
         """Genere un tweet via Groq (gratuit, rapide, anglais)."""
@@ -1017,7 +1208,7 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on 11 chains, 50 tokens, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
+                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on 14 chains, 50 tokens, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
                         {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'} Do NOT mention any revenue or user statistics."},
                     ],
                     max_tokens=100,
@@ -1038,15 +1229,23 @@ class CEOLocal:
         decisions = self._get_routine_actions()
         _log(f"  Routine cycle {self._cycle % 6}: {len(decisions)} actions")
 
-        # Pour les tweets, generer le contenu via Groq (pas Ollama)
+        # Pour les tweets et reddit, generer le contenu via Groq (pas Ollama)
         for d in decisions:
             if d["action"] == "post_template_tweet":
-                # Don't pass revenue/user stats to tweet generation
-                clean_context = "Focus on MAXIA features: 50 tokens, 11 chains, GPU at cost, AI agent marketplace"
+                clean_context = "Focus on MAXIA features: 50 tokens, 14 chains, GPU at cost, AI agent marketplace"
                 tweet = await self._generate_tweet_via_groq(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
                 _log(f"  [TWEET] {tweet[:80]}...")
+
+            # Generer le contenu Reddit si necessaire (async)
+            if d["action"] == "post_reddit" and d.get("params", {}).get("_needs_reddit_gen"):
+                sub = d["params"].get("subreddit", "solanadev")
+                reddit_content = await self._generate_reddit_post(sub)
+                d["params"]["title"] = reddit_content.get("title", "How AI agents can earn USDC autonomously")
+                d["params"]["body"] = reddit_content.get("body", "")
+                d["params"].pop("_needs_reddit_gen", None)
+                _log(f"  [REDDIT] {d['params']['title'][:60]}...")
 
             action = d.get("action", "")
             _log(f"    [{d.get('priority', '?')}] {action}")
@@ -1121,6 +1320,11 @@ class CEOLocal:
                         self.memory.setdefault("tweets_posted", []).append({
                             "text": params.get("text", "")[:50], "ts": time.strftime("%Y-%m-%d"),
                         })
+                    elif action == "send_email":
+                        self.memory.setdefault("emails_sent", []).append({
+                            "to": params.get("to", ""), "subject": params.get("subject", "")[:50],
+                            "ts": time.strftime("%Y-%m-%d"), "status": "sent",
+                        })
                     elif action in ("join_telegram", "join_discord"):
                         self.memory.setdefault("groups_joined", []).append(
                             params.get("group_link", params.get("invite_link", ""))
@@ -1139,11 +1343,21 @@ class CEOLocal:
                 _log(f"  ERREUR: {e}")
                 await audit.log(action, agent, priority=priority, result=str(e), success=False)
 
+    def _tweets_today_count(self) -> int:
+        """Compte les tweets postes aujourd'hui."""
+        today = time.strftime("%Y-%m-%d")
+        return sum(1 for t in self.memory.get("tweets_posted", [])
+                   if t.get("ts", "").startswith(today))
+
     async def _execute_action(self, action: str, agent: str, params: dict,
                               priority: str) -> dict:
         """Execute une action : Playwright local ou VPS."""
         # Twitter (local)
         if action == "post_tweet":
+            # Hard cap: max 2 tweets/jour
+            if self._tweets_today_count() >= 2:
+                _log(f"  [TWEET] BLOQUE — limite 2 tweets/jour atteinte")
+                return {"success": False, "detail": "Limite 2 tweets/jour atteinte"}
             return await self._do_browser("post_tweet", params, fallback_vps=True)
         elif action == "reply_tweet":
             return await self._do_browser("reply_tweet", params)
@@ -1169,6 +1383,9 @@ class CEOLocal:
             opps = await browser.detect_opportunities(params.get("max", 5))
             return {"success": bool(opps), "detail": f"{len(opps)} opportunites", "data": opps}
         elif action == "post_thread":
+            if self._tweets_today_count() >= 2:
+                _log(f"  [THREAD] BLOQUE — limite 2 tweets/jour atteinte")
+                return {"success": False, "detail": "Limite 2 tweets/jour atteinte"}
             result = await browser.post_thread(params.get("tweets", []))
             return {"success": result.get("success", False), "detail": str(result)}
         elif action == "scrape_followers":
@@ -1190,6 +1407,8 @@ class CEOLocal:
             return {"success": True, "detail": f"A/B test lance: {test['test_id']}"}
         elif action == "manage_dms":
             return await self._manage_conversations()
+        elif action == "launch_report":
+            return await self._generate_launch_report()
         elif action == "check_ab":
             results = await check_ab_results()
             return {"success": True, "detail": f"{len(results)} tests completes", "data": results}
@@ -1241,9 +1460,29 @@ class CEOLocal:
         elif action == "list_services":
             from support_agent import list_services
             return {"success": True, "detail": f"{len(list_services())} services", "data": list_services()}
-        # Reddit (local)
+        # Reddit (local browser, fallback API)
         elif action == "post_reddit":
-            return await self._do_browser("post_reddit", params)
+            result = await self._do_browser("post_reddit", params)
+            if not result.get("success"):
+                # Fallback: Reddit API (reddit_bot.py) si le browser echoue
+                try:
+                    import sys, os
+                    backend_dir = os.path.join(os.path.dirname(__file__), "..", "backend")
+                    if backend_dir not in sys.path:
+                        sys.path.insert(0, backend_dir)
+                    from reddit_bot import post_to_reddit
+                    api_result = await post_to_reddit(
+                        params.get("subreddit", "solanadev"),
+                        params.get("title", ""),
+                        params.get("body", ""),
+                    )
+                    if api_result.get("success"):
+                        _log(f"  [REDDIT] API fallback OK: r/{params.get('subreddit')}")
+                        return {"success": True, "detail": f"Reddit API: {api_result.get('url', 'posted')}", "data": api_result}
+                    _log(f"  [REDDIT] API fallback aussi echoue: {api_result.get('error', '')}")
+                except Exception as e:
+                    _log(f"  [REDDIT] API fallback error: {e}")
+            return result
         elif action == "comment_reddit":
             return await self._do_browser("comment_reddit", params)
         elif action == "search_reddit":
@@ -1274,6 +1513,14 @@ class CEOLocal:
         elif action == "join_discord":
             result = await browser.join_discord_server(params.get("invite_link", ""))
             return {"success": result.get("success", False), "detail": str(result)}
+        # Email (local IMAP/SMTP)
+        elif action == "check_emails":
+            results = await process_inbox(call_local_llm)
+            replied = sum(1 for r in results if r.get("replied"))
+            return {"success": True, "detail": f"{len(results)} emails lus, {replied} reponses envoyees", "data": results}
+        elif action == "send_email":
+            result = await send_outbound(params.get("to", ""), params.get("subject", ""), params.get("body", ""))
+            return result
         # Veille (local)
         elif action == "browse_competitor":
             path = await browser.screenshot_page(params.get("url", ""))
@@ -1338,8 +1585,20 @@ class CEOLocal:
             return {"success": False, "detail": str(e)[:200]}
 
     async def _manage_conversations(self) -> dict:
-        """Lit les DMs non lus sur Twitter, Telegram, Discord et repond."""
+        """Lit les DMs non lus sur Twitter, Telegram, Discord, Email et repond."""
         replied = 0
+
+        # Email — lire et repondre aux emails non lus
+        try:
+            email_results = await process_inbox(call_local_llm)
+            for er in email_results:
+                if er.get("replied"):
+                    replied += 1
+                    _log(f"  [EMAIL] Replied to {er['from']}: {er['subject']}")
+                elif er.get("skipped"):
+                    _log(f"  [EMAIL] Skipped: {er['from']}")
+        except Exception as e:
+            _log(f"  [EMAIL] Error: {e}")
 
         # Twitter DMs
         try:
@@ -1397,9 +1656,94 @@ class CEOLocal:
 
         return {"success": True, "detail": f"{replied} conversations gerees"}
 
+    async def _generate_launch_report(self) -> dict:
+        """Synthetise toutes les interactions de la journee (mentions, DMs, emails, comments)
+        et envoie un rapport au fondateur via Discord + sauvegarde locale."""
+        # Collecter toutes les interactions
+        actions = self.memory.get("actions_done", [])
+        today = time.strftime("%Y-%m-%d")
+        today_actions = [a for a in actions if a.get("ts", "").startswith(today)]
+
+        # Extraire les messages recus (DMs, mentions, emails)
+        contacts = self.memory.get("contacts", [])
+        today_contacts = [c for c in contacts if c.get("ts", "").startswith(today)]
+
+        # Compter par type
+        tweets_posted = sum(1 for a in today_actions if a.get("action") in ("post_tweet",))
+        mentions_replied = sum(1 for a in today_actions if a.get("action") == "reply_mentions")
+        dms_handled = sum(1 for a in today_actions if a.get("action") == "manage_dms")
+        emails_checked = sum(1 for a in today_actions if a.get("action") == "check_emails")
+
+        # Collecter les textes des interactions pour la synthese
+        interaction_texts = []
+        for c in today_contacts:
+            if c.get("last_message"):
+                interaction_texts.append(f"[{c.get('canal', '?')}] @{c.get('target', '?')}: {c.get('last_message', '')}")
+
+        # Generer la synthese via LLM
+        summary = "Pas assez de donnees pour synthetiser."
+        if interaction_texts:
+            interactions_str = "\n".join(interaction_texts[-30:])
+            prompt = (
+                f"Tu es l'analyste de MAXIA. Voici toutes les interactions de la journee (launch day):\n\n"
+                f"{interactions_str}\n\n"
+                f"Stats: {len(today_actions)} actions, {len(today_contacts)} contacts, "
+                f"{tweets_posted} tweets, {mentions_replied} replies, {dms_handled} DMs, {emails_checked} emails\n\n"
+                f"Fais un rapport CONCIS pour le fondateur:\n"
+                f"1. RESUME (3 lignes max)\n"
+                f"2. CE QUE LES GENS DEMANDENT (les themes/questions recurrentes)\n"
+                f"3. OPPORTUNITES (contacts chauds, partenariats potentiels)\n"
+                f"4. PROBLEMES DETECTES (plaintes, bugs mentionnes)\n"
+                f"5. ACTION RECOMMANDEE (1 seule, la plus importante)\n\n"
+                f"En francais. Max 300 mots."
+            )
+            summary = await call_local_llm(prompt, max_tokens=500)
+
+        # Sauvegarder le rapport
+        report = {
+            "date": today,
+            "type": "launch_report",
+            "stats": {
+                "actions": len(today_actions),
+                "contacts": len(today_contacts),
+                "tweets": tweets_posted,
+                "mentions_replied": mentions_replied,
+                "dms": dms_handled,
+                "emails": emails_checked,
+            },
+            "interactions": interaction_texts[-20:],
+            "summary": summary,
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        self.memory.setdefault("launch_reports", []).append(report)
+
+        # Sauvegarder aussi en fichier lisible
+        report_path = os.path.join(os.path.dirname(__file__), f"report_{today}.txt")
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(f"=== MAXIA LAUNCH REPORT — {today} ===\n\n")
+            f.write(f"Stats: {len(today_actions)} actions | {len(today_contacts)} contacts | "
+                    f"{tweets_posted} tweets | {mentions_replied} replies | {dms_handled} DMs | {emails_checked} emails\n\n")
+            f.write(f"--- SYNTHESE ---\n{summary}\n\n")
+            f.write(f"--- INTERACTIONS ---\n")
+            for t in interaction_texts:
+                f.write(f"{t}\n")
+        _log(f"  [REPORT] Rapport genere: {report_path}")
+
+        # Envoyer sur Discord
+        try:
+            await notify_all(
+                f"RAPPORT LAUNCH — {today}",
+                f"Actions: {len(today_actions)} | Contacts: {len(today_contacts)}\n\n{summary[:1500]}",
+                "vert",
+            )
+        except Exception:
+            pass
+
+        return {"success": True, "detail": f"Rapport genere ({len(today_contacts)} contacts, {len(interaction_texts)} interactions)"}
+
     async def _auto_engage(self):
         """Search Twitter -> Like top tweets -> Score profiles -> Follow best ones."""
-        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana", "AI agent polygon", "AI agent arbitrum", "AI agent avalanche", "AI agent BNB", "AI agent TON", "AI agent SUI", "AI agent TRON"]
+        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana", "AI agent polygon", "AI agent arbitrum", "AI agent avalanche", "AI agent BNB", "AI agent TON", "AI agent SUI", "AI agent TRON", "AI agent NEAR", "AI agent Aptos", "AI agent SEI"]
         query = queries[self._cycle % len(queries)]
 
         # Search tweets
@@ -1498,8 +1842,8 @@ class CEOLocal:
                     if "/issues/" in url and not browser._is_duplicate("github_comment", url):
                         comment = (
                             f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
-                            f"where agents can discover and trade services using USDC on 11 chains "
-                            f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). Happy to collaborate or integrate. "
+                            f"where agents can discover and trade services using USDC on 14 chains "
+                            f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Happy to collaborate or integrate. "
                             f"Check it out: maxiaworld.app"
                         )
                         result = await browser.comment_github_discussion(url, comment)
@@ -1582,7 +1926,7 @@ class CEOLocal:
                 params["tweets"] = [
                     "How to monetize your AI agent (thread):",
                     "1/ List your service on MAXIA with one API call. POST /api/public/sell. Done.",
-                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 11 chains. maxiaworld.app",
+                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 14 chains. maxiaworld.app",
                 ]
         elif action == "follow_user":
             if not params.get("username"):
@@ -1599,15 +1943,9 @@ class CEOLocal:
         elif action == "post_reddit":
             if not params.get("subreddit"):
                 params["subreddit"] = "solanadev"
-            if not params.get("title"):
-                params["title"] = "MAXIA - AI-to-AI Marketplace on 11 Chains (Solana/Base/ETH/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON)"
-            if not params.get("body"):
-                params["body"] = (
-                    "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n"
-                    "- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n"
-                    "- 11 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n- 22 MCP tools\n\n"
-                    "One API call to list your agent. maxiaworld.app"
-                )
+            if not params.get("title") or not params.get("body"):
+                # Contenu sera genere dans _decide() (async) via _generate_reddit_post
+                params["_needs_reddit_gen"] = True
         elif action == "comment_reddit":
             if not params.get("post_url") or not params.get("text"):
                 return None
@@ -1631,7 +1969,7 @@ class CEOLocal:
                 params["topic"] = random.choice([
                     "How to monetize your AI agent with MAXIA",
                     "GPU rental at cost: why MAXIA charges 0% markup",
-                    "11 chains, 1 marketplace: MAXIA multi-chain architecture",
+                    "14 chains, 1 marketplace: MAXIA multi-chain architecture",
                 ])
         elif action == "watch_prices":
             pass

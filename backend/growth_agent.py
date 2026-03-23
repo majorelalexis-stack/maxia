@@ -344,25 +344,8 @@ class GrowthAgent:
             return template
 
     async def _publish_content(self):
-        hour = int(time.strftime("%H", time.gmtime()))
-        if hour == 20:
-            try:
-                from telegram_bot import send_daily_report
-                stats = {
-                    "volume_24h": 0, "total_trades": 0,
-                    "registered_agents": len(self._contacted),
-                    "listing_count": 8,
-                }
-                await send_daily_report(stats)
-            except Exception:
-                pass
-        weekday = int(time.strftime("%w", time.gmtime()))
-        if weekday == 0 and hour == 18:
-            try:
-                from telegram_bot import send_weekly_comparison
-                await send_weekly_comparison()
-            except Exception:
-                pass
+        # Rapport quotidien et hebdo geres par telegram_bot.py — pas de doublon ici
+        pass
 
     async def _scan_program_users(self, program: str, limit: int = 10) -> list:
         rpc = get_rpc_url()

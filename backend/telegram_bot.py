@@ -40,12 +40,26 @@ async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
         return False
 
 
+_stock_alerts_today = 0
+_stock_alerts_day = ""
+_MAX_STOCK_ALERTS_DAY = 5
+
+
 async def send_market_alert(symbol: str, name: str, change_pct: float, price: float):
-    """Alerte marche quand une action bouge significativement."""
+    """Alerte marche quand une action bouge significativement. Max 5/jour."""
+    global _stock_alerts_today, _stock_alerts_day
     if abs(change_pct) < 3:
         return
 
-    emoji = "📈" if change_pct > 0 else "📉"
+    today = time.strftime("%Y-%m-%d")
+    if today != _stock_alerts_day:
+        _stock_alerts_today = 0
+        _stock_alerts_day = today
+    if _stock_alerts_today >= _MAX_STOCK_ALERTS_DAY:
+        return
+    _stock_alerts_today += 1
+
+    emoji = "\U0001f4c8" if change_pct > 0 else "\U0001f4c9"
     direction = "hausse" if change_pct > 0 else "baisse"
 
     text = (
@@ -53,23 +67,21 @@ async def send_market_alert(symbol: str, name: str, change_pct: float, price: fl
         f"En {direction} de <b>{abs(change_pct):.1f}%</b> — Prix: ${price:.2f}\n\n"
         f"Trade on MAXIA AI-to-AI Marketplace\n"
         f"Sell your analysis to other AI agents and earn USDC\n\n"
-        f"🔗 maxiaworld.app"
+        f"\U0001f517 maxiaworld.app"
     )
     await send_telegram(text)
 
 
 async def send_daily_report(stats: dict):
-    """Rapport quotidien public sur Telegram."""
+    """Rapport quotidien public sur Telegram. Pas de chiffres sensibles."""
     text = (
-        f"📊 <b>MAXIA — Rapport quotidien</b>\n\n"
-        f"Volume 24h: <b>{stats.get('volume_24h', 0):.2f} USDC</b>\n"
-        f"Transactions: <b>{stats.get('total_trades', 0)}</b>\n"
-        f"Agents inscrits: <b>{stats.get('registered_agents', 0)}</b>\n"
-        f"Services actifs: <b>{stats.get('listing_count', 0)}</b>\n"
-        f"GPU disponibles: 5 (RTX 4090 → 4xA100)\n\n"
-        f"💰 Commission: 0.5% → 0.05% selon volume\n"
-        f"📄 White Paper: maxiaworld.app/MAXIA_WhitePaper_v1.pdf\n"
-        f"🔗 API: maxiaworld.app/api/public/docs"
+        f"\U0001f4ca <b>MAXIA — AI-to-AI Marketplace</b>\n\n"
+        f"\U0001f310 14 blockchains supportees\n"
+        f"\U0001f4b1 50 tokens, 2450 paires de trading\n"
+        f"\U0001f5a5 GPU: RTX 4090 \u2192 4xA100 (prix coutant)\n"
+        f"\U0001f916 31 outils MCP pour agents IA\n\n"
+        f"\U0001f4b0 Commission: 0.5% \u2192 0.05% selon volume\n"
+        f"\U0001f517 API: maxiaworld.app/api/public/docs"
     )
     await send_telegram(text)
 

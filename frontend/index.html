@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MAXIA — AI Marketplace on 11 Chains — Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON</title>
+<title>MAXIA — AI Web3 Hub on 14 Chains — Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -467,9 +467,22 @@ body::before {
     <div class="nav-item" onclick="showPage('ceochat',this)" id="nav-ceochat">
       <span class="icon">🤖</span> CEO Chat <span class="nav-badge" style="background:rgba(16,185,129,.2);color:var(--green)">LIVE</span>
     </div>
-    <a class="nav-item" href="/MAXIA_WhitePaper_v1.pdf" target="_blank" id="nav-wp" style="text-decoration:none;color:inherit">
-      <span class="icon">📄</span> White Paper
-    </a>
+    <div class="nav-section">CONTROLE</div>
+    <div class="nav-item" onclick="showPage('approvals',this)" id="nav-approvals">
+      <span class="icon">&#9888;</span> Approbations <span class="nav-badge" id="approvals-badge" style="display:none;background:rgba(255,69,96,.2);color:var(--red)">0</span>
+    </div>
+    <div class="nav-section">COMMUNICATIONS</div>
+    <div class="nav-item" onclick="showPage('inbox',this)" id="nav-inbox">
+      <span class="icon">&#9993;</span> Email Inbox <span class="nav-badge green" id="inbox-badge" style="display:none">0</span>
+    </div>
+    <div class="nav-section">TRADING</div>
+    <div class="nav-item" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</div>
+    <div class="nav-section">WEB3 HUB</div>
+    <div class="nav-item" onclick="showPage('yields',this)"><span class="icon">&#128200;</span> DeFi Yields</div>
+    <div class="nav-item" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</div>
+    <div class="nav-item" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT & Agent ID</div>
+    <div class="nav-item" onclick="showPage('oracle',this)"><span class="icon">&#128302;</span> Oracle & Data</div>
+    <div class="nav-item" onclick="showPage('rpcservice',this)"><span class="icon">&#9889;</span> RPC Service</div>
     <div class="nav-section">INTELLIGENCE</div>
     <div class="nav-item" onclick="showPage('ceo-analytics',this)"><span class="icon">📊</span>CEO Analytics</div>
     <div class="nav-item" onclick="showPage('agent-bus',this)"><span class="icon">🔌</span>Agent Bus</div>
@@ -481,7 +494,7 @@ body::before {
   </nav>
   <div class="sidebar-footer">
     <div><span class="status-dot"></span>Backend V12 en ligne</div>
-    <div style="margin-top:4px">Art. 1–23 · 22 MCP · 90+ endpoints</div>
+    <div style="margin-top:4px">Art. 1–23 · 31 MCP tools · 90+ endpoints</div>
   </div>
 </aside>
 
@@ -565,7 +578,7 @@ body::before {
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title">◎ Wallets MAXIA</div>
-        <span class="badge cyan">Solana</span> <span class="badge purple">Base</span> <span class="badge gold">Ethereum</span> <span class="badge green">XRP</span> <span class="badge cyan">Polygon</span> <span class="badge purple">Arbitrum</span> <span class="badge gold">Avalanche</span> <span class="badge green">BNB</span> <span class="badge cyan">TON</span> <span class="badge purple">SUI</span> <span class="badge gold">TRON</span>
+        <span class="badge cyan">Solana</span> <span class="badge purple">Base</span> <span class="badge gold">Ethereum</span> <span class="badge green">XRP</span> <span class="badge cyan">Polygon</span> <span class="badge purple">Arbitrum</span> <span class="badge gold">Avalanche</span> <span class="badge green">BNB</span> <span class="badge cyan">TON</span> <span class="badge purple">SUI</span> <span class="badge gold">TRON</span> <span class="badge green">NEAR</span> <span class="badge cyan">Aptos</span> <span class="badge purple">SEI</span>
       </div>
       <div class="panel-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -1590,6 +1603,290 @@ body::before {
     <div class="panel"><div class="panel-header"><span class="panel-title">A/B Tests</span></div><div class="panel-body" id="r-ab">No tests running</div></div>
   </div>
 
+  <!-- ══ APPROBATIONS ══ -->
+  <div class="page" id="page-approvals">
+    <div class="stats-grid">
+      <div class="stat-card" style="border-left:3px solid var(--red)"><div class="stat-label">En attente</div><div class="stat-value" style="color:var(--red)" id="appr-pending">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Approuvees</div><div class="stat-value green" id="appr-approved">--</div></div>
+      <div class="stat-card"><div class="stat-label">Refusees</div><div class="stat-value" id="appr-denied">--</div></div>
+      <div class="stat-card cyan"><div class="stat-label">Total</div><div class="stat-value cyan" id="appr-total">--</div></div>
+    </div>
+
+    <!-- Pending approvals -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Decisions en attente</span>
+        <button class="panel-action" onclick="loadApprovals()">Rafraichir</button>
+      </div>
+      <div class="panel-body" id="appr-pending-list" style="padding:0">
+        <div style="text-align:center;padding:30px;color:var(--muted)">Chargement...</div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Historique</span>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Date</th><th>Agent</th><th>Action</th><th>Niveau</th><th>Status</th></tr></thead>
+          <tbody id="appr-history-table">
+            <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">--</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TRADING TOOLS ══ -->
+  <div class="page" id="page-trading">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Alerts Active</div><div class="stat-value cyan" id="t-alerts">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Wallets Tracked</div><div class="stat-value green" id="t-wallets">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Price Snapshots</div><div class="stat-value purple" id="t-snapshots">--</div></div>
+      <div class="stat-card"><div class="stat-label">Chains Monitored</div><div class="stat-value" id="t-chains">14</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Whale Tracker</span><button class="panel-action" onclick="loadWhales()">Rafraichir</button></div>
+        <div class="panel-body" style="padding:0"><table class="data-table" style="margin:0"><thead><tr><th>Chain</th><th>Token</th><th>Amount USD</th><th>From</th><th>To</th></tr></thead><tbody id="t-whales"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Technical Signals</span></div>
+        <div class="panel-body" style="padding:15px">
+          <div style="display:flex;gap:8px;margin-bottom:12px"><input type="text" id="t-signal-token" class="form-input" placeholder="Token (SOL, ETH...)" value="SOL" style="flex:1"><button class="btn btn-cyan" onclick="loadSignal()">Analyze</button></div>
+          <div id="t-signal-result" style="color:var(--muted);font-size:13px">Enter a token and click Analyze</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Copy Trading — Top Wallets</span><button class="panel-action" onclick="loadCopyWallets()">Rafraichir</button></div>
+      <div class="panel-body" style="padding:0"><table class="data-table" style="margin:0"><thead><tr><th>Wallet</th><th>PnL 7d</th><th>PnL 30d</th><th>Win Rate</th><th>Trades</th></tr></thead><tbody id="t-copy"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ══ DEFI YIELDS ══ -->
+  <div class="page" id="page-yields">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Best APY</div><div class="stat-value cyan" id="yield-best">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Protocols Tracked</div><div class="stat-value purple" id="yield-protocols">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Chains Covered</div><div class="stat-value green" id="yield-chains">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Top USDC Yields</span>
+        <button class="panel-action" onclick="loadYields()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Protocol</th><th>Chain</th><th>APY</th><th>TVL</th><th>Risk</th></tr></thead>
+          <tbody id="yields-table">
+            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BRIDGE ══ -->
+  <div class="page" id="page-bridge">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Routes Available</div><div class="stat-value cyan" id="bridge-routes">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Avg Fee</div><div class="stat-value purple" id="bridge-fee">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Avg Time</div><div class="stat-value green" id="bridge-time">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Bridge Quote</span>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">From Chain</label>
+            <input type="text" id="bridge-from" class="form-input" placeholder="solana" style="width:100%">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">To Chain</label>
+            <input type="text" id="bridge-to" class="form-input" placeholder="base" style="width:100%">
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Amount (USDC)</label>
+            <input type="number" id="bridge-amount" class="form-input" placeholder="100" style="width:100%">
+          </div>
+          <button class="btn btn-cyan" onclick="getBridgeQuote()">Get Quote</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="bridge-result-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">Quote Result</span>
+      </div>
+      <div class="panel-body" id="bridge-result" style="padding:15px">
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ NFT & AGENT ID ══ -->
+  <div class="page" id="page-nfts">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">NFTs Minted</div><div class="stat-value cyan" id="nft-minted">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Agent IDs</div><div class="stat-value purple" id="nft-agents">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Avg Trust Score</div><div class="stat-value green" id="nft-trust">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Agent ID Lookup</span>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Agent Address</label>
+            <input type="text" id="nft-address" class="form-input" placeholder="Agent wallet address" style="width:100%">
+          </div>
+          <button class="btn btn-cyan" onclick="lookupAgentID()">Lookup</button>
+        </div>
+        <div id="nft-lookup-result" style="margin-top:12px;display:none;padding:12px;background:var(--bg2);border-radius:8px"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Registered Agents</span>
+        <button class="panel-action" onclick="loadNFTs()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Address</th><th>Trust Score</th><th>Badges</th><th>Registered</th></tr></thead>
+          <tbody id="nfts-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ORACLE & DATA ══ -->
+  <div class="page" id="page-oracle">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Tokens Tracked</div><div class="stat-value cyan" id="oracle-tokens">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Datasets Available</div><div class="stat-value purple" id="oracle-datasets">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Data Freshness</div><div class="stat-value green" id="oracle-freshness">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Available Datasets</span>
+        <button class="panel-action" onclick="loadOracle()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Name</th><th>Type</th><th>Records</th><th>Updated</th></tr></thead>
+          <tbody id="oracle-datasets-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Oracle Health</span>
+      </div>
+      <div class="panel-body" id="oracle-health" style="padding:15px">
+        <div style="text-align:center;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RPC SERVICE ══ -->
+  <div class="page" id="page-rpcservice">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Chains Available</div><div class="stat-value cyan" id="rpc-chains-count">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Free Calls/Day</div><div class="stat-value purple" id="rpc-free-calls">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Supported Chains</span>
+        <button class="panel-action" onclick="loadRPC()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Chain</th><th>Network</th><th>Status</th><th>Latency</th></tr></thead>
+          <tbody id="rpc-chains-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ EMAIL INBOX ══ -->
+  <div class="page" id="page-inbox">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Non lus</div><div class="stat-value cyan" id="inbox-unread">--</div></div>
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="inbox-total">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Adresse</div><div class="stat-value green" style="font-size:14px" id="inbox-addr">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Serveur</div><div class="stat-value purple" style="font-size:13px">OVH IMAP/SMTP</div></div>
+    </div>
+
+    <!-- Compose -->
+    <div class="panel" id="compose-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">Nouveau message</span>
+        <button class="panel-action" onclick="document.getElementById('compose-panel').style.display='none'">X</button>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <input type="email" id="compose-to" class="form-input" placeholder="Destinataire (email)" style="margin-bottom:8px;width:100%">
+        <input type="text" id="compose-subject" class="form-input" placeholder="Sujet" style="margin-bottom:8px;width:100%">
+        <textarea id="compose-body" class="form-input" placeholder="Message..." style="margin-bottom:10px;width:100%;min-height:120px;resize:vertical;font-family:'Space Mono',monospace;font-size:12px"></textarea>
+        <button class="btn btn-cyan" onclick="sendNewEmail()">Envoyer</button>
+      </div>
+    </div>
+
+    <!-- Email list -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Inbox - ceo@maxiaworld.app</span>
+        <div>
+          <button class="panel-action" onclick="document.getElementById('compose-panel').style.display='block'" style="margin-right:8px">+ Nouveau</button>
+          <button class="panel-action" onclick="loadInbox()">Rafraichir</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr>
+            <th style="width:20px"></th>
+            <th style="width:180px">De</th>
+            <th>Sujet</th>
+            <th style="width:130px">Date</th>
+            <th style="width:60px"></th>
+          </tr></thead>
+          <tbody id="inbox-table">
+            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Email reader -->
+    <div class="panel" id="email-reader" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title" id="reader-subject">--</span>
+        <button class="panel-action" onclick="document.getElementById('email-reader').style.display='none'">X</button>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--muted)">
+          <span>De: <strong id="reader-from" style="color:var(--cyan)">--</strong></span>
+          <span id="reader-date">--</span>
+        </div>
+        <div id="reader-body" style="background:var(--bg);border-radius:8px;padding:15px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:400px;overflow-y:auto"></div>
+        <div style="margin-top:15px;border-top:1px solid var(--border);padding-top:12px">
+          <textarea id="reply-body" class="form-input" placeholder="Repondre..." style="width:100%;min-height:80px;resize:vertical;font-family:'Space Mono',monospace;font-size:12px;margin-bottom:8px"></textarea>
+          <button class="btn btn-cyan" id="reply-btn" onclick="replyToEmail()">Repondre</button>
+          <button class="btn btn-danger" id="delete-btn" onclick="deleteEmail()" style="margin-left:8px">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /main -->
 </div><!-- /shell -->
 
@@ -1623,6 +1920,14 @@ function showPage(name, el) {
   if (name === 'ceo-analytics') loadAnalytics();
   if (name === 'agent-bus') loadBus();
   if (name === 'roi-tracking') loadROI();
+  if (name === 'trading') loadTrading();
+  if (name === 'yields') loadYields();
+  if (name === 'bridge') loadBridge();
+  if (name === 'nfts') loadNFTs();
+  if (name === 'oracle') loadOracle();
+  if (name === 'rpcservice') loadRPC();
+  if (name === 'approvals') loadApprovals();
+  if (name === 'inbox') loadInbox();
 }
 
 // ── HTML escape helper (XSS protection for user-generated content) ──
@@ -1651,10 +1956,13 @@ function clog(msg, lvl) {
 }
 
 // ── API helper ──
+const _adminKey = new URLSearchParams(window.location.search).get('key') || '';
 async function api(path, opts) {
   opts = opts || {};
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (_adminKey) headers['X-Admin-Key'] = _adminKey;
   try {
-    const r = await fetch(API + path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts));
+    const r = await fetch(API + path, Object.assign({ headers }, opts));
     const data = await r.json();
     return { ok: r.ok, status: r.status, data };
   } catch(e) {
@@ -1881,8 +2189,8 @@ async function loadDatasets() {
 
 // ── Sub Revenue ──
 async function loadSubRevenue() {
-  const r = await api('/api/subscriptions/revenue');
-  if (r.ok) document.getElementById('sub-revenue').textContent = r.data.total_usdc?.toFixed(2) + ' USDC';
+  const r = await api('/api/subscriptions/stats');
+  if (r.ok) document.getElementById('sub-revenue').textContent = (r.data.total_paid_usdc || r.data.total_usdc || 0).toFixed(2) + ' USDC';
 }
 
 // ── Activity ──
@@ -2597,6 +2905,230 @@ async function loadROI() {
 
 function loadDisabled() { loadAnalytics(); }
 
+// ── Approvals ──
+async function loadApprovals() {
+  const r = await api('/api/ceo/approvals');
+  if (!r.ok) { return; }
+  const d = r.data;
+  const pending = d.pending || [];
+  const history = d.history || [];
+
+  document.getElementById('appr-pending').textContent = pending.length;
+  document.getElementById('appr-approved').textContent = history.filter(h => h.status === 'approved').length;
+  document.getElementById('appr-denied').textContent = history.filter(h => h.status === 'denied').length;
+  document.getElementById('appr-total').textContent = pending.length + history.length;
+
+  // Badge sidebar
+  const badge = document.getElementById('approvals-badge');
+  if (pending.length > 0) { badge.style.display = ''; badge.textContent = pending.length; }
+  else { badge.style.display = 'none'; }
+
+  // Pending list
+  const el = document.getElementById('appr-pending-list');
+  if (pending.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Aucune decision en attente</div>';
+  } else {
+    el.innerHTML = pending.map(p => {
+      const color = p.priorite === 'ROUGE' ? 'var(--red)' : '#FF8C00';
+      const label = p.priorite === 'ROUGE' ? 'ROUGE' : 'ORANGE';
+      const ts = p.ts ? p.ts.replace('T', ' ').slice(0, 16) : '';
+      return `<div style="padding:15px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:15px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span class="badge" style="background:${color}20;color:${color}">${label}</span>
+            <span style="font-weight:700;font-size:13px">${esc(p.cible)}</span>
+            <span style="color:var(--muted);font-size:11px">${ts}</span>
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text)">${esc(p.action)}</div>
+          ${p.raison ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">Raison: ' + esc(p.raison) + '</div>' : ''}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-green" style="padding:6px 16px;font-size:12px" onclick="approveDecision('${p.id}')">Go</button>
+          <button class="btn btn-danger" style="padding:6px 16px;font-size:12px" onclick="denyDecision('${p.id}')">No-Go</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // History table
+  const ht = document.getElementById('appr-history-table');
+  if (history.length === 0) {
+    ht.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Pas encore d\'historique</td></tr>';
+  } else {
+    ht.innerHTML = history.reverse().map(h => {
+      const statusColor = h.status === 'approved' ? 'green' : h.status === 'denied' ? 'red' : 'gray';
+      const statusLabel = h.status === 'approved' ? 'Approuve' : h.status === 'denied' ? 'Refuse' : h.status;
+      const ts = (h.approved_at || h.denied_at || h.ts || '').replace('T', ' ').slice(0, 16);
+      return `<tr>
+        <td style="font-size:11px;color:var(--muted)">${ts}</td>
+        <td style="font-size:12px;font-weight:600">${esc(h.cible)}</td>
+        <td style="font-size:12px">${esc((h.action||'').slice(0,80))}${(h.action||'').length > 80 ? '...' : ''}</td>
+        <td><span class="badge ${h.priorite === 'ROUGE' ? 'red' : 'gold'}">${esc(h.priorite)}</span></td>
+        <td><span class="badge ${statusColor}">${statusLabel}</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+async function approveDecision(id) {
+  const r = await api('/api/ceo/approvals/' + id + '/approve', { method: 'POST' });
+  if (r.ok || r.data?.success) {
+    toast('Decision approuvee — executee', 'ok');
+    loadApprovals();
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function denyDecision(id) {
+  const r = await api('/api/ceo/approvals/' + id + '/deny', { method: 'POST' });
+  if (r.ok || r.data?.success) {
+    toast('Decision refusee', 'ok');
+    loadApprovals();
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+// Check pending approvals periodically
+setInterval(async () => {
+  try {
+    const r = await api('/api/ceo/approvals');
+    if (r.ok && r.data) {
+      const badge = document.getElementById('approvals-badge');
+      const count = (r.data.pending || []).length;
+      if (count > 0) { badge.style.display = ''; badge.textContent = count; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) {}
+}, 60000); // toutes les minutes
+
+// ── Email Inbox ──
+let _currentEmail = null;
+
+async function loadInbox() {
+  const r = await api('/api/inbox/messages?limit=30');
+  const tb = document.getElementById('inbox-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Erreur de connexion email</td></tr>';
+    return;
+  }
+  const d = r.data;
+  document.getElementById('inbox-unread').textContent = d.unread || 0;
+  document.getElementById('inbox-total').textContent = d.total || 0;
+  document.getElementById('inbox-addr').textContent = d.address || '--';
+
+  // Badge sidebar
+  const badge = document.getElementById('inbox-badge');
+  if (d.unread > 0) { badge.style.display = ''; badge.textContent = d.unread; }
+  else { badge.style.display = 'none'; }
+
+  if (!d.messages || d.messages.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Boite vide</td></tr>';
+    return;
+  }
+  tb.innerHTML = d.messages.map(m => {
+    const unreadStyle = m.read ? 'color:var(--muted)' : 'font-weight:700';
+    const dot = m.read ? '' : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--cyan)"></span>';
+    return `<tr style="cursor:pointer;${unreadStyle}" onclick="openEmail('${esc(m.uid)}')">
+      <td>${dot}</td>
+      <td style="font-size:12px">${esc(m.from_name)}<br><span style="color:var(--muted);font-size:10px">${esc(m.from_addr)}</span></td>
+      <td style="font-size:12px">${esc(m.subject)}${m.has_attachments ? ' <span style="color:var(--purple)">&#128206;</span>' : ''}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(m.date)}</td>
+      <td><button class="panel-action" onclick="event.stopPropagation();deleteEmailDirect('${esc(m.uid)}')" title="Supprimer">&#128465;</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function openEmail(uid) {
+  const r = await api('/api/inbox/message/' + uid);
+  if (!r.ok) { toast('Erreur lecture email', 'err'); return; }
+  _currentEmail = r.data;
+  document.getElementById('reader-subject').textContent = r.data.subject;
+  document.getElementById('reader-from').textContent = r.data.from_name + ' <' + r.data.from_addr + '>';
+  document.getElementById('reader-date').textContent = r.data.date;
+  // Afficher le body (HTML si dispo, sinon texte)
+  const bodyEl = document.getElementById('reader-body');
+  if (r.data.body_html) {
+    bodyEl.innerHTML = r.data.body_html;
+  } else {
+    bodyEl.textContent = r.data.body_text || '(vide)';
+  }
+  document.getElementById('reply-body').value = '';
+  document.getElementById('email-reader').style.display = 'block';
+  document.getElementById('reply-btn').setAttribute('data-uid', uid);
+  document.getElementById('delete-btn').setAttribute('data-uid', uid);
+  // Rafraichir la liste (marque comme lu)
+  loadInbox();
+}
+
+async function replyToEmail() {
+  const uid = document.getElementById('reply-btn').getAttribute('data-uid');
+  const body = document.getElementById('reply-body').value.trim();
+  if (!body) { toast('Ecris un message', 'err'); return; }
+  const r = await api('/api/inbox/reply/' + uid, {
+    method: 'POST',
+    body: JSON.stringify({ body: body })
+  });
+  if (r.ok || r.data?.success) {
+    toast('Reponse envoyee', 'ok');
+    document.getElementById('reply-body').value = '';
+  } else {
+    toast('Erreur envoi: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function sendNewEmail() {
+  const to = document.getElementById('compose-to').value.trim();
+  const subject = document.getElementById('compose-subject').value.trim();
+  const body = document.getElementById('compose-body').value.trim();
+  if (!to || !subject || !body) { toast('Remplis tous les champs', 'err'); return; }
+  const r = await api('/api/inbox/send', {
+    method: 'POST',
+    body: JSON.stringify({ to, subject, body })
+  });
+  if (r.ok || r.data?.success) {
+    toast('Email envoye a ' + to, 'ok');
+    document.getElementById('compose-panel').style.display = 'none';
+    document.getElementById('compose-to').value = '';
+    document.getElementById('compose-subject').value = '';
+    document.getElementById('compose-body').value = '';
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function deleteEmail() {
+  const uid = document.getElementById('delete-btn').getAttribute('data-uid');
+  if (!uid) return;
+  const r = await api('/api/inbox/message/' + uid, { method: 'DELETE' });
+  if (r.ok || r.data?.success) {
+    toast('Email supprime', 'ok');
+    document.getElementById('email-reader').style.display = 'none';
+    loadInbox();
+  } else {
+    toast('Erreur suppression', 'err');
+  }
+}
+
+async function deleteEmailDirect(uid) {
+  const r = await api('/api/inbox/message/' + uid, { method: 'DELETE' });
+  if (r.ok || r.data?.success) { toast('Supprime', 'ok'); loadInbox(); }
+  else { toast('Erreur', 'err'); }
+}
+
+// Check unread emails periodically
+setInterval(async () => {
+  try {
+    const r = await api('/api/inbox/messages?limit=1&unread_only=true');
+    if (r.ok && r.data) {
+      const badge = document.getElementById('inbox-badge');
+      if (r.data.unread > 0) { badge.style.display = ''; badge.textContent = r.data.unread; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) {}
+}, 120000); // toutes les 2 minutes
+
 // SSE Live Stream
 try {
   const evtSource = new EventSource('/api/events/stream');
@@ -2612,6 +3144,269 @@ try {
     } catch(err) {}
   };
 } catch(e) {}
+
+// ── DeFi Yields ──
+// ── Trading Tools ──
+async function loadTrading() { loadWhales(); loadCopyWallets(); loadTradingStats(); }
+
+async function loadTradingStats() {
+  const r = await api('/api/trading/stats');
+  if (r.ok && r.data) {
+    try{document.getElementById('t-alerts').textContent = r.data.alerts_active || 0;}catch(e){}
+    try{document.getElementById('t-wallets').textContent = r.data.wallets_tracked || r.data.wallets_followed || 0;}catch(e){}
+    try{document.getElementById('t-snapshots').textContent = r.data.price_snapshots || 0;}catch(e){}
+  }
+}
+
+async function loadWhales() {
+  const r = await api('/api/trading/whales?limit=10');
+  const tb = document.getElementById('t-whales');
+  if (r.ok && (r.data?.movements?.length > 0 || r.data?.transfers?.length > 0)) {
+    tb.innerHTML = (r.data.movements || r.data.transfers).map(w => `<tr>
+      <td><span class="badge cyan">${esc(w.chain)}</span></td>
+      <td style="font-weight:600">${esc(w.token)}</td>
+      <td style="font-family:'Space Mono';color:var(--green)">$${Number(w.amount_usd||0).toLocaleString()}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc((w.from||'').slice(0,8))}...</td>
+      <td style="font-size:11px;color:var(--muted)">${esc((w.to||'').slice(0,8))}...</td>
+    </tr>`).join('');
+  } else { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No whale activity</td></tr>'; }
+}
+
+async function loadSignal() {
+  const token = document.getElementById('t-signal-token').value.trim().toUpperCase();
+  if (!token) return;
+  const el = document.getElementById('t-signal-result');
+  el.innerHTML = '<div class="spinner"></div>';
+  const r = await api('/api/trading/signals/' + token);
+  if (r.ok && r.data) {
+    const d = r.data;
+    const sigColor = d.signal?.includes('BUY') ? 'var(--green)' : d.signal?.includes('SELL') ? 'var(--red)' : 'var(--gold)';
+    el.innerHTML = `<div style="text-align:center;margin-bottom:12px"><span style="font-size:24px;font-weight:700;color:${sigColor}">${esc(d.signal||'--')}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+        <div>RSI(14): <strong>${(d.rsi||0).toFixed(1)}</strong></div>
+        <div>SMA(20): <strong>$${(d.sma_20||0).toFixed(2)}</strong></div>
+        <div>SMA(50): <strong>$${(d.sma_50||0).toFixed(2)}</strong></div>
+        <div>MACD: <strong>${(typeof d.macd === 'object' ? (d.macd.histogram||0) : (d.macd||0)).toFixed(4)}</strong></div>
+      </div>`;
+  } else { el.textContent = 'Token not found'; }
+}
+
+async function loadCopyWallets() {
+  const r = await api('/api/trading/copy/wallets?limit=10');
+  const tb = document.getElementById('t-copy');
+  if (r.ok && r.data?.wallets?.length > 0) {
+    tb.innerHTML = r.data.wallets.map(w => {
+      const pnl7Color = (w.pnl_7d_pct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+      const pnl30Color = (w.pnl_30d_pct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+      return `<tr>
+        <td style="font-size:11px;font-family:'Space Mono'">${esc((w.address||'').slice(0,12))}...</td>
+        <td style="color:${pnl7Color};font-weight:600">${(w.pnl_7d_pct||0) >= 0 ? '+' : ''}${(w.pnl_7d_pct||0).toFixed(1)}%</td>
+        <td style="color:${pnl30Color};font-weight:600">${(w.pnl_30d_pct||0) >= 0 ? '+' : ''}${(w.pnl_30d_pct||0).toFixed(1)}%</td>
+        <td>${((w.win_rate||0) < 1 ? (w.win_rate*100) : (w.win_rate||0)).toFixed(0)}%</td>
+        <td>${w.trades_count||0}</td>
+      </tr>`;
+    }).join('');
+  } else { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No data</td></tr>'; }
+}
+
+async function loadYields() {
+  const r = await api('/api/public/yield/best?asset=USDC&limit=10');
+  const tb = document.getElementById('yields-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Error loading yields</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const yields = d.yields || d.data || d || [];
+  const list = Array.isArray(yields) ? yields : [];
+  document.getElementById('yield-best').textContent = list.length ? (list[0].apy_pct || list[0].apy || '--') + '%' : '--';
+  document.getElementById('yield-protocols').textContent = d.protocols_tracked || new Set(list.map(y => y.protocol)).size || '--';
+  document.getElementById('yield-chains').textContent = d.chains_covered || new Set(list.map(y => y.chain)).size || '--';
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">No yield data available</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(y => {
+    const apy = y.apy_pct || y.apy || 0;
+    const risk = y.risk || 'medium';
+    const riskColor = risk === 'low' ? 'green' : risk === 'high' ? 'red' : 'gold';
+    return `<tr>
+      <td style="font-weight:600">${esc(y.protocol)}</td>
+      <td>${esc(y.chain)}</td>
+      <td style="color:var(--green);font-weight:700">${apy}%</td>
+      <td>${(y.tvl_usd || y.tvl) ? '$' + Number(y.tvl_usd || y.tvl).toLocaleString() : '--'}</td>
+      <td><span class="badge ${riskColor}">${esc(risk)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Bridge ──
+async function loadBridge() {
+  const r = await api('/api/bridge/routes');
+  if (r.ok) {
+    const d = r.data;
+    document.getElementById('bridge-routes').textContent = d.total_routes || d.count || '--';
+    document.getElementById('bridge-fee').textContent = d.avg_fee ? d.avg_fee + '%' : '--';
+    document.getElementById('bridge-time').textContent = d.avg_time || '--';
+  }
+}
+
+async function getBridgeQuote() {
+  const from = document.getElementById('bridge-from').value.trim();
+  const to = document.getElementById('bridge-to').value.trim();
+  const amount = document.getElementById('bridge-amount').value.trim();
+  if (!from || !to || !amount) { toast('Fill all fields', 'err'); return; }
+  const r = await api('/api/bridge/quote?from_chain=' + from + '&to_chain=' + to + '&token=USDC&amount=' + amount);
+  const panel = document.getElementById('bridge-result-panel');
+  const el = document.getElementById('bridge-result');
+  panel.style.display = 'block';
+  if (!r.ok) {
+    el.innerHTML = '<div style="color:var(--red)">Error: ' + esc(r.data?.detail || 'Unable to get quote') + '</div>';
+    return;
+  }
+  const d = r.data;
+  el.innerHTML = `<div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    <div><span style="font-size:11px;color:var(--muted)">Route</span><div style="font-weight:700;font-size:14px">${esc(d.route || from + ' → ' + to)}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Amount Out</span><div style="font-weight:700;font-size:14px;color:var(--green)">${d.amount_out || d.estimated_output || '--'} USDC</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Fee</span><div style="font-weight:700;font-size:14px">${d.bridge_fee_usd || d.fee || d.total_fee || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Est. Time</span><div style="font-weight:700;font-size:14px">${d.estimated_time_min || d.estimated_time || d.time || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Provider</span><div style="font-weight:700;font-size:14px">${esc(d.bridge_protocol || d.provider || d.bridge || '--')}</div></div>
+  </div>`;
+}
+
+// ── NFT & Agent ID ──
+async function loadNFTs() {
+  const r = await api('/api/nft/agents');
+  const tb = document.getElementById('nfts-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading agents</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const agents = d.agents || d.data || d || [];
+  const list = Array.isArray(agents) ? agents : [];
+  document.getElementById('nft-minted').textContent = d.nfts_minted || 0;
+  document.getElementById('nft-agents').textContent = d.total || list.length || 0;
+  const avgTrust = list.length ? (list.reduce((s, a) => s + (a.trust_score || 0), 0) / list.length).toFixed(1) : '--';
+  document.getElementById('nft-trust').textContent = avgTrust;
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No agents registered</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(a => {
+    const badges = (a.badges || []).map(b => '<span class="badge cyan" style="margin-right:4px">' + esc(b) + '</span>').join('');
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:11px">${esc((a.agent_address || a.address || a.wallet || '').slice(0, 12))}...</td>
+      <td style="font-weight:600;color:var(--cyan)">${a.trust_score || '--'}</td>
+      <td>${badges || '<span style="color:var(--muted)">none</span>'}</td>
+      <td style="font-size:11px;color:var(--muted)">${a.registered_at || a.created_at || '--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function lookupAgentID() {
+  const addr = document.getElementById('nft-address').value.trim();
+  if (!addr) { toast('Enter an agent address', 'err'); return; }
+  const el = document.getElementById('nft-lookup-result');
+  el.style.display = 'block';
+  el.innerHTML = '<div style="text-align:center"><div class="spinner"></div></div>';
+  const r = await api('/api/nft/agent-id/' + encodeURIComponent(addr));
+  if (!r.ok) {
+    el.innerHTML = '<div style="color:var(--red)">Agent not found or error: ' + esc(r.data?.detail || '') + '</div>';
+    return;
+  }
+  const d = r.data;
+  const agent = d.agent_id || d;
+  const badges = (agent.badges || []).map(b => '<span class="badge cyan" style="margin-right:4px">' + esc(b) + '</span>').join('') || '<span style="color:var(--muted)">none</span>';
+  el.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+    <div><span style="font-size:11px;color:var(--muted)">Address</span><div style="font-family:var(--font-mono);font-size:12px">${esc(agent.agent_address || d.address || addr)}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Trust Score</span><div style="font-size:20px;font-weight:800;color:var(--cyan)">${agent.trust_score || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Badges</span><div style="margin-top:4px">${badges}</div></div>
+  </div>`;
+}
+
+// ── Oracle & Data ──
+async function loadOracle() {
+  const [dsRes, hRes] = await Promise.all([
+    api('/api/oracle/datasets'),
+    api('/api/oracle/health')
+  ]);
+  // Datasets
+  const tb = document.getElementById('oracle-datasets-table');
+  if (dsRes.ok) {
+    const d = dsRes.data;
+    const datasets = d.datasets || d.data || d || [];
+    const list = Array.isArray(datasets) ? datasets : [];
+    document.getElementById('oracle-datasets').textContent = list.length || '--';
+    if (list.length === 0) {
+      tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No datasets available</td></tr>';
+    } else {
+      tb.innerHTML = list.map(ds => `<tr>
+        <td style="font-weight:600">${esc(ds.name || ds.id)}</td>
+        <td><span class="badge purple">${esc(ds.type || ds.category || '--')}</span></td>
+        <td>${ds.records || ds.count || '--'}</td>
+        <td style="font-size:11px;color:var(--muted)">${ds.updated_at || ds.last_updated || '--'}</td>
+      </tr>`).join('');
+    }
+  } else {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading datasets</td></tr>';
+  }
+  // Health
+  const hEl = document.getElementById('oracle-health');
+  if (hRes.ok) {
+    const h = hRes.data;
+    document.getElementById('oracle-tokens').textContent = h.tokens_tracked || '--';
+    document.getElementById('oracle-freshness').textContent = h.freshness || h.data_freshness || '--';
+    hEl.innerHTML = `<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Status</div>
+        <div style="font-weight:700;color:var(--green)">${esc(h.status || 'unknown')}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Last Updated</div>
+        <div style="font-weight:700">${esc(h.last_update || h.last_updated || '--')}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Sources</div>
+        <div style="font-weight:700">${h.tokens_tracked || h.sources || '--'}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Uptime</div>
+        <div style="font-weight:700;color:var(--cyan)">${h.uptime_human || h.uptime || '--'}</div>
+      </div>
+    </div>`;
+  } else {
+    hEl.innerHTML = '<div style="color:var(--muted)">Oracle health unavailable</div>';
+  }
+}
+
+// ── RPC Service ──
+async function loadRPC() {
+  const r = await api('/api/rpc/chains');
+  const tb = document.getElementById('rpc-chains-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading RPC chains</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const chains = d.chains || d.data || d || [];
+  const list = Array.isArray(chains) ? chains : [];
+  document.getElementById('rpc-chains-count').textContent = list.length || d.total || '--';
+  document.getElementById('rpc-free-calls').textContent = d.free_calls_per_day || d.rate_limit || '--';
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No RPC chains available</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(c => {
+    const statusColor = (c.status || '').toLowerCase() === 'active' || (c.status || '').toLowerCase() === 'online' ? 'green' : 'red';
+    return `<tr>
+      <td style="font-weight:600">${esc(c.name || c.chain)}</td>
+      <td>${esc(c.network || c.type || 'mainnet')}</td>
+      <td><span class="badge ${statusColor}">${esc(c.status || 'unknown')}</span></td>
+      <td style="font-family:var(--font-mono);font-size:12px">${c.latency || c.avg_latency || '--'}</td>
+    </tr>`;
+  }).join('');
+}
 
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>

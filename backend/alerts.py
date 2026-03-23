@@ -1,150 +1,170 @@
-"""MAXIA Alertes V11 — Notifications Discord en francais"""
+"""MAXIA Alertes V12 — Alertes sensibles -> Telegram prive, systeme -> Discord public"""
 import os, time, json
 import httpx
-from config import DISCORD_WEBHOOK_URL
+from config import DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 _last_alert: dict = {}
 _COOLDOWN = 300
 
 
-async def send_discord(title: str, message: str, color: int = 0x7C6BF8,
-                       urgent: bool = False) -> bool:
-    """Envoie une alerte Discord via webhook."""
-    if not DISCORD_WEBHOOK_URL:
-        print(f"[Alertes] Discord non configure — {title}: {message}")
+# ══════════════════════════════════════════
+# TRANSPORT — Telegram prive (fondateur) + Discord public
+# ══════════════════════════════════════════
+
+async def _send_private(text: str, urgent: bool = False) -> bool:
+    """Envoie un message au chat prive Telegram du fondateur (MAXIA CEO ALERTS)."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print(f"[Alertes] Telegram prive non configure — {text[:100]}")
         return False
 
-    key = title
+    key = text[:50]
     now = time.time()
     if key in _last_alert and now - _last_alert[key] < _COOLDOWN and not urgent:
         return False
     _last_alert[key] = now
 
-    embed = {
-        "title": f"{'🚨 ' if urgent else '🤖 '}{title}",
-        "description": message,
-        "color": color,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "footer": {"text": "MAXIA V12 — CEO AI + Marketplace"},
-    }
-
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
-                DISCORD_WEBHOOK_URL,
-                json={"embeds": [embed]},
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": text[:4000],
+                    "parse_mode": "HTML",
+                },
             )
-        if resp.status_code in (200, 204):
-            print(f"[Alertes] Discord envoye: {title}")
+        if resp.status_code == 200:
             return True
-        print(f"[Alertes] Discord erreur {resp.status_code}")
+        print(f"[Alertes] Telegram prive erreur {resp.status_code}")
         return False
     except Exception as e:
-        print(f"[Alertes] Discord erreur: {e}")
+        print(f"[Alertes] Telegram prive erreur: {e}")
         return False
 
 
+async def _send_discord(title: str, message: str, color: int = 0x7C6BF8) -> bool:
+    """Envoie une alerte sur Discord public (systeme uniquement)."""
+    if not DISCORD_WEBHOOK_URL:
+        return False
+
+    key = title
+    now = time.time()
+    if key in _last_alert and now - _last_alert[key] < _COOLDOWN:
+        return False
+    _last_alert[key] = now
+
+    embed = {
+        "title": f"\U0001f916 {title}",
+        "description": message[:2000],
+        "color": color,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "footer": {"text": "MAXIA V12"},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(DISCORD_WEBHOOK_URL, json={"embeds": [embed]})
+        return resp.status_code in (200, 204)
+    except Exception:
+        return False
+
+
+# ══════════════════════════════════════════
+# ALERTES SENSIBLES — Telegram prive uniquement
+# ══════════════════════════════════════════
+
 async def alert_low_balance(balance: float, wallet: str):
-    """Alerte quand la reserve est basse."""
-    await send_discord(
-        "⚠️ RESERVE BASSE",
-        f"Le wallet `{wallet[:8]}...` n a plus que **{balance:.4f} SOL**\n"
-        f"Rechargez le wallet pour eviter l arret de l agent marketing.",
-        color=0xFF4560, urgent=True,
+    await _send_private(
+        f"\u26a0\ufe0f <b>RESERVE BASSE</b>\n\n"
+        f"Wallet <code>{wallet[:8]}...</code> : <b>{balance:.4f} SOL</b>\n"
+        f"Rechargez pour eviter l'arret du marketing.",
+        urgent=True,
     )
 
 
 async def alert_daily_report(stats: dict):
-    """Rapport quotidien en francais."""
-    await send_discord(
-        "📊 Rapport Quotidien MAXIA",
-        f"**Profits nets :** {stats.get('profits', 0):.2f} USDC\n"
-        f"**Revenus du mois :** {stats.get('monthly_revenue', 0):.2f} USDC\n"
-        f"**Depenses du mois :** {stats.get('monthly_spend', 0):.2f} USDC\n"
-        f"**Prospects contactes aujourd hui :** {stats.get('prospects', 0)}\n"
-        f"**Prospects total :** {stats.get('total_prospects', 0)}\n"
-        f"**Conversions :** {stats.get('conversions', 0)}\n"
-        f"**Tresorerie :** {stats.get('treasury_balance', 0):.2f} USDC\n"
-        f"**Volume 24h :** {stats.get('volume_24h', 0):.2f} USDC\n"
-        f"**Services actifs :** {stats.get('listing_count', 0)}\n"
-        f"**Mode :** {stats.get('tier', 'survie')}\n"
-        f"**Uptime :** {stats.get('uptime', '0h 0m')}",
-        color=0x00E5CC,
+    await _send_private(
+        f"\U0001f4ca <b>Rapport Quotidien MAXIA</b>\n\n"
+        f"Profits nets : <b>{stats.get('profits', 0):.2f} USDC</b>\n"
+        f"Revenus du mois : <b>{stats.get('monthly_revenue', 0):.2f} USDC</b>\n"
+        f"Depenses du mois : <b>{stats.get('monthly_spend', 0):.2f} USDC</b>\n"
+        f"Prospects aujourd'hui : <b>{stats.get('prospects', 0)}</b>\n"
+        f"Prospects total : <b>{stats.get('total_prospects', 0)}</b>\n"
+        f"Conversions : <b>{stats.get('conversions', 0)}</b>\n"
+        f"Tresorerie : <b>{stats.get('treasury_balance', 0):.2f} USDC</b>\n"
+        f"Volume 24h : <b>{stats.get('volume_24h', 0):.2f} USDC</b>\n"
+        f"Services actifs : <b>{stats.get('listing_count', 0)}</b>\n"
+        f"Mode : <b>{stats.get('tier', 'survie')}</b>\n"
+        f"Uptime : <b>{stats.get('uptime', '0h 0m')}</b>",
     )
 
 
 async def alert_prospect_contacted(wallet: str, message_preview: str):
-    """Notification quand un prospect est contacte."""
-    await send_discord(
-        "🎯 Nouveau prospect contacte",
-        f"**Wallet :** `{wallet[:8]}...{wallet[-4:]}`\n"
-        f"**Message envoye :** {message_preview[:150]}",
-        color=0x00E676,
+    await _send_private(
+        f"\U0001f3af <b>Nouveau prospect contacte</b>\n\n"
+        f"Wallet : <code>{wallet[:8]}...{wallet[-4:]}</code>\n"
+        f"Message : {message_preview[:150]}",
     )
 
 
 async def alert_error(module: str, error: str):
-    """Alerte sur erreur critique."""
-    await send_discord(
-        f"❌ Erreur — {module}",
-        f"```\n{error[:500]}\n```",
-        color=0xFF4560, urgent=True,
+    await _send_private(
+        f"\u274c <b>Erreur — {module}</b>\n\n"
+        f"<code>{error[:500]}</code>",
+        urgent=True,
     )
 
 
-async def alert_system(title: str, message: str):
-    """Alerte systeme generique."""
-    await send_discord(title, message, color=0x7C6BF8)
-
-
 async def alert_escrow_created(amount: float, buyer: str, seller: str, service: str):
-    """Notification nouvel escrow."""
-    await send_discord(
-        "💰 Nouvel Escrow cree",
-        f"**Montant :** {amount:.2f} USDC\n"
-        f"**Acheteur :** `{buyer[:8]}...`\n"
-        f"**Vendeur :** `{seller[:8]}...`\n"
-        f"**Service :** {service}",
-        color=0x7C6BF8,
+    await _send_private(
+        f"\U0001f4b0 <b>Nouvel Escrow</b>\n\n"
+        f"Montant : <b>{amount:.2f} USDC</b>\n"
+        f"Acheteur : <code>{buyer[:8]}...</code>\n"
+        f"Vendeur : <code>{seller[:8]}...</code>\n"
+        f"Service : {service}",
     )
 
 
 async def alert_escrow_released(amount: float, seller: str):
-    """Notification paiement libere."""
-    await send_discord(
-        "✅ Paiement libere",
-        f"**{amount:.2f} USDC** envoyes au vendeur `{seller[:8]}...`\n"
-        f"Service livre avec succes.",
-        color=0x00E676,
+    await _send_private(
+        f"\u2705 <b>Paiement libere</b>\n\n"
+        f"<b>{amount:.2f} USDC</b> envoyes au vendeur <code>{seller[:8]}...</code>",
     )
 
 
 async def alert_new_client(wallet: str, service: str, amount: float):
-    """Notification nouveau client."""
-    await send_discord(
-        "🆕 Nouveau client",
-        f"**Wallet :** `{wallet[:8]}...`\n"
-        f"**Service :** {service}\n"
-        f"**Montant :** {amount:.2f} USDC",
-        color=0x00E5CC,
+    await _send_private(
+        f"\U0001f195 <b>Nouveau client</b>\n\n"
+        f"Wallet : <code>{wallet[:8]}...</code>\n"
+        f"Service : {service}\n"
+        f"Montant : <b>{amount:.2f} USDC</b>",
     )
 
 
 async def alert_revenue(amount: float, source: str):
-    """Notification revenu."""
-    await send_discord(
-        "💵 Revenu recu",
-        f"**+{amount:.2f} USDC** depuis {source}",
-        color=0x00E676,
+    await _send_private(
+        f"\U0001f4b5 <b>Revenu recu</b>\n\n"
+        f"<b>+{amount:.2f} USDC</b> depuis {source}",
     )
 
 
 async def alert_swarm_clone(name: str, niche: str, price: float):
-    """Notification nouveau clone de l essaim."""
-    await send_discord(
-        "🐝 Nouveau clone deploye",
-        f"**Nom :** {name}\n"
-        f"**Niche :** {niche}\n"
-        f"**Prix :** {price:.2f} USDC/requete",
-        color=0x7C6BF8,
+    await _send_private(
+        f"\U0001f41d <b>Nouveau clone deploye</b>\n\n"
+        f"Nom : {name}\nNiche : {niche}\nPrix : {price:.2f} USDC/req",
     )
+
+
+# ══════════════════════════════════════════
+# ALERTES SYSTEME — Discord public (pas de donnees sensibles)
+# ══════════════════════════════════════════
+
+async def alert_system(title: str, message: str):
+    """Alerte systeme publique (startup, status). Pas de chiffres business."""
+    await _send_discord(title, message, color=0x7C6BF8)
+
+
+# ══════════════════════════════════════════
+# COMPAT — ancien nom utilise par d'autres modules
+# ══════════════════════════════════════════
+
+send_discord = _send_discord

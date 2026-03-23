@@ -12,19 +12,23 @@ TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN", "")
 TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET", "")
 
 MAXIA_URL = "maxiaworld.app"
-MAX_TWEETS_DAY = 5
-MAX_REPLIES_DAY = 5
-MAX_COMMENTS_DAY = 3
+MAX_TWEETS_DAY = 2        # Qualite > quantite : 2 tweets/jour max
+MAX_REPLIES_DAY = 10
+MAX_COMMENTS_DAY = 15      # Priorite : commenter avec qualite
+MAX_LIKES_DAY = 30         # Liker les posts pertinents (AI, crypto, devs)
 
 # ── Stats ──
 _stats = {
     "tweets_today": 0,
     "replies_today": 0,
     "comments_today": 0,
+    "likes_today": 0,
     "last_reset": "",
     "last_mention_id": None,
     "total_tweets": 0,
     "total_replies": 0,
+    "total_likes": 0,
+    "total_comments": 0,
     "errors": 0,
 }
 
@@ -36,6 +40,7 @@ def _reset_daily():
         _stats["tweets_today"] = 0
         _stats["replies_today"] = 0
         _stats["comments_today"] = 0
+        _stats["likes_today"] = 0
         _stats["last_reset"] = today
 
 
@@ -245,7 +250,121 @@ async def comment_on_tweet(tweet_id: str, text: str) -> dict:
     result = await reply_to_tweet(tweet_id, text)
     if result.get("success"):
         _stats["comments_today"] += 1
+        _stats["total_comments"] += 1
     return result
+
+
+# ══════════════════════════════════════════
+# LIKE — Liker des tweets pertinents
+# ══════════════════════════════════════════
+
+async def like_tweet(tweet_id: str) -> dict:
+    """Like un tweet. Priorite engagement > publication."""
+    _reset_daily()
+    if _stats["likes_today"] >= MAX_LIKES_DAY:
+        return {"success": False, "error": f"Limite {MAX_LIKES_DAY} likes/jour atteinte"}
+
+    client = _get_client()
+    if not client:
+        return {"success": False, "error": "Twitter API non configure"}
+
+    try:
+        def _like():
+            return client.like(tweet_id)
+
+        await asyncio.to_thread(_like)
+        _stats["likes_today"] += 1
+        _stats["total_likes"] += 1
+        print(f"[Twitter] Liked tweet {tweet_id}")
+        return {"success": True, "tweet_id": tweet_id}
+    except Exception as e:
+        _stats["errors"] += 1
+        print(f"[Twitter] Like error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+# ══════════════════════════════════════════
+# ENGAGE — Liker + commenter des tweets cibles (IA, crypto, devs)
+# ══════════════════════════════════════════
+
+ENGAGE_QUERIES = [
+    "AI agent crypto",
+    "autonomous AI blockchain",
+    "solana AI bot",
+    "AI marketplace",
+    "LLM agent USDC",
+    "AI agent monetization",
+]
+
+
+async def engage_with_influencers() -> list:
+    """Recherche des tweets pertinents, like et commente avec qualite.
+    Strategie : engagement authentique > auto-promotion."""
+    results = []
+
+    for query in ENGAGE_QUERIES:
+        if _stats["likes_today"] >= MAX_LIKES_DAY and _stats["comments_today"] >= MAX_COMMENTS_DAY:
+            break
+
+        tweets = await search_tweets(query, max_results=5)
+        for tweet in tweets:
+            tid = str(tweet["id"])
+
+            # Like le tweet
+            if _stats["likes_today"] < MAX_LIKES_DAY:
+                like_result = await like_tweet(tid)
+                if like_result.get("success"):
+                    results.append({"action": "like", "tweet_id": tid, "text": tweet["text"][:80]})
+
+            # Commenter si le tweet a du potentiel (>5 likes ou >2 RT)
+            if (_stats["comments_today"] < MAX_COMMENTS_DAY
+                    and (tweet.get("likes", 0) > 5 or tweet.get("retweets", 0) > 2)):
+                comment = await _generate_quality_comment(tweet["text"])
+                if comment:
+                    comment_result = await comment_on_tweet(tid, comment)
+                    if comment_result.get("success"):
+                        results.append({"action": "comment", "tweet_id": tid, "comment": comment[:80]})
+
+    print(f"[Twitter] Engagement: {len(results)} actions (likes + comments)")
+    return results
+
+
+async def _generate_quality_comment(tweet_text: str) -> str:
+    """Genere un commentaire de qualite — PAS de spam, PAS de promo directe."""
+    try:
+        from config import GROQ_API_KEY, GROQ_MODEL
+        if not GROQ_API_KEY:
+            return None
+
+        from groq import Groq
+        client = Groq(api_key=GROQ_API_KEY)
+
+        def _call():
+            resp = client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {"role": "system", "content": (
+                        "Tu commentes un tweet en tant qu'expert AI/crypto. "
+                        "REGLES STRICTES :\n"
+                        "1. JAMAIS mentionner MAXIA ou maxiaworld.app dans le commentaire\n"
+                        "2. Apporter de la VALEUR : insight technique, question pertinente, experience\n"
+                        "3. Etre authentique — parler comme un dev, pas un marketeur\n"
+                        "4. Max 200 chars. Pas de hashtags. Max 1 emoji.\n"
+                        "5. Si tu n'as rien d'interessant a dire, reponds 'SKIP'\n"
+                        "L'objectif est de construire une reputation d'expert, pas de vendre."
+                    )},
+                    {"role": "user", "content": f"Commente ce tweet :\n{tweet_text}"},
+                ],
+                max_tokens=60, temperature=0.8,
+            )
+            return resp.choices[0].message.content.strip()
+
+        result = await asyncio.to_thread(_call)
+        if result == "SKIP" or len(result) < 10:
+            return None
+        return result
+    except Exception:
+        return None
 
 
 # ══════════════════════════════════════════
@@ -291,40 +410,28 @@ async def search_tweets(query: str, max_results: int = 10) -> list:
 # ══════════════════════════════════════════
 
 async def run_twitter_bot():
-    """Boucle autonome du bot Twitter. Tourne en arriere-plan."""
-    print("[Twitter] Bot demarre" if TWITTER_API_KEY else "[Twitter] Bot inactif (pas de cles API)")
+    """Boucle autonome du bot Twitter VPS.
+    Twitter est DELEGUE au CEO local — le VPS garde uniquement post_tweet()
+    comme fallback si le CEO local le demande via l'API."""
+    print("[Twitter] Bot VPS en mode passif (Twitter delegue au CEO local)")
     if not TWITTER_API_KEY:
+        print("[Twitter] Bot inactif (pas de cles API)")
         return
 
-    # Test de connexion au demarrage (post only, free tier compatible)
+    # Test de connexion au demarrage
     client = _get_client()
     if client:
-        print("[Twitter] Client initialise (Free tier: post only)")
+        print("[Twitter] Client initialise (mode passif — post uniquement via API)")
     else:
         print("[Twitter] Erreur client — verifier les cles API")
         return
 
+    # Pas de boucle active — le CEO local gere Twitter via Playwright
+    # Le VPS expose uniquement post_tweet() comme fallback API
     while True:
         try:
             _reset_daily()
-
-            # Free tier: pas de lecture mentions (GET /users/me = 401)
-            # Le CEO poste via post_tweet() (appele par GHOST-WRITER)
-            # Les mentions seront lues si le plan est upgrader a Basic
-
-            try:
-                replies = await auto_reply_mentions()
-                if replies:
-                    print(f"[Twitter] {len(replies)} reponses aux mentions")
-            except Exception as e:
-                # Free tier: 401 on read endpoints — silently skip
-                if "401" in str(e) or "Unauthorized" in str(e):
-                    pass
-                else:
-                    print(f"[Twitter] Mentions error: {e}")
-
         except Exception as e:
-            print(f"[Twitter] Bot error: {e}")
             _stats["errors"] += 1
 
         # Attendre 2 heures
@@ -338,13 +445,18 @@ def get_stats() -> dict:
         "tweets_today": _stats["tweets_today"],
         "replies_today": _stats["replies_today"],
         "comments_today": _stats["comments_today"],
+        "likes_today": _stats["likes_today"],
         "total_tweets": _stats["total_tweets"],
         "total_replies": _stats["total_replies"],
+        "total_comments": _stats["total_comments"],
+        "total_likes": _stats["total_likes"],
         "errors": _stats["errors"],
+        "strategy": "engagement_first",
         "limits": {
             "tweets_per_day": MAX_TWEETS_DAY,
             "replies_per_day": MAX_REPLIES_DAY,
             "comments_per_day": MAX_COMMENTS_DAY,
+            "likes_per_day": MAX_LIKES_DAY,
             "tweets_per_month": 1500,
         },
     }

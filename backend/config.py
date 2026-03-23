@@ -61,7 +61,7 @@ AP2_SIGNING_KEY = os.getenv("AP2_SIGNING_KEY", "")
 
 # ── x402 ──
 X402_FACILITATOR_URL = os.getenv("X402_FACILITATOR_URL", "https://x402.org/facilitator")
-SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet"]
+SUPPORTED_NETWORKS   = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"]
 X402_PRICE_MAP = {
     "/api/marketplace/commands": 0.50,
     "/api/gpu/auctions":        1.00,
@@ -95,10 +95,11 @@ GROWTH_RESERVE_ALERT     = float(os.getenv("GROWTH_RESERVE_ALERT_USDC", "10"))
 DISCORD_BOT_TOKEN  = os.getenv("DISCORD_BOT_TOKEN", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHANNEL   = os.getenv("TELEGRAM_CHANNEL", "@MAXIA_alerts")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")  # Chat prive fondateur (CEO ALERTS)
 
 # Prospect targeting
 PROSPECT_MIN_SOL        = float(os.getenv("PROSPECT_MIN_SOL", "50"))
-PROSPECT_MAX_PER_DAY    = int(os.getenv("PROSPECT_MAX_PER_DAY", "5"))
+PROSPECT_MAX_PER_DAY    = int(os.getenv("PROSPECT_MAX_PER_DAY", "50"))
 PROSPECT_COOLDOWN_DAYS  = int(os.getenv("PROSPECT_COOLDOWN_DAYS", "999"))  # 999 = never re-contact
 
 TARGET_PROGRAMS = [
@@ -222,6 +223,23 @@ TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
 TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")
 TRON_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"  # Tether USDT TRC-20
 TRON_USDC_CONTRACT = "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8"  # USDC TRC-20
+
+# ── V12: NEAR Protocol (12eme blockchain, non-EVM) ──
+NEAR_RPC = os.getenv("NEAR_RPC", "https://rpc.mainnet.near.org")
+TREASURY_ADDRESS_NEAR = os.getenv("TREASURY_ADDRESS_NEAR", "")
+NEAR_USDC_CONTRACT = "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
+
+# ── V12: Aptos (13eme blockchain, non-EVM Move) ──
+APTOS_API = os.getenv("APTOS_API", "https://fullnode.mainnet.aptoslabs.com/v1")
+TREASURY_ADDRESS_APTOS = os.getenv("TREASURY_ADDRESS_APTOS", "")
+APTOS_USDC_TYPE = "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b::usdc::USDC"
+
+# ── V12: SEI (14eme blockchain, EVM) ──
+SEI_RPC              = os.getenv("SEI_RPC", "https://evm-rpc.sei-apis.com")
+SEI_CHAIN_ID         = 1329
+SEI_USDC_CONTRACT    = "0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1"
+TREASURY_ADDRESS_SEI = os.getenv("TREASURY_ADDRESS_SEI", "")
+SEI_MIN_TX_USDC      = float(os.getenv("SEI_MIN_TX_USDC", "0.01"))
 
 # ── V12: LLM Router (CEO autonome) ──
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")

@@ -6,7 +6,7 @@ Un seul agent, une seule memoire, 4 boucles, 17 sous-agents, 5 mecanismes intern
 SOUS-AGENTS :
   GHOST-WRITER   : Contenu, tweets, threads (valide par WATCHDOG avant publication)
   HUNTER         : Prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-  SCOUT          : Prospection IA-to-IA sur 11 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON) (Olas, Fetch, ElizaOS, Virtuals)
+  SCOUT          : Prospection IA-to-IA sur 14 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON/NEAR/Aptos/SEI) (Olas, Fetch, ElizaOS, Virtuals)
   WATCHDOG       : Monitoring, validation, self-healing (propose des patchs)
   SOL-TREASURY   : Budget dynamique, gas, ROI, remboursements
   RESPONDER      : Repond a TOUS messages 24/7 (Twitter, Discord, Telegram, API)
@@ -189,9 +189,9 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Marketplace on 11 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON) — swap 50 tokens 2450 paires, stocks 10 actions, GPU, services IA"
+PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 50 tokens, 10 stocks, 8 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, subscriptions, 31 MCP tools, 91 modules"
 PHASE = "Pre-seed"
-VISION = "Devenir la couche d'intelligence liquide de l'ecosysteme Solana"
+VISION = "Devenir le hub Web3 de reference pour les agents IA autonomes"
 URL = "maxiaworld.app"
 MAXIA_URL = "https://maxiaworld.app"
 
@@ -203,7 +203,7 @@ MIN_BUDGET_VERT = 0.005
 HUNTER_MIN_CONVERSION = 0.01
 EMERGENCY_ORANGE_LIMIT = 50  # Pre-seed: $0 revenue is normal, don't block too early
 MAX_PROSPECTS_DAY = 10
-MAX_TWEETS_DAY = 5
+MAX_TWEETS_DAY = 2        # Qualite > quantite : max 2 tweets/jour
 
 
 # ══════════════════════════════════════════
@@ -217,9 +217,9 @@ Fondateur : {FOUNDER_NAME} (autorite finale sur decisions rouges)
 URL : {URL}
 
 17 SOUS-AGENTS :
-- GHOST-WRITER : contenu (JAMAIS publier sans validation WATCHDOG)
+- GHOST-WRITER : contenu blog/docs uniquement (Twitter DELEGUE au CEO local. JAMAIS publier sans validation WATCHDOG)
 - HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA, canaux: Twitter/Discord/Reddit/GitHub)
-- SCOUT : prospection IA-to-IA sur 11 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
+- SCOUT : prospection IA-to-IA sur 14 chains (Solana/Base/Ethereum/XRP/Polygon/Arbitrum/Avalanche/BNB/TON/SUI/TRON/NEAR/Aptos/SEI) — contacte agents autonomes (Olas, Fetch, ElizaOS, Virtuals)
 - WATCHDOG : monitoring + validation + self-healing
 - SOL-TREASURY : budget dynamique indexe revenus
 - RESPONDER : repond a TOUS messages 24/7
@@ -284,6 +284,12 @@ STRATEGIE MARKETING :
 - Ton technique, pas commercial — parler comme un dev, pas comme un marketeur
 - Canaux prioritaires : memos Solana aux devs, Discord, Reddit, GitHub
 - Ne JAMAIS envoyer le meme message 2 fois au meme wallet
+
+STRATEGIE TWITTER :
+- Twitter est ENTIEREMENT DELEGUE au CEO local (Playwright sur PC du fondateur)
+- Le CEO VPS ne tweete PAS, ne like PAS, ne commente PAS sur Twitter
+- Le CEO VPS se concentre sur : blog, prospection on-chain, monitoring, pricing
+- Si une action Twitter est necessaire, la loguer pour que le CEO local l execute
 
 METRIC CLE : nombre d agents inscrits qui listent un service (pas juste inscrits)"""
 
@@ -399,30 +405,56 @@ def _pj(response: str) -> dict:
 
 
 # ══════════════════════════════════════════
-# ALERTES DISCORD
+# ALERTES CEO — Telegram prive (pas Discord public)
 # ══════════════════════════════════════════
 
-async def _discord(message: str):
-    if not DISCORD_WEBHOOK_URL:
-        print(f"[CEO] {message[:150]}")
+_ceo_alert_last: dict = {}
+_CEO_ALERT_COOLDOWN = 3600  # 1h entre alertes CRISIS identiques
+
+async def _ceo_private(message: str, urgent: bool = False):
+    """Envoie au Telegram prive du fondateur. Fallback Discord si non configure."""
+    # Cooldown anti-spam (surtout pour CRISIS P2 en boucle)
+    key = message[:60]
+    now = time.time()
+    if key in _ceo_alert_last and now - _ceo_alert_last[key] < _CEO_ALERT_COOLDOWN and not urgent:
         return
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as c:
-            await c.post(DISCORD_WEBHOOK_URL, json={"content": message[:1900]})
-    except Exception:
-        pass
+    _ceo_alert_last[key] = now
+
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    tg_chat = os.getenv("TELEGRAM_CHAT_ID", "")
+    if tg_token and tg_chat:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={"chat_id": tg_chat, "text": message[:4000]},
+                )
+                return
+        except Exception:
+            pass
+
+    # Fallback Discord si Telegram non configure
+    if DISCORD_WEBHOOK_URL:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10) as c:
+                await c.post(DISCORD_WEBHOOK_URL, json={"content": message[:1900]})
+        except Exception:
+            pass
+
+    print(f"[CEO] {message[:150]}")
 
 
 async def alert_rouge(titre: str, contexte: str, deadline_h: int = 2):
-    msg = (f"🔴 **ALERTE ROUGE — CEO MAXIA**\n\n**{titre}**\n\n{contexte}\n\n"
-           f"⏰ **Go/No-Go sous {deadline_h}h**")
-    await _discord(msg)
+    msg = (f"\U0001f534 ALERTE ROUGE — CEO MAXIA\n\n{titre}\n\n{contexte}\n\n"
+           f"\u23f0 Go/No-Go sous {deadline_h}h")
+    await _ceo_private(msg, urgent=True)
     print(f"[CEO ROUGE] {titre}")
 
 
 async def alert_info(msg: str):
-    await _discord(f"🤖 **CEO MAXIA** : {msg}")
+    await _ceo_private(f"\U0001f916 CEO MAXIA : {msg}")
 
 
 # ══════════════════════════════════════════
@@ -938,7 +970,7 @@ HEALTH_ENDPOINTS = {
     "marketplace_stats": "/api/public/marketplace-stats",
     "ceo_status": "/api/ceo/status",
     "twitter_status": "/api/twitter/status",
-    "swap_quote": "/api/public/crypto/quote?from_token=SOL&to_token=USDC&amount=1",
+    "swap_tokens": "/api/public/crypto/tokens",
     "stocks": "/api/public/stocks",
     "gpu_tiers": "/api/public/gpu/tiers",
     "docs": "/api/public/docs",
@@ -958,10 +990,14 @@ async def watchdog_health_check() -> dict:
     fail_count = 0
 
     from config import PORT
-    async with httpx.AsyncClient(timeout=10, verify=False) as client:
+    admin_key = os.getenv("ADMIN_KEY", "")
+    async with httpx.AsyncClient(timeout=20, verify=False) as client:
         for name, endpoint in HEALTH_ENDPOINTS.items():
             try:
-                r = await client.get(f"http://127.0.0.1:{PORT}{endpoint}")
+                headers = {}
+                if name == "ceo_status":
+                    headers["X-Admin-Key"] = admin_key
+                r = await client.get(f"http://127.0.0.1:{PORT}{endpoint}", headers=headers)
                 is_ok = r.status_code == 200
                 results[name] = {
                     "status": "OK" if is_ok else f"HTTP {r.status_code}",
@@ -1325,36 +1361,8 @@ async def failover_get_rpc() -> str:
 
 
 async def failover_send_alert(message: str):
-    """Envoie une alerte via le canal disponible."""
-    # Essayer Discord
-    webhook = os.getenv("DISCORD_WEBHOOK_URL", "")
-    if webhook:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=10) as c:
-                resp = await c.post(webhook, json={"content": message[:1900]})
-                if resp.status_code in [200, 204]:
-                    return
-        except Exception:
-            pass
-
-    # Fallback Telegram
-    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    tg_chat = os.getenv("TELEGRAM_CHAT_ID", "")
-    if tg_token and tg_chat:
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": message[:4000]},
-                )
-                return
-        except Exception:
-            pass
-
-    # Dernier recours — log console
-    print(f"[FAILOVER ALERT] {message[:200]}")
+    """Envoie une alerte via Telegram prive (donnees sensibles)."""
+    await _ceo_private(message)
 
 
 # ══════════════════════════════════════════
@@ -1682,7 +1690,7 @@ async def execute(decisions: list, memory: Memory):
                     f"Objectif vague: {action}\n\n"
                     f"Transforme en UNE action concrete executable par {cible}.\n"
                     f"Exemples d'actions concretes:\n"
-                    f"- GHOST-WRITER: 'tweet: MAXIA offre les frais les plus bas sur Solana'\n"
+                    f"- GHOST-WRITER: 'blog: MAXIA offre les frais les plus bas sur Solana' (PAS de tweet, Twitter delegue au CEO local)\n"
                     f"- HUNTER: 'contact wallet ABC123 via solana_memo'\n"
                     f"- SOL-TREASURY: 'adjust swap fee to 0.05%'\n"
                     f"- WATCHDOG: 'check service swap health'\n"
@@ -1756,7 +1764,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "subtitle": "AI Marketplace on Solana",
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
-                "11 Chains",
+                "14 Chains",
                 "50 Tokens", "2450 Pairs", "10 Stocks", "6 GPU",
             ],
         },
@@ -1780,7 +1788,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
         },
         "cta": {
             "primary": {"text": "Try the API (Free)", "url": f"https://{URL}/api/public/register"},
-            "secondary": {"text": "White Paper", "url": f"https://{URL}/MAXIA_WhitePaper_v1.pdf"},
+            "secondary": {"text": "GitHub Demo", "url": "https://github.com/MAXIAWORLD/demo-agent"},
         },
     }
 
@@ -2465,22 +2473,23 @@ CRISIS_LEVELS = {
 }
 
 
-async def crisis_detect(memory: Memory) -> list:
+async def crisis_detect(memory: Memory, skip_health: bool = False) -> list:
     """Detecte les situations de crise automatiquement."""
     crises = []
     d = memory._data
 
-    # P0 : Service principal DOWN
-    try:
-        health = await watchdog_health_check()
-        if health.get("failed", 0) > health.get("total", 1) * 0.5:
-            crises.append({
-                "level": "P0", "type": "service_outage",
-                "details": f"{health['failed']}/{health['total']} services DOWN",
-                "action": "WATCHDOG self-heal + GHOST-WRITER pause + alerte fondateur",
-            })
-    except Exception:
-        pass
+    # P0 : Service principal DOWN (skip pendant startup)
+    if not skip_health:
+        try:
+            health = await watchdog_health_check()
+            if health.get("failed", 0) > health.get("total", 1) * 0.5:
+                crises.append({
+                    "level": "P0", "type": "service_outage",
+                    "details": f"{health['failed']}/{health['total']} services DOWN",
+                    "action": "WATCHDOG self-heal + GHOST-WRITER pause + alerte fondateur",
+                })
+        except Exception:
+            pass
 
     # P0 : Perte de fonds detectee (solde du wallet micro qui baisse sans transactions loguees)
     try:
@@ -2810,20 +2819,12 @@ class CEOMaxia:
         micro_stats = micro_wallet.get_stats()
 
         # RADAR auto-actions : si tendance detectee, agir immediatement
+        # Twitter est DELEGUE au CEO local (Playwright) — VPS ne tweete plus
         for alert in radar:
             if alert.get("type") == "price_spike":
                 token = alert.get("token", "")
-                print(f"[CEO] RADAR spike {token} — GHOST-WRITER tweet + DEPLOYER blog")
-                tweet = await ghost_write("tweet", f"{token} is pumping! Trade it on MAXIA with lowest fees.", "twitter", self.memory)
-                if tweet and not tweet.get("blocked"):
-                    # Post to Twitter
-                    try:
-                        from twitter_bot import post_tweet
-                        tweet_text = tweet.get("contenu", tweet.get("content", f"{token} trending on Solana. Trade on MAXIA: {MAXIA_URL}"))
-                        await post_tweet(tweet_text)
-                    except Exception as e:
-                        print(f"[CEO] Twitter post error: {e}")
-                    self.memory.log_decision("vert", f"Tweet auto: {token} spike", "RADAR", "GHOST-WRITER")
+                print(f"[CEO] RADAR spike {token} — blog auto (Twitter delegue au CEO local)")
+                self.memory.log_decision("vert", f"RADAR spike {token} — blog only, Twitter delegue au local", "RADAR", "GHOST-WRITER")
                 # Blog post si c'est une categorie entiere
                 if alert.get("category"):
                     await self.deploy_blog(
@@ -2832,13 +2833,7 @@ class CEOMaxia:
                     )
             elif alert.get("type") == "category_surge":
                 cat = alert.get("category", "")
-                print(f"[CEO] RADAR surge {cat} — DEPLOYER blog auto")
-                # Tweet about category surge
-                try:
-                    from twitter_bot import post_tweet
-                    await post_tweet(f"{cat.upper()} tokens surging on Solana. AI agents trade them on MAXIA marketplace. {MAXIA_URL}")
-                except Exception:
-                    pass
+                print(f"[CEO] RADAR surge {cat} — blog auto (Twitter delegue au CEO local)")
                 await self.deploy_blog(
                     f"Why {cat.upper()} Tokens Are Surging Right Now",
                     f"Market analysis: {cat} category up {alert.get('change',0):.0%}. How AI agents can profit using MAXIA.",
@@ -2859,7 +2854,7 @@ class CEOMaxia:
         # CRISIS-MANAGER — detection automatique de crises
         crises = []
         try:
-            crises = await crisis_detect(self.memory)
+            crises = await crisis_detect(self.memory, skip_health=(self._cycle < 3))
             for crisis in crises:
                 print(f"[CEO] CRISIS {crisis['level']}: {crisis['type']} — {crisis['details'][:80]}")
                 await crisis_respond(crisis, self.memory)
@@ -2975,15 +2970,11 @@ class CEOMaxia:
         testi_data = self.memory._data.get("agents", {}).get("TESTIMONIAL", {})
         if testi_data.get("churn_alert"):
             try:
-                content = await ghost_write("retention_tweet", "Users are leaving — remind them why MAXIA is the cheapest AI marketplace", "twitter", self.memory)
-                if content and not content.get("blocked"):
-                    try:
-                        from twitter_bot import post_tweet
-                        await post_tweet(content.get("contenu", content.get("content", "")))
-                    except Exception:
-                        pass
+                # Twitter delegue au CEO local — VPS ne tweete plus
+                # On log l'alerte churn pour que le CEO local puisse agir
+                self.memory.log_decision("vert", "Churn alert — retention tweet delegue au CEO local", "TESTIMONIAL", "GHOST-WRITER")
                 testi_data["churn_alert"] = False
-                print("[CEO] BUS ACTION: TESTIMONIAL anti-churn tweet posted")
+                print("[CEO] BUS ACTION: TESTIMONIAL churn alert logged (Twitter delegue au CEO local)")
             except Exception as e:
                 print(f"[CEO] BUS ACTION TESTIMONIAL error: {e}")
 
@@ -3014,7 +3005,7 @@ class CEOMaxia:
             f"{rag_context}\n\n"
             "Decisions tactiques ? JSON: {reflexion, situation, decisions: [{action, cible, priorite}], regles_apprises, message_fondateur}\n"
             "IMPORTANT — cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
-            "IMPORTANT — action DOIT etre une directive CONCRETE et EXECUTABLE (ex: 'tweet: MAXIA fees reduced', 'switch canal discord', 'contact wallet Xyz'). "
+            "IMPORTANT — action DOIT etre une directive CONCRETE et EXECUTABLE (ex: 'blog: MAXIA fees reduced', 'switch canal discord', 'contact wallet Xyz'). PAS de tweet (Twitter delegue au CEO local). "
             "PAS de phrases vagues comme 'maximiser les chances de succes' ou 'ameliorer la visibilite'."
         )
         # Router: tier FAST pour la generation de decisions tactiques
@@ -3061,7 +3052,8 @@ class CEOMaxia:
             "JSON: {reflexion, situation, analyse_swot, red_team: {concurrent, sceptique, investisseur}, "
             "plan_ajuste, performance_agents, decisions, regles_apprises, message_fondateur}\n"
             "IMPORTANT — decisions[].cible DOIT etre un de : GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER, FONDATEUR.\n"
-            "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'tweet: ...', 'switch canal discord'). PAS de phrases vagues."
+            "IMPORTANT — decisions[].action DOIT etre CONCRETE (ex: 'blog: ...', 'switch canal discord', 'baisser prix swap'). PAS de phrases vagues.\n"
+            "IMPORTANT — Twitter est DELEGUE au CEO local. Ne JAMAIS proposer de tweet. Actions VPS uniquement: blog, prix, prospection on-chain, monitoring."
         )
         # Router: tier MID pour le SWOT, STRATEGIC seulement pour red teaming
         if self.router:
