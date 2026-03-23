@@ -334,7 +334,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         <tr><th>Protocol</th><th>Chain</th><th>APY</th><th>TVL</th><th>Risk</th><th>Type</th><th></th></tr>
       </thead>
       <tbody id="yields-body">
-        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Loading yields...</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading yields...</td></tr>
       </tbody>
     </table>
   </div>
@@ -423,6 +423,13 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <h2 class="page-title">NFT Collection</h2>
   <p class="page-sub">Mint NFTs on Solana or Base — AI-generated metadata</p>
 
+  <div class="stats-row" id="nft-stats">
+    <div class="stat-card"><div class="val" id="nft-total-agents">—</div><div class="lbl">Registered Agents</div></div>
+    <div class="stat-card"><div class="val" id="nft-total-minted">—</div><div class="lbl">NFTs Minted</div></div>
+    <div class="stat-card"><div class="val" id="nft-avg-trust">—</div><div class="lbl">Avg Trust Score</div></div>
+    <div class="stat-card"><div class="val" id="nft-total-badges">—</div><div class="lbl">Badges Earned</div></div>
+  </div>
+
   <div class="card" style="max-width:480px;margin-bottom:32px">
     <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Mint NFT</h3>
     <div class="input-group">
@@ -436,19 +443,28 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <button class="btn btn-primary" onclick="mintNFT()">Mint NFT</button>
   </div>
 
-  <div id="nfts-grid" class="grid-3">
-    <div class="empty-state" style="grid-column:1/-1">
-      <div class="icon">&#127912;</div>
-      <div class="msg">No NFTs yet</div>
-      <div class="sub">Mint your first one above!</div>
-    </div>
+  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Minted NFTs</h3>
+  <div id="nfts-grid" class="grid-3" style="margin-bottom:32px">
+    <div style="text-align:center;padding:24px;color:var(--muted);grid-column:1/-1">Loading NFTs...</div>
+  </div>
+
+  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Registered Agents</h3>
+  <div id="agents-grid" class="grid-3">
+    <div style="text-align:center;padding:24px;color:var(--muted);grid-column:1/-1">Loading agents...</div>
   </div>
 </div>
 
 <!-- ─── PAGE: AGENT ID ─── -->
 <div class="page" id="page-agentid">
   <h2 class="page-title">Agent Identity</h2>
-  <p class="page-sub">On-chain trust scores and verifiable identity for AI agents</p>
+  <p class="page-sub">On-chain trust scores and verifiable identity for AI agents on 14 chains</p>
+
+  <div class="stats-row" id="agentid-stats">
+    <div class="stat-card"><div class="val" id="aid-total">—</div><div class="lbl">Total Agents</div></div>
+    <div class="stat-card"><div class="val" id="aid-avg-trust">—</div><div class="lbl">Avg Trust Score</div></div>
+    <div class="stat-card"><div class="val" id="aid-badges">—</div><div class="lbl">Badges Earned</div></div>
+    <div class="stat-card"><div class="val" id="aid-nfts">—</div><div class="lbl">NFTs Minted</div></div>
+  </div>
 
   <div class="card" style="max-width:520px;margin-bottom:32px">
     <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Lookup Agent</h3>
@@ -460,6 +476,18 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   </div>
 
   <div id="agent-result"></div>
+
+  <h3 style="font-size:18px;font-weight:600;margin:32px 0 16px">All Registered Agents</h3>
+  <div class="tw">
+    <table class="ct" id="agents-table">
+      <thead>
+        <tr><th>Name</th><th>Wallet</th><th>Chain</th><th>Trust</th><th>Tier</th><th>Badges</th><th></th></tr>
+      </thead>
+      <tbody id="agents-body">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading agents...</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ─── PAGE: TRADING ─── -->
@@ -610,10 +638,12 @@ function showPage(name) {
 
   // Lazy load data
   if (name === 'swap' && swapTokens.length === 0) loadSwapTokens();
+  if (name === 'portfolio') loadPortfolio();
   if (name === 'gpu') loadGPU();
   if (name === 'yields') loadYields('USDC');
   if (name === 'stocks') loadStocks();
   if (name === 'nfts') loadNFTs();
+  if (name === 'agentid') loadAgentList();
   if (name === 'trading') { loadAppWhales(); loadAppCopy(); }
 }
 
@@ -849,6 +879,57 @@ async function connectSpecific(type) {
 }
 
 // ══════════════════════════════════════
+// PORTFOLIO
+// ══════════════════════════════════════
+async function loadPortfolio() {
+  var content = document.getElementById('portfolio-content');
+  if (!wallet) {
+    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet supported</div></div>';
+    document.getElementById('pf-total').textContent = '$0.00';
+    document.getElementById('pf-tokens').textContent = '0';
+    document.getElementById('pf-chains').textContent = '0';
+    document.getElementById('pf-change').textContent = '0%';
+    return;
+  }
+
+  content.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Loading portfolio...</div>';
+
+  var chains = 'solana,base,ethereum,polygon,arbitrum,avalanche,bnb';
+  try {
+    var data = await api('/api/trading/portfolio/' + encodeURIComponent(wallet) + '?chains=' + chains);
+    var holdings = data.holdings || [];
+    var totalValue = data.total_value_usd || 0;
+
+    document.getElementById('pf-total').textContent = fmtUSD(totalValue);
+    document.getElementById('pf-tokens').textContent = holdings.length;
+
+    var chainSet = {};
+    holdings.forEach(function(h) { chainSet[h.chain] = true; });
+    document.getElementById('pf-chains').textContent = Object.keys(chainSet).length;
+    document.getElementById('pf-change').textContent = '+0.0%';
+
+    if (holdings.length > 0) {
+      content.innerHTML = '<div class="tw"><table class="ct"><thead><tr><th>Token</th><th>Chain</th><th>Balance</th><th>Price</th><th>Value</th><th></th></tr></thead><tbody>' +
+        holdings.map(function(h) {
+          return '<tr>' +
+            '<td style="font-weight:600">' + esc(h.token) + '</td>' +
+            '<td><span class="badge badge-purple" style="font-size:11px">' + esc((h.chain || 'solana').charAt(0).toUpperCase() + (h.chain || 'solana').slice(1)) + '</span></td>' +
+            '<td style="font-family:JetBrains Mono,monospace">' + fmtAmount(h.balance) + '</td>' +
+            '<td style="font-family:JetBrains Mono,monospace;color:var(--muted)">' + fmtUSD(h.price_usd) + '</td>' +
+            '<td style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">' + fmtUSD(h.value_usd) + '</td>' +
+            '<td><button onclick="goSwap(\'' + esc(h.token) + '\')" style="padding:4px 12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:Outfit">Swap</button></td>' +
+          '</tr>';
+        }).join('') +
+      '</tbody></table></div>';
+    } else {
+      content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">No holdings found</div><div class="sub">Your portfolio will appear here after your first trade</div></div>';
+    }
+  } catch (e) {
+    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Could not load portfolio</div><div class="sub">' + esc(e.message) + '</div></div>';
+  }
+}
+
+// ══════════════════════════════════════
 // SWAP
 // ══════════════════════════════════════
 async function loadSwapTokens() {
@@ -941,7 +1022,7 @@ async function getSwapQuote() {
       var out = amount * rate * 0.95;
       document.getElementById('swap-to-amount').value = fmtAmount(out);
       document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + fmtRate(rate) + ' ' + to;
-      document.getElementById('swap-fee').textContent = '~5%';
+      document.getElementById('swap-fee').textContent = '~0.10%';
       document.getElementById('swap-tier-info').textContent = 'BRONZE';
       info.style.display = 'flex';
       btn.textContent = wallet ? 'Swap ' + from + ' → ' + to : 'Connect wallet to swap';
@@ -1068,7 +1149,7 @@ async function loadYields(asset, btnEl) {
   }
 
   var tbody = document.getElementById('yields-body');
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>';
 
   try {
     var url = '/api/public/yield/best?asset=' + encodeURIComponent(asset || 'USDC') + '&limit=30';
@@ -1097,7 +1178,7 @@ async function loadYields(asset, btnEl) {
         '</tr>';
       }).join('');
     } else {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No yields found for ' + esc(asset || 'all assets') + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No yields found for ' + esc(asset || 'all assets') + '</td></tr>';
     }
   } catch (e) {
     var fallback = [
@@ -1119,6 +1200,7 @@ async function loadYields(asset, btnEl) {
         '<td>' + fmtUSD(p.tvl) + '</td>' +
         '<td><span class="badge ' + riskClass + '">' + p.risk + '</span></td>' +
         '<td style="color:var(--muted)">' + p.type + '</td>' +
+        '<td></td>' +
       '</tr>';
     }).join('');
   }
@@ -1267,22 +1349,78 @@ async function tradeStock(symbol, side) {
 // NFTs
 // ══════════════════════════════════════
 async function loadNFTs() {
-  var grid = document.getElementById('nfts-grid');
+  var nftGrid = document.getElementById('nfts-grid');
+  var agentsGrid = document.getElementById('agents-grid');
+
+  // Load NFT collection
   try {
     var data = await api('/api/nft/collection');
-    var nfts = data.nfts || data.collection || data || [];
+    var nfts = data.nfts || data.collection || [];
 
     if (Array.isArray(nfts) && nfts.length > 0) {
-      grid.innerHTML = nfts.map(function(n) {
+      nftGrid.innerHTML = nfts.map(function(n) {
+        var typeAttr = (n.attributes && n.attributes.type) || '';
+        var typeLabel = typeAttr === 'agent_id' ? 'Agent ID' : typeAttr === 'service_pass' ? 'Service Pass' : typeAttr === 'trust_attestation' ? 'Trust Attestation' : 'NFT';
+        var typeBadge = typeAttr === 'agent_id' ? 'badge-purple' : typeAttr === 'trust_attestation' ? 'badge-green' : typeAttr === 'service_pass' ? 'badge-orange' : '';
         return '<div class="card nft-card">' +
-          '<div class="nft-icon">' + (n.image ? '<img src="' + esc(n.image) + '" style="width:80px;height:80px;border-radius:12px;object-fit:cover" alt="">' : '&#127912;') + '</div>' +
+          '<div class="nft-icon">' + (n.image_url ? '<img src="' + esc(n.image_url) + '" style="width:80px;height:80px;border-radius:12px;object-fit:cover" alt="">' : '&#127912;') + '</div>' +
           '<div class="nft-name">' + esc(n.name || 'Untitled') + '</div>' +
+          '<div style="margin:6px 0"><span class="badge ' + typeBadge + '" style="font-size:11px">' + esc(typeLabel) + '</span> <span class="badge" style="font-size:11px">' + esc((n.chain || 'solana').toUpperCase()) + '</span></div>' +
           '<div class="nft-desc">' + esc(n.description || '') + '</div>' +
+          '<div style="font-size:11px;color:var(--muted2);margin-top:6px">' + esc(n.minted_at || '') + '</div>' +
         '</div>';
       }).join('');
+    } else {
+      nftGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">&#127912;</div><div class="msg">No NFTs minted yet</div><div class="sub">Mint your first one above!</div></div>';
     }
   } catch (e) {
-    // Keep empty state
+    nftGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">&#127912;</div><div class="msg">No NFTs minted yet</div><div class="sub">Mint your first one above!</div></div>';
+  }
+
+  // Load agents
+  try {
+    var agentData = await api('/api/nft/agents');
+    var agents = agentData.agents || [];
+    var nftsMinted = agentData.nfts_minted || 0;
+    var totalAgents = agentData.total || agents.length;
+
+    // Update stats
+    document.getElementById('nft-total-agents').textContent = totalAgents;
+    document.getElementById('nft-total-minted').textContent = nftsMinted;
+
+    if (agents.length > 0) {
+      var totalTrust = 0;
+      var totalBadges = 0;
+      agents.forEach(function(a) { totalTrust += (a.trust_score || 0); totalBadges += (a.badges || []).length; });
+      document.getElementById('nft-avg-trust').textContent = Math.round(totalTrust / agents.length);
+      document.getElementById('nft-total-badges').textContent = totalBadges;
+
+      agentsGrid.innerHTML = agents.map(function(a) {
+        var trust = a.trust_score || 50;
+        var trustColor = trust >= 70 ? 'var(--green)' : (trust >= 40 ? 'var(--orange)' : 'var(--red)');
+        var badges = a.badges || [];
+        var addr = a.agent_address || '';
+        var shortAddr = addr.length > 16 ? addr.slice(0,6) + '...' + addr.slice(-4) : addr;
+        return '<div class="card" style="text-align:center">' +
+          '<div style="font-size:32px;margin-bottom:8px">&#129302;</div>' +
+          '<div style="font-size:16px;font-weight:600;margin-bottom:4px">' + esc(a.name || 'Agent') + '</div>' +
+          '<div style="font-size:11px;color:var(--muted2);font-family:JetBrains Mono,monospace;margin-bottom:8px">' + esc(shortAddr) + '</div>' +
+          '<div style="margin-bottom:8px"><span class="badge badge-purple" style="font-size:11px">' + esc((a.chain || 'solana').toUpperCase()) + '</span> <span class="badge" style="font-size:11px">' + esc(a.tier || 'BRONZE') + '</span></div>' +
+          '<div style="font-family:JetBrains Mono,monospace;font-size:24px;font-weight:700;color:' + trustColor + ';margin-bottom:4px">' + trust + '</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Trust Score</div>' +
+          (badges.length > 0 ? '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">' + badges.map(function(b) { return '<span class="badge badge-green" style="font-size:10px">' + esc(b) + '</span>'; }).join('') + '</div>' : '') +
+          '<button class="btn-outline" style="margin-top:12px;font-size:12px;padding:6px 14px" onclick="document.getElementById(\'agent-address\').value=\'' + esc(addr) + '\';showPage(\'agentid\');lookupAgent()">View Details</button>' +
+        '</div>';
+      }).join('');
+    } else {
+      agentsGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">&#129302;</div><div class="msg">No agents registered yet</div><div class="sub">Register your AI agent to get an on-chain identity</div></div>';
+    }
+  } catch (e) {
+    agentsGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">&#129302;</div><div class="msg">Could not load agents</div><div class="sub">' + esc(e.message) + '</div></div>';
+    document.getElementById('nft-total-agents').textContent = '0';
+    document.getElementById('nft-total-minted').textContent = '0';
+    document.getElementById('nft-avg-trust').textContent = '—';
+    document.getElementById('nft-total-badges').textContent = '0';
   }
 }
 
@@ -1296,7 +1434,7 @@ async function mintNFT() {
   try {
     await api('/api/nft/mint', {
       method: 'POST',
-      body: JSON.stringify({ name: name, description: desc, owner_address: wallet, chain: walletType === 'phantom' ? 'solana' : 'ethereum' })
+      body: JSON.stringify({ name: name, description: desc || 'MAXIA NFT', owner_address: wallet, chain: walletType === 'phantom' ? 'solana' : 'ethereum' })
     });
     toast('NFT "' + name + '" minted successfully!', 'success');
     document.getElementById('nft-name').value = '';
@@ -1310,6 +1448,54 @@ async function mintNFT() {
 // ══════════════════════════════════════
 // AGENT ID
 // ══════════════════════════════════════
+async function loadAgentList() {
+  var tbody = document.getElementById('agents-body');
+  try {
+    var data = await api('/api/nft/agents');
+    var agents = data.agents || [];
+    var nftsMinted = data.nfts_minted || 0;
+    var totalAgents = data.total || agents.length;
+
+    // Update stats
+    document.getElementById('aid-total').textContent = totalAgents;
+    document.getElementById('aid-nfts').textContent = nftsMinted;
+
+    if (agents.length > 0) {
+      var totalTrust = 0;
+      var totalBadges = 0;
+      agents.forEach(function(a) { totalTrust += (a.trust_score || 0); totalBadges += (a.badges || []).length; });
+      document.getElementById('aid-avg-trust').textContent = Math.round(totalTrust / agents.length);
+      document.getElementById('aid-badges').textContent = totalBadges;
+
+      tbody.innerHTML = agents.map(function(a) {
+        var trust = a.trust_score || 50;
+        var trustColor = trust >= 70 ? 'var(--green)' : (trust >= 40 ? 'var(--orange)' : 'var(--red)');
+        var addr = a.agent_address || '';
+        var shortAddr = addr.length > 16 ? addr.slice(0,6) + '...' + addr.slice(-4) : addr;
+        var badges = a.badges || [];
+        var badgesHTML = badges.length > 0 ? badges.map(function(b) { return '<span class="badge badge-green" style="font-size:10px">' + esc(b) + '</span>'; }).join(' ') : '<span style="color:var(--muted2)">—</span>';
+        return '<tr>' +
+          '<td style="font-weight:600">' + esc(a.name || 'Agent') + '</td>' +
+          '<td style="font-size:11px;font-family:JetBrains Mono,monospace;color:var(--muted)">' + esc(shortAddr) + '</td>' +
+          '<td><span class="badge badge-purple" style="font-size:11px">' + esc((a.chain || 'solana').toUpperCase()) + '</span></td>' +
+          '<td style="font-weight:700;font-family:JetBrains Mono,monospace;color:' + trustColor + '">' + trust + '</td>' +
+          '<td><span class="badge" style="font-size:11px">' + esc(a.tier || 'BRONZE') + '</span></td>' +
+          '<td>' + badgesHTML + '</td>' +
+          '<td><button onclick="document.getElementById(\'agent-address\').value=\'' + esc(addr) + '\';lookupAgent()" style="padding:4px 12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:Outfit">Lookup</button></td>' +
+        '</tr>';
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No agents registered yet</td></tr>';
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Error loading agents: ' + esc(e.message) + '</td></tr>';
+    document.getElementById('aid-total').textContent = '0';
+    document.getElementById('aid-avg-trust').textContent = '—';
+    document.getElementById('aid-badges').textContent = '0';
+    document.getElementById('aid-nfts').textContent = '0';
+  }
+}
+
 async function lookupAgent() {
   var addr = document.getElementById('agent-address').value.trim();
   var resultDiv = document.getElementById('agent-result');

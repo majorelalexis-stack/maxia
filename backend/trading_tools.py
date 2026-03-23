@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/trading", tags=["trading-tools"])
 SUPPORTED_CHAINS = [
     "solana", "base", "ethereum", "xrp", "polygon",
     "arbitrum", "avalanche", "bnb", "ton", "sui", "tron",
+    "near", "aptos", "sei",
 ]
 
 # ── Stockage en memoire ──
@@ -59,13 +60,19 @@ def _deterministic_address(seed: str, chain: str) -> str:
         return "0x" + h[:64]
     if chain == "tron":
         return "T" + h[:33]
+    if chain == "near":
+        return h[:16] + ".near"
+    if chain == "aptos":
+        return "0x" + h[:64]
+    if chain == "sei":
+        return "sei1" + h[:38]
     return h[:42]
 
 
 def _deterministic_tx(seed: str, chain: str) -> str:
     """Genere un hash de transaction deterministe."""
     h = hashlib.sha256(f"tx:{seed}:{chain}".encode()).hexdigest()
-    if chain in ("base", "ethereum", "polygon", "arbitrum", "avalanche", "bnb", "sui"):
+    if chain in ("base", "ethereum", "polygon", "arbitrum", "avalanche", "bnb", "sui", "aptos", "sei"):
         return "0x" + h[:64]
     return h[:88]
 
@@ -84,6 +91,9 @@ def _generate_whale_movements(chain: str, count: int = 50) -> list[dict]:
         "ton": ["TON", "USDT"],
         "sui": ["SUI", "USDC"],
         "tron": ["TRX", "USDT", "USDC"],
+        "near": ["NEAR", "USDC"],
+        "aptos": ["APT", "USDC"],
+        "sei": ["SEI", "USDC"],
     }
     tokens = tokens_by_chain.get(chain, ["USDC", "USDT"])
     now = time.time()
@@ -630,6 +640,9 @@ async def get_portfolio(
         "ton": ["USDT"],
         "sui": ["USDC"],
         "tron": ["USDT", "USDC"],
+        "near": ["USDC"],
+        "aptos": ["USDC"],
+        "sei": ["USDC"],
     }
 
     for chain in chain_list:
