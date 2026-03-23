@@ -141,10 +141,19 @@ class BrowserAgent:
                 headless=False,
                 viewport={"width": 1280, "height": 900},
                 executable_path=chrome_path,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+                args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--no-restore-session-state", "--disable-session-crashed-bubble"],
+                ignore_default_args=["--enable-automation"],
             )
+            # Fermer tous les onglets restaures sauf un
+            pages = self._context.pages
+            if len(pages) > 1:
+                for p in pages[1:]:
+                    try:
+                        await p.close()
+                    except Exception:
+                        pass
             self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
-            # Ne pas ouvrir maxiaworld.app — aller sur about:blank
+            # Page vierge au demarrage
             try:
                 await self._page.goto("about:blank", timeout=5000)
             except Exception:
