@@ -1903,16 +1903,31 @@ class CEOLocal:
                 if result.get("success"):
                     liked += 1
 
-            # Commenter 1 tweet par cycle (le plus pertinent)
-            if commented == 0 and text and len(text) > 30 and not browser._is_duplicate("reply", url):
+            # Commenter 1 tweet tous les 3 cycles, max 5 commentaires/jour
+            today = time.strftime("%Y-%m-%d")
+            comments_today = sum(1 for c in self.memory.get("conversations", [])
+                                 if c.get("type") == "comment" and c.get("ts", "").startswith(today))
+            can_comment = (
+                commented == 0
+                and self._cycle % 3 == 0
+                and comments_today < 5
+                and text and len(text) > 30
+                and not browser._is_duplicate("reply", url)
+            )
+            if can_comment:
+                username = t.get("username", "")
+                # Ne pas commenter si on a deja commente ce user recemment
+                recent_users = {c.get("user") for c in self.memory.get("conversations", [])[-20:]
+                               if c.get("type") == "comment"}
+                if username and username in recent_users:
+                    continue
                 comment = await self._generate_smart_comment(text)
                 if comment:
                     result = await browser.reply_tweet(url, comment)
                     if result.get("success"):
                         commented += 1
                         browser._record_action("reply", browser._content_hash("reply", url))
-                        _log(f"[ENGAGE] Commented: {comment[:60]}")
-                        username = t.get("username", "")
+                        _log(f"[ENGAGE] Commented ({comments_today+1}/5 today): {comment[:60]}")
                         if username:
                             self.memory.setdefault("conversations", []).append({
                                 "user": username, "message": text[:80],
@@ -1923,8 +1938,10 @@ class CEOLocal:
         if liked or commented:
             _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
 
-        # Quote tweet 1 pertinent tweet per 3 cycles (high visibility)
-        if self._cycle % 3 == 0 and tweets:
+        # Quote tweet max 2/jour, tous les 6 cycles (~1h)
+        qt_today = sum(1 for a in self.memory.get("actions_done", [])
+                       if a.get("action") == "quote_tweet" and a.get("ts", "").startswith(time.strftime("%Y-%m-%d")))
+        if self._cycle % 6 == 0 and qt_today < 2 and tweets:
             best_tweet = None
             for t in tweets:
                 if t.get("url") and t.get("text") and len(t.get("text", "")) > 50:
