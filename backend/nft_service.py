@@ -100,6 +100,18 @@ async def list_agents():
                     created_str = datetime.datetime.utcfromtimestamp(created).strftime("%Y-%m-%dT%H:%M:%SZ")
                 else:
                     created_str = str(created)
+                # Calculer le vrai trust score
+                try:
+                    trust = await _compute_trust_score(wallet)
+                    score = trust["score"]
+                    badges = _compute_badges({
+                        "registered_at": created_str,
+                        "transactions_completed": trust["breakdown"].get("transaction_volume", 0),
+                        "trust_score": score,
+                    })
+                except Exception:
+                    score = 24
+                    badges = ["early_adopter"] if created_str < "2026-07-01" else []
                 agents.append({
                     "agent_address": wallet,
                     "name": dba.get("name", "Agent"),
@@ -108,8 +120,8 @@ async def list_agents():
                     "services_listed": dba.get("services_listed", 0),
                     "transactions_completed": 0,
                     "disputes": 0,
-                    "trust_score": 50,
-                    "badges": ["early_adopter"] if created_str < "2026-07-01" else [],
+                    "trust_score": score,
+                    "badges": badges,
                     "tier": dba.get("tier", "BRONZE"),
                 })
                 seen.add(wallet)
