@@ -144,6 +144,11 @@ class BrowserAgent:
                 args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
             )
             self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+            # Ne pas ouvrir maxiaworld.app — aller sur about:blank
+            try:
+                await self._page.goto("about:blank", timeout=5000)
+            except Exception:
+                pass
             self._initialized = True
             print("[BrowserAgent] Chrome lance avec profil persistant")
         except Exception as e:

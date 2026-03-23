@@ -1480,7 +1480,29 @@ async function executeSwap() {
   } else if (isSolanaWallet()) {
     await executeSolanaSwap(from, to, amount);
   } else {
-    toast('Swap not yet supported for this wallet type. Use Phantom (Solana) or MetaMask (EVM).', 'error');
+    // Other chains — redirect to native DEX
+    var dexLinks = {
+      'xrp': {name: 'XRPL DEX', url: 'https://sologenic.org/trade'},
+      'ton': {name: 'STON.fi', url: 'https://app.ston.fi/swap'},
+      'sui': {name: 'Cetus', url: 'https://app.cetus.zone/swap'},
+      'tron': {name: 'SunSwap', url: 'https://sunswap.com/#/v3/swap'},
+      'near': {name: 'Ref Finance', url: 'https://app.ref.finance/'},
+      'aptos': {name: 'PancakeSwap', url: 'https://aptos.pancakeswap.finance/swap'},
+      'sei': {name: 'DragonSwap', url: 'https://dragonswap.app/swap'},
+    };
+    var chain = (walletType || '').toLowerCase();
+    var dex = dexLinks[chain];
+    if (dex) {
+      setSwapStatus(
+        '<div style="padding:16px;background:rgba(0,229,204,.05);border:1px solid rgba(0,229,204,.2);border-radius:12px">' +
+        '<div style="font-weight:600;margin-bottom:8px">Swap via ' + dex.name + '</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">' + from + ' → ' + to + ' swap on ' + chain.toUpperCase() + ' is executed via ' + dex.name + '</div>' +
+        '<a href="' + dex.url + '" target="_blank" style="display:inline-block;padding:10px 24px;background:var(--cyan);color:var(--bg);border-radius:8px;font-weight:600;text-decoration:none">Open ' + dex.name + ' →</a>' +
+        '</div>', 'pending'
+      );
+    } else {
+      toast('Connect Phantom (Solana) or MetaMask (EVM) to swap', 'error');
+    }
   }
 }
 
