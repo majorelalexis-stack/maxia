@@ -241,10 +241,10 @@ COMPETITOR_FEES = {
 
 # Commission MAXIA par palier (toujours <= au concurrent le moins cher + slippage)
 SWAP_COMMISSION_TIERS = {
-    "BRONZE":  {"min_volume": 0,     "max_volume": 1000,   "bps": 15},   # 0.15%
-    "SILVER":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 8},    # 0.08%
-    "GOLD":    {"min_volume": 5000,  "max_volume": 25000,  "bps": 5},    # 0.05%
-    "WHALE":   {"min_volume": 25000, "max_volume": float("inf"), "bps": 2},  # 0.02%
+    "BRONZE":  {"min_volume": 0,     "max_volume": 1000,   "bps": 10},   # 0.10% = Binance
+    "SILVER":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 5},    # 0.05% < Binance
+    "GOLD":    {"min_volume": 5000,  "max_volume": 25000,  "bps": 3},    # 0.03% < tout le monde
+    "WHALE":   {"min_volume": 25000, "max_volume": float("inf"), "bps": 1},  # 0.01% imbattable
 }
 
 # Cache prix
@@ -266,7 +266,7 @@ def get_swap_commission_bps(volume_30d: float) -> int:
     for tier_name, tier in SWAP_COMMISSION_TIERS.items():
         if tier["min_volume"] <= volume_30d < tier["max_volume"]:
             return tier["bps"]
-    return 15
+    return 10
 
 
 def get_swap_tier_name(volume_30d: float) -> str:

@@ -129,16 +129,16 @@ RAILWAY_API_TOKEN         = os.getenv("RAILWAY_API_TOKEN", "")
 
 # ── Commissions (base — ajustables par Dynamic Pricing) ──
 COMMISSION_TIERS = [
-    {"name": "BRONZE",  "min_volume": 0,    "max_volume": 500,  "rate_bps": 500},
-    {"name": "GOLD",    "min_volume": 500,  "max_volume": 5000, "rate_bps": 100},
-    {"name": "WHALE",   "min_volume": 5000, "max_volume": None, "rate_bps": 10},
+    {"name": "BRONZE",  "min_volume": 0,    "max_volume": 500,  "rate_bps": 100},   # 1% (moins cher que la plupart des marketplaces 15-30%)
+    {"name": "GOLD",    "min_volume": 500,  "max_volume": 5000, "rate_bps": 50},    # 0.5%
+    {"name": "WHALE",   "min_volume": 5000, "max_volume": None, "rate_bps": 10},    # 0.1%
 ]
 
 def get_commission_bps(volume_30d: float) -> int:
     for tier in reversed(COMMISSION_TIERS):
         if volume_30d >= tier["min_volume"]:
             return tier["rate_bps"]
-    return 500
+    return 100
 
 # ── GPU Tiers ──
 GPU_TIERS = [
