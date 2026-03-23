@@ -215,16 +215,15 @@ class BrowserAgent:
                 el = page.locator(sel).first
                 if await el.is_visible(timeout=timeout):
                     await el.click()
-                    await el.fill(text)
-                    return True
+                    try:
+                        await el.fill(text)
+                        return True
+                    except Exception:
+                        # fill() echoue sur contenteditable — fallback keyboard.type()
+                        await page.keyboard.type(text, delay=15)
+                        return True
             except Exception:
                 continue
-        # Fallback: taper au clavier
-        try:
-            await page.keyboard.type(text, delay=30)
-            return True
-        except Exception:
-            pass
         print(f"[BrowserAgent] {description}: aucun selector trouve")
         return False
 
