@@ -1257,22 +1257,16 @@ async function executeSwap() {
       throw new Error('Wallet provider not found. Please reconnect your wallet.');
     }
 
-    // Sign the transaction
-    var signedTx = await provider.signTransaction(transaction);
-
-    // ── Step 4: Send to Solana network ──
+    // ── Step 4: Sign AND Send via wallet (Phantom uses its own RPC — no 403) ──
     btn.textContent = 'Sending transaction...';
-    setSwapStatus('<span class="swap-spinner"></span>Sending signed transaction to Solana...', 'confirming');
+    setSwapStatus('<span class="swap-spinner"></span>Signing and sending via wallet...', 'confirming');
 
-    var connection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
-
-    // Serialize the signed transaction
-    var rawTx = signedTx.serialize();
-    var txSignature = await connection.sendRawTransaction(rawTx, {
+    var result = await provider.signAndSendTransaction(transaction, {
       skipPreflight: false,
       maxRetries: 3,
       preflightCommitment: 'confirmed'
     });
+    var txSignature = result.signature || result;
 
     // ── Step 5: Confirm transaction ──
     btn.textContent = 'Confirming...';
