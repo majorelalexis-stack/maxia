@@ -1413,19 +1413,16 @@ function showRentDialog(tierId, name, pricePerHr) {
     '<div style="background:var(--card);border:1px solid var(--muted2);border-radius:16px;padding:32px;max-width:420px;width:90%">' +
       '<h3 style="margin:0 0 8px">' + esc(name) + '</h3>' +
       '<p style="color:var(--muted);margin:0 0 20px">$' + pricePerHr.toFixed(2) + '/hr — SSH + Jupyter included</p>' +
-      (isTrial ? '<div style="background:rgba(0,200,200,.1);border:1px solid var(--cyan);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">' +
-        '<strong style="color:var(--cyan)">Free Trial Available</strong><br>10 minutes free — no payment needed' +
-      '</div>' : '') +
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">Duration (hours)</label>' +
       '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
       '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:16px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
-      '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (leave empty for free trial)</label>' +
-      '<input type="text" id="gpu-rent-tx" placeholder="' + (isTrial ? 'Leave empty for free trial' : 'Solana USDC tx signature') + '" ' +
+      '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (send USDC to Treasury first)</label>' +
+      '<input type="text" id="gpu-rent-tx" placeholder="Solana USDC tx signature" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +
       '<div style="display:flex;gap:12px">' +
         '<button class="btn-green" style="flex:1" onclick="executeGpuRent(\'' + esc(tierId) + '\', \'' + esc(name) + '\')" id="btn-gpu-rent">' +
-          (isTrial ? 'Start Free Trial' : 'Rent GPU') +
+          'Rent GPU' +
         '</button>' +
         '<button class="btn-outline" style="flex:0 0 auto" onclick="closeGpuModal()">Cancel</button>' +
       '</div>' +

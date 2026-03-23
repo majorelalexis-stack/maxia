@@ -2283,9 +2283,9 @@ async def get_gpu_tiers_public():
 
 @app.post("/api/gpu/rent")
 async def rent_gpu_direct(req: dict):
-    """Rent a GPU directly. Supports free trial (10 min RTX 4090) or paid via USDC tx.
+    """Rent a GPU. Requires USDC payment verified on-chain.
 
-    Body: { gpu: str (tier ID or label), wallet: str, hours: float, payment_tx?: str }
+    Body: { gpu: str (tier ID or label), wallet: str, hours: float, payment_tx: str }
     """
     gpu_input = req.get("gpu") or req.get("gpu_tier_id", "")
     wallet = req.get("wallet", "")
@@ -2294,6 +2294,8 @@ async def rent_gpu_direct(req: dict):
 
     if not wallet:
         raise HTTPException(400, "Wallet address required")
+    if not payment_tx:
+        raise HTTPException(402, "USDC payment required. Send payment to Treasury and include payment_tx.")
     if hours <= 0 or hours > 720:
         raise HTTPException(400, "Hours must be between 0 and 720")
 
@@ -2308,32 +2310,8 @@ async def rent_gpu_direct(req: dict):
     cost_per_hr = gpu_config.get("base_price_per_hour", 0)
     total_cost = round(cost_per_hr * hours, 4)
 
-    # Determine if this is a free trial
     is_free_trial = False
-    if not payment_tx:
-        # Check free trial eligibility
-        existing = await db.raw_execute_fetchall(
-            "SELECT COUNT(*) as cnt FROM gpu_instances WHERE agent_wallet=? AND payment_tx='free_trial'",
-            (wallet,)
-        )
-        used_trials = existing[0][0] if existing else 0
-
-        if used_trials > 0:
-            raise HTTPException(402, "Free trial already used. Send USDC payment and include payment_tx.")
-
-        if tier_id != FREE_TRIAL_GPU:
-            raise HTTPException(402, f"Free trial only available for {FREE_TRIAL_GPU}. Send USDC payment for {tier_id}.")
-
-        if hours > FREE_TRIAL_MINUTES / 60:
-            raise HTTPException(402, f"Free trial limited to {FREE_TRIAL_MINUTES} minutes. Send USDC payment for longer rentals.")
-
-        is_free_trial = True
-        hours = FREE_TRIAL_MINUTES / 60  # cap at 10 min
-        total_cost = 0
-        payment_tx = "free_trial"
-        print(f"[GPU Rent] Free trial approved for {wallet}")
-
-    else:
+    if True:
         # Verify USDC payment on-chain
         if await db.tx_already_processed(payment_tx):
             raise HTTPException(400, "Transaction already processed.")
