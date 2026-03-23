@@ -1278,40 +1278,189 @@ async function loadPortfolio() {
     return;
   }
 
-  content.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Loading portfolio...</div>';
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div class="swap-spinner" style="width:24px;height:24px;border-width:3px;margin-bottom:12px"></div><br>Reading on-chain balances...</div>';
 
-  var chains = 'solana,base,ethereum,polygon,arbitrum,avalanche,bnb';
+  // Fetch prices from backend (best-effort)
+  var prices = {};
   try {
-    var data = await api('/api/trading/portfolio/' + encodeURIComponent(wallet) + '?chains=' + chains);
-    var holdings = data.holdings || [];
-    var totalValue = data.total_value_usd || 0;
+    var priceResp = await fetch('/api/public/crypto/prices');
+    var priceData = await priceResp.json();
+    prices = priceData.prices || {};
+  } catch(e) { /* prices stay empty, values will show $0 */ }
 
-    document.getElementById('pf-total').textContent = fmtUSD(totalValue);
+  var holdings = [];
+  var chainSet = {};
+
+  try {
+    // ── Solana wallet: read SOL + all SPL token accounts on-chain ──
+    if (isSolanaWallet()) {
+      var connection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
+      var publicKey = new solanaWeb3.PublicKey(wallet);
+
+      // 1) SOL native balance
+      var solLamports = await connection.getBalance(publicKey);
+      var solAmount = solLamports / 1e9;
+      var solPrice = (prices.SOL && prices.SOL.price) ? prices.SOL.price : 0;
+
+      if (solAmount > 0.0001) {
+        holdings.push({
+          token: 'SOL',
+          balance: solAmount,
+          price: solPrice,
+          value: solAmount * solPrice,
+          mint: 'So11111111111111111111111111111111111111112',
+          chain: 'Solana'
+        });
+      }
+
+      // 2) All SPL token accounts
+      var tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+        programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+      });
+
+      // Build reverse map: mint address -> symbol
+      var mintToSymbol = {};
+      for (var sym in TOKEN_MINTS) {
+        mintToSymbol[TOKEN_MINTS[sym].mint] = sym;
+      }
+
+      tokenAccounts.value.forEach(function(acc) {
+        var info = acc.account.data.parsed.info;
+        var mint = info.mint;
+        var amount = parseFloat(info.tokenAmount.uiAmountString || '0');
+        if (amount > 0) {
+          var symbol = mintToSymbol[mint] || (mint.slice(0, 4) + '...' + mint.slice(-4));
+          var tokenPrice = (prices[symbol] && prices[symbol].price) ? prices[symbol].price : 0;
+          holdings.push({
+            token: symbol,
+            balance: amount,
+            price: tokenPrice,
+            value: amount * tokenPrice,
+            mint: mint,
+            chain: 'Solana'
+          });
+        }
+      });
+
+      chainSet['Solana'] = true;
+    }
+
+    // ── EVM wallet: read native balance + known ERC-20 tokens ──
+    if (isEvmWallet() && window.ethereum) {
+      var chainId = await getEvmChainId();
+      var chainInfo = EVM_CHAINS[chainId];
+      var chainName = chainInfo ? chainInfo.name : ('EVM #' + chainId);
+      var nativeSymbol = chainInfo ? chainInfo.symbol : 'ETH';
+
+      // 1) Native balance (ETH, POL, AVAX, BNB, etc.)
+      var rawBal = await window.ethereum.request({
+        method: 'eth_getBalance',
+        params: [wallet, 'latest']
+      });
+      var nativeWei = parseInt(rawBal, 16);
+      var nativeAmount = nativeWei / 1e18;
+      var nativePrice = (prices[nativeSymbol] && prices[nativeSymbol].price) ? prices[nativeSymbol].price : 0;
+
+      if (nativeAmount > 0.00001) {
+        holdings.push({
+          token: nativeSymbol,
+          balance: nativeAmount,
+          price: nativePrice,
+          value: nativeAmount * nativePrice,
+          mint: EVM_NATIVE,
+          chain: chainName
+        });
+      }
+
+      // 2) ERC-20 tokens from EVM_TOKENS for the current chain
+      var chainTokens = EVM_TOKENS[chainId] || {};
+      var erc20BalanceOf = '0x70a08231'; // balanceOf(address) selector
+
+      // Pad wallet address to 32 bytes for calldata
+      var paddedWallet = '000000000000000000000000' + wallet.replace('0x', '').toLowerCase();
+
+      var erc20Promises = [];
+      var erc20Symbols = [];
+
+      for (var tokenSym in chainTokens) {
+        var tokenInfo = chainTokens[tokenSym];
+        // Skip native token (already fetched above)
+        if (tokenInfo.address === EVM_NATIVE) continue;
+
+        erc20Symbols.push({ symbol: tokenSym, decimals: tokenInfo.decimals, address: tokenInfo.address });
+        erc20Promises.push(
+          window.ethereum.request({
+            method: 'eth_call',
+            params: [{
+              to: tokenInfo.address,
+              data: erc20BalanceOf + paddedWallet
+            }, 'latest']
+          }).catch(function() { return '0x0'; })
+        );
+      }
+
+      var erc20Results = await Promise.all(erc20Promises);
+
+      for (var i = 0; i < erc20Results.length; i++) {
+        var rawVal = erc20Results[i];
+        if (!rawVal || rawVal === '0x' || rawVal === '0x0') continue;
+        var bigVal = parseInt(rawVal, 16);
+        if (isNaN(bigVal) || bigVal === 0) continue;
+
+        var erc20Info = erc20Symbols[i];
+        var erc20Amount = bigVal / Math.pow(10, erc20Info.decimals);
+
+        if (erc20Amount > 0.00001) {
+          var erc20Price = (prices[erc20Info.symbol] && prices[erc20Info.symbol].price) ? prices[erc20Info.symbol].price : 0;
+          holdings.push({
+            token: erc20Info.symbol,
+            balance: erc20Amount,
+            price: erc20Price,
+            value: erc20Amount * erc20Price,
+            mint: erc20Info.address,
+            chain: chainName
+          });
+        }
+      }
+
+      chainSet[chainName] = true;
+    }
+
+    // Sort by value descending (tokens with value first, then by balance)
+    holdings.sort(function(a, b) {
+      if (b.value !== a.value) return b.value - a.value;
+      return b.balance - a.balance;
+    });
+
+    // Calculate totals
+    var totalValue = holdings.reduce(function(sum, h) { return sum + h.value; }, 0);
+
+    // Update stat cards
+    document.getElementById('pf-total').textContent = '$' + totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     document.getElementById('pf-tokens').textContent = holdings.length;
-
-    var chainSet = {};
-    holdings.forEach(function(h) { chainSet[h.chain] = true; });
     document.getElementById('pf-chains').textContent = Object.keys(chainSet).length;
-    document.getElementById('pf-change').textContent = '+0.0%';
+    document.getElementById('pf-change').textContent = '--'; // No 24h change from on-chain data
 
+    // Render table
     if (holdings.length > 0) {
       content.innerHTML = '<div class="tw"><table class="ct"><thead><tr><th>Token</th><th>Chain</th><th>Balance</th><th>Price</th><th>Value</th><th></th></tr></thead><tbody>' +
         holdings.map(function(h) {
           return '<tr>' +
             '<td style="font-weight:600">' + esc(h.token) + '</td>' +
-            '<td><span class="badge badge-purple" style="font-size:11px">' + esc((h.chain || 'solana').charAt(0).toUpperCase() + (h.chain || 'solana').slice(1)) + '</span></td>' +
+            '<td><span class="badge badge-purple" style="font-size:11px">' + esc(h.chain) + '</span></td>' +
             '<td style="font-family:JetBrains Mono,monospace">' + fmtAmount(h.balance) + '</td>' +
-            '<td style="font-family:JetBrains Mono,monospace;color:var(--muted)">' + fmtUSD(h.price_usd) + '</td>' +
-            '<td style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">' + fmtUSD(h.value_usd) + '</td>' +
+            '<td style="font-family:JetBrains Mono,monospace;color:var(--muted)">' + (h.price > 0 ? fmtUSD(h.price) : '<span style="color:var(--muted2)">--</span>') + '</td>' +
+            '<td style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">' + (h.value > 0 ? fmtUSD(h.value) : '<span style="color:var(--muted2)">$0.00</span>') + '</td>' +
             '<td><button onclick="goSwap(\'' + esc(h.token) + '\')" style="padding:4px 12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:Outfit">Swap</button></td>' +
           '</tr>';
         }).join('') +
       '</tbody></table></div>';
     } else {
-      content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">No holdings found</div><div class="sub">Your portfolio will appear here after your first trade</div></div>';
+      content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">No tokens found in this wallet</div><div class="sub">Your tokens will appear here once you hold SOL, USDC, or any SPL/ERC-20 token</div></div>';
     }
   } catch (e) {
-    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Could not load portfolio</div><div class="sub">' + esc(e.message) + '</div></div>';
+    console.error('Portfolio load error:', e);
+    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Could not load portfolio</div><div class="sub">' + esc(e.message || 'RPC error — try again in a moment') + '</div></div>';
   }
 }
 

@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import math
 import random
 import time
 import uuid
@@ -43,6 +44,81 @@ _followed_wallets: dict[str, list[str]] = defaultdict(list)  # user -> [wallet_a
 
 # Price alerts
 _alerts: dict[str, dict] = {}  # alert_id -> alert_data
+
+# ── CoinGecko historical price cache (for real technical analysis) ──
+_cg_history_cache: dict[str, dict] = {}  # token -> {"prices": [...], "ts": float}
+_CG_HISTORY_TTL = 300  # 5 minutes cache
+
+# Symbol -> CoinGecko ID mapping for market_chart API
+_SYM_TO_COINGECKO_ID: dict[str, str] = {
+    "SOL": "solana", "ETH": "ethereum", "BTC": "bitcoin",
+    "USDC": "usd-coin", "USDT": "tether",
+    "BONK": "bonk", "JUP": "jupiter-exchange-solana", "RAY": "raydium",
+    "WIF": "dogwifcoin", "RENDER": "render-token", "HNT": "helium",
+    "TRUMP": "official-trump", "PYTH": "pyth-network", "W": "wormhole",
+    "ORCA": "orca", "JTO": "jito-governance-token", "TNSR": "tensor",
+    "MEW": "cat-in-a-dogs-world", "POPCAT": "popcat", "MOBILE": "helium-mobile",
+    "MNDE": "marinade", "MSOL": "msol", "JITOSOL": "jito-staked-sol",
+    "BSOL": "blazestake-staked-sol", "DRIFT": "drift-protocol",
+    "KMNO": "kamino", "PENGU": "pudgy-penguins", "AI16Z": "ai16z",
+    "FARTCOIN": "fartcoin", "GRASS": "grass", "ZEUS": "zeus-network",
+    "NOSOL": "nosana", "SAMO": "samoyedcoin", "STEP": "step-finance",
+    "BOME": "book-of-meme", "SLERF": "slerf", "MPLX": "metaplex",
+    "INF": "infinity-by-sanctum", "PNUT": "peanut-the-squirrel",
+    "GOAT": "goatseus-maximus",
+    "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
+    "LDO": "lido-dao", "VIRTUAL": "virtual-protocol", "OLAS": "autonolas",
+    "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
+    "DOGE": "dogecoin", "SHIB": "shiba-inu",
+    "XRP": "ripple", "MATIC": "matic-network", "AVAX": "avalanche-2",
+    "BNB": "binancecoin", "TON": "the-open-network", "SUI": "sui",
+    "TRX": "tron", "NEAR": "near", "APT": "aptos", "SEI": "sei-network",
+    "ARB": "arbitrum",
+}
+
+
+async def _fetch_coingecko_history(token: str) -> list[float]:
+    """Fetch 30-day price history from CoinGecko. Returns list of daily close prices.
+
+    Uses a 5-minute cache to avoid rate-limiting.
+    """
+    token = token.upper()
+    now = time.time()
+
+    # Check cache
+    cached = _cg_history_cache.get(token)
+    if cached and now - cached["ts"] < _CG_HISTORY_TTL:
+        return cached["prices"]
+
+    cg_id = _SYM_TO_COINGECKO_ID.get(token)
+    if not cg_id:
+        return []
+
+    url = f"https://api.coingecko.com/api/v3/coins/{cg_id}/market_chart?vs_currency=usd&days=30"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                # data["prices"] = [[timestamp_ms, price], ...]
+                raw_prices = data.get("prices", [])
+                if raw_prices:
+                    prices = [p[1] for p in raw_prices]
+                    _cg_history_cache[token] = {"prices": prices, "ts": now}
+                    print(f"[TradingSignals] CoinGecko history: {len(prices)} data points for {token}")
+                    return prices
+            elif resp.status_code == 429:
+                print(f"[TradingSignals] CoinGecko rate-limited for {token}")
+            else:
+                print(f"[TradingSignals] CoinGecko history HTTP {resp.status_code} for {token}")
+    except Exception as e:
+        print(f"[TradingSignals] CoinGecko history error for {token}: {e}")
+
+    # Return cached data even if stale, rather than nothing
+    if cached:
+        return cached["prices"]
+    return []
+
 
 # ── Helpers ──
 
@@ -385,65 +461,170 @@ def _calc_rsi(prices: list[float], period: int = 14) -> Optional[float]:
 
 
 def _calc_macd(prices: list[float]) -> Optional[dict]:
-    """MACD (12, 26, 9)."""
-    ema12 = _calc_ema(prices, 12)
-    ema26 = _calc_ema(prices, 26)
-    if ema12 is None or ema26 is None:
+    """MACD (12, 26, 9) with proper signal line computed as 9-period EMA of MACD series."""
+    if len(prices) < 26:
         return None
-    macd_line = round(ema12 - ema26, 6)
-    # Signal line: EMA 9 of MACD — approximate with recent trend
-    signal = round(macd_line * 0.8, 6)  # Approximation simplifiee
-    histogram = round(macd_line - signal, 6)
-    return {"macd_line": macd_line, "signal_line": signal, "histogram": histogram}
+
+    # Build full MACD line series by computing EMA12 - EMA26 at each point
+    # We need at least 26 data points to start, then compute EMA incrementally
+    multiplier_12 = 2 / (12 + 1)
+    multiplier_26 = 2 / (26 + 1)
+
+    ema12 = sum(prices[:12]) / 12
+    ema26 = sum(prices[:26]) / 26
+
+    # Fast-forward EMA12 to position 25
+    for i in range(12, 26):
+        ema12 = (prices[i] - ema12) * multiplier_12 + ema12
+
+    macd_series = [ema12 - ema26]
+
+    # Compute MACD series from position 26 onward
+    for i in range(26, len(prices)):
+        ema12 = (prices[i] - ema12) * multiplier_12 + ema12
+        ema26 = (prices[i] - ema26) * multiplier_26 + ema26
+        macd_series.append(ema12 - ema26)
+
+    # Signal line = 9-period EMA of MACD series
+    macd_line = macd_series[-1]
+    if len(macd_series) >= 9:
+        multiplier_9 = 2 / (9 + 1)
+        signal = sum(macd_series[:9]) / 9
+        for val in macd_series[9:]:
+            signal = (val - signal) * multiplier_9 + signal
+    else:
+        signal = sum(macd_series) / len(macd_series)
+
+    histogram = macd_line - signal
+    return {
+        "macd_line": round(macd_line, 6),
+        "signal_line": round(signal, 6),
+        "histogram": round(histogram, 6),
+    }
+
+
+def _calc_bollinger(prices: list[float], period: int = 20) -> Optional[dict]:
+    """Bollinger Bands (SMA +/- 2 standard deviations)."""
+    if len(prices) < period:
+        return None
+    recent = prices[-period:]
+    sma = sum(recent) / period
+    variance = sum((p - sma) ** 2 for p in recent) / period
+    std = math.sqrt(variance)
+    return {
+        "upper": round(sma + 2 * std, 6),
+        "middle": round(sma, 6),
+        "lower": round(sma - 2 * std, 6),
+        "bandwidth": round((4 * std / sma * 100) if sma else 0, 2),  # % width
+    }
 
 
 def _determine_signal(rsi: Optional[float], sma_20: Optional[float],
                       sma_50: Optional[float], macd: Optional[dict],
-                      current_price: float) -> str:
-    """Determine le signal technique global."""
-    score = 0  # -2 a +2
+                      bollinger: Optional[dict],
+                      current_price: float) -> dict:
+    """Determine le signal technique global avec confidence score.
 
-    # RSI
+    Uses a directional score (-100..+100, positive=bullish, negative=bearish)
+    then converts to signal + confidence (0-100%).
+
+    Returns {"signal": str, "confidence": int, "reasons": list[str]}
+    """
+    score = 0  # -100 (max bearish) to +100 (max bullish)
+    max_possible = 0  # Track how many indicators contributed
+    reasons = []
+
+    # RSI (weight: 25 points)
     if rsi is not None:
+        max_possible += 25
         if rsi < 30:
-            score += 2  # Survendu -> BUY
+            score += 25
+            reasons.append(f"RSI {rsi:.1f} — oversold (<30)")
         elif rsi < 40:
-            score += 1
+            score += 12
+            reasons.append(f"RSI {rsi:.1f} — approaching oversold")
         elif rsi > 70:
-            score -= 2  # Surachete -> SELL
+            score -= 25
+            reasons.append(f"RSI {rsi:.1f} — overbought (>70)")
         elif rsi > 60:
-            score -= 1
-
-    # SMA crossover
-    if sma_20 is not None and sma_50 is not None:
-        if sma_20 > sma_50:
-            score += 1  # Golden cross
+            score -= 12
+            reasons.append(f"RSI {rsi:.1f} — approaching overbought")
         else:
-            score -= 1  # Death cross
+            reasons.append(f"RSI {rsi:.1f} — neutral zone")
 
-    # Price vs SMA
-    if sma_20 is not None:
-        if current_price > sma_20:
-            score += 0.5
-        else:
-            score -= 0.5
-
-    # MACD
+    # MACD (weight: 20 points)
     if macd is not None:
-        if macd["histogram"] > 0:
-            score += 1
+        max_possible += 20
+        if macd["histogram"] > 0 and macd["macd_line"] > macd["signal_line"]:
+            score += 20
+            reasons.append("MACD bullish — histogram positive, line above signal")
+        elif macd["histogram"] < 0 and macd["macd_line"] < macd["signal_line"]:
+            score -= 20
+            reasons.append("MACD bearish — histogram negative, line below signal")
+        elif macd["histogram"] > 0:
+            score += 10
+            reasons.append("MACD slightly bullish — positive histogram")
         else:
-            score -= 1
+            score -= 10
+            reasons.append("MACD slightly bearish — negative histogram")
 
-    if score >= 3:
-        return "STRONG_BUY"
-    elif score >= 1:
-        return "BUY"
-    elif score <= -3:
-        return "STRONG_SELL"
-    elif score <= -1:
-        return "SELL"
-    return "NEUTRAL"
+    # SMA crossover (weight: 15 points)
+    if sma_20 is not None and sma_50 is not None:
+        max_possible += 15
+        if sma_20 > sma_50:
+            score += 15
+            reasons.append(f"Golden cross — SMA20 ({sma_20:.2f}) > SMA50 ({sma_50:.2f})")
+        else:
+            score -= 15
+            reasons.append(f"Death cross — SMA20 ({sma_20:.2f}) < SMA50 ({sma_50:.2f})")
+
+    # Price vs SMA50 — trend direction (weight: 10 points)
+    if sma_50 is not None:
+        max_possible += 10
+        if current_price > sma_50:
+            score += 10
+            reasons.append("Price above SMA50 — uptrend")
+        else:
+            score -= 10
+            reasons.append("Price below SMA50 — downtrend")
+
+    # Bollinger Bands (weight: 20 points)
+    if bollinger is not None:
+        max_possible += 20
+        if current_price < bollinger["lower"]:
+            score += 20
+            reasons.append(f"Price below lower Bollinger ({bollinger['lower']:.2f}) — potential bounce")
+        elif current_price > bollinger["upper"]:
+            score -= 20
+            reasons.append(f"Price above upper Bollinger ({bollinger['upper']:.2f}) — potential pullback")
+        else:
+            reasons.append(f"Price within Bollinger Bands ({bollinger['lower']:.2f} - {bollinger['upper']:.2f})")
+
+    # ── Convert directional score to signal + confidence ──
+    # Confidence = how far from neutral (0) the score is, scaled to 0-100
+    if max_possible > 0:
+        # Normalize score to -100..+100 range based on available indicators
+        normalized = (score / max_possible) * 100
+    else:
+        normalized = 0
+
+    # Map: |normalized| -> confidence (50 = neutral, 100 = maximum conviction)
+    confidence = int(50 + abs(normalized) / 2)
+    confidence = max(0, min(100, confidence))
+
+    # Determine signal from direction + strength
+    if normalized >= 50:
+        signal = "STRONG_BUY"
+    elif normalized >= 15:
+        signal = "BUY"
+    elif normalized <= -50:
+        signal = "STRONG_SELL"
+    elif normalized <= -15:
+        signal = "SELL"
+    else:
+        signal = "NEUTRAL"
+
+    return {"signal": signal, "confidence": confidence, "reasons": reasons}
 
 
 # ── Modeles Pydantic ──
@@ -811,13 +992,13 @@ async def get_portfolio(
 
 @router.get("/signals/{token}")
 async def get_technical_signals(token: str):
-    """Signaux techniques (RSI, SMA, EMA, MACD) pour un token."""
+    """Signaux techniques reels (RSI, SMA, EMA, MACD, Bollinger) basés sur 30 jours de prix CoinGecko."""
     token = token.upper()
 
-    # Recuperer le prix actuel
+    # Recuperer le prix actuel via price_oracle
     try:
-        prices = await get_prices([token])
-        price_data = prices.get(token, {})
+        live = await get_prices([token])
+        price_data = live.get(token, {})
         current_price = price_data.get("price", FALLBACK_PRICES.get(token, 0))
     except Exception:
         current_price = FALLBACK_PRICES.get(token, 0)
@@ -825,47 +1006,88 @@ async def get_technical_signals(token: str):
     if current_price == 0:
         raise HTTPException(404, f"Token inconnu: {token}")
 
-    # Stocker le snapshot
-    _store_price_snapshot(token, current_price)
+    # ── Fetch REAL 30-day price history from CoinGecko ──
+    cg_prices = await _fetch_coingecko_history(token)
+    source = "real"
+    data_points = len(cg_prices)
 
-    # Construire les candles 1h pour l'analyse
-    candles = _build_candles(token, "1h", 100)
-    close_prices = [c["close"] for c in candles]
+    if cg_prices and len(cg_prices) >= 2:
+        close_prices = cg_prices
+    else:
+        # Fallback: use in-memory candles (synthetic)
+        source = "synthetic"
+        _store_price_snapshot(token, current_price)
+        candles = _build_candles(token, "1h", 100)
+        close_prices = [c["close"] for c in candles]
+        data_points = len(close_prices)
 
     if len(close_prices) < 2:
         return {
             "token": token,
             "price": current_price,
             "signal": "NEUTRAL",
-            "rsi": None,
-            "sma_20": None,
-            "sma_50": None,
-            "ema_12": None,
-            "ema_26": None,
-            "macd": None,
-            "note": "Pas assez de donnees historiques",
+            "confidence": 50,
+            "source": source,
+            "data_points": data_points,
+            "period": "30d" if source == "real" else "in-memory",
+            "indicators": {},
+            "reasons": ["Pas assez de donnees historiques"],
             "updated_at": int(time.time()),
         }
 
+    # ── Compute all technical indicators from real price history ──
     rsi = _calc_rsi(close_prices, 14)
     sma_20 = _calc_sma(close_prices, 20)
     sma_50 = _calc_sma(close_prices, 50)
     ema_12 = _calc_ema(close_prices, 12)
     ema_26 = _calc_ema(close_prices, 26)
     macd = _calc_macd(close_prices)
-    signal = _determine_signal(rsi, sma_20, sma_50, macd, current_price)
+    bollinger = _calc_bollinger(close_prices, 20)
+
+    # ── Determine signal with confidence scoring ──
+    result = _determine_signal(rsi, sma_20, sma_50, macd, bollinger, current_price)
+
+    # ── Build rich indicator interpretation ──
+    indicators = {
+        "rsi": {
+            "value": rsi,
+            "interpretation": (
+                "oversold" if rsi and rsi < 30 else
+                "overbought" if rsi and rsi > 70 else
+                "neutral"
+            ) if rsi is not None else None,
+        },
+        "sma_20": sma_20,
+        "sma_50": sma_50,
+        "sma_crossover": (
+            "golden_cross" if sma_20 and sma_50 and sma_20 > sma_50 else
+            "death_cross" if sma_20 and sma_50 else None
+        ),
+        "ema_12": ema_12,
+        "ema_26": ema_26,
+        "macd": macd,
+        "bollinger": bollinger,
+    }
 
     return {
         "token": token,
         "price": current_price,
-        "signal": signal,
+        "signal": result["signal"],
+        "confidence": result["confidence"],
+        "source": source,
+        "data_points": data_points,
+        "period": "30d" if source == "real" else "in-memory",
+        "indicators": indicators,
+        "reasons": result["reasons"],
+        # Flat top-level fields for backward compatibility
         "rsi": rsi,
         "sma_20": sma_20,
         "sma_50": sma_50,
         "ema_12": ema_12,
         "ema_26": ema_26,
         "macd": macd,
-        "candles_used": len(close_prices),
+        "bollinger": bollinger,
+        "candles_used": data_points,
         "updated_at": int(time.time()),
     }
 
