@@ -22,6 +22,7 @@ _RATE_LIMITS = {
     "reply": {"per_min": 2, "per_day": 20},
     "reddit_post": {"per_min": 1, "per_day": MAX_REDDIT_POSTS_DAY},
     "reddit_comment": {"per_min": 1, "per_day": 15},
+    "reddit_upvote": {"per_min": 2, "per_day": 20},
     "dm": {"per_min": 1, "per_day": 10},
 }
 
@@ -386,6 +387,67 @@ class BrowserAgent:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def quote_tweet(self, tweet_url: str, text: str) -> dict:
+        """Quote tweet une URL avec un commentaire."""
+        err = self._check_rate("tweet")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("tweet", tweet_url):
+            return {"success": False, "error": "Quote tweet deja fait pour cette URL (doublon)"}
+
+        await self._ensure_ready()
+        page = self._page
+
+        # Verifier login
+        if not await self._is_logged_in_twitter(page):
+            return {"success": False, "error": "Non connecte sur X. Ouvre Chrome avec le profil et connecte-toi."}
+
+        try:
+            # Naviguer vers compose
+            await page.goto("https://x.com/compose/post", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Remplir le texte + URL (Twitter auto-embed en quote)
+            full_text = f"{text}\n{tweet_url}"
+            filled = await self._find_and_fill(page, [
+                '[data-testid="tweetTextarea_0"]',
+                '[data-testid="tweetTextarea_0_label"]',
+                'div[role="textbox"][contenteditable="true"]',
+                '.public-DraftEditor-content',
+                '[aria-label*="post" i] div[contenteditable]',
+                '[aria-label*="tweet" i] div[contenteditable]',
+            ], full_text[:280], "Quote tweet textbox")
+
+            if not filled:
+                await self._screenshot(page, "quote_tweet_fill_fail")
+                return {"success": False, "error": "Impossible de remplir le champ tweet"}
+
+            await page.wait_for_timeout(2000)  # Laisser Twitter embed le quote
+
+            # Cliquer Post — multi-selectors
+            posted = await self._find_and_click(page, [
+                '[data-testid="tweetButton"]',
+                '[data-testid="tweetButtonInline"]',
+                'button[role="button"]:has-text("Post")',
+                'button[role="button"]:has-text("Poster")',
+                'div[role="button"]:has-text("Post")',
+                'div[role="button"]:has-text("Poster")',
+            ], "Post button")
+
+            if not posted:
+                await self._screenshot(page, "quote_tweet_post_fail")
+                return {"success": False, "error": "Bouton Post introuvable"}
+
+            await page.wait_for_timeout(5000)
+            proof = await self._screenshot(page, "quote_tweet_ok")
+
+            self._record_action("tweet", self._content_hash("tweet", tweet_url))
+            return {"success": True, "proof": proof, "text": text[:100], "quoted_url": tweet_url}
+
+        except Exception as e:
+            await self._screenshot(page, "quote_tweet_error")
+            return {"success": False, "error": str(e)}
+
     async def post_reddit(self, subreddit: str, title: str, body: str) -> dict:
         """Poste sur un subreddit avec multi-selectors."""
         err = self._check_rate("reddit_post")
@@ -646,6 +708,92 @@ class BrowserAgent:
             print(f"[BrowserAgent] Mentions error: {e}")
             return []
 
+    async def read_own_tweet_replies(self, max_tweets: int = 3) -> list:
+        """Lit les reponses a nos derniers tweets sur @MAXIA_WORLD."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://x.com/MAXIA_WORLD", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            results = []
+            # Trouver nos derniers tweets sur le profil
+            tweets = await page.locator('article[data-testid="tweet"]').all()
+
+            for tweet in tweets[:max_tweets]:
+                try:
+                    # Extraire le texte de notre tweet
+                    text_el = tweet.locator('[data-testid="tweetText"]').first
+                    tweet_text = await text_el.inner_text() if await text_el.is_visible(timeout=1000) else ""
+
+                    # Trouver le lien du tweet via l'element time
+                    time_el = tweet.locator("time").first
+                    link_el = time_el.locator("..") if await time_el.is_visible(timeout=1000) else None
+                    tweet_href = await link_el.get_attribute("href") if link_el else ""
+                    if tweet_href and not tweet_href.startswith("http"):
+                        tweet_href = f"https://x.com{tweet_href}"
+
+                    if not tweet_href:
+                        continue
+
+                    # Cliquer sur le tweet pour ouvrir le thread
+                    await tweet.click()
+                    await page.wait_for_timeout(3000)
+
+                    # Lire les reponses dans le thread
+                    replies = []
+                    reply_articles = await page.locator('article[data-testid="tweet"]').all()
+                    # Le premier article est notre tweet, les suivants sont les reponses
+                    for reply in reply_articles[1:]:
+                        try:
+                            # Username de la reponse
+                            user_el = reply.locator('a[role="link"] span').first
+                            username = await user_el.inner_text() if await user_el.is_visible(timeout=1000) else ""
+                            # Texte de la reponse
+                            reply_text_el = reply.locator('[data-testid="tweetText"]').first
+                            reply_text = await reply_text_el.inner_text() if await reply_text_el.is_visible(timeout=1000) else ""
+                            # URL de la reponse
+                            reply_time = reply.locator("time").first
+                            reply_link = reply_time.locator("..") if await reply_time.is_visible(timeout=1000) else None
+                            reply_url = await reply_link.get_attribute("href") if reply_link else ""
+                            if reply_url and not reply_url.startswith("http"):
+                                reply_url = f"https://x.com{reply_url}"
+
+                            if reply_text:
+                                replies.append({
+                                    "username": username,
+                                    "text": reply_text[:300],
+                                    "url": reply_url,
+                                })
+                        except Exception:
+                            continue
+
+                    results.append({
+                        "tweet_text": tweet_text[:300],
+                        "replies": replies,
+                    })
+
+                    # Revenir au profil pour le tweet suivant
+                    await page.goto("https://x.com/MAXIA_WORLD", wait_until="domcontentloaded", timeout=20000)
+                    await page.wait_for_timeout(3000)
+
+                except Exception:
+                    # Si erreur sur un tweet, revenir au profil et continuer
+                    try:
+                        await page.goto("https://x.com/MAXIA_WORLD", wait_until="domcontentloaded", timeout=20000)
+                        await page.wait_for_timeout(3000)
+                    except Exception:
+                        pass
+                    continue
+
+            print(f"[BrowserAgent] Own tweet replies: {len(results)} tweets scanned")
+            return results
+
+        except Exception as e:
+            print(f"[BrowserAgent] Read own tweet replies error: {e}")
+            return []
+
     async def like_tweet(self, tweet_url: str) -> dict:
         """Like un tweet pour gagner en visibilite."""
         err = self._check_rate("like")
@@ -897,6 +1045,43 @@ class BrowserAgent:
 
         except Exception as e:
             await self._screenshot(page, "reddit_comment_error")
+            return {"success": False, "error": str(e)}
+
+    async def upvote_reddit(self, post_url: str) -> dict:
+        """Upvote un post Reddit."""
+        err = self._check_rate("reddit_upvote")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("reddit_upvote", post_url):
+            return {"success": False, "error": "Deja upvote"}
+
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            upvoted = await self._find_and_click(page, [
+                'button[aria-label*="upvote" i]',
+                'button[aria-label*="Vote" i]',
+                '[data-click-id="upvote"]',
+                'shreddit-post button[aria-label*="upvote" i]',
+                'button[icon-name="upvote-outline"]',
+                'div[data-click-id="upvote"] button',
+            ], "Upvote button")
+
+            if not upvoted:
+                await self._screenshot(page, "reddit_upvote_fail")
+                return {"success": False, "error": "Bouton upvote Reddit introuvable"}
+
+            await page.wait_for_timeout(1500)
+            proof = await self._screenshot(page, "reddit_upvote_ok")
+            self._record_action("reddit_upvote", self._content_hash("reddit_upvote", post_url))
+            return {"success": True, "proof": proof, "url": post_url}
+
+        except Exception as e:
+            await self._screenshot(page, "reddit_upvote_error")
             return {"success": False, "error": str(e)}
 
 

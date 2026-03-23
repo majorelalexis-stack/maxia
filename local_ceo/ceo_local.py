@@ -829,6 +829,13 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[DMs] Erreur: {e}")
 
+                # 8a. CHECK OWN TWEET REPLIES (toutes les 4 cycles = ~40 min)
+                if self._cycle % 4 == 0:
+                    try:
+                        await self._check_own_tweet_replies()
+                    except Exception as e:
+                        _log(f"[OWN REPLIES] Error: {e}")
+
                 # 8. CLEAN screenshots (toutes les 50 cycles = ~8h)
                 if self._cycle % 50 == 0:
                     self._clean_screenshots()
@@ -877,6 +884,14 @@ class CEOLocal:
                                         _log(f"[LEARN+] {line}")
                     except Exception as e:
                         _log(f"[LEARN] Error: {e}")
+
+                # 9b. WEEKLY THREAD (Monday only, 1x per week)
+                import datetime as _dt2
+                if _dt2.datetime.now(_dt2.timezone.utc).weekday() == 0 and self._cycle % 50 == 0:
+                    try:
+                        await self._weekly_thread()
+                    except Exception as e:
+                        _log(f"[THREAD] Error: {e}")
 
                 # 10. SELF-UPDATE (toutes les 36 cycles = ~6h)
                 if self._cycle % 36 == 0 and needs_check():
@@ -1033,6 +1048,24 @@ class CEOLocal:
             return {"post_ok": True, "region": "Asia/Oceania", "lang": "en", "hashtags": "#DeFi #AIagent #Solana #dev",
                     "reason": "Matin Oceanie/Asie Est — volume plus bas mais actif"}
 
+    async def _post_pending_tweet(self):
+        """Post a pending tweet if it's now US peak hours (13-18 UTC)."""
+        pending = self.memory.get("pending_tweet")
+        if not pending:
+            return
+        import datetime
+        hour = datetime.datetime.now(datetime.timezone.utc).hour
+        if 13 <= hour <= 18:
+            text = pending.get("text", "")
+            if text:
+                _log(f"[PENDING TWEET] Posting stored tweet (peak hour {hour}h UTC)")
+                result = await self._do_browser("post_tweet", {"text": text}, fallback_vps=True)
+                if result.get("success"):
+                    _log(f"  [PENDING TWEET] Posted: {text[:80]}...")
+                else:
+                    _log(f"  [PENDING TWEET] Failed: {result.get('detail', '')}")
+            self.memory.pop("pending_tweet", None)
+
     def _check_special_events(self) -> dict | None:
         """Verifie si un evenement special est programme aujourd'hui."""
         from datetime import date
@@ -1185,7 +1218,25 @@ class CEOLocal:
             ],
         ]
 
-        return routines[cycle % len(routines)]
+        chosen = routines[cycle % len(routines)]
+
+        # Smart tweet timing: for tweet cycles (0 and 5), check if it's US peak hours
+        import datetime
+        hour_utc = datetime.datetime.now(datetime.timezone.utc).hour
+        is_peak = 13 <= hour_utc <= 18
+        cycle_mod = cycle % len(routines)
+        if cycle_mod in (0, 5) and not is_peak:
+            # Store the tweet action for later, replace with engagement
+            for d in chosen:
+                if d["action"] == "post_template_tweet":
+                    _log(f"  [TIMING] Not peak hours ({hour_utc}h UTC) — storing tweet for later")
+                    self.memory["pending_tweet"] = {"text": "__generate_later__", "stored_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                    d["action"] = "detect_opportunities"
+                    d["agent"] = "SCOUT"
+                    d["params"] = {}
+                    break
+
+        return chosen
 
     async def _generate_reddit_post(self, subreddit: str) -> dict:
         """Genere un post Reddit unique et educatif via Groq. Min 600 chars pour les subreddits stricts."""
@@ -1261,6 +1312,19 @@ class CEOLocal:
         """DECIDE — Routine predefinie + Groq pour le contenu."""
         schedule = self._is_good_hour()
         _log(f"  Calendrier: {schedule['reason']}")
+
+        # Post pending tweet if it's now peak hours
+        pending = self.memory.get("pending_tweet")
+        if pending:
+            import datetime
+            hour_utc = datetime.datetime.now(datetime.timezone.utc).hour
+            if 13 <= hour_utc <= 18:
+                if pending.get("text") == "__generate_later__":
+                    # Generate the tweet now
+                    clean_context = "Focus on MAXIA features: 50 tokens, 14 chains, GPU at cost, AI agent marketplace"
+                    tweet_text = await self._generate_tweet_via_groq(clean_context)
+                    self.memory["pending_tweet"]["text"] = tweet_text
+                await self._post_pending_tweet()
 
         # Utiliser la routine predefinie (pas de LLM pour decider)
         decisions = self._get_routine_actions()
@@ -1559,6 +1623,19 @@ class CEOLocal:
         elif action == "check_emails":
             results = await process_inbox(call_local_llm)
             replied = sum(1 for r in results if r.get("replied"))
+            # Proactive outreach: if less than 2 outbound emails today, send one
+            try:
+                from email_manager import get_today_outbound_count, send_outbound_prospect
+                if get_today_outbound_count() < 2:
+                    # Find a prospect from recent conversations
+                    convos = self.memory.get("conversations", [])[-20:]
+                    for c in reversed(convos):
+                        if c.get("type") in ("comment", "reddit_comment") and c.get("user"):
+                            # This is a dev we engaged with — potential email target
+                            _log(f"[EMAIL] Potential outreach target: {c.get('user')}")
+                            break
+            except Exception:
+                pass
             return {"success": True, "detail": f"{len(results)} emails lus, {replied} reponses envoyees", "data": results}
         elif action == "send_email":
             result = await send_outbound(params.get("to", ""), params.get("subject", ""), params.get("body", ""))
@@ -1839,7 +1916,37 @@ class CEOLocal:
         if liked or commented:
             _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
 
-        # 2. Follow seulement les profils de qualite (score >= 50)
+        # Quote tweet 1 pertinent tweet per 3 cycles (high visibility)
+        if self._cycle % 3 == 0 and tweets:
+            best_tweet = None
+            for t in tweets:
+                if t.get("url") and t.get("text") and len(t.get("text", "")) > 50:
+                    if not browser._is_duplicate("tweet", t["url"]):
+                        best_tweet = t
+                        break
+            if best_tweet:
+                qt_text = await self._generate_quote_tweet_text(best_tweet["text"])
+                if qt_text:
+                    result = await browser.quote_tweet(best_tweet["url"], qt_text)
+                    if result.get("success"):
+                        _log(f"[ENGAGE] Quote tweeted: {qt_text[:60]}")
+                        browser._record_action("tweet", browser._content_hash("tweet", best_tweet["url"]))
+
+        # 2. Follow seulement les profils de qualite (dynamic threshold)
+        # Dynamic follow score: follow more when engagement is low, be selective when high
+        import datetime as _dtf
+        week_start = (_dtf.datetime.now(_dtf.timezone.utc) - _dtf.timedelta(days=7)).strftime("%Y-%m-%d")
+        follows_this_week = sum(
+            1 for f in self.memory.get("follows", [])
+            if f.get("ts", "") >= week_start
+        )
+        if follows_this_week < 5:
+            follow_threshold = 40  # Low engagement week — follow more aggressively
+        elif follows_this_week > 15:
+            follow_threshold = 60  # High activity week — be more selective
+        else:
+            follow_threshold = 50  # Default threshold
+
         if self._cycle % 2 == 0:  # follow tous les 2 cycles seulement
             profiles = await browser.search_twitter_profiles(query, 3)
             for p in profiles[:2]:
@@ -1847,10 +1954,10 @@ class CEOLocal:
                 if not username or browser._is_duplicate("follow", username):
                     continue
                 score = await browser.score_twitter_profile(username)
-                if score.get("score", 0) >= 50:
+                if score.get("score", 0) >= follow_threshold:
                     result = await browser.follow_user(username)
                     if result.get("success") and not result.get("already"):
-                        _log(f"[ENGAGE] Followed @{username} (score={score['score']})")
+                        _log(f"[ENGAGE] Followed @{username} (score={score['score']}, threshold={follow_threshold})")
                         self.memory.setdefault("follows", []).append(
                             {"username": username, "ts": time.strftime("%Y-%m-%d")}
                         )
@@ -1875,6 +1982,23 @@ class CEOLocal:
             return ""
         return comment
 
+    async def _generate_quote_tweet_text(self, original_text: str) -> str:
+        """Generate a quote tweet comment — personal take on someone's tweet."""
+        prompt = (
+            f"Someone tweeted: \"{original_text[:200]}\"\n\n"
+            f"Write a short quote tweet reaction as Alexis, a solo dev (<200 chars).\n"
+            f"- Share your honest take: agree, disagree, add context\n"
+            f"- Examples: 'exactly this.', 'been saying this for months', 'hot take but I disagree because...'\n"
+            f"- Do NOT mention MAXIA unless directly relevant\n"
+            f"- ENGLISH ONLY\n"
+            f"Text ONLY:"
+        )
+        text = await call_local_llm(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=60)
+        text = text.strip().strip('"').strip("'")
+        if len(text) < 5 or len(text) > 250:
+            return ""
+        return text
+
     async def _reddit_comment_strategy(self, subreddit: str) -> dict:
         """Strategie Reddit : trouver un post pertinent et commenter avec valeur.
         Commenter > poster : 10x plus de visibilite, 0% chance de ban."""
@@ -1893,6 +2017,12 @@ class CEOLocal:
             title = post.get("title", "")
             if not url or browser._is_duplicate("reddit_comment", url):
                 continue
+
+            # Upvote the post first (gives visibility to both post and our comment)
+            try:
+                await browser.upvote_reddit(url)
+            except Exception:
+                pass
 
             # Generer un commentaire utile via LLM
             prompt = (
@@ -1988,6 +2118,50 @@ class CEOLocal:
                     "ts": time.strftime("%Y-%m-%d"), "status": "followed",
                 })
 
+        # Check for open conversations — users who replied 1-2 days ago we haven't followed up with
+        import datetime as _dtcrm
+        now_crm = _dtcrm.datetime.now(_dtcrm.timezone.utc)
+        for c in reversed(convos[-20:]):
+            user = c.get("user", "")
+            ts_str = c.get("ts", "")
+            if not user or not ts_str:
+                continue
+            try:
+                convo_time = _dtcrm.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                if convo_time.tzinfo is None:
+                    convo_time = convo_time.replace(tzinfo=_dtcrm.timezone.utc)
+                age_hours = (now_crm - convo_time).total_seconds() / 3600
+            except (ValueError, Exception):
+                continue
+            # Only consider conversations 24-48 hours old (1-2 days)
+            if not (24 <= age_hours <= 48):
+                continue
+            # Check if we already followed up (has a newer message from us to this user)
+            already_followedup = any(
+                cc.get("user") == user and cc.get("ts", "") > ts_str
+                for cc in convos if cc is not c
+            )
+            if already_followedup or user in contacted:
+                continue
+            # Generate a follow-up DM
+            history = [cc.get("message", "") for cc in convos if cc.get("user") == user][-3:]
+            if not history:
+                continue
+            followup = await generate_conversation_reply(
+                history + [f"(you last chatted {int(age_hours)}h ago, send a friendly follow-up)"],
+                user, "Twitter"
+            )
+            if followup:
+                result = await browser.dm_twitter(user, followup)
+                if result.get("success"):
+                    _log(f"[CRM] Follow-up DM to @{user}: {followup[:60]}")
+                    self.memory.setdefault("contacts", []).append({
+                        "target": user, "canal": "twitter_dm_followup",
+                        "ts": time.strftime("%Y-%m-%d"), "status": "followed_up",
+                        "last_message": followup[:50],
+                    })
+                    break  # Max 1 follow-up DM per cycle
+
     async def _weekly_retrospective(self):
         """Retrospective hebdo : analyser la semaine et ajuster la strategie."""
         actions = self.memory.get("actions_done", [])
@@ -2028,6 +2202,81 @@ class CEOLocal:
                         self.memory.setdefault("regles", []).append(line)
                         _log(f"[RETRO RULE] {line}")
 
+    async def _weekly_thread(self):
+        """Weekly 'building in public' thread — posts a 3-tweet thread about building MAXIA.
+        Runs on Monday, max once per week."""
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc)
+        if now.weekday() != 0:  # 0 = Monday
+            return
+        # Check if we already posted a thread this week
+        last_thread = self.memory.get("last_thread_week", "")
+        current_week = now.strftime("%Y-W%W")
+        if last_thread == current_week:
+            return
+
+        _log("[THREAD] Monday — generating weekly 'building in public' thread")
+
+        # Gather recent context for the LLM
+        recent_actions = self.memory.get("actions_done", [])[-15:]
+        recent_convos = self.memory.get("conversations", [])[-5:]
+        eng_stats = self.memory.get("engagement_stats", [])[-7:]
+        regles = self.memory.get("regles", [])[-5:]
+        context = (
+            f"Recent actions: {json.dumps(recent_actions, default=str)[:400]}\n"
+            f"Recent conversations: {json.dumps(recent_convos, default=str)[:300]}\n"
+            f"Engagement stats: {json.dumps(eng_stats, default=str)[:200]}\n"
+            f"Learned rules: {json.dumps(regles, default=str)[:200]}\n"
+        )
+
+        system = (
+            "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace on 14 blockchains). "
+            "Write a 3-tweet thread about your week. Be honest, technical, vulnerable. "
+            "Share a real struggle and how you solved it. No marketing speak. English only."
+        )
+        prompt = (
+            f"Context about this week:\n{context}\n\n"
+            f"Write a 3-tweet thread (each tweet max 270 chars):\n"
+            f"Tweet 1: A real challenge you faced this week (technical or business)\n"
+            f"Tweet 2: How you solved it (be specific, code-level if relevant)\n"
+            f"Tweet 3: What's next + subtle CTA (no hard sell, just 'building at maxiaworld.app')\n\n"
+            f"Format: JSON array of 3 strings.\n"
+            f"Example: [\"tweet 1 text\", \"tweet 2 text\", \"tweet 3 text\"]\n"
+            f"Output ONLY the JSON array."
+        )
+        raw = await call_local_llm(prompt, system, max_tokens=400)
+
+        # Parse the 3 tweets
+        tweets = []
+        try:
+            parsed = json.loads(raw.strip())
+            if isinstance(parsed, list) and len(parsed) >= 3:
+                tweets = [t.strip().strip('"')[:280] for t in parsed[:3]]
+        except (json.JSONDecodeError, Exception):
+            # Try to extract lines
+            lines = [l.strip().lstrip("0123456789.-) ").strip('"') for l in raw.strip().split("\n") if l.strip() and len(l.strip()) > 20]
+            tweets = lines[:3]
+
+        if len(tweets) < 3:
+            _log("[THREAD] Failed to generate 3 tweets, skipping")
+            return
+
+        # Check tweet count limit
+        if self._tweets_today_count() >= 2:
+            _log("[THREAD] Tweet limit reached, skipping thread")
+            return
+
+        # Post the thread
+        result = await browser.post_thread(tweets=tweets)
+        if result.get("success"):
+            _log(f"[THREAD] Posted weekly thread: {tweets[0][:60]}...")
+            self.memory["last_thread_week"] = current_week
+            self.memory.setdefault("tweets_posted", []).append({
+                "text": f"[THREAD] {tweets[0][:50]}...", "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            })
+        else:
+            _log(f"[THREAD] Failed to post: {result}")
+
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune."""
         mentions = await browser.get_mentions(10)
@@ -2044,6 +2293,9 @@ class CEOLocal:
             # Verifier si deja repondu
             if browser._is_duplicate("reply", url):
                 continue
+            # Like the mention first (shows we're attentive)
+            if url and not browser._is_duplicate("like", url):
+                await browser.like_tweet(url)
             # Generer une reponse via LLM (fallback si LLM down)
             reply_text = await generate_smart_reply(text, user)
             if not reply_text:
@@ -2071,6 +2323,63 @@ class CEOLocal:
                 break
 
         return {"success": True, "detail": f"{replied} replies sur {len(mentions)} mentions"}
+
+    async def _check_own_tweet_replies(self):
+        """Read replies to our own tweets and respond to build conversations."""
+        try:
+            replies = await browser.read_own_tweet_replies(3)
+        except Exception as e:
+            _log(f"[OWN REPLIES] Error reading replies: {e}")
+            return
+
+        if not replies:
+            return
+
+        replied = 0
+        for r in replies:
+            url = r.get("url", "")
+            text = r.get("text", "")
+            user = r.get("username", "")
+            if not url or not text or not user:
+                continue
+
+            # Skip if already in conversations or already replied
+            convos = self.memory.get("conversations", [])
+            already_replied = any(
+                c.get("url") == url or (c.get("user") == user and c.get("message", "")[:40] == text[:40])
+                for c in convos
+            )
+            if already_replied or browser._is_duplicate("reply", url):
+                continue
+
+            # Like the reply
+            if not browser._is_duplicate("like", url):
+                await browser.like_tweet(url)
+
+            # Generate and post a reply
+            reply_text = await generate_smart_reply(text, user)
+            if not reply_text:
+                continue
+
+            result = await browser.reply_tweet(url, reply_text)
+            if result.get("success"):
+                replied += 1
+                _log(f"  [OWN REPLIES] Replied to @{user}: {reply_text[:60]}")
+                browser._record_action("reply", browser._content_hash("reply", url))
+                self.memory.setdefault("conversations", []).append({
+                    "user": user, "message": text[:100],
+                    "reply": reply_text[:100], "url": url,
+                    "type": "own_tweet_reply",
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                if len(self.memory.get("conversations", [])) > 50:
+                    self.memory["conversations"] = self.memory["conversations"][-50:]
+
+            if replied >= 3:
+                break
+
+        if replied:
+            _log(f"[OWN REPLIES] {replied} replies to our tweet replies")
 
     async def _check_engagement(self):
         """Feedback loop: verifie l'engagement des derniers tweets."""
