@@ -139,6 +139,47 @@ async def handle_telegram_updates():
                 data = resp.json()
                 for update in data.get("result", []):
                     last_update_id = update["update_id"]
+
+                    # Handle callback queries (Go/No-Go buttons)
+                    callback = update.get("callback_query")
+                    if callback:
+                        cb_data = callback.get("data", "")
+                        cb_id = callback.get("id", "")
+                        cb_chat = callback.get("message", {}).get("chat", {}).get("id", "")
+                        cb_msg_id = callback.get("message", {}).get("message_id", "")
+                        try:
+                            # Answer the callback
+                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                json={"callback_query_id": cb_id, "text": "Processing..."})
+
+                            if cb_data.startswith("go:"):
+                                decision_id = cb_data[3:]
+                                from ceo_maxia import _pending_decisions, execute, ceo
+                                pending = _pending_decisions.pop(decision_id, None)
+                                if pending:
+                                    await execute([pending["decision"]], ceo.memory)
+                                    await _send_to_chat(cb_chat, f"\u2705 GO — {pending['titre']} — Executee")
+                                else:
+                                    await _send_to_chat(cb_chat, f"\u2705 GO — Decision acceptee")
+                                # Update the original message
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+                                    json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
+
+                            elif cb_data.startswith("nogo:"):
+                                decision_id = cb_data[5:]
+                                _pending_decisions.pop(decision_id, None) if hasattr(_pending_decisions, 'pop') else None
+                                try:
+                                    from ceo_maxia import _pending_decisions
+                                    _pending_decisions.pop(decision_id, None)
+                                except Exception:
+                                    pass
+                                await _send_to_chat(cb_chat, f"\u274c NO-GO — Decision rejetee")
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+                                    json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
+                        except Exception as e:
+                            print(f"[Telegram] Callback error: {e}")
+                        continue
+
                     msg = update.get("message", {})
                     text = msg.get("text", "")
                     chat_id = msg.get("chat", {}).get("id", "")

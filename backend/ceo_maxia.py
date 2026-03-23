@@ -411,8 +411,10 @@ def _pj(response: str) -> dict:
 _ceo_alert_last: dict = {}
 _CEO_ALERT_COOLDOWN = 3600  # 1h entre alertes CRISIS identiques
 
-async def _ceo_private(message: str, urgent: bool = False):
-    """Envoie au Telegram prive du fondateur. Fallback Discord si non configure."""
+_pending_decisions: dict = {}  # {decision_id: {decision, timestamp}}
+
+async def _ceo_private(message: str, urgent: bool = False, decision_id: str = None):
+    """Envoie au Telegram prive du fondateur. Avec boutons Go/No-Go si decision_id."""
     # Cooldown anti-spam (surtout pour CRISIS P2 en boucle)
     key = message[:60]
     now = time.time()
@@ -425,10 +427,19 @@ async def _ceo_private(message: str, urgent: bool = False):
     if tg_token and tg_chat:
         try:
             import httpx
+            payload = {"chat_id": tg_chat, "text": message[:4000]}
+            # Ajouter boutons Go/No-Go si c'est une decision
+            if decision_id:
+                payload["reply_markup"] = json.dumps({
+                    "inline_keyboard": [[
+                        {"text": "\u2705 Go", "callback_data": f"go:{decision_id}"},
+                        {"text": "\u274c No-Go", "callback_data": f"nogo:{decision_id}"},
+                    ]]
+                })
             async with httpx.AsyncClient(timeout=10) as c:
                 await c.post(
                     f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": message[:4000]},
+                    json=payload,
                 )
                 return
         except Exception:
@@ -446,11 +457,16 @@ async def _ceo_private(message: str, urgent: bool = False):
     print(f"[CEO] {message[:150]}")
 
 
-async def alert_rouge(titre: str, contexte: str, deadline_h: int = 2):
+async def alert_rouge(titre: str, contexte: str, deadline_h: int = 2, decision: dict = None):
+    import uuid
+    decision_id = f"d_{uuid.uuid4().hex[:8]}"
     msg = (f"\U0001f534 ALERTE ROUGE — CEO MAXIA\n\n{titre}\n\n{contexte}\n\n"
            f"\u23f0 Go/No-Go sous {deadline_h}h")
-    await _ceo_private(msg, urgent=True)
+    if decision:
+        _pending_decisions[decision_id] = {"decision": decision, "titre": titre, "ts": time.time()}
+    await _ceo_private(msg, urgent=True, decision_id=decision_id if decision else None)
     print(f"[CEO ROUGE] {titre}")
+    return decision_id
 
 
 async def alert_info(msg: str):
