@@ -1770,7 +1770,7 @@ async def defi_best_yield(asset: str = "USDC", chain: str = "", min_tvl: float =
         from defi_scanner import get_best_yields
         yields = await get_best_yields(asset, chain, min_tvl, limit * 3)
         # Filtrer les APY aberrants (reward farming temporaire) et les pools a risque
-        sane = [y for y in yields if y.get("apy", 0) < 500 and y.get("tvl_usd", 0) >= min_tvl]
+        sane = [y for y in yields if 0 < y.get("apy", 0) < 1000 and y.get("tvl_usd", 0) >= 10000]
         return {
             "asset": asset,
             "chain": chain or "all",
