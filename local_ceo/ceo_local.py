@@ -346,14 +346,15 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
         "MAXIA: AI marketplace, 14 chains, 50 tokens, GPU $0.69/h. maxiaworld.app"
     )
     prompt = (
-        f"@{username} mentioned you:\n\"{mention_text[:200]}\"\n\n"
-        f"Reply as Alexis (<200 chars). Rules:\n"
-        f"- Question: answer directly, be specific\n"
-        f"- Compliment: 'appreciate it!' or 'thanks, means a lot'\n"
-        f"- Bug/issue: 'oh damn, can you DM me the details? I'll fix it today'\n"
-        f"- General topic: share your honest take, don't force MAXIA into it\n"
-        f"- Sound like a real human. Use casual language.\n"
-        f"ENGLISH ONLY. Reply ONLY the text."
+        f"@{username} said:\n\"{mention_text[:200]}\"\n\n"
+        f"Write a unique reply as Alexis (<200 chars). IMPORTANT:\n"
+        f"- MUST reference something SPECIFIC from their message\n"
+        f"- If they mention a technology, ask about their stack or share your experience with it\n"
+        f"- If they compliment, thank them AND ask a follow-up question\n"
+        f"- If it's a bug, ask for specifics so you can fix it\n"
+        f"- NEVER just say 'thanks' or 'appreciate it' — always add substance\n"
+        f"- Each reply must be DIFFERENT from others\n"
+        f"ENGLISH ONLY. Reply text ONLY, no quotes."
     )
     reply = await call_local_llm(prompt, system, max_tokens=120)
     # Nettoyer
@@ -1970,15 +1971,15 @@ class CEOLocal:
         """Genere un commentaire de qualite (insight, pas promo)."""
         prompt = (
             f"Tweet: \"{tweet_text[:200]}\"\n\n"
-            f"Write a short reply IN ENGLISH (<200 chars) as Alexis, a solo dev:\n"
-            f"- Share your own experience or ask a smart question\n"
-            f"- Examples: 'had the same issue, fixed it by...' or 'curious, what stack are you using?'\n"
-            f"- Sound like a friend, NOT a brand account\n"
-            f"- Do NOT mention MAXIA or maxiaworld.app (build trust first)\n"
+            f"Write a thoughtful reply IN ENGLISH (<200 chars) as Alexis, a senior dev:\n"
+            f"- Reference something SPECIFIC from the tweet\n"
+            f"- Share a concrete technical insight or ask a precise question\n"
+            f"- Tone: knowledgeable developer, not casual teenager. No 'lol', 'fr', 'ngl'\n"
+            f"- Do NOT mention MAXIA or any product\n"
             f"- MUST be in English regardless of tweet language\n"
-            f"Reply ONLY the comment text. No quotes."
+            f"Reply text ONLY. No quotes."
         )
-        comment = await call_local_llm(prompt, system="You are Alexis, a solo dev. Casual, helpful, English only. Never promotional.", max_tokens=80)
+        comment = await call_local_llm(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=80)
         comment = comment.strip().strip('"').strip("'")
         if len(comment) > 250:
             comment = comment[:247] + "..."

@@ -53,6 +53,9 @@ async def _rpc_post(payload: dict, timeout: float = 20) -> dict:
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(rpc_url, json=payload)
+                if resp.status_code != 200 or not resp.text.strip().startswith("{"):
+                    last_error = Exception(f"RPC {rpc_url}: HTTP {resp.status_code}")
+                    continue
                 data = resp.json()
             if "error" in data and data["error"]:
                 logger.warning(f"[EthVerifier] RPC {rpc_url} returned error: {data['error']}")
