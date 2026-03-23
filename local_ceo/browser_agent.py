@@ -158,7 +158,14 @@ class BrowserAgent:
                 )
             except Exception:
                 pass
-            await asyncio.sleep(2)
+            # Clean lock files that prevent relaunch
+            import glob
+            for lock in glob.glob(os.path.join(self._profile_dir, "Singleton*")):
+                try:
+                    os.remove(lock)
+                except Exception:
+                    pass
+            await asyncio.sleep(3)
             # Retry setup with a fresh playwright instance
             try:
                 await self.setup()

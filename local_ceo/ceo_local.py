@@ -433,7 +433,7 @@ async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, mode
 
 
 async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Mistral API (dernier fallback)."""
+    """Appel Mistral API — rapide, fiable, pas de rate limit dur."""
     if not MISTRAL_API_KEY:
         return ""
     msgs = []
@@ -441,7 +441,7 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 "https://api.mistral.ai/v1/chat/completions",
                 headers={
@@ -458,17 +458,17 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Groq (priorite) > Ollama (fallback) > Mistral (fallback)."""
-    # 1. Groq — meilleur modele, gratuit, 100k tokens/jour
+    """Mistral (rapide, fiable) > Groq (gratuit mais rate-limited) > Ollama (local, lent)."""
+    # 1. Mistral — rapide, pas de rate limit dur, meilleure qualite
+    result = await call_mistral(prompt, system, max_tokens)
+    if result:
+        return result
+    # 2. Groq — gratuit mais 100k tokens/jour (souvent rate-limited)
     result = await call_groq_local(prompt, system, max_tokens)
     if result:
         return result
-    # 2. Ollama — local, 0 cout, plus lent
-    result = await call_ollama(prompt, system, max_tokens)
-    if result:
-        return result
-    # 3. Mistral — dernier recours
-    return await call_mistral(prompt, system, max_tokens)
+    # 3. Ollama — local, 0 cout, plus lent
+    return await call_ollama(prompt, system, max_tokens)
 
 
 def parse_json(text: str) -> dict:
