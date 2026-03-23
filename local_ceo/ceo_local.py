@@ -1084,16 +1084,31 @@ class CEOLocal:
             return
         import datetime
         hour = datetime.datetime.now(datetime.timezone.utc).hour
-        if 13 <= hour <= 18:
-            text = pending.get("text", "")
-            if text:
-                _log(f"[PENDING TWEET] Posting stored tweet (peak hour {hour}h UTC)")
-                result = await self._do_browser("post_tweet", {"text": text}, fallback_vps=True)
-                if result.get("success"):
-                    _log(f"  [PENDING TWEET] Posted: {text[:80]}...")
-                else:
-                    _log(f"  [PENDING TWEET] Failed: {result.get('detail', '')}")
+        _log(f"[PENDING] Found pending tweet (stored_at={pending.get('stored_at','?')}), current hour={hour}h UTC")
+        if not (13 <= hour <= 18):
+            _log(f"[PENDING] Not peak hours yet ({hour}h UTC) — keeping for later")
+            return
+        text = pending.get("text", "")
+        # Generate actual tweet text if it was deferred
+        if not text or text == "__generate_later__":
+            _log("[PENDING] Text is '__generate_later__' — generating now via Groq")
+            clean_context = "Focus on MAXIA features: 50 tokens, 14 chains, GPU at cost, AI agent marketplace"
+            text = await self._generate_tweet_via_groq(clean_context)
+            _log(f"[PENDING] Generated: {text[:80]}...")
+        if not text:
+            _log("[PENDING] Could not generate tweet text — discarding pending tweet")
             self.memory.pop("pending_tweet", None)
+            return
+        _log(f"[PENDING] Posting stored tweet (peak hour {hour}h UTC)")
+        result = await self._do_browser("post_tweet", {"text": text}, fallback_vps=True)
+        if result.get("success"):
+            _log(f"[PENDING] Posted OK: {text[:80]}...")
+            self.memory.pop("pending_tweet", None)
+        else:
+            _log(f"[PENDING] Post FAILED: {result.get('detail', '')} — will retry next cycle")
+            # Keep pending_tweet in memory so it retries next cycle
+            # Update text so we don't regenerate
+            self.memory["pending_tweet"]["text"] = text
 
     def _check_special_events(self) -> dict | None:
         """Verifie si un evenement special est programme aujourd'hui."""
@@ -1342,17 +1357,8 @@ class CEOLocal:
         _log(f"  Calendrier: {schedule['reason']}")
 
         # Post pending tweet if it's now peak hours
-        pending = self.memory.get("pending_tweet")
-        if pending:
-            import datetime
-            hour_utc = datetime.datetime.now(datetime.timezone.utc).hour
-            if 13 <= hour_utc <= 18:
-                if pending.get("text") == "__generate_later__":
-                    # Generate the tweet now
-                    clean_context = "Focus on MAXIA features: 50 tokens, 14 chains, GPU at cost, AI agent marketplace"
-                    tweet_text = await self._generate_tweet_via_groq(clean_context)
-                    self.memory["pending_tweet"]["text"] = tweet_text
-                await self._post_pending_tweet()
+        # (_post_pending_tweet handles generation, peak-hour check, retry on failure)
+        await self._post_pending_tweet()
 
         # Utiliser la routine predefinie (pas de LLM pour decider)
         decisions = self._get_routine_actions()

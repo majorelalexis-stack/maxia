@@ -130,8 +130,34 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .stock-card .stock-symbol{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--cyan);margin-bottom:4px}
 .stock-card .stock-name{font-size:14px;color:var(--muted);margin-bottom:12px}
 .stock-card .stock-price{font-family:'JetBrains Mono',monospace;font-size:22px;color:var(--green);font-weight:600;margin-bottom:8px}
+.stock-card .stock-change{font-family:'JetBrains Mono',monospace;font-size:13px;margin-bottom:8px}
 .stock-card .stock-sector{margin-bottom:16px}
 .stock-card .stock-actions{display:flex;gap:8px;justify-content:center}
+.stock-card .stock-provider{font-size:11px;color:var(--muted2);margin-top:10px;font-family:'JetBrains Mono',monospace}
+
+/* ── Stock trade modal ── */
+.stock-modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.stock-modal{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:32px;max-width:460px;width:92%;animation:slideUp .3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.stock-modal h3{margin:0 0 4px;font-size:20px}
+.stock-modal .sm-sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+.stock-modal .sm-price-row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--bg);border-radius:12px;margin-bottom:16px}
+.stock-modal .sm-price-row .sm-label{font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.stock-modal .sm-price-row .sm-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--green)}
+.stock-modal .sm-input-wrap{margin-bottom:16px}
+.stock-modal .sm-input-wrap label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-family:'JetBrains Mono',monospace}
+.stock-modal .sm-input-wrap input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text);font-size:16px;font-family:'JetBrains Mono',monospace;outline:none;transition:border .2s;box-sizing:border-box}
+.stock-modal .sm-input-wrap input:focus{border-color:var(--cyan)}
+.stock-modal .sm-summary{padding:14px 16px;background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.1);border-radius:12px;margin-bottom:16px;font-size:14px;line-height:1.7}
+.stock-modal .sm-summary .sm-row{display:flex;justify-content:space-between}
+.stock-modal .sm-summary .sm-row span:last-child{font-family:'JetBrains Mono',monospace;color:var(--cyan)}
+.stock-modal .sm-provider-info{padding:12px 16px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.12);border-radius:12px;margin-bottom:16px;font-size:13px;color:var(--muted);line-height:1.6}
+.stock-modal .sm-provider-info a{color:var(--purple);text-decoration:underline}
+.stock-modal .sm-actions{display:flex;gap:12px;margin-top:20px}
+.stock-modal .sm-actions button{flex:1}
+.stock-modal .sm-coming-soon{text-align:center;padding:16px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:12px;margin-bottom:16px;color:var(--orange);font-size:14px}
+.stock-modal .sm-available{text-align:center;padding:16px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:12px;margin-bottom:16px;color:var(--green);font-size:14px}
 
 /* ── NFT card ── */
 .nft-card{text-align:center}
@@ -421,8 +447,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         <label>Token</label>
         <select class="input-field" id="bridge-token">
           <option value="USDC">USDC</option>
-          <option value="SOL">SOL</option>
           <option value="ETH">ETH</option>
+          <option value="USDT">USDT</option>
         </select>
       </div>
 
@@ -441,7 +467,14 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- ─── PAGE: STOCKS ─── -->
 <div class="page" id="page-stocks">
   <h2 class="page-title">Tokenized Stocks</h2>
-  <p class="page-sub">Trade US equities 24/7 on Solana — Real xStock mint addresses via Jupiter</p>
+  <p class="page-sub">Trade US equities 24/7 on Solana via <a href="https://backed.fi" target="_blank">Backed Finance</a> xStocks &amp; <a href="https://ondo.finance" target="_blank">Ondo Finance</a></p>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+    <span class="badge badge-green">0.05% - 0.5% commission</span>
+    <span class="badge badge-purple">Fractional from $1</span>
+    <span class="badge">10 US Stocks &amp; ETFs</span>
+    <span class="badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:var(--orange)">USDC on Solana</span>
+  </div>
 
   <div class="grid-3" id="stocks-grid">
     <div class="card" style="text-align:center;padding:40px"><span style="color:var(--muted)">Loading stocks...</span></div>
@@ -2134,8 +2167,62 @@ async function loadYields(asset, btnEl) {
 }
 
 // ══════════════════════════════════════
-// BRIDGE
+// BRIDGE (Li.Fi API for EVM-to-EVM, Portal Bridge fallback for non-EVM)
 // ══════════════════════════════════════
+
+// ── Li.Fi Bridge chain IDs ──
+var LIFI_CHAIN_IDS = {
+  'ethereum': 1,
+  'polygon': 137,
+  'arbitrum': 42161,
+  'avalanche': 43114,
+  'base': 8453,
+  'bnb': 56
+};
+
+// ── Li.Fi token addresses per chain (native = 0x0...0) ──
+var LIFI_TOKENS = {
+  1: {
+    'USDC': { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 },
+    'ETH':  { address: '0x0000000000000000000000000000000000000000', decimals: 18 },
+    'USDT': { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 }
+  },
+  137: {
+    'USDC': { address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6 },
+    'ETH':  { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18 },
+    'USDT': { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6 }
+  },
+  42161: {
+    'USDC': { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 },
+    'ETH':  { address: '0x0000000000000000000000000000000000000000', decimals: 18 },
+    'USDT': { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6 }
+  },
+  43114: {
+    'USDC': { address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', decimals: 6 },
+    'ETH':  { address: '0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB', decimals: 18 },
+    'USDT': { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', decimals: 6 }
+  },
+  8453: {
+    'USDC': { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6 },
+    'ETH':  { address: '0x0000000000000000000000000000000000000000', decimals: 18 },
+    'USDT': { address: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2', decimals: 6 }
+  },
+  56: {
+    'USDC': { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
+    'ETH':  { address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', decimals: 18 },
+    'USDT': { address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 }
+  }
+};
+
+var LIFI_API = 'https://li.quest/v1';
+
+// Store the last Li.Fi quote for execution
+var _bridgeQuoteData = null;
+
+function isBridgeEvmToEvm(from, to) {
+  return LIFI_CHAIN_IDS[from] !== undefined && LIFI_CHAIN_IDS[to] !== undefined;
+}
+
 async function getBridgeQuote() {
   var from = document.getElementById('bridge-from').value;
   var to = document.getElementById('bridge-to').value;
@@ -2146,57 +2233,378 @@ async function getBridgeQuote() {
   if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
   if (from === to) { toast('Select different chains', 'error'); return; }
 
-  resultDiv.innerHTML = '<div class="card bridge-result" style="text-align:center;padding:24px;color:var(--muted)">Fetching quote...</div>';
+  _bridgeQuoteData = null;
 
-  try {
-    var data = await api('/api/bridge/quote?from_chain=' + encodeURIComponent(from) + '&to_chain=' + encodeURIComponent(to) + '&token=' + encodeURIComponent(token) + '&amount=' + amount);
-    var outAmount = data.estimated_output || data.output_amount || amount;
-    var fee = data.bridge_fee_usd || data.fee || 0;
-    var time = (data.estimated_time_min || 15) + ' min';
-    var protocol = data.bridge_protocol || data.protocol || 'Wormhole';
-
-    var maxiaFee = data.maxia_fee_usd || 0;
-    var comp = data.fee_comparison || {};
+  // ── Non-EVM chain involved? Redirect to Portal Bridge ──
+  if (!isBridgeEvmToEvm(from, to)) {
+    var portalFrom = from.charAt(0).toUpperCase() + from.slice(1);
+    var portalTo = to.charAt(0).toUpperCase() + to.slice(1);
     resultDiv.innerHTML = '<div class="card bridge-result">' +
-      '<h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Bridge Quote</h3>' +
-      '<div class="swap-info" style="display:flex;flex-direction:column;gap:8px">' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You send</span><span style="font-weight:600">' + amount.toFixed(2) + ' ' + esc(token) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You receive</span><span style="font-weight:700;color:var(--green);font-size:18px">' + Number(outAmount).toFixed(2) + ' ' + esc(token) + '</span></div>' +
-        '<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:4px"></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Bridge fee (' + esc(protocol) + ')</span><span>$' + Number(fee).toFixed(2) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">MAXIA fee</span><span style="color:var(--green);font-weight:600">$' + Number(maxiaFee).toFixed(4) + ' (0.05%)</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Estimated time</span><span>' + esc(time) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Route</span><span>' + esc(from) + ' → ' + esc(protocol) + ' → ' + esc(to) + '</span></div>' +
-        '<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:4px;font-size:12px;color:var(--muted)">' +
-          '<div style="display:flex;justify-content:space-between"><span>Direct ' + esc(protocol) + '</span><span>' + esc(comp.wormhole_direct || '$0.20-$0.50') + '</span></div>' +
-          '<div style="display:flex;justify-content:space-between;color:var(--green);font-weight:600"><span>MAXIA savings</span><span>' + esc(comp.maxia_savings || 'cheaper') + '</span></div>' +
+      '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px">External Bridge Required</h3>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Route</span><span>' + esc(portalFrom) + ' &rarr; ' + esc(portalTo) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Token</span><span>' + esc(token) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Amount</span><span>' + amount.toFixed(2) + '</span></div>' +
+        '<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:12px;margin-top:4px">' +
+          '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+            'Bridges involving ' + esc(portalFrom) + ' or ' + esc(portalTo) + ' require Wormhole Portal Bridge. ' +
+            'Click below to open Portal Bridge with your route.' +
+          '</p>' +
         '</div>' +
       '</div>' +
-      '<button class="btn btn-primary" style="margin-top:20px;width:100%" onclick="executeBridge()">' + (wallet ? 'Bridge ' + amount.toFixed(2) + ' ' + esc(token) : 'Connect wallet to bridge') + '</button>' +
+      '<a href="https://portalbridge.com/" target="_blank" rel="noopener" class="btn btn-primary" style="margin-top:16px;width:100%;display:block;text-align:center;text-decoration:none;color:#fff">' +
+        'Bridge via Portal Bridge &#8599;' +
+      '</a>' +
+      '<p style="font-size:11px;color:var(--muted2);margin-top:12px;text-align:center">Portal Bridge supports Solana, Ethereum, Polygon, Arbitrum, Avalanche, BNB, SUI, Aptos, NEAR and more.</p>' +
     '</div>';
-  } catch (e) {
-    var estFee = Math.min(amount * 0.0005, 0.10);
+    return;
+  }
+
+  // ── EVM to EVM: Use Li.Fi API for live quote ──
+  resultDiv.innerHTML = '<div class="card bridge-result" style="text-align:center;padding:24px;color:var(--muted)">' +
+    '<span class="swap-spinner"></span> Fetching live quote from Li.Fi bridge aggregator...</div>';
+
+  var fromChainId = LIFI_CHAIN_IDS[from];
+  var toChainId = LIFI_CHAIN_IDS[to];
+  var fromTokens = LIFI_TOKENS[fromChainId];
+  var toTokens = LIFI_TOKENS[toChainId];
+
+  if (!fromTokens || !fromTokens[token]) {
+    resultDiv.innerHTML = '<div class="card bridge-result" style="color:var(--red);padding:24px">' + esc(token) + ' is not available for bridging from ' + esc(EVM_CHAINS[fromChainId].name) + '. Try USDC, ETH or USDT.</div>';
+    return;
+  }
+  if (!toTokens || !toTokens[token]) {
+    resultDiv.innerHTML = '<div class="card bridge-result" style="color:var(--red);padding:24px">' + esc(token) + ' is not available for bridging to ' + esc(EVM_CHAINS[toChainId].name) + '. Try USDC, ETH or USDT.</div>';
+    return;
+  }
+
+  var fromTokenAddr = fromTokens[token].address;
+  var toTokenAddr = toTokens[token].address;
+  var decimals = fromTokens[token].decimals;
+  var amountRaw = BigInt(Math.floor(amount * Math.pow(10, decimals))).toString();
+  var senderAddr = wallet || '0x0000000000000000000000000000000000000000';
+
+  try {
+    var quoteUrl = LIFI_API + '/quote?' + new URLSearchParams({
+      fromChain: fromChainId.toString(),
+      toChain: toChainId.toString(),
+      fromToken: fromTokenAddr,
+      toToken: toTokenAddr,
+      fromAmount: amountRaw,
+      fromAddress: senderAddr
+    }).toString();
+
+    var quoteResp = await fetch(quoteUrl);
+    if (!quoteResp.ok) {
+      var errBody = await quoteResp.text();
+      throw new Error('Li.Fi quote failed (' + quoteResp.status + '): ' + errBody);
+    }
+    var quote = await quoteResp.json();
+
+    if (quote.message || quote.error) {
+      throw new Error(quote.message || quote.error);
+    }
+
+    // Parse quote data
+    var estimate = quote.estimate || {};
+    var toAmountRaw = estimate.toAmount || amountRaw;
+    var toDecimals = (toTokens[token] || {}).decimals || decimals;
+    var toAmountHuman = Number(toAmountRaw) / Math.pow(10, toDecimals);
+    var gasCostsUsd = 0;
+    if (estimate.gasCosts && estimate.gasCosts.length > 0) {
+      for (var gi = 0; gi < estimate.gasCosts.length; gi++) {
+        gasCostsUsd += parseFloat(estimate.gasCosts[gi].amountUSD || '0');
+      }
+    }
+    var feeCostsUsd = 0;
+    if (estimate.feeCosts && estimate.feeCosts.length > 0) {
+      for (var fi = 0; fi < estimate.feeCosts.length; fi++) {
+        feeCostsUsd += parseFloat(estimate.feeCosts[fi].amountUSD || '0');
+      }
+    }
+    var executionDuration = estimate.executionDuration || 0;
+    var timeStr = executionDuration > 60 ? Math.ceil(executionDuration / 60) + ' min' : executionDuration + ' sec';
+    var toolName = (quote.tool || 'Li.Fi').replace(/-/g, ' ');
+    var fromChainName = EVM_CHAINS[fromChainId] ? EVM_CHAINS[fromChainId].name : from;
+    var toChainName = EVM_CHAINS[toChainId] ? EVM_CHAINS[toChainId].name : to;
+
+    // Store for execution
+    _bridgeQuoteData = {
+      quote: quote,
+      from: from,
+      to: to,
+      token: token,
+      amount: amount,
+      fromChainId: fromChainId,
+      toChainId: toChainId,
+      toAmountHuman: toAmountHuman
+    };
+
     resultDiv.innerHTML = '<div class="card bridge-result">' +
-      '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px">Bridge Quote (estimated)</h3>' +
+      '<h3 style="font-size:16px;font-weight:600;margin-bottom:20px">Bridge Quote <span class="badge" style="font-size:11px;margin-left:8px">LIVE</span></h3>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You send</span><span>' + amount.toFixed(2) + ' ' + esc(token) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You receive (est.)</span><span style="color:var(--green);font-weight:700">~' + (amount - 0.20 - estFee).toFixed(2) + ' ' + esc(token) + '</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">MAXIA fee</span><span style="color:var(--green)">$' + estFee.toFixed(4) + ' (0.05%)</span></div>' +
-        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Route</span><span>' + esc(from) + ' → ' + esc(to) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You send</span><span style="font-weight:600">' + amount.toFixed(2) + ' ' + esc(token) + ' on ' + esc(fromChainName) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">You receive</span><span style="font-weight:700;color:var(--green);font-size:18px">' + toAmountHuman.toFixed(toDecimals <= 6 ? Math.min(toDecimals, 4) : 4) + ' ' + esc(token) + ' on ' + esc(toChainName) + '</span></div>' +
+        '<div style="border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:4px"></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Bridge protocol</span><span>' + esc(toolName) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Gas cost</span><span>~$' + gasCostsUsd.toFixed(2) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Bridge fee</span><span>$' + feeCostsUsd.toFixed(2) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">MAXIA fee</span><span style="color:var(--green);font-weight:600">$0.00 (free)</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Estimated time</span><span>' + esc(timeStr) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Route</span><span>' + esc(fromChainName) + ' &rarr; ' + esc(toolName) + ' &rarr; ' + esc(toChainName) + '</span></div>' +
       '</div>' +
-      '<button class="btn btn-primary" style="margin-top:20px;width:100%" onclick="executeBridge()">' + (wallet ? 'Bridge ' + esc(token) : 'Connect wallet to bridge') + '</button>' +
+      '<div id="bridge-exec-status" style="margin-top:16px"></div>' +
+      '<button class="btn btn-primary" id="btn-bridge-exec" style="margin-top:16px;width:100%" onclick="executeBridge()">' +
+        (wallet ? 'Bridge ' + amount.toFixed(2) + ' ' + esc(token) + ' now' : 'Connect wallet to bridge') +
+      '</button>' +
+    '</div>';
+
+  } catch (e) {
+    console.error('Bridge quote error:', e);
+    // Fallback: show error + direct bridge links
+    var fromName = EVM_CHAINS[fromChainId] ? EVM_CHAINS[fromChainId].name : from;
+    var toName = EVM_CHAINS[toChainId] ? EVM_CHAINS[toChainId].name : to;
+    resultDiv.innerHTML = '<div class="card bridge-result">' +
+      '<h3 style="font-size:16px;font-weight:600;margin-bottom:16px;color:var(--orange)">Quote Unavailable</h3>' +
+      '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+        'Could not get a live quote for ' + amount.toFixed(2) + ' ' + esc(token) + ' from ' + esc(fromName) + ' to ' + esc(toName) + '.' +
+        '<br><span style="font-size:12px;opacity:.8">Reason: ' + esc(e.message || 'Unknown error') + '</span>' +
+      '</p>' +
+      '<p style="font-size:13px;color:var(--muted);margin-bottom:16px">You can bridge directly through these services:</p>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<a href="https://jumper.exchange/?fromChain=' + fromChainId + '&toChain=' + toChainId + '" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="flex:1;text-align:center;text-decoration:none;color:#fff">' +
+          'Jumper (Li.Fi) &#8599;' +
+        '</a>' +
+        '<a href="https://portalbridge.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="flex:1;text-align:center;text-decoration:none">' +
+          'Portal Bridge &#8599;' +
+        '</a>' +
+      '</div>' +
     '</div>';
   }
 }
 
 async function executeBridge() {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
-  toast('Bridge transfer initiated', 'info');
+  if (!wallet) {
+    var menu = document.getElementById('wallet-menu');
+    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    toast('Connect your wallet first', 'info');
+    return;
+  }
+
+  if (!_bridgeQuoteData || !_bridgeQuoteData.quote) {
+    toast('Get a quote first', 'error');
+    return;
+  }
+
+  if (!isEvmWallet()) {
+    toast('Bridge requires an EVM wallet (MetaMask, Rabby, Coinbase). Connect one first.', 'error');
+    return;
+  }
+
+  var fromChainId = _bridgeQuoteData.fromChainId;
+  var toChainId = _bridgeQuoteData.toChainId;
+  var token = _bridgeQuoteData.token;
+  var amount = _bridgeQuoteData.amount;
+  var fromChainName = EVM_CHAINS[fromChainId] ? EVM_CHAINS[fromChainId].name : _bridgeQuoteData.from;
+  var toChainName = EVM_CHAINS[toChainId] ? EVM_CHAINS[toChainId].name : _bridgeQuoteData.to;
+  var btn = document.getElementById('btn-bridge-exec');
+  var statusDiv = document.getElementById('bridge-exec-status');
+
+  function setExecStatus(msg, type) {
+    var colorMap = { 'pending': 'var(--cyan)', 'confirming': 'var(--orange)', 'success': 'var(--green)', 'error': 'var(--red)' };
+    statusDiv.innerHTML = '<div style="padding:12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);font-size:14px;color:' + (colorMap[type] || 'var(--muted)') + '">' + msg + '</div>';
+  }
+
+  btn.disabled = true;
+
+  try {
+    // ── Step 1: Switch to the source chain ──
+    var currentChainId = await getEvmChainId();
+    if (currentChainId !== fromChainId) {
+      btn.textContent = 'Switching to ' + fromChainName + '...';
+      setExecStatus('<span class="swap-spinner"></span> Switching wallet to ' + esc(fromChainName) + '...', 'pending');
+      var switched = await switchEvmChain(fromChainId);
+      if (!switched) {
+        throw new Error('Could not switch to ' + fromChainName + '. Please switch manually in your wallet.');
+      }
+      // Small delay to let wallet settle after chain switch
+      await new Promise(function(r) { setTimeout(r, 1000); });
+    }
+
+    // ── Step 2: Re-fetch quote with the connected wallet for a fresh tx ──
+    btn.textContent = 'Fetching fresh quote...';
+    setExecStatus('<span class="swap-spinner"></span> Refreshing quote with your wallet...', 'pending');
+
+    var fromTokenAddr = LIFI_TOKENS[fromChainId][token].address;
+    var toTokenAddr = LIFI_TOKENS[toChainId][token].address;
+    var decimals = LIFI_TOKENS[fromChainId][token].decimals;
+    var amountRaw = BigInt(Math.floor(amount * Math.pow(10, decimals))).toString();
+
+    var freshUrl = LIFI_API + '/quote?' + new URLSearchParams({
+      fromChain: fromChainId.toString(),
+      toChain: toChainId.toString(),
+      fromToken: fromTokenAddr,
+      toToken: toTokenAddr,
+      fromAmount: amountRaw,
+      fromAddress: wallet
+    }).toString();
+
+    var freshResp = await fetch(freshUrl);
+    if (!freshResp.ok) {
+      var errText = await freshResp.text();
+      throw new Error('Fresh quote failed: ' + errText);
+    }
+    var freshQuote = await freshResp.json();
+    if (freshQuote.message || freshQuote.error) {
+      throw new Error(freshQuote.message || freshQuote.error);
+    }
+
+    var txRequest = freshQuote.transactionRequest;
+    if (!txRequest) {
+      throw new Error('No transaction returned by Li.Fi. The bridge route may not support this token/amount combination.');
+    }
+
+    // ── Step 3: Approve token if needed (non-native tokens) ──
+    if (fromTokenAddr !== '0x0000000000000000000000000000000000000000') {
+      var approvalAddr = freshQuote.estimate && freshQuote.estimate.approvalAddress ? freshQuote.estimate.approvalAddress : txRequest.to;
+      if (approvalAddr) {
+        btn.textContent = 'Checking approval...';
+        setExecStatus('<span class="swap-spinner"></span> Checking token approval for ' + esc(token) + '...', 'pending');
+
+        var needsApproval = await checkEvmApproval(fromTokenAddr, approvalAddr, amountRaw);
+        if (needsApproval) {
+          btn.textContent = 'Approve ' + token + ' in wallet...';
+          setExecStatus('<span class="swap-spinner"></span> Please approve ' + esc(token) + ' spending in your wallet...', 'confirming');
+          await approveEvmToken(fromTokenAddr, approvalAddr, amountRaw);
+          setExecStatus('<span class="swap-spinner"></span> Approval confirmed! Sending bridge transaction...', 'pending');
+        }
+      }
+    }
+
+    // ── Step 4: Send the bridge transaction via MetaMask ──
+    btn.textContent = 'Confirm in wallet...';
+    setExecStatus('<span class="swap-spinner"></span> Please confirm the bridge transaction in your wallet...', 'confirming');
+
+    var txParams = {
+      from: wallet,
+      to: txRequest.to,
+      data: txRequest.data,
+      value: txRequest.value || '0x0',
+      gasLimit: txRequest.gasLimit ? '0x' + BigInt(txRequest.gasLimit).toString(16) : undefined,
+      chainId: txRequest.chainId ? '0x' + parseInt(txRequest.chainId).toString(16) : EVM_CHAINS[fromChainId].hex
+    };
+    // Clean up undefined fields
+    if (!txParams.gasLimit) delete txParams.gasLimit;
+
+    var txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [txParams]
+    });
+
+    // ── Step 5: Wait for on-chain confirmation ──
+    btn.textContent = 'Confirming on ' + fromChainName + '...';
+    setExecStatus(
+      '<span class="swap-spinner"></span> Transaction sent! Waiting for confirmation on ' + esc(fromChainName) + '...' +
+      '<div style="margin-top:8px;font-family:JetBrains Mono,monospace;font-size:12px;word-break:break-all;color:var(--muted)">' +
+        'Tx: ' + txHash +
+      '</div>',
+      'confirming'
+    );
+
+    var receipt = null;
+    for (var i = 0; i < 120; i++) {
+      await new Promise(function(r) { setTimeout(r, 2500); });
+      try {
+        receipt = await window.ethereum.request({
+          method: 'eth_getTransactionReceipt',
+          params: [txHash]
+        });
+        if (receipt) break;
+      } catch(pollErr) { /* keep polling */ }
+    }
+
+    if (receipt && receipt.status === '0x0') {
+      throw new Error('Bridge transaction reverted on-chain. Check your balance and try again.');
+    }
+
+    var explorerUrl = EVM_CHAINS[fromChainId] ? EVM_CHAINS[fromChainId].explorer + '/tx/' + txHash : '#';
+
+    // ── Step 6: Show success + tracking links ──
+    btn.textContent = 'Bridge submitted!';
+    btn.disabled = true;
+    setExecStatus(
+      '<div style="text-align:center">' +
+        '<div style="font-size:32px;margin-bottom:8px">&#9989;</div>' +
+        '<div style="font-size:16px;font-weight:600;color:var(--green);margin-bottom:12px">Bridge Transaction Confirmed!</div>' +
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:16px">' +
+          'Your ' + amount.toFixed(2) + ' ' + esc(token) + ' is being bridged from ' + esc(fromChainName) + ' to ' + esc(toChainName) + '.' +
+          '<br>The tokens will arrive on ' + esc(toChainName) + ' shortly (check your wallet).' +
+        '</div>' +
+        '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">' +
+          '<a href="' + esc(explorerUrl) + '" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">' +
+            'View on Explorer &#8599;' +
+          '</a>' +
+          '<a href="https://scan.li.fi/tx/' + txHash + '" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none">' +
+            'Track on Li.Fi &#8599;' +
+          '</a>' +
+        '</div>' +
+        '<div style="margin-top:12px;font-family:JetBrains Mono,monospace;font-size:11px;word-break:break-all;color:var(--muted2)">' + txHash + '</div>' +
+      '</div>',
+      'success'
+    );
+
+    _bridgeQuoteData = null;
+    toast('Bridge transaction confirmed on ' + fromChainName + '!', 'success');
+
+  } catch (e) {
+    console.error('Bridge execution error:', e);
+    var userMsg = e.message || 'Unknown error';
+    // MetaMask user rejection
+    if (e.code === 4001 || (userMsg && userMsg.indexOf('User denied') !== -1) || (userMsg && userMsg.indexOf('rejected') !== -1)) {
+      userMsg = 'Transaction rejected in wallet.';
+    }
+    setExecStatus(
+      '<div style="color:var(--red)">' +
+        '<strong>Bridge failed:</strong> ' + esc(userMsg) +
+        '<div style="margin-top:12px;font-size:13px;color:var(--muted)">' +
+          'You can also bridge directly:' +
+          '<div style="display:flex;gap:8px;margin-top:8px">' +
+            '<a href="https://jumper.exchange/?fromChain=' + fromChainId + '&toChain=' + toChainId + '" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;font-size:12px">Jumper &#8599;</a>' +
+            '<a href="https://portalbridge.com/" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="text-decoration:none;font-size:12px">Portal &#8599;</a>' +
+          '</div>' +
+        '</div>' +
+      '</div>',
+      'error'
+    );
+    btn.textContent = 'Retry Bridge';
+    btn.disabled = false;
+    toast('Bridge failed: ' + userMsg, 'error');
+  }
 }
 
 // ══════════════════════════════════════
-// STOCKS
+// STOCKS — Tokenized stock trading via Backed Finance xStocks
 // ══════════════════════════════════════
+
+// Mint addresses from backend/tokenized_stocks.py (Backed Finance xStocks on Solana)
+var STOCK_CATALOG = {
+  "AAPL":  { name:"Apple Inc.",          xstock:"AAPLX",  mint:"XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp", sector:"Technology",       logo:"https://logo.clearbit.com/apple.com" },
+  "TSLA":  { name:"Tesla Inc.",          xstock:"TSLAX",  mint:"XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", sector:"Automotive",       logo:"https://logo.clearbit.com/tesla.com" },
+  "NVDA":  { name:"NVIDIA Corp.",        xstock:"NVDAX",  mint:"Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh", sector:"Semiconductors",   logo:"https://logo.clearbit.com/nvidia.com" },
+  "GOOGL": { name:"Alphabet Inc.",       xstock:"GOOGLX", mint:"XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN", sector:"Technology",       logo:"https://logo.clearbit.com/google.com" },
+  "MSFT":  { name:"Microsoft Corp.",     xstock:"MSFTX",  mint:"XsMTBZsqrDgTRWKzKMGSDE8GQjPX4mNQHN3fLFMKfBJ", sector:"Technology",       logo:"https://logo.clearbit.com/microsoft.com" },
+  "AMZN":  { name:"Amazon.com Inc.",     xstock:"AMZNX",  mint:"Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg", sector:"Consumer",         logo:"https://logo.clearbit.com/amazon.com" },
+  "META":  { name:"Meta Platforms Inc.", xstock:"METAX",  mint:"XsoeC2iBhNSXVgVB9GNofBSVw3VF9LDLBqSMhRdZi43", sector:"Technology",       logo:"https://logo.clearbit.com/meta.com" },
+  "MSTR":  { name:"MicroStrategy Inc.",  xstock:"MSTRX",  mint:"XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ", sector:"Technology/BTC",   logo:"https://logo.clearbit.com/microstrategy.com" },
+  "QQQ":   { name:"Nasdaq 100 ETF",     xstock:"QQQX",   mint:"Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ", sector:"ETF",              logo:"" },
+  "SPY":   { name:"S&P 500 ETF",        xstock:"SPYX",   mint:"XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W", sector:"ETF",              logo:"" }
+};
+
+var USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+// Cache loaded prices from API
+var _stockPriceCache = {};
+
 async function loadStocks() {
   var grid = document.getElementById('stocks-grid');
   try {
@@ -2204,20 +2612,38 @@ async function loadStocks() {
     var stocks = data.stocks || data || [];
 
     if (Array.isArray(stocks) && stocks.length > 0) {
+      // Cache prices for modal use
+      stocks.forEach(function(s) {
+        var sym = (s.symbol || '').replace(/^x/, '').toUpperCase();
+        _stockPriceCache[sym] = {
+          price: s.price_usd || s.price || 0,
+          change: s.change_24h_pct || 0,
+          source: s.price_source || 'live'
+        };
+      });
       grid.innerHTML = stocks.map(function(s) {
-        var symbol = s.symbol || s.ticker || '—';
-        var name = s.name || s.company || '—';
+        var rawSym = s.symbol || s.ticker || '—';
+        var sym = rawSym.replace(/^x/, '').toUpperCase();
+        var cat = STOCK_CATALOG[sym] || {};
+        var name = s.name || s.company || cat.name || '—';
         var price = s.price_usd || s.price || 0;
-        var sector = s.sector || 'Tech';
+        var change = s.change_24h_pct || 0;
+        var sector = s.sector || cat.sector || 'Tech';
+        var xstock = s.xstock || cat.xstock || sym + 'X';
+        var changeClass = change >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+        var changeStr = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+        var hasMint = cat.mint && cat.mint.length > 20;
         return '<div class="card stock-card">' +
-          '<div class="stock-symbol">' + esc(symbol) + '</div>' +
+          '<div class="stock-symbol">' + esc(xstock) + '</div>' +
           '<div class="stock-name">' + esc(name) + '</div>' +
           '<div class="stock-price">$' + Number(price).toFixed(2) + '</div>' +
+          '<div class="stock-change" style="' + changeClass + '">' + changeStr + '</div>' +
           '<div class="stock-sector"><span class="badge badge-purple">' + esc(sector) + '</span></div>' +
           '<div class="stock-actions">' +
-            '<button class="btn-green btn-sm" onclick="tradeStock(\'' + esc(symbol) + '\',\'buy\')">Buy</button>' +
-            '<button class="btn-red btn-sm" onclick="tradeStock(\'' + esc(symbol) + '\',\'sell\')">Sell</button>' +
+            '<button class="btn-green btn-sm" onclick="openStockModal(\'' + esc(sym) + '\',\'buy\')">Buy</button>' +
+            '<button class="btn-red btn-sm" onclick="openStockModal(\'' + esc(sym) + '\',\'sell\')">Sell</button>' +
           '</div>' +
+          '<div class="stock-provider">' + (hasMint ? 'Backed Finance' : 'Coming soon') + '</div>' +
         '</div>';
       }).join('');
     } else {
@@ -2229,47 +2655,278 @@ async function loadStocks() {
 }
 
 function renderFallbackStocks(grid) {
-  var stocks = [
-    { symbol: 'xAAPL', name: 'Apple Inc.', price: 178.50, sector: 'Tech' },
-    { symbol: 'xGOOG', name: 'Alphabet Inc.', price: 141.20, sector: 'Tech' },
-    { symbol: 'xTSLA', name: 'Tesla Inc.', price: 245.80, sector: 'Auto' },
-    { symbol: 'xAMZN', name: 'Amazon.com', price: 182.60, sector: 'E-Commerce' },
-    { symbol: 'xMSFT', name: 'Microsoft', price: 415.30, sector: 'Tech' },
-    { symbol: 'xNVDA', name: 'NVIDIA', price: 875.40, sector: 'Semiconductors' },
-    { symbol: 'xMETA', name: 'Meta Platforms', price: 505.20, sector: 'Tech' },
-    { symbol: 'xSOL', name: 'Solana Inc.', price: 142.10, sector: 'Crypto' },
-    { symbol: 'xCOIN', name: 'Coinbase', price: 225.70, sector: 'Crypto' },
-    { symbol: 'xSPY', name: 'S&P 500 ETF', price: 512.30, sector: 'Index' }
+  var fallback = [
+    { sym: 'AAPL', price: 178.50 }, { sym: 'GOOGL', price: 141.20 },
+    { sym: 'TSLA', price: 245.80 }, { sym: 'AMZN', price: 182.60 },
+    { sym: 'MSFT', price: 415.30 }, { sym: 'NVDA', price: 875.40 },
+    { sym: 'META', price: 505.20 }, { sym: 'MSTR', price: 380.10 },
+    { sym: 'QQQ', price: 498.30 },  { sym: 'SPY', price: 512.30 }
   ];
-  grid.innerHTML = stocks.map(function(s) {
+  fallback.forEach(function(f) {
+    _stockPriceCache[f.sym] = { price: f.price, change: 0, source: 'fallback' };
+  });
+  grid.innerHTML = fallback.map(function(f) {
+    var cat = STOCK_CATALOG[f.sym] || {};
+    var hasMint = cat.mint && cat.mint.length > 20;
     return '<div class="card stock-card">' +
-      '<div class="stock-symbol">' + s.symbol + '</div>' +
-      '<div class="stock-name">' + s.name + '</div>' +
-      '<div class="stock-price">$' + s.price.toFixed(2) + '</div>' +
-      '<div class="stock-sector"><span class="badge badge-purple">' + s.sector + '</span></div>' +
+      '<div class="stock-symbol">' + (cat.xstock || f.sym + 'X') + '</div>' +
+      '<div class="stock-name">' + (cat.name || f.sym) + '</div>' +
+      '<div class="stock-price">$' + f.price.toFixed(2) + '</div>' +
+      '<div class="stock-change" style="color:var(--muted)">—</div>' +
+      '<div class="stock-sector"><span class="badge badge-purple">' + (cat.sector || 'Tech') + '</span></div>' +
       '<div class="stock-actions">' +
-        '<button class="btn-green btn-sm" onclick="tradeStock(\'' + s.symbol + '\',\'buy\')">Buy</button>' +
-        '<button class="btn-red btn-sm" onclick="tradeStock(\'' + s.symbol + '\',\'sell\')">Sell</button>' +
+        '<button class="btn-green btn-sm" onclick="openStockModal(\'' + f.sym + '\',\'buy\')">Buy</button>' +
+        '<button class="btn-red btn-sm" onclick="openStockModal(\'' + f.sym + '\',\'sell\')">Sell</button>' +
       '</div>' +
+      '<div class="stock-provider">' + (hasMint ? 'Backed Finance' : 'Coming soon') + '</div>' +
     '</div>';
   }).join('');
 }
 
-async function tradeStock(symbol, side) {
+function openStockModal(symbol, side) {
   if (!wallet) { toast('Connect your wallet first', 'error'); return; }
-  var amount = prompt((side === 'buy' ? 'Buy' : 'Sell') + ' ' + symbol + ' — Amount in USDC:', '10');
-  if (!amount || isNaN(amount) || Number(amount) <= 0) return;
-  try {
-    var endpoint = side === 'buy' ? '/api/public/stocks/buy' : '/api/public/stocks/sell';
-    var r = await api(endpoint, {
-      method: 'POST',
-      body: JSON.stringify({ symbol: symbol, amount_usdc: Number(amount), wallet: wallet })
-    });
-    toast(side.charAt(0).toUpperCase() + side.slice(1) + ' ' + symbol + ': $' + amount + ' — ' + (r.status || 'submitted'), 'success');
-    loadStocks();
-  } catch(e) {
-    toast('Error: ' + e.message, 'error');
+
+  var cat = STOCK_CATALOG[symbol] || {};
+  var cached = _stockPriceCache[symbol] || {};
+  var price = cached.price || 0;
+  var name = cat.name || symbol;
+  var xstock = cat.xstock || symbol + 'X';
+  var mint = cat.mint || '';
+  var hasMint = mint.length > 20;
+  var isBuy = (side === 'buy');
+
+  // Remove existing modal
+  closeStockModal();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'stock-trade-modal';
+  overlay.className = 'stock-modal-overlay';
+
+  // Jupiter swap URL: USDC -> xStock token
+  var jupiterUrl = hasMint
+    ? 'https://jup.ag/swap/USDC-' + mint
+    : '';
+
+  // Birdeye URL for the token
+  var birdeyeUrl = hasMint
+    ? 'https://birdeye.so/token/' + mint + '?chain=solana'
+    : '';
+
+  // Solscan URL
+  var solscanUrl = hasMint
+    ? 'https://solscan.io/token/' + mint
+    : '';
+
+  var modalHTML =
+    '<div class="stock-modal">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div>' +
+          '<h3>' + (isBuy ? 'Buy' : 'Sell') + ' ' + esc(xstock) + '</h3>' +
+          '<div class="sm-sub">' + esc(name) + ' — Tokenized Stock on Solana</div>' +
+        '</div>' +
+        '<button onclick="closeStockModal()" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;padding:0;line-height:1">&times;</button>' +
+      '</div>' +
+
+      // Current price
+      '<div class="sm-price-row">' +
+        '<div>' +
+          '<div class="sm-label">Current Price</div>' +
+          '<div style="font-size:11px;color:var(--muted2);margin-top:2px">' + (cached.source === 'fallback' ? 'Delayed' : 'Live via Oracle') + '</div>' +
+        '</div>' +
+        '<div class="sm-val">$' + Number(price).toFixed(2) + '</div>' +
+      '</div>' +
+
+      // Amount input
+      '<div class="sm-input-wrap">' +
+        '<label>Amount (USDC)</label>' +
+        '<input type="number" id="stock-amount-input" placeholder="10.00" min="1" max="100000" step="0.01" value="10" oninput="updateStockSummary(\'' + symbol + '\',' + price + ')">' +
+      '</div>' +
+
+      // Order summary
+      '<div class="sm-summary" id="stock-order-summary">' +
+        '<div class="sm-row"><span>Investment</span><span>$10.00 USDC</span></div>' +
+        '<div class="sm-row"><span>Est. shares</span><span>' + (price > 0 ? (10 / price).toFixed(4) : '—') + ' ' + esc(xstock) + '</span></div>' +
+        '<div class="sm-row"><span>Commission (Bronze)</span><span>$0.05 (0.5%)</span></div>' +
+        '<div class="sm-row"><span style="font-weight:600">Net investment</span><span style="color:var(--green)">$9.95</span></div>' +
+      '</div>' +
+
+      // Provider & availability info
+      (hasMint ?
+        '<div class="sm-available">' +
+          '<strong>Available on Solana</strong> via <a href="https://backed.fi" target="_blank" style="color:var(--green)">Backed Finance</a><br>' +
+          '<span style="font-size:12px;color:var(--muted)">Token: ' + esc(xstock) + ' &mdash; Mint: ' + mint.substring(0, 8) + '...' + mint.substring(mint.length - 4) + '</span>' +
+        '</div>'
+        :
+        '<div class="sm-coming-soon">' +
+          '<strong>Coming Q2 2026</strong><br>' +
+          '<span style="font-size:12px">This stock does not yet have a tokenized version on Solana. We will list it as soon as a provider launches it.</span>' +
+        '</div>'
+      ) +
+
+      // Provider details
+      '<div class="sm-provider-info">' +
+        '<strong>How it works:</strong> Tokenized stocks are SPL tokens on Solana, backed 1:1 by real shares held in custody. ' +
+        'MAXIA routes your USDC through <a href="https://jup.ag" target="_blank">Jupiter</a> to swap for the stock token.' +
+        (hasMint ? '<br><br><strong>Links:</strong> ' +
+          '<a href="' + birdeyeUrl + '" target="_blank">Birdeye</a> &bull; ' +
+          '<a href="' + solscanUrl + '" target="_blank">Solscan</a> &bull; ' +
+          '<a href="https://backed.fi" target="_blank">Backed Finance</a>'
+          : '') +
+      '</div>' +
+
+      // Commission tiers
+      '<details style="margin-bottom:16px;cursor:pointer">' +
+        '<summary style="font-size:13px;color:var(--muted);font-family:JetBrains Mono,monospace">Commission tiers</summary>' +
+        '<div style="padding:10px 0;font-size:13px;color:var(--muted);line-height:2">' +
+          'Bronze: 0.5% (under $1K/mo)<br>' +
+          'Silver: 0.2% ($1K - $5K/mo)<br>' +
+          'Gold: 0.1% ($5K - $25K/mo)<br>' +
+          'Whale: 0.05% (over $25K/mo)' +
+        '</div>' +
+      '</details>' +
+
+      // Action buttons
+      '<div class="sm-actions">' +
+        (hasMint && isBuy ?
+          '<button class="btn btn-primary btn-sm" onclick="executeStockSwap(\'' + symbol + '\')" id="btn-stock-execute" style="flex:2">' +
+            'Swap USDC &rarr; ' + esc(xstock) + ' via Jupiter' +
+          '</button>'
+          : hasMint && !isBuy ?
+          '<button class="btn btn-primary btn-sm" onclick="executeStockSwap(\'' + symbol + '\')" id="btn-stock-execute" style="flex:2;background:linear-gradient(135deg,var(--red),var(--orange))">' +
+            'Swap ' + esc(xstock) + ' &rarr; USDC via Jupiter' +
+          '</button>'
+          :
+          '<button class="btn btn-primary btn-sm" disabled style="flex:2;opacity:.5">' +
+            'Not yet available on-chain' +
+          '</button>'
+        ) +
+        (hasMint ?
+          '<a href="' + jupiterUrl + '" target="_blank" class="btn-outline btn-sm" style="flex:1;text-align:center;display:flex;align-items:center;justify-content:center;text-decoration:none">' +
+            'Open Jupiter' +
+          '</a>'
+          : '') +
+        '<button class="btn-outline btn-sm" onclick="closeStockModal()" style="flex:0 0 auto">Cancel</button>' +
+      '</div>' +
+    '</div>';
+
+  overlay.innerHTML = modalHTML;
+  document.body.appendChild(overlay);
+
+  // Close on backdrop click
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeStockModal(); });
+
+  // Close on Escape
+  overlay._escHandler = function(e) { if (e.key === 'Escape') closeStockModal(); };
+  document.addEventListener('keydown', overlay._escHandler);
+
+  // Focus the amount input
+  setTimeout(function() {
+    var inp = document.getElementById('stock-amount-input');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 100);
+}
+
+function updateStockSummary(symbol, price) {
+  var inp = document.getElementById('stock-amount-input');
+  var summaryEl = document.getElementById('stock-order-summary');
+  if (!inp || !summaryEl) return;
+
+  var amount = parseFloat(inp.value) || 0;
+  var cat = STOCK_CATALOG[symbol] || {};
+  var xstock = cat.xstock || symbol + 'X';
+
+  // Commission: 0.5% Bronze default (we don't know user tier on frontend)
+  var commPct = 0.5;
+  var commission = amount * commPct / 100;
+  var net = amount - commission;
+  var shares = price > 0 ? (net / price) : 0;
+
+  summaryEl.innerHTML =
+    '<div class="sm-row"><span>Investment</span><span>$' + amount.toFixed(2) + ' USDC</span></div>' +
+    '<div class="sm-row"><span>Est. shares</span><span>' + shares.toFixed(4) + ' ' + esc(xstock) + '</span></div>' +
+    '<div class="sm-row"><span>Commission (Bronze)</span><span>$' + commission.toFixed(2) + ' (' + commPct + '%)</span></div>' +
+    '<div class="sm-row"><span style="font-weight:600">Net investment</span><span style="color:var(--green)">$' + net.toFixed(2) + '</span></div>';
+}
+
+function closeStockModal() {
+  var m = document.getElementById('stock-trade-modal');
+  if (m) {
+    if (m._escHandler) document.removeEventListener('keydown', m._escHandler);
+    m.remove();
   }
+}
+
+async function executeStockSwap(symbol) {
+  var cat = STOCK_CATALOG[symbol] || {};
+  var mint = cat.mint || '';
+  var xstock = cat.xstock || symbol + 'X';
+  var amountEl = document.getElementById('stock-amount-input');
+  var btn = document.getElementById('btn-stock-execute');
+  var amount = parseFloat(amountEl ? amountEl.value : 0) || 0;
+
+  if (amount < 1) { toast('Minimum $1 USDC', 'error'); return; }
+  if (amount > 100000) { toast('Maximum $100,000 USDC per trade', 'error'); return; }
+  if (!mint || mint.length < 20) { toast('No on-chain token available yet', 'error'); return; }
+
+  // Disable button, show loading
+  if (btn) { btn.textContent = 'Preparing swap...'; btn.disabled = true; }
+
+  try {
+    // Step 1: Get a Jupiter quote via our backend
+    var quoteResp = await api('/api/public/crypto/swap', {
+      method: 'POST',
+      body: JSON.stringify({
+        from: 'USDC',
+        to: xstock,
+        amount_usdc: amount,
+        wallet: wallet,
+        to_mint: mint,
+        from_mint: USDC_MINT,
+        slippage_bps: 100
+      })
+    });
+
+    if (quoteResp.error) {
+      // If backend swap fails, fall back to Jupiter UI
+      throw new Error(quoteResp.error);
+    }
+
+    if (quoteResp.success || quoteResp.tx_signature || quoteResp.route) {
+      closeStockModal();
+      toast('Swap submitted: USDC -> ' + xstock + ' ($' + amount.toFixed(2) + ')', 'success');
+      loadStocks();
+      return;
+    }
+
+    // If we got a quote but no execution, open Jupiter as fallback
+    throw new Error('swap_redirect');
+
+  } catch (e) {
+    // Fallback: open Jupiter swap page directly
+    var jupUrl = 'https://jup.ag/swap/USDC-' + mint + '?amount=' + (amount * 1e6);
+    if (btn) { btn.disabled = false; }
+
+    if (e.message === 'swap_redirect' || e.message.indexOf('not supported') >= 0 || e.message.indexOf('route') >= 0) {
+      // Expected: redirect to Jupiter for manual swap
+      closeStockModal();
+      window.open(jupUrl, '_blank');
+      toast('Opening Jupiter to swap USDC -> ' + xstock, 'info');
+    } else {
+      // Unexpected error: offer Jupiter as alternative
+      if (btn) {
+        btn.innerHTML = '<a href="' + jupUrl + '" target="_blank" style="color:white;text-decoration:none">Open Jupiter Instead</a>';
+        btn.disabled = false;
+        btn.onclick = function() { window.open(jupUrl, '_blank'); closeStockModal(); };
+      }
+      toast('Swap via API failed — use Jupiter directly: ' + e.message, 'error');
+    }
+  }
+}
+
+// Legacy alias for any old references
+function tradeStock(symbol, side) {
+  var sym = symbol.replace(/^x/, '').toUpperCase();
+  openStockModal(sym, side);
 }
 
 // ══════════════════════════════════════
