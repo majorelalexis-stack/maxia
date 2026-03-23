@@ -473,7 +473,7 @@ class Memory:
             "okr": {}, "roadmap": "", "marche": {}, "concurrents": [],
             "langues": ["en"], "chains": ["solana"],
             "budget_vert": BASE_BUDGET_VERT, "budget_orange": BASE_BUDGET_ORANGE,
-            "semaines_0rev": 0, "emergency_stop": False,
+            "semaines_0rev": 0, "last_0rev_increment": "", "emergency_stop": False,
             "spent_sol": 0, "revenue_usd": 0, "clients": 0, "responses": 0,
             "hunter_canal": "solana_memo", "hunter_contacts": 0, "hunter_converts": 0,
             "fondateur_derniere_reponse": datetime.utcnow().isoformat(),
@@ -796,10 +796,24 @@ class Memory:
     def update_budget(self, rev_week: float):
         if rev_week > 0:
             self._data["semaines_0rev"] = 0
+            self._data["last_0rev_increment"] = ""
             self._data["budget_vert"] = BASE_BUDGET_VERT
             self._data["budget_orange"] = BASE_BUDGET_ORANGE
         else:
-            self._data["semaines_0rev"] += 1
+            # Only increment semaines_0rev once per 7 days (not every 3h loop)
+            last_inc = self._data.get("last_0rev_increment", "")
+            now = datetime.utcnow()
+            should_increment = True
+            if last_inc:
+                try:
+                    last_dt = datetime.fromisoformat(last_inc)
+                    if (now - last_dt).total_seconds() < 7 * 86400:
+                        should_increment = False
+                except Exception:
+                    pass
+            if should_increment:
+                self._data["semaines_0rev"] += 1
+                self._data["last_0rev_increment"] = now.isoformat()
             decay = BUDGET_DECAY_WEEKLY ** self._data["semaines_0rev"]
             self._data["budget_vert"] = max(MIN_BUDGET_VERT, BASE_BUDGET_VERT * decay)
             self._data["budget_orange"] = max(MIN_BUDGET_VERT * 10, BASE_BUDGET_ORANGE * decay)
@@ -2534,8 +2548,8 @@ async def crisis_detect(memory: Memory, skip_health: bool = False) -> list:
             "action": "Attente revenu ou reset fondateur",
         })
 
-    # P2 : Aucun revenu depuis >7 jours
-    if d.get("semaines_0rev", 0) >= 1:
+    # P2 : Aucun revenu depuis >8 semaines (pre-seed: normal d'avoir 0 rev au debut)
+    if d.get("semaines_0rev", 0) >= 8:
         crises.append({
             "level": "P2", "type": "zero_revenue",
             "details": f"{d.get('semaines_0rev', 0)} semaines sans revenu",
@@ -2656,6 +2670,9 @@ class CEOMaxia:
         self._running = False
         self._cycle = 0
         self._last = {"strat": "", "vision": "", "expansion": ""}
+        self._last_crisis_check = ""  # ISO date of last crisis detection run
+        # Pre-seed mode: no revenue yet, product just launched — reduce crisis noise
+        self._pre_seed_mode = (self.memory._data.get("revenue_usd", 0) == 0)
         print("[CEO MAXIA] V4 initialise")
         print(f"  Router: {'actif' if self.router else 'desactive (direct Groq/Claude)'}")
         print(f"  Groq: {'actif' if GROQ_API_KEY else 'MANQUANT'}")
@@ -2852,16 +2869,29 @@ class CEOMaxia:
         self.memory.update_agent("TESTIMONIAL", {"count": len(self.memory._data.get("testimonials", []))})
 
         # CRISIS-MANAGER — detection automatique de crises
+        # In pre-seed mode (no revenue yet), only run crisis detection once per day
+        # instead of every 3h loop to avoid P2 spam
+        today = date.today().isoformat()
+        run_crisis = True
+        if self._pre_seed_mode and self._last_crisis_check == today:
+            run_crisis = False
+            print(f"[CEO] CRISIS-MANAGER skipped (pre-seed mode, already checked today)")
+
         crises = []
-        try:
-            crises = await crisis_detect(self.memory, skip_health=(self._cycle < 3))
-            for crisis in crises:
-                print(f"[CEO] CRISIS {crisis['level']}: {crisis['type']} — {crisis['details'][:80]}")
-                await crisis_respond(crisis, self.memory)
-            self.memory.update_agent("CRISIS-MANAGER", {"status": "actif", "active_crises": len(crises)})
-        except Exception as e:
-            print(f"[CEO] CRISIS-MANAGER error: {e}")
-            self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": str(e)[:80]})
+        if run_crisis:
+            try:
+                crises = await crisis_detect(self.memory, skip_health=(self._cycle < 3))
+                self._last_crisis_check = today
+                for crisis in crises:
+                    print(f"[CEO] CRISIS {crisis['level']}: {crisis['type']} — {crisis['details'][:80]}")
+                    await crisis_respond(crisis, self.memory)
+                self.memory.update_agent("CRISIS-MANAGER", {"status": "actif", "active_crises": len(crises)})
+            except Exception as e:
+                print(f"[CEO] CRISIS-MANAGER error: {e}")
+                self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": str(e)[:80]})
+            # Update pre-seed mode — exit it once revenue appears
+            if self.memory._data.get("revenue_usd", 0) > 0:
+                self._pre_seed_mode = False
 
         # ANALYTICS — metriques avancees (toutes les 3 heures)
         analytics_data = {}

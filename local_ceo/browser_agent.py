@@ -134,20 +134,35 @@ class BrowserAgent:
         except Exception:
             print("[BrowserAgent] Browser mort, reconnexion...")
             self._initialized = False
-            try:
-                if self._context:
-                    await self._context.close()
-            except Exception:
-                pass
-            try:
-                if hasattr(self, '_pw') and self._pw:
-                    await self._pw.stop()
-            except Exception:
-                pass
+            # Force cleanup everything — context and playwright may be corrupted
+            for obj in [self._context, self._pw]:
+                try:
+                    if obj is None:
+                        continue
+                    if hasattr(obj, 'close'):
+                        await obj.close()
+                    elif hasattr(obj, 'stop'):
+                        await obj.stop()
+                except Exception:
+                    pass
             self._context = None
             self._page = None
             self._pw = None
-            await self.setup()
+            # Kill orphan Chrome processes that may hold the profile lock
+            import subprocess
+            try:
+                subprocess.run(
+                    ['taskkill', '/IM', 'chrome.exe', '/F'],
+                    capture_output=True, timeout=5,
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(2)
+            # Retry setup with a fresh playwright instance
+            try:
+                await self.setup()
+            except Exception as e:
+                print(f"[BrowserAgent] Reconnexion echouee: {e}")
 
     async def _new_page(self):
         """Cree un nouvel onglet pour les actions paralleles."""

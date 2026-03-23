@@ -83,7 +83,7 @@ RESPONSE_TEMPLATES = {
 
 # Rate limiting par serveur
 _server_responses: dict = {}  # server_id -> {date: count}
-MAX_RESPONSES_PER_SERVER = 3
+MAX_RESPONSES_PER_SERVER = 10
 
 _running = False
 _bot_user_id = ""  # Set at READY event
@@ -92,10 +92,13 @@ _bot_user_id = ""  # Set at READY event
 async def _ask_ceo(message: str, user: str = "discord_user") -> str:
     """Envoie un message au CEO MAXIA et retourne sa reponse."""
     try:
+        import os
+        admin_key = os.getenv("ADMIN_KEY", "")
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"http://127.0.0.1:{PORT}/api/ceo/ask",
                 json={"message": message},
+                headers={"X-Admin-Key": admin_key},
             )
             if resp.status_code == 200:
                 data = resp.json()

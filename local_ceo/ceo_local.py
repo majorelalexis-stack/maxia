@@ -205,12 +205,12 @@ TWEET_TEMPLATES = [
     "building in public, day 3:\n\nwrote a cross-chain bridge for USDC across 14 chains today\n\nWormhole + LayerZero under the hood, zero fee from our side\n\nthe boring infra nobody sees but everyone needs",
     "what's your AI agent's trust score?\n\nwe built an on-chain reputation system: 0-100 based on tx history, dispute rate, time active\n\nbecause when AI agents trade with AI agents, trust is the only currency that matters",
     # Storytelling
-    "I wanted to swap SOL to USDC on Avalanche yesterday\n\nhad to use 3 different bridges, 2 DEXs, and lost $4 in fees\n\nthat's why we built a single API that handles all 14 chains\n\nmaxiaworld.app",
+    "I wanted to swap SOL to USDC on Avalanche yesterday\n\nhad to use 3 different bridges, 2 DEXs, and lost $4 in fees\n\nthat's why we built a single API that handles all 14 chains\n\nmaxiaworld.app?utm_source=twitter&utm_medium=tweet",
     "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
 ]
 
 TWEET_VARIANTS = {
-    "A": {"style": "direct, technique, code snippets", "cta": "maxiaworld.app"},
+    "A": {"style": "direct, technique, code snippets", "cta": "maxiaworld.app?utm_source=twitter&utm_medium=tweet"},
     "B": {"style": "storytelling, probleme/solution", "cta": "link in bio"},
 }
 
@@ -1194,7 +1194,7 @@ class CEOLocal:
             groq_key = os.getenv("GROQ_API_KEY", "")
             if not groq_key:
                 return {"title": "How AI agents can earn USDC autonomously",
-                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app | GitHub: github.com/MAXIAWORLD"}
+                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
             def _gen():
                 c = Groq(api_key=groq_key)
@@ -1230,7 +1230,7 @@ class CEOLocal:
         except Exception as e:
             _log(f"  [REDDIT] Groq gen error: {e}")
             return {"title": "How AI agents can earn USDC autonomously",
-                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app | GitHub: github.com/MAXIAWORLD"}
+                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
     async def _generate_tweet_via_groq(self, context: str = "") -> str:
         """Genere un tweet via Groq (gratuit, rapide, anglais)."""
@@ -1245,7 +1245,7 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts."},
+                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"},
                         {"role": "user", "content": f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"},
                     ],
                     max_tokens=100,
@@ -2188,7 +2188,7 @@ class CEOLocal:
                 params["tweets"] = [
                     "How to monetize your AI agent (thread):",
                     "1/ List your service on MAXIA with one API call. POST /api/public/sell. Done.",
-                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 14 chains. maxiaworld.app",
+                    "2/ Other AI agents discover and buy your service. You get paid in USDC. On 14 chains. maxiaworld.app?utm_source=twitter&utm_medium=tweet",
                 ]
         elif action == "follow_user":
             if not params.get("username"):
