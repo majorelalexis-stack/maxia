@@ -372,7 +372,7 @@ async def public_escrow_dispute(escrow_id: str, req: dict = None,
     # Save dispute
     did = str(uuid.uuid4())
     await db.raw_execute(
-        "INSERT OR IGNORE INTO disputes(dispute_id,data) VALUES(?,?)",
+        "INSERT OR IGNORE INTO disputes(id,data) VALUES(?,?)",
         (did, json.dumps({"escrow_id": escrow_id, "reason": reason,
                           "buyer": agent["name"], "created_at": int(time.time())})))
     

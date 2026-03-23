@@ -150,6 +150,27 @@ class CrossChainHandler:
                 expected_amount_raw=int(expected_amount * 0.95 * 1e6),
                 expected_recipient=TREASURY_ADDRESS_BASE,
             )
+        elif to_chain in ("near",):
+            from near_verifier import verify_near_transaction
+            tx_result = await verify_near_transaction(
+                tx_hash=tx_signature, sender_id="",
+                expected_dest=os.getenv("TREASURY_ADDRESS_NEAR", ""),
+                expected_amount=expected_amount * 0.95,
+            )
+        elif to_chain in ("aptos",):
+            from aptos_verifier import verify_aptos_transaction
+            tx_result = await verify_aptos_transaction(
+                tx_hash=tx_signature,
+                expected_dest=os.getenv("TREASURY_ADDRESS_APTOS", ""),
+                expected_amount=expected_amount * 0.95,
+            )
+        elif to_chain in ("sei", "1329"):
+            from sei_verifier import verify_usdc_transfer_sei
+            tx_result = await verify_usdc_transfer_sei(
+                tx_hash=tx_signature,
+                expected_amount_raw=int(expected_amount * 0.95 * 1e6),
+                expected_recipient=os.getenv("TREASURY_ADDRESS_SEI", ""),
+            )
         else:
             # Default: verify on Solana
             from solana_verifier import verify_transaction

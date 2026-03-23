@@ -344,6 +344,14 @@ COMPETITOR_PRICES = {
         "runpod_community": 0.99, "runpod_secure": 1.14,
         "aws": 1.84, "gcp": 1.70, "lambda": 0.99, "vast_ai": 0.85,
     },
+    "rtx3090": {
+        "runpod_community": 0.39, "runpod_secure": 0.44,
+        "aws": None, "gcp": None, "lambda": 0.50, "vast_ai": 0.20,
+    },
+    "4xa100": {
+        "runpod_community": 6.56, "runpod_secure": 7.16,
+        "aws": 16.40, "gcp": 14.68, "lambda": 5.16, "vast_ai": 3.60,
+    },
 }
 
 
@@ -387,14 +395,14 @@ async def fetch_live_gpu_prices() -> dict:
                 prices = {}
                 for gpu in gpu_types:
                     name = gpu.get("displayName", "")
-                    lowest = gpu.get("lowestPrice", {})
+                    lowest = gpu.get("lowestPrice") or {}
                     prices[name] = {
                         "display_name": name,
                         "vram_gb": gpu.get("memoryInGb", 0),
                         "secure_cloud": gpu.get("secureCloud", False),
                         "community_cloud": gpu.get("communityCloud", False),
-                        "min_price": lowest.get("minimumBidPrice", 0),
-                        "on_demand_price": lowest.get("uninterruptablePrice", 0),
+                        "min_price": lowest.get("minimumBidPrice", 0) or 0,
+                        "on_demand_price": lowest.get("uninterruptablePrice", 0) or 0,
                         "available": gpu.get("secureCloud", False) or gpu.get("communityCloud", False),
                     }
                 _gpu_price_cache = prices

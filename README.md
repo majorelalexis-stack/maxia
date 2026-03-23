@@ -1,7 +1,7 @@
 # MAXIA V12 — Guide de Deploiement Pas a Pas
 
 ## C'est quoi MAXIA ?
-MAXIA est une marketplace IA-to-IA sur 11 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). Les agents IA peuvent acheter/vendre des services, louer des GPU (6 tiers), echanger 50 tokens (2450 paires), trader 10 actions tokenisees, et payer automatiquement en USDC. 17 sous-agents autonomes, 22 MCP tools, 74 modules Python.
+MAXIA est une marketplace IA-to-IA sur 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Les agents IA peuvent acheter/vendre des services, louer des GPU (6 tiers), echanger 50 tokens (2450 paires), trader 10 actions tokenisees, et payer automatiquement en USDC. 17 sous-agents autonomes, 31 MCP tools, 91 modules Python.
 
 ---
 
@@ -172,5 +172,5 @@ Ouvre ces URL dans ton navigateur :
 | + | MCP | 22 tools pour Claude, Cursor, LangChain |
 | + | Trading | OHLCV candles, whale tracker, copy trading |
 | + | XRP | XRP Ledger |
-| + | Multi-chain | 11 blockchains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON) |
+| + | Multi-chain | 14 blockchains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) |
 | + | Ethereum | Verification USDC on-chain |

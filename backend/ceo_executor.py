@@ -2,10 +2,10 @@
 
 Safety rules:
   VERT   -> auto-execute immediately
-  ORANGE -> max 1/day per cible, log warning
-  ROUGE  -> NEVER auto-execute, log + Discord alert only
+  ORANGE -> max 1/day per cible, log warning (high cost = queue for approval)
+  ROUGE  -> NEVER auto-execute, queue for dashboard approval + Discord alert
 """
-import asyncio, json, re, time
+import asyncio, json, re, time, uuid
 from datetime import date, datetime
 
 # ══════════════════════════════════════════
@@ -58,6 +58,23 @@ async def _log_and_alert(decision: dict, memory):
     memory.log_decision("ROUGE", action, "BLOCKED — requires founder approval", cible)
 
 
+def _queue_pending(decision: dict, memory):
+    """Ajoute une decision en attente d'approbation dans la memoire CEO."""
+    pending = memory._data.setdefault("pending_approvals", [])
+    pending.append({
+        "id": str(uuid.uuid4())[:8],
+        "ts": datetime.utcnow().isoformat(),
+        "action": decision.get("action", "")[:300],
+        "cible": decision.get("cible", ""),
+        "priorite": decision.get("priorite", "ORANGE").upper(),
+        "raison": decision.get("raison", ""),
+        "status": "pending",
+    })
+    # Garder max 50 pending
+    memory._data["pending_approvals"] = [p for p in pending if p["status"] == "pending"][-50:]
+    memory.save()
+
+
 # ══════════════════════════════════════════
 # Main dispatcher
 # ══════════════════════════════════════════
@@ -71,10 +88,16 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
     action = decision.get("action", "")
     cible = decision.get("cible", "").upper()
 
-    # ROUGE = never auto-execute
+    # ROUGE = never auto-execute, queue for dashboard approval
     if priorite == "ROUGE":
         await _log_and_alert(decision, memory)
+        _queue_pending(decision, memory)
         return {"executed": False, "reason": "ROUGE — requires manual approval"}
+
+    # ORANGE with high cost = queue for approval too
+    if priorite == "ORANGE" and decision.get("cost_usd", 0) > 5:
+        _queue_pending(decision, memory)
+        return {"executed": False, "reason": "ORANGE high cost — queued for approval"}
 
     # ORANGE = max 1/day per cible
     if priorite == "ORANGE":

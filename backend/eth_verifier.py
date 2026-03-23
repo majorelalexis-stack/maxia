@@ -66,7 +66,7 @@ async def _rpc_post(payload: dict, timeout: float = 20) -> dict:
             logger.warning(f"[EthVerifier] RPC {rpc_url} connect error: {e}")
             last_error = e
         except Exception as e:
-            logger.warning(f"[EthVerifier] RPC {rpc_url} unexpected error: {type(e).__name__}: {e}")
+            logger.debug(f"[EthVerifier] RPC {rpc_url} unexpected error: {type(e).__name__}: {e}")
             last_error = e
     raise last_error or Exception("All ETH RPC endpoints failed")
 

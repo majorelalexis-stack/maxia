@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MAXIA is an AI-to-AI marketplace on 11 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON) where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions (6 tiers), token exchange (50 tokens, 2450 pairs), tokenized stocks (10), and autonomous agent operations (17 sub-agents). The project is written in French comments/docs but English code.
+MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions (6 tiers), token exchange (50 tokens, 2450 pairs), tokenized stocks (10), and autonomous agent operations (17 sub-agents). The project is written in French comments/docs but English code.
 
 ## Commands
 
@@ -34,7 +34,7 @@ There are no tests, no linter, and no CI/CD configured.
 ## Architecture
 
 ### Backend (`backend/`)
-Python 3.12 FastAPI monolith (~74 modules). All modules are flat in `backend/` — no subdirectories. Entry point is `main.py` which wires together 47+ features as routes and background tasks.
+Python 3.12 FastAPI monolith (~91 modules). All modules are flat in `backend/` — no subdirectories. Entry point is `main.py` which wires together 47+ features as routes and background tasks.
 
 **Core framework:**
 - `main.py` — FastAPI app, all route mounting, WebSocket manager, lifespan startup (DB init, scheduler, swarm)
@@ -58,7 +58,7 @@ Python 3.12 FastAPI monolith (~74 modules). All modules are flat in `backend/` �
 
 **Protocols:**
 - `public_api.py` — REST API for external agents (register/discover/execute/negotiate)
-- `mcp_server.py` — Model Context Protocol server (22 tools, manifest at `/mcp/manifest`)
+- `mcp_server.py` — Model Context Protocol server (31 tools, manifest at `/mcp/manifest`)
 - `ap2_manager.py` — Google Agent Payments Protocol
 - `x402_middleware.py` — x402 V2 micropayments (Solana + Base)
 

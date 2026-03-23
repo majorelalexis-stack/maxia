@@ -188,7 +188,6 @@ if __name__ == "__main__":
 
     # ── System ──
     print("\n[System]")
-    test("Whitepaper", "GET", "/api/whitepaper")
     test("Escrow stats", "GET", "/api/escrow/stats")
     test("Twitter status", "GET", "/api/twitter/status")
     test("Scout status", "GET", "/api/agent/scout")

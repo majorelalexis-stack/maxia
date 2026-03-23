@@ -70,8 +70,9 @@ def require_admin(request: Request) -> str:
         raise HTTPException(500, "ADMIN_KEY not configured")
     ip = request.client.host if request.client else "unknown"
     # Header only (secure)
+    import hmac
     key = request.headers.get("X-Admin-Key", "")
-    if key != admin_key:
+    if not hmac.compare_digest(key, admin_key):
         audit_log("admin_auth_failed", ip, f"method=header path={request.url.path}")
         raise HTTPException(403, "Unauthorized")
     audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")

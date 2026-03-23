@@ -1,4 +1,4 @@
-"""MAXIA SCOUT Agent — Prospection IA-to-IA sur 11 chains
+"""MAXIA SCOUT Agent — Prospection IA-to-IA sur 14 chains
 
 Scanne Solana, Base (L2), Ethereum mainnet, XRP Ledger, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, et TRON pour trouver
 des agents IA autonomes deployes, puis les contacte machine-to-machine
@@ -22,6 +22,7 @@ from config import (
     get_rpc_url, ETH_RPC, BASE_RPC, GROQ_API_KEY, GROQ_MODEL,
     MARKETING_WALLET_ADDRESS, PROSPECT_MAX_PER_DAY,
     POLYGON_RPC, ARBITRUM_RPC, AVALANCHE_RPC, BNB_RPC,
+    NEAR_RPC, APTOS_API, SEI_RPC,
 )
 from alerts import alert_system, alert_error
 
@@ -103,6 +104,28 @@ BNB_AI_CONTRACTS = {
     "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c": {"name": "WBNB", "type": "token", "scan_method": "logs"},
 }
 
+# NEAR AI contracts/protocols connus
+NEAR_AI_ACCOUNTS = [
+    {"account": "aurora", "name": "Aurora EVM", "protocol": "aurora"},
+    {"account": "v2.ref-finance.near", "name": "Ref Finance", "protocol": "ref"},
+    {"account": "app.nearcrowd.near", "name": "NEARCrowd", "protocol": "nearcrowd"},
+    {"account": "social.near", "name": "NEAR Social", "protocol": "near-social"},
+    {"account": "agent.near", "name": "NEAR Agent", "protocol": "near-agent"},
+    {"account": "intear.near", "name": "Intear AI", "protocol": "intear"},
+]
+
+# Aptos AI protocols
+APTOS_AI_MODULES = [
+    {"address": "0x1", "name": "Aptos Framework", "protocol": "aptos-core"},
+    {"address": "0x5ae6789dd2fec1a9ec9cccfb3acaf12e93d432f0a3a42c92fe1a9d490b7bbc06", "name": "Liquidswap", "protocol": "liquidswap"},
+    {"address": "0x6f986d146e4a90b828d8c12c14b6f4e003fdff11a8eecceceb63744363eaac01", "name": "Thala", "protocol": "thala"},
+]
+
+# SEI AI contracts (EVM)
+SEI_AI_CONTRACTS = {
+    "0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1": {"name": "SEI USDC", "type": "token", "scan_method": "transfers"},
+}
+
 # Known AI agent registries (HTTP APIs)
 AI_REGISTRIES = [
     {
@@ -110,6 +133,12 @@ AI_REGISTRIES = [
         "url": "https://registry.olas.network/api/services",
         "type": "olas",
         "chain": "ethereum",
+    },
+    {
+        "name": "NEAR AI Registry",
+        "url": "https://api.near.ai/v1/agents",
+        "type": "near-ai",
+        "chain": "near",
     },
 ]
 
@@ -139,15 +168,15 @@ class ScoutAgent:
         self._total_contacted = 0
         self._max_contacts_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_agent = 2
-        print("[SCOUT] Agent IA-to-IA prospection initialise (11 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON)")
+        print("[SCOUT] Agent IA-to-IA prospection initialise (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)")
 
     async def run(self):
         """Boucle principale — scan toutes les 6 heures."""
         self._running = True
-        print(f"[SCOUT] Demarre — scan 11 chains, max {self._max_contacts_day} contacts/jour")
+        print(f"[SCOUT] Demarre — scan 14 chains, max {self._max_contacts_day} contacts/jour")
         await alert_system(
             "SCOUT Agent IA-to-IA demarre",
-            f"Scan: 11 chains (Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON)\n"
+            f"Scan: 14 chains (Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)\n"
             f"Cibles: ElizaOS, Autonolas, Fetch.ai, SingularityNET, Virtuals\n"
             f"Max {self._max_contacts_day} contacts/jour"
         )
@@ -159,21 +188,21 @@ class ScoutAgent:
                     if not self._can_contact():
                         break
                     await self._contact_agent(agent_info)
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(2)  # 2s entre chaque contact (pas de spam)
             except Exception as e:
                 print(f"[SCOUT] Erreur boucle: {e}")
                 await alert_error("SCOUT", str(e))
-            await asyncio.sleep(21600)  # 6 heures
+            await asyncio.sleep(7200)  # 2 heures (scan plus frequent)
 
     def stop(self):
         self._running = False
 
     # ══════════════════════════════════════════
-    # Scan — 11 chains
+    # Scan — 14 chains
     # ══════════════════════════════════════════
 
     async def scan_all_chains(self) -> list:
-        """Scan les 11 chains en parallele pour trouver des agents IA."""
+        """Scan les 14 chains en parallele pour trouver des agents IA."""
         results = await asyncio.gather(
             self._scan_solana(),
             self._scan_ethereum(),
@@ -184,6 +213,9 @@ class ScoutAgent:
             self._scan_evm_chain("bnb", BNB_RPC, BNB_AI_CONTRACTS),
             self._scan_ton(),
             self._scan_sui(),
+            self._scan_near(),
+            self._scan_aptos(),
+            self._scan_evm_chain("sei", SEI_RPC, SEI_AI_CONTRACTS),
             self._scan_registries(),
             return_exceptions=True,
         )
@@ -202,7 +234,7 @@ class ScoutAgent:
                 seen.add(addr)
                 unique.append(a)
         self._total_discovered += len(unique)
-        print(f"[SCOUT] {len(unique)} agents IA trouves sur 11 chains")
+        print(f"[SCOUT] {len(unique)} agents IA trouves sur 14 chains")
         return unique
 
     async def _scan_solana(self) -> list:
@@ -418,6 +450,77 @@ class ScoutAgent:
             print(f"[SCOUT] SUI scan error: {e}")
         return agents
 
+    async def _scan_near(self) -> list:
+        """Scan NEAR pour trouver des agents/bots IA actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                # Scanner les comptes NEAR connus dans l'ecosysteme AI
+                for acct in NEAR_AI_ACCOUNTS:
+                    try:
+                        resp = await client.post(NEAR_RPC, json={
+                            "jsonrpc": "2.0", "id": 1,
+                            "method": "query",
+                            "params": {"request_type": "view_account", "finality": "final", "account_id": acct["account"]},
+                        })
+                        data = resp.json()
+                        if data.get("result") and not data.get("error"):
+                            agents.append({
+                                "address": acct["account"],
+                                "chain": "near",
+                                "protocol": acct["protocol"],
+                                "type": "known_protocol",
+                                "contact_method": "api_or_onchain",
+                            })
+                            self._register_discovery(acct["account"], "near", acct["protocol"], False)
+                    except Exception:
+                        continue
+                # Scanner le registre NEAR AI
+                try:
+                    resp = await client.get("https://api.near.ai/v1/agents", timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for agent in (data if isinstance(data, list) else data.get("agents", []))[:20]:
+                            addr = agent.get("account_id", agent.get("id", ""))
+                            if addr:
+                                agents.append({
+                                    "address": addr,
+                                    "chain": "near",
+                                    "protocol": "near-ai",
+                                    "type": "registered_agent",
+                                    "contact_method": "api",
+                                })
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[SCOUT] NEAR scan error: {e}")
+        print(f"[SCOUT] NEAR: {len(agents)} agents trouves")
+        return agents
+
+    async def _scan_aptos(self) -> list:
+        """Scan Aptos pour trouver des agents/protocols actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                for mod in APTOS_AI_MODULES:
+                    try:
+                        resp = await client.get(f"{APTOS_API}/accounts/{mod['address']}")
+                        if resp.status_code == 200:
+                            agents.append({
+                                "address": mod["address"],
+                                "chain": "aptos",
+                                "protocol": mod["protocol"],
+                                "type": "known_protocol",
+                                "contact_method": "api",
+                            })
+                            self._register_discovery(mod["address"], "aptos", mod["protocol"], False)
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"[SCOUT] Aptos scan error: {e}")
+        print(f"[SCOUT] Aptos: {len(agents)} agents trouves")
+        return agents
+
     async def _scan_registries(self) -> list:
         """Scan les registries HTTP d'agents IA (Autonolas, etc)."""
         agents = []
@@ -540,29 +643,40 @@ class ScoutAgent:
 
         return endpoints
 
-    async def _generate_m2m_message(self, protocol: str, chain: str) -> str:
-        """Generate a machine-readable + human-readable outreach message."""
-        base_msg = (
-            f"MAXIA AI Marketplace on {chain.title()}. "
-            f"Your {protocol} agent can sell services to other AI agents. "
-            f"Register free: {MAXIA_URL}/api/public/register — "
-            f"POST /sell = live in 2s. Earn USDC. 0.5% fee only."
-        )
+    # Templates par chain — 0 token LLM
+    _CHAIN_TEMPLATES = {
+        "solana": "Your Solana agent can sell services on MAXIA. POST /sell → USDC in your wallet. 14 chains, 0.5% fee. {MAXIA_URL}",
+        "ethereum": "Your ETH agent can earn USDC on MAXIA marketplace. One API call to list. 14 chains supported. {MAXIA_URL}",
+        "base": "Base agent? Sell services to other AIs on MAXIA. USDC payments, 0.5% fee. {MAXIA_URL}",
+        "polygon": "Your Polygon agent can earn USDC selling services to other AIs. Register free: {MAXIA_URL}",
+        "arbitrum": "Arbitrum agent? MAXIA marketplace lets you sell services to other AIs. USDC, 0.5% fee. {MAXIA_URL}",
+        "avalanche": "AVAX agent? List your service on MAXIA, earn USDC from other AI agents. {MAXIA_URL}",
+        "bnb": "BNB Chain agent? Sell services on MAXIA AI marketplace. 14 chains, USDC. {MAXIA_URL}",
+        "ton": "TON bot? MAXIA lets AI agents trade services. Earn USDC, one API call. {MAXIA_URL}",
+        "sui": "SUI Move agent? Sell services to other AIs on MAXIA. 14 chains, USDC payments. {MAXIA_URL}",
+        "tron": "TRON agent? List on MAXIA marketplace, earn USDC from AI-to-AI trades. {MAXIA_URL}",
+        "near": "NEAR agent? MAXIA is an AI marketplace on 14 chains. Sell services, earn USDC. {MAXIA_URL}",
+        "aptos": "Aptos Move agent? MAXIA lets AIs buy your services. USDC, 0.5% fee, one POST. {MAXIA_URL}",
+        "sei": "SEI agent? Sell to other AIs on MAXIA marketplace. 14 chains, USDC, 390ms settlement. {MAXIA_URL}",
+    }
 
-        if not groq_client:
+    async def _generate_m2m_message(self, protocol: str, chain: str) -> str:
+        """Generate outreach message. Uses templates (0 tokens) with optional Groq personalization."""
+        # Template par chain (gratuit, instantane)
+        template = self._CHAIN_TEMPLATES.get(chain.lower(),
+            f"Your {chain} agent can sell services on MAXIA AI marketplace. USDC, 14 chains. {{MAXIA_URL}}")
+        base_msg = template.format(MAXIA_URL=MAXIA_URL)
+
+        # Personnaliser via Groq seulement 1 fois sur 5 (economiser les tokens)
+        if not groq_client or self._total_contacted % 5 != 0:
             return base_msg
 
         try:
             prompt = (
-                f"Write a SHORT outreach memo (max 180 chars) to an AI agent operator.\n"
-                f"Their agent runs on {protocol} ({chain}).\n"
-                f"MAXIA = AI-to-AI marketplace. Their agent can sell services and earn USDC.\n"
-                f"Registration: one POST request. Commission: 0.5%.\n"
-                f"URL: {MAXIA_URL}\n"
-                f"Talk dev-to-dev. Be specific about {protocol} integration.\n"
-                f"Max 180 chars. English only."
+                f"Rewrite this outreach message for a {protocol} agent on {chain}. "
+                f"Keep under 180 chars. Dev tone. English.\n"
+                f"Original: {base_msg}"
             )
-
             def _call():
                 resp = groq_client.chat.completions.create(
                     model=GROQ_MODEL,
@@ -570,7 +684,6 @@ class ScoutAgent:
                     max_tokens=80, temperature=0.7,
                 )
                 return resp.choices[0].message.content.strip()
-
             result = await asyncio.to_thread(_call)
             return result if len(result) > 20 else base_msg
         except Exception:

@@ -34,9 +34,9 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.maxia-browser"))
 
 # Limites quotidiennes
-MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "10"))
+MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "2"))  # Qualite > quantite : max 2/jour
 MAX_REDDIT_POSTS_DAY = int(os.getenv("MAX_REDDIT_POSTS_DAY", "5"))
-MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "50"))
+MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "150"))
 
 # Audit DB
 AUDIT_DB_PATH = os.getenv("AUDIT_DB_PATH", "ceo_audit.db")

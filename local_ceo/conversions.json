@@ -7,14 +7,14 @@
   },
   "action_stats": {
     "write_blog": {
-      "attempts": 7,
-      "successes": 7,
+      "attempts": 17,
+      "successes": 17,
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 13,
-      "successes": 10,
-      "failures": 3
+      "attempts": 68,
+      "successes": 52,
+      "failures": 16
     },
     "handle_support": {
       "attempts": 1,
@@ -27,8 +27,8 @@
       "failures": 1
     },
     "analyze_trends": {
-      "attempts": 5,
-      "successes": 5,
+      "attempts": 15,
+      "successes": 15,
       "failures": 0
     },
     "Lancer une campagne de prospection cibl\u00e9e sur les d\u00e9veloppeurs Solana via Discord et Reddit (r/solanadev) avec un message direct sur la g\u00e9n\u00e9ration de revenus automatiques pour les agents IA.": {
@@ -52,9 +52,9 @@
       "failures": 2
     },
     "comment_github_ai": {
-      "attempts": 1,
-      "successes": 1,
-      "failures": 0
+      "attempts": 11,
+      "successes": 7,
+      "failures": 4
     },
     "Lancer une campagne de prospection ultra-cibl\u00e9e sur Reddit (r/solanadev, r/aiagents) avec des messages personnalis\u00e9s pour les devs ayant des bots IA fonctionnels mais sans revenus.": {
       "attempts": 1,
@@ -72,34 +72,49 @@
       "failures": 1
     },
     "reply_mentions": {
-      "attempts": 5,
-      "successes": 5,
+      "attempts": 26,
+      "successes": 26,
       "failures": 0
     },
     "post_reddit": {
-      "attempts": 4,
-      "successes": 3,
-      "failures": 1
+      "attempts": 23,
+      "successes": 6,
+      "failures": 17
     },
     "post_tweet": {
-      "attempts": 8,
-      "successes": 8,
-      "failures": 0
+      "attempts": 35,
+      "successes": 32,
+      "failures": 3
     },
     "scrape_followers": {
-      "attempts": 4,
-      "successes": 4,
+      "attempts": 22,
+      "successes": 22,
       "failures": 0
     },
     "search_profiles": {
-      "attempts": 3,
-      "successes": 3,
+      "attempts": 30,
+      "successes": 30,
       "failures": 0
     },
     "detect_opportunities": {
-      "attempts": 3,
-      "successes": 3,
+      "attempts": 13,
+      "successes": 13,
       "failures": 0
+    },
+    "manage_dms": {
+      "attempts": 14,
+      "successes": 14,
+      "failures": 0
+    },
+    "check_emails": {
+      "attempts": 13,
+      "successes": 13,
+      "failures": 0
+    },
+    "search_and_comment_reddit": {
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1
     }
   },
   "prompt_stats": {},

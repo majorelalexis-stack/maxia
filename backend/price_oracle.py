@@ -128,6 +128,17 @@ TOKEN_MINTS = {
     "INF": "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",
     "PNUT": "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
     "GOAT": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+    # V12: Tokens multi-chain (pas de Solana mint, prix via CoinGecko)
+    "LINK": "chainlink",
+    "UNI": "uniswap",
+    "AAVE": "aave",
+    "LDO": "lido-dao",
+    "VIRTUAL": "virtual-protocol",
+    "OLAS": "autonolas",
+    "FET": "artificial-superintelligence-alliance",
+    "PEPE": "pepe",
+    "DOGE": "dogecoin",
+    "SHIB": "shiba-inu",
     # xStocks (actions tokenisees — vrais mints Backed Finance)
     "AAPL": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
     "TSLA": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
@@ -150,6 +161,8 @@ FALLBACK_PRICES = {
     "KMNO": 0.08, "PENGU": 0.01, "AI16Z": 0.5, "FARTCOIN": 0.8, "GRASS": 1.5,
     "ZEUS": 0.3, "NOSOL": 1.0, "SAMO": 0.008, "STEP": 0.04, "BOME": 0.003,
     "SLERF": 0.1, "MPLX": 0.03, "INF": 150, "PNUT": 0.2, "GOAT": 0.1,
+    "LINK": 15.0, "UNI": 7.5, "AAVE": 200.0, "LDO": 1.5, "VIRTUAL": 0.50,
+    "OLAS": 1.0, "FET": 0.60, "PEPE": 0.000012, "DOGE": 0.15, "SHIB": 0.000015,
     "AAPL": 257, "TSLA": 397, "NVDA": 178, "GOOGL": 299,
     "MSFT": 403, "AMZN": 213, "META": 614, "MSTR": 340,
     "SPY": 672, "QQQ": 515,
@@ -252,9 +265,11 @@ async def _fetch_one_helius(client: httpx.AsyncClient, rpc: str, sym: str, mint:
 
 async def _fetch_helius_prices() -> dict:
     """Recupere les prix via Helius DAS API — parallel batches de 10."""
+    if not HELIUS_API_KEY:
+        return {}  # Pas de cle Helius — silencieux, CoinGecko prend le relais
+
     if _cb_helius.is_open:
-        print("[PriceOracle] Helius circuit breaker OPEN — skipping")
-        return {}
+        return {}  # Circuit breaker ouvert — silencieux
 
     rpc = get_rpc_url()
     if not rpc:
@@ -262,7 +277,8 @@ async def _fetch_helius_prices() -> dict:
 
     prices = {}
     client = await _get_http()
-    items = list(TOKEN_MINTS.items())
+    # Exclure les tokens sans vrais mints Solana (CoinGecko IDs contiennent des tirets)
+    items = [(sym, mint) for sym, mint in TOKEN_MINTS.items() if "-" not in mint and len(mint) > 20]
 
     # Fetch en batches paralleles de 10
     BATCH_SIZE = 10
@@ -322,6 +338,10 @@ async def get_prices(symbols: list = None) -> dict:
             "BOME": "book-of-meme", "SLERF": "slerf", "MPLX": "metaplex",
             "INF": "infinity-by-sanctum", "PNUT": "peanut-the-squirrel",
             "GOAT": "goatseus-maximus",
+            "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
+            "LDO": "lido-dao", "VIRTUAL": "virtual-protocol", "OLAS": "autonolas",
+            "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
+            "DOGE": "dogecoin", "SHIB": "shiba-inu",
         }
         cg_ids = [SYM_TO_COINGECKO[s] for s in missing_crypto if s in SYM_TO_COINGECKO]
         if cg_ids and not _cb_coingecko.is_open:

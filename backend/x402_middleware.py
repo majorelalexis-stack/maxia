@@ -1,4 +1,4 @@
-"""MAXIA Art.9 V2 — x402 Middleware (Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB + TRON multi-chain)"""
+"""MAXIA Art.9 V2 — x402 Middleware (14 chains: Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB + TRON + NEAR + Aptos + SEI)"""
 import asyncio
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -188,6 +188,50 @@ async def x402_middleware(request: Request, call_next):
                     "asset": TRON_USDT_CONTRACT,
                     "maxTimeoutSeconds": 60,
                 })
+            # NEAR
+            _near_treasury = os.getenv("TREASURY_ADDRESS_NEAR", "")
+            if _near_treasury:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "near-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": _near_treasury,
+                    "asset": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+                    "maxTimeoutSeconds": 60,
+                })
+            # Aptos
+            _aptos_treasury = os.getenv("TREASURY_ADDRESS_APTOS", "")
+            if _aptos_treasury:
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "aptos-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": _aptos_treasury,
+                    "asset": "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b::usdc::USDC",
+                    "maxTimeoutSeconds": 60,
+                })
+            # SEI (EVM)
+            _sei_treasury = os.getenv("TREASURY_ADDRESS_SEI", "")
+            if _sei_treasury:
+                from config import SEI_USDC_CONTRACT, SEI_CHAIN_ID
+                accepts.append({
+                    "scheme": "exact",
+                    "network": "sei-mainnet",
+                    "maxAmountRequired": str(int(price * 1e6)),
+                    "resource": path,
+                    "description": f"MAXIA service: {path}",
+                    "mimeType": "application/json",
+                    "payTo": _sei_treasury,
+                    "asset": SEI_USDC_CONTRACT,
+                    "maxTimeoutSeconds": 60,
+                    "extra": {"chainId": SEI_CHAIN_ID},
+                })
             return JSONResponse(
                 status_code=402,
                 content={"x402Version": 2, "accepts": accepts},
@@ -267,6 +311,23 @@ async def x402_middleware(request: Request, call_next):
             elif "tron" in pay_network:
                 from tron_verifier import x402_verify_payment_tron
                 verify_call = x402_verify_payment_tron(pay_header, price)
+            elif "near" in pay_network:
+                from near_verifier import verify_near_transaction
+                verify_call = verify_near_transaction(
+                    tx_hash=pay_header, sender_id="",
+                    expected_dest=os.getenv("TREASURY_ADDRESS_NEAR", ""),
+                    expected_amount=price,
+                )
+            elif "aptos" in pay_network:
+                from aptos_verifier import verify_aptos_transaction
+                verify_call = verify_aptos_transaction(
+                    tx_hash=pay_header,
+                    expected_dest=os.getenv("TREASURY_ADDRESS_APTOS", ""),
+                    expected_amount=price,
+                )
+            elif "sei" in pay_network:
+                from sei_verifier import x402_verify_payment_sei
+                verify_call = x402_verify_payment_sei(pay_header, price)
             else:
                 from solana_verifier import verify_transaction
                 verify_call = verify_transaction(

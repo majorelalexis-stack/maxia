@@ -1,4 +1,4 @@
-"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (11 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + 17 AI Agents)"""
+"""MAXIA Backend V12 — Art.1 to Art.15 + 47 features (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI + 17 AI Agents)"""
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -218,7 +218,7 @@ async def lifespan(app: FastAPI):
     if not check_jwt_secret():
         print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
 
-    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 11 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON")
+    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
     print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
     yield
@@ -364,6 +364,54 @@ try:
     app.include_router(get_infra_router())
 except Exception as e:
     print(f"[MAXIA] Infra router error: {e}")
+try:
+    from email_service import router as email_router
+    app.include_router(email_router)
+    print("[Email] Service ceo@maxiaworld.app monte")
+except Exception as e:
+    print(f"[MAXIA] Email router error: {e}")
+try:
+    from yield_aggregator import router as yield_router
+    app.include_router(yield_router)
+    print("[Yield] Aggregator DeFi monte")
+except Exception as e:
+    print(f"[MAXIA] Yield router error: {e}")
+try:
+    from rpc_service import router as rpc_router
+    app.include_router(rpc_router)
+    print("[RPC] RPC-as-a-Service 14 chains monte")
+except Exception as e:
+    print(f"[MAXIA] RPC router error: {e}")
+try:
+    from oracle_service import router as oracle_router
+    app.include_router(oracle_router)
+    print("[Oracle] Oracle + Data Marketplace monte")
+except Exception as e:
+    print(f"[MAXIA] Oracle router error: {e}")
+try:
+    from bridge_service import router as bridge_router
+    app.include_router(bridge_router)
+    print("[Bridge] Cross-chain bridge 14 chains monte")
+except Exception as e:
+    print(f"[MAXIA] Bridge router error: {e}")
+try:
+    from nft_service import router as nft_router
+    app.include_router(nft_router)
+    print("[NFT] Agent ID + Trust Score + Service Passes monte")
+except Exception as e:
+    print(f"[MAXIA] NFT router error: {e}")
+try:
+    from subscription_service import router as sub_router
+    app.include_router(sub_router)
+    print("[Subscriptions] Streaming payments USDC monte")
+except Exception as e:
+    print(f"[MAXIA] Subscription router error: {e}")
+try:
+    from trading_tools import router as trading_router
+    app.include_router(trading_router)
+    print("[Trading] Whale tracker, candles, signals, portfolio, alerts monte")
+except Exception as e:
+    print(f"[MAXIA] Trading router error: {e}")
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -377,13 +425,6 @@ if FRONTEND_DIR.exists():
 #  CORE ENDPOINTS
 # ═══════════════════════════════════════════════════════════
 
-@app.get("/MAXIA_WhitePaper_v1.pdf", include_in_schema=False)
-async def serve_whitepaper():
-    wp_path = FRONTEND_DIR / "MAXIA_WhitePaper_v1.pdf"
-    if wp_path.exists():
-        return FileResponse(str(wp_path), media_type="application/pdf", filename="MAXIA_WhitePaper_v1.pdf")
-    return HTMLResponse("White Paper non disponible", status_code=404)
-
 LANDING_PAGE = Path(__file__).parent.parent / "frontend" / "landing.html"
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -395,12 +436,20 @@ async def serve_landing():
     return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
 
 REGISTER_PAGE = Path(__file__).parent.parent / "frontend" / "register.html"
+APP_PAGE = Path(__file__).parent.parent / "frontend" / "app.html"
 
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 async def serve_register():
     if REGISTER_PAGE.exists():
         return HTMLResponse(REGISTER_PAGE.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Register</h1><p>Page not found.</p>")
+
+@app.get("/app", response_class=HTMLResponse, include_in_schema=False)
+async def serve_app():
+    """Interface humaine — Web3 Hub (swap, portfolio, GPU, yields, bridge, stocks, NFT)."""
+    if APP_PAGE.exists():
+        return HTMLResponse(APP_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA App</h1><p>Coming soon.</p>")
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
@@ -433,7 +482,7 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 11 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 6 GPU tiers, 22 MCP tools.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 8 GPU tiers, 31 MCP tools.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
@@ -464,7 +513,6 @@ AGENT_CARD = {
     "discovery": {"endpoint": "/api/public/discover", "method": "GET", "params": ["capability", "max_price", "min_rating"]},
     "execution": {"endpoint": "/api/public/execute", "method": "POST", "params": ["service_id", "prompt"]},
     "documentation": "/api/public/docs", "mcp_server": "/mcp/manifest",
-    "white_paper": "/MAXIA_WhitePaper_v1.pdf",
     "contact": {"twitter": "@MAXIA_WORLD", "website": "https://maxiaworld.app"},
 }
 
@@ -503,7 +551,7 @@ a{color:#7C6BF8;text-decoration:none}a:hover{text-decoration:underline}
 table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #1E293B;font-size:13px}th{color:#7C6BF8;font-weight:600}
 </style></head><body><div class="container">
 <h1>MAXIA API Documentation</h1>
-<p>AI-to-AI Marketplace on 11 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON) — <a href="https://maxiaworld.app">maxiaworld.app</a></p>
+<p>AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — <a href="https://maxiaworld.app">maxiaworld.app</a></p>
 <p>Base URL: <code>https://maxiaworld.app/api/public</code></p>
 
 <h2>Authentication</h2>
@@ -595,10 +643,10 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <tr><td>Whale</td><td>$5,000+</td><td>0.1%</td></tr></table>
 
 <h2>Resources</h2>
-<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a> · <a href="/MAXIA_WhitePaper_v1.pdf">White Paper v1.0</a></p>
+<p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 74 modules, 90+ endpoints, 22 MCP tools, 11 chains, 6 GPU tiers, 10 stocks — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 91 modules, 350+ endpoints, 31 MCP tools, 14 chains, 8 GPU tiers, 10 stocks — maxiaworld.app</p>
 </div></body></html>""")
 
 @app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
@@ -729,6 +777,7 @@ async def google_verification():
     return HTMLResponse("google-site-verification: googleTpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM.html")
 
 
+@app.head("/health", include_in_schema=False)
 @app.get("/health")
 async def health():
     """Health check structure — verifie DB, Redis, services critiques."""
@@ -783,7 +832,7 @@ async def health():
         "version": "12.0.0",
         "timestamp": int(time.time()),
         "checks": checks,
-        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet"],
+        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"],
         "protocols": ["x402-v2", "ap2", "kite-air"],
     }
 
@@ -909,7 +958,9 @@ async def get_activity(request: Request, limit: int = 30):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/ceo/status")
-async def ceo_status():
+async def ceo_status(request: Request):
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import ceo
         return ceo.get_status()
@@ -1765,6 +1816,83 @@ async def ceo_memory_search(request: Request, q: str = "", collection: str = "")
         return {"error": str(e)}
 
 
+# ══════════════════════════════════════════
+# APPROVALS — Dashboard approval system
+# ══════════════════════════════════════════
+
+@app.get("/api/ceo/approvals")
+async def ceo_get_approvals(request: Request):
+    """Liste les decisions en attente d'approbation (orange/rouge)."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    active = [p for p in pending if p.get("status") == "pending"]
+    history = [p for p in pending if p.get("status") != "pending"][-20:]
+    return {"pending": active, "history": history, "count": len(active)}
+
+
+@app.post("/api/ceo/approvals/{approval_id}/approve")
+async def ceo_approve(approval_id: str, request: Request):
+    """Approuve une decision en attente et l'execute."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    found = None
+    for p in pending:
+        if p.get("id") == approval_id and p.get("status") == "pending":
+            found = p
+            break
+    if not found:
+        raise HTTPException(404, "Approval not found or already processed")
+
+    # Execute la decision
+    decision = {
+        "action": found["action"],
+        "cible": found["cible"],
+        "priorite": "VERT",  # Force VERT pour bypass les checks
+    }
+    try:
+        from ceo_executor import execute_decision
+        result = await execute_decision(decision, ceo.memory, db)
+        found["status"] = "approved"
+        found["approved_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        found["result"] = str(result.get("detail", result.get("reason", "")))[:200]
+        ceo.memory.save()
+        ceo.memory.fondateur_responded()
+        ceo.memory.log_decision("vert", f"APPROVED: {found['action']}", "fondateur", found["cible"])
+        return {"success": True, "id": approval_id, "result": result}
+    except Exception as e:
+        found["status"] = "error"
+        found["error"] = str(e)[:200]
+        ceo.memory.save()
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/ceo/approvals/{approval_id}/deny")
+async def ceo_deny(approval_id: str, request: Request):
+    """Refuse une decision en attente."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    found = None
+    for p in pending:
+        if p.get("id") == approval_id and p.get("status") == "pending":
+            found = p
+            break
+    if not found:
+        raise HTTPException(404, "Approval not found or already processed")
+
+    found["status"] = "denied"
+    found["denied_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    ceo.memory.save()
+    ceo.memory.fondateur_responded()
+    ceo.memory.log_decision("vert", f"DENIED: {found['action']}", "fondateur", found["cible"])
+    return {"success": True, "id": approval_id, "status": "denied"}
+
+
 @app.post("/api/admin/tweet")
 async def admin_post_tweet(request: Request):
     """Post un tweet manuellement (admin only)."""
@@ -2490,7 +2618,7 @@ async def scout_status():
 
 @app.post("/api/agent/scout/scan")
 async def scout_scan_now():
-    """Force un scan SCOUT immediat sur les 11 chains."""
+    """Force un scan SCOUT immediat sur les 14 chains."""
     agents = await scout_agent.scan_all_chains()
     return {"ok": True, "agents_found": len(agents), "stats": scout_agent.get_stats()}
 
@@ -2894,54 +3022,6 @@ async def seed_datasets(request: Request):
     return {"message": f"{added} datasets ajoutes", "total": len(existing_list) + added}
 
 
-# ══════════════════════════════════════════════════════════
-#  WHITE PAPER
-# ══════════════════════════════════════════════════════════
-
-@app.get("/api/whitepaper")
-async def whitepaper():
-    """Lien vers le White Paper MAXIA."""
-    return {
-        "title": "MAXIA White Paper v1.0",
-        "version": "2.0",
-        "date": "Mars 2026",
-        "download": "https://github.com/majorelalexis-stack/maxia/blob/main/MAXIA_WhitePaper_v1.pdf",
-        "sections": [
-            "1. Resume Executif",
-            "2. Le Probleme",
-            "3. La Solution MAXIA",
-            "4. Modele Economique",
-            "5. Architecture Technique",
-            "6. API Publique pour Agents IA (22 MCP tools)",
-            "7. Securite (Art.1 content safety)",
-            "8. Essaim d IA (CEO + 17 sub-agents)",
-            "9. GPU Rental (6 tiers, 0% markup, RunPod)",
-            "10. Crypto Swap (50 tokens, 2450 pairs, Jupiter)",
-            "11. Actions Tokenisees (10 xStocks/Ondo, Jupiter routing)",
-            "12. Infrastructure Blockchain (11 chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON)",
-            "13. Trading Tools (OHLCV candles, whale tracker, copy trading)",
-            "14. Marketplace Avance (leaderboard, agent chat, templates, clones)",
-            "15. Infrastructure (webhooks, escrow public, SLA, revenue sharing)",
-            "16. Feuille de Route",
-            "17. Conclusion",
-        ],
-        "highlights": {
-            "commission_min": "0.05% (Baleine stocks) / 0.02% (Baleine crypto)",
-            "gpu_markup": "0% (prix coutant RunPod)",
-            "mcp_tools": 22,
-            "public_endpoints": 90,
-            "tokens": 50,
-            "crypto_pairs": 2450,
-            "stocks": 10,
-            "gpu_tiers": 6,
-            "modules": 74,
-            "networks": 11,
-            "protocols": 5,
-            "new_features": ["OHLCV candles", "whale tracker", "copy trading",
-                "leaderboard", "agent-to-agent chat", "service templates",
-                "webhook events", "public escrow", "SLA guarantees", "revenue sharing/clones"],
-        },
-    }
 
 
 # ══════════════════════════════════════════════════════════
@@ -3218,6 +3298,168 @@ async def tron_balance(address: str):
     try:
         from tron_verifier import get_tron_balance
         return await get_tron_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
+#  V12: NEAR Protocol (12eme blockchain)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/near/info")
+async def near_info():
+    """Infos reseau NEAR Protocol."""
+    from config import NEAR_RPC, TREASURY_ADDRESS_NEAR, NEAR_USDC_CONTRACT
+    return {
+        "network": "near-mainnet", "rpc": NEAR_RPC,
+        "usdc_contract": NEAR_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_NEAR or "not configured",
+        "status": "active", "supported_currencies": ["NEAR", "USDC"],
+        "settlement_time": "1-2 seconds", "fees": "< $0.01",
+    }
+
+@app.post("/api/near/verify")
+async def near_verify(request: Request):
+    """Verifie une transaction NEAR."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from near_verifier import verify_near_transaction
+        return await verify_near_transaction(
+            tx_hash, sender_id=body.get("sender_id", ""),
+            expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+@app.get("/api/near/balance/{account_id}")
+async def near_balance(account_id: str):
+    """Solde NEAR d'un compte."""
+    try:
+        from near_verifier import get_near_balance
+        return await get_near_balance(account_id)
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/near/usdc-balance/{account_id}")
+async def near_usdc_balance(account_id: str):
+    """Solde USDC d'un compte NEAR."""
+    try:
+        from near_verifier import get_near_usdc_balance
+        return await get_near_usdc_balance(account_id)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
+#  V12: Aptos (13eme blockchain)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/aptos/info")
+async def aptos_info():
+    """Infos reseau Aptos."""
+    from config import APTOS_API, TREASURY_ADDRESS_APTOS, APTOS_USDC_TYPE
+    return {
+        "network": "aptos-mainnet", "api": APTOS_API,
+        "usdc_type": APTOS_USDC_TYPE,
+        "treasury": TREASURY_ADDRESS_APTOS or "not configured",
+        "status": "active", "supported_currencies": ["APT", "USDC"],
+        "settlement_time": "< 1 second", "fees": "< $0.01",
+    }
+
+@app.post("/api/aptos/verify")
+async def aptos_verify(request: Request):
+    """Verifie une transaction Aptos."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from aptos_verifier import verify_aptos_transaction
+        return await verify_aptos_transaction(
+            tx_hash, expected_dest=body.get("expected_dest", ""),
+            expected_amount=float(body.get("expected_amount", 0)),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+@app.get("/api/aptos/balance/{address}")
+async def aptos_balance(address: str):
+    """Solde APT d'un wallet Aptos."""
+    try:
+        from aptos_verifier import get_aptos_balance
+        return await get_aptos_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/aptos/usdc-balance/{address}")
+async def aptos_usdc_balance(address: str):
+    """Solde USDC d'un wallet Aptos."""
+    try:
+        from aptos_verifier import get_aptos_usdc_balance
+        return await get_aptos_usdc_balance(address)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════
+#  V12: SEI (14eme blockchain, EVM)
+# ══════════════════════════════════════════════════════════
+
+@app.get("/api/sei/info")
+async def sei_info():
+    """Infos reseau SEI."""
+    from config import SEI_RPC, SEI_CHAIN_ID, SEI_USDC_CONTRACT, TREASURY_ADDRESS_SEI
+    return {
+        "network": "sei-mainnet", "rpc": SEI_RPC, "chainId": SEI_CHAIN_ID,
+        "usdc_contract": SEI_USDC_CONTRACT,
+        "treasury": TREASURY_ADDRESS_SEI or "not configured",
+        "status": "active", "supported_currencies": ["SEI", "USDC"],
+        "settlement_time": "390ms", "fees": "< $0.001",
+    }
+
+@app.post("/api/sei/verify")
+async def sei_verify(request: Request):
+    """Verifie une transaction SEI (EVM)."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from sei_verifier import verify_sei_transaction
+        return await verify_sei_transaction(tx_hash, expected_to=body.get("expected_to"))
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+@app.post("/api/sei/verify-usdc")
+async def sei_verify_usdc(request: Request):
+    """Verifie un transfert USDC sur SEI."""
+    check_rate_limit(request)
+    body = await request.json()
+    tx_hash = body.get("tx_hash", "")
+    if not tx_hash:
+        raise HTTPException(400, "tx_hash required")
+    try:
+        from sei_verifier import verify_usdc_transfer_sei
+        return await verify_usdc_transfer_sei(
+            tx_hash, expected_amount_raw=int(body.get("expected_amount_raw", 0)),
+            expected_recipient=body.get("expected_recipient"),
+        )
+    except Exception as e:
+        return {"verified": False, "error": str(e)}
+
+@app.get("/api/sei/balance/{address}")
+async def sei_balance(address: str):
+    """Solde SEI d'un wallet."""
+    try:
+        from sei_verifier import get_sei_balance
+        return await get_sei_balance(address)
     except Exception as e:
         return {"error": str(e)}
 

@@ -16,6 +16,15 @@ Tools exposed:
   - maxia_marketplace_stats: Get marketplace statistics
   - maxia_gpu_tiers/rent/status: GPU rental via RunPod
   - maxia_stocks_list/price/buy/sell/portfolio/fees: Tokenized stocks trading
+  - maxia_yield_best: Best DeFi yields across 14 chains
+  - maxia_bridge_quote: Cross-chain bridge quote (Wormhole/LayerZero)
+  - maxia_rpc_call: Proxy RPC call to any of 14 chains
+  - maxia_oracle_feed: Real-time price oracle feed
+  - maxia_datasets: Data marketplace datasets
+  - maxia_nft_mint: Mint NFTs
+  - maxia_agent_id: On-chain AI agent identity
+  - maxia_trust_score: Agent trust score (0-100)
+  - maxia_subscribe: Recurring USDC subscriptions
 """
 import json, time, asyncio
 from fastapi import APIRouter, Request
@@ -259,6 +268,78 @@ MCP_TOOLS = [
         "description": "Compare MAXIA tokenized stock trading fees vs competitors (Robinhood, eToro, Binance).",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    # ── Hub Web3 tools ──
+    {
+        "name": "maxia_yield_best",
+        "description": "Find the best DeFi yields across 14 chains (Aave, Marinade, Jito, Compound, Ref Finance).",
+        "inputSchema": {"type": "object", "properties": {"asset": {"type": "string", "description": "Asset to find yields for (USDC, SOL, ETH)"}, "limit": {"type": "integer", "default": 5}}, "required": ["asset"]},
+    },
+    {
+        "name": "maxia_bridge_quote",
+        "description": "Get a cross-chain bridge quote (Wormhole, LayerZero, Portal) between 14 chains.",
+        "inputSchema": {"type": "object", "properties": {"from_chain": {"type": "string"}, "to_chain": {"type": "string"}, "token": {"type": "string", "default": "USDC"}, "amount": {"type": "number"}}, "required": ["from_chain", "to_chain", "amount"]},
+    },
+    {
+        "name": "maxia_rpc_call",
+        "description": "Make an RPC call to any of 14 blockchains via MAXIA proxy.",
+        "inputSchema": {"type": "object", "properties": {"chain": {"type": "string"}, "method": {"type": "string"}, "params": {"type": "array"}}, "required": ["chain", "method"]},
+    },
+    {
+        "name": "maxia_oracle_feed",
+        "description": "Get the MAXIA oracle price feed — real-time prices with confidence scores.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "maxia_datasets",
+        "description": "List available datasets on the MAXIA data marketplace (crypto prices, GPU pricing, stocks, yields, fear/greed).",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "maxia_nft_mint",
+        "description": "Mint an NFT on MAXIA (data, art, access pass).",
+        "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "description": {"type": "string"}, "owner_address": {"type": "string"}, "chain": {"type": "string", "default": "solana"}}, "required": ["name", "description", "owner_address"]},
+    },
+    {
+        "name": "maxia_agent_id",
+        "description": "Get or create an on-chain identity for an AI agent (trust score, badges, reputation).",
+        "inputSchema": {"type": "object", "properties": {"agent_address": {"type": "string"}}, "required": ["agent_address"]},
+    },
+    {
+        "name": "maxia_trust_score",
+        "description": "Get the trust score (0-100) of an AI agent based on transaction history, dispute rate, and activity.",
+        "inputSchema": {"type": "object", "properties": {"agent_address": {"type": "string"}}, "required": ["agent_address"]},
+    },
+    {
+        "name": "maxia_subscribe",
+        "description": "Create a recurring USDC subscription between AI agents.",
+        "inputSchema": {"type": "object", "properties": {"subscriber": {"type": "string"}, "provider": {"type": "string"}, "service_id": {"type": "string"}, "amount_usdc": {"type": "number"}, "interval": {"type": "string", "enum": ["daily", "weekly", "monthly"]}}, "required": ["subscriber", "provider", "service_id", "amount_usdc"]},
+    },
+    # ── Trading tools ──
+    {
+        "name": "maxia_whales",
+        "description": "Track whale movements (large transfers) across 14 chains.",
+        "inputSchema": {"type": "object", "properties": {"chain": {"type": "string", "default": "all"}, "min_usd": {"type": "number", "default": 10000}, "limit": {"type": "integer", "default": 10}}},
+    },
+    {
+        "name": "maxia_candles",
+        "description": "Get OHLCV candle data for any token (1m, 5m, 15m, 1h, 4h, 1d intervals).",
+        "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}, "interval": {"type": "string", "default": "1h"}, "limit": {"type": "integer", "default": 24}}, "required": ["token"]},
+    },
+    {
+        "name": "maxia_signals",
+        "description": "Get technical analysis signals for a token (RSI, SMA, MACD, buy/sell signal).",
+        "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}}, "required": ["token"]},
+    },
+    {
+        "name": "maxia_portfolio",
+        "description": "Track portfolio value across multiple chains for a wallet address.",
+        "inputSchema": {"type": "object", "properties": {"address": {"type": "string"}, "chains": {"type": "string", "default": "solana,base,ethereum"}}, "required": ["address"]},
+    },
+    {
+        "name": "maxia_price_alert",
+        "description": "Create a price alert for a token (triggers when price goes above/below target).",
+        "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}, "condition": {"type": "string", "enum": ["above", "below"]}, "target_price": {"type": "number"}, "wallet": {"type": "string"}}, "required": ["token", "condition", "target_price"]},
+    },
 ]
 
 
@@ -445,6 +526,65 @@ async def _execute_tool(name: str, args: dict) -> dict:
 
         elif name == "maxia_stocks_fees":
             r = await client.get("/api/public/stocks/compare-fees")
+            return r.json()
+
+        # ── Hub Web3 tools ──
+        elif name == "maxia_yield_best":
+            asset = args.get("asset", "USDC")
+            limit = args.get("limit", 5)
+            r = await client.get(f"/api/public/yield/best?asset={asset}&limit={limit}")
+            return r.json()
+        elif name == "maxia_bridge_quote":
+            r = await client.get(f"/api/bridge/quote?from_chain={args.get('from_chain')}&to_chain={args.get('to_chain')}&token={args.get('token','USDC')}&amount={args.get('amount')}")
+            return r.json()
+        elif name == "maxia_rpc_call":
+            chain = args.get("chain", "solana")
+            r = await client.post(f"/api/rpc/{chain}", json={"jsonrpc": "2.0", "id": 1, "method": args.get("method", ""), "params": args.get("params", [])}, headers={"X-API-Key": "mcp-internal"})
+            return r.json()
+        elif name == "maxia_oracle_feed":
+            r = await client.get("/api/oracle/feed")
+            return r.json()
+        elif name == "maxia_datasets":
+            r = await client.get("/api/oracle/datasets")
+            return r.json()
+        elif name == "maxia_nft_mint":
+            r = await client.post("/api/nft/mint", json=args)
+            return r.json()
+        elif name == "maxia_agent_id":
+            addr = args.get("agent_address", "")
+            r = await client.get(f"/api/nft/agent-id/{addr}")
+            return r.json()
+        elif name == "maxia_trust_score":
+            addr = args.get("agent_address", "")
+            r = await client.get(f"/api/nft/trust-score/{addr}")
+            return r.json()
+        elif name == "maxia_subscribe":
+            r = await client.post("/api/subscriptions/create", json=args)
+            return r.json()
+
+        # ── Trading tools ──
+        elif name == "maxia_whales":
+            chain = args.get("chain", "all")
+            min_usd = args.get("min_usd", 10000)
+            limit = args.get("limit", 10)
+            r = await client.get(f"/api/trading/whales?chain={chain}&min_usd={min_usd}&limit={limit}")
+            return r.json()
+        elif name == "maxia_candles":
+            token = args.get("token", "SOL")
+            interval = args.get("interval", "1h")
+            limit = args.get("limit", 24)
+            r = await client.get(f"/api/trading/candles/{token}?interval={interval}&limit={limit}")
+            return r.json()
+        elif name == "maxia_signals":
+            r = await client.get(f"/api/trading/signals/{args.get('token', 'SOL')}")
+            return r.json()
+        elif name == "maxia_portfolio":
+            addr = args.get("address", "")
+            chains = args.get("chains", "solana,base,ethereum")
+            r = await client.get(f"/api/trading/portfolio/{addr}?chains={chains}")
+            return r.json()
+        elif name == "maxia_price_alert":
+            r = await client.post("/api/trading/alerts", json=args)
             return r.json()
 
         else:
