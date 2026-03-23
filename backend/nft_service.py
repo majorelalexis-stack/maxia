@@ -87,6 +87,8 @@ async def list_agents():
 
     # Enrichir avec les agents enregistres en DB
     try:
+        if db._db is None:
+            await db.connect()
         db_agents = await db.get_all_agents()
         seen = {a["agent_address"] for a in agents}
         for dba in db_agents:
@@ -293,6 +295,8 @@ async def get_agent_id(agent_address: str):
     if not agent:
         # Chercher en DB
         try:
+            if db._db is None:
+                await db.connect()
             db_agents = await db.get_all_agents()
             for dba in db_agents:
                 if dba.get("wallet") == agent_address:
