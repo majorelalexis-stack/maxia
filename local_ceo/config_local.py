@@ -10,7 +10,7 @@ CEO_API_KEY = os.getenv("CEO_API_KEY", "")
 
 # Ollama (LLM local)
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "minicpm-v")
 
 # Mistral (tier MID)
