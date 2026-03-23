@@ -437,24 +437,35 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
             resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
             if resp.status_code == 200:
                 jdata = resp.json()
-                to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
-                jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
-                jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
-                jupiter_quote = {
-                    "output_amount": jupiter_output,
-                    "price_impact_pct": jupiter_price_impact,
-                    "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
-                    "raw": jdata,
-                }
-                # #5: Apply commission ONCE — deduct from Jupiter output
-                # instead of double-charging
-                if jupiter_output > output_amount:
-                    commission_from_jupiter = jupiter_output * commission_bps / 10000
-                    output_amount = jupiter_output - commission_from_jupiter
-                    # Update commission_usd to reflect Jupiter-based calc
-                    commission_usd = commission_from_jupiter * to_price
-    except Exception:
+                # Check for error in response body (e.g. TOKEN_NOT_TRADABLE)
+                if "error" in jdata or "errorCode" in jdata:
+                    _log_swap(f"Jupiter returned error: {jdata.get('error', jdata.get('errorCode', 'unknown'))} — using cached prices")
+                else:
+                    to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
+                    jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
+                    if jupiter_output > 0:
+                        jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
+                        jupiter_quote = {
+                            "output_amount": jupiter_output,
+                            "price_impact_pct": jupiter_price_impact,
+                            "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
+                            "raw": jdata,
+                        }
+                        # #5: Apply commission ONCE — deduct from Jupiter output
+                        # instead of double-charging
+                        if jupiter_output > output_amount:
+                            commission_from_jupiter = jupiter_output * commission_bps / 10000
+                            output_amount = jupiter_output - commission_from_jupiter
+                            # Update commission_usd to reflect Jupiter-based calc
+                            commission_usd = commission_from_jupiter * to_price
+                    else:
+                        _log_swap(f"Jupiter returned 0 output — using cached prices")
+            else:
+                # Non-200 response (TOKEN_NOT_TRADABLE, rate limit, etc.)
+                _log_swap(f"Jupiter HTTP {resp.status_code} — using cached prices")
+    except Exception as e:
         # Jupiter unavailable — cache-based quote is already set
+        _log_swap(f"Jupiter unavailable ({e}) — using cached prices")
         pass
 
     # #13: Liquidity check — reject if price impact too high

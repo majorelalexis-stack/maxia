@@ -1414,28 +1414,44 @@ async def discover_services(
     results = []
     capability_lower = capability.lower()
 
-    for s in _agent_services:
-        if s["status"] != "active":
-            continue
-        if s["price_usdc"] > max_price:
+    # Search services directly from DB using SQL LIKE (matches name, description, AND type)
+    # This avoids stale in-memory cache issues and ensures fresh results
+    try:
+        from database import db
+        if capability_lower:
+            query = (
+                "SELECT * FROM agent_services WHERE status='active' "
+                "AND (LOWER(type) LIKE ? OR LOWER(name) LIKE ? OR LOWER(description) LIKE ?)"
+            )
+            cap_pattern = f"%{capability_lower}%"
+            rows = await db.raw_execute_fetchall(query, (cap_pattern, cap_pattern, cap_pattern))
+        elif agent_type:
+            query = "SELECT * FROM agent_services WHERE status='active' AND LOWER(type) LIKE ?"
+            rows = await db.raw_execute_fetchall(query, (f"%{agent_type.lower()}%",))
+        else:
+            query = "SELECT * FROM agent_services WHERE status='active'"
+            rows = await db.raw_execute_fetchall(query, ())
+        db_services = [dict(r) for r in rows]
+    except Exception as e:
+        print(f"[Discover] DB query fallback to in-memory: {e}")
+        db_services = [s for s in _agent_services if s.get("status") == "active"]
+
+    for s in db_services:
+        if s.get("price_usdc", 0) > max_price:
             continue
         if s.get("rating", 5) < min_rating:
             continue
-
-        # Match capability against name, description, type
-        searchable = f"{s['name']} {s['description']} {s['type']}".lower()
-        if capability_lower and capability_lower not in searchable:
-            continue
-        if agent_type and agent_type.lower() not in s.get("type", "").lower():
+        # If both capability and agent_type are specified, also filter by agent_type
+        if capability_lower and agent_type and agent_type.lower() not in s.get("type", "").lower():
             continue
 
         results.append({
             "service_id": s["id"],
-            "name": s["name"],
-            "description": s["description"],
-            "type": s["type"],
-            "price_usdc": s["price_usdc"],
-            "seller": s["agent_name"],
+            "name": s.get("name", ""),
+            "description": s.get("description", ""),
+            "type": s.get("type", ""),
+            "price_usdc": s.get("price_usdc", 0),
+            "seller": s.get("agent_name", ""),
             "rating": s.get("rating", 5),
             "sales": s.get("sales", 0),
             "endpoint": s.get("endpoint", ""),

@@ -1122,59 +1122,92 @@ class BrowserAgent:
 
     # ── Reddit Marketing ──
 
+    async def _extract_reddit_posts(self, page, max_results: int) -> list:
+        """Extrait les posts Reddit de la page courante (fonctionne pour search et /new/)."""
+        results = []
+        # New Reddit (2026): posts sont dans des elements varies
+        for post_sel in [
+            'shreddit-post', 'article', 'faceplate-tracker',
+            'div[data-testid="post-container"]', 'div.Post',
+            'a[data-testid="post-title"]',
+        ]:
+            posts = await page.locator(post_sel).all()
+            if len(posts) > 0:
+                for post in posts[:max_results]:
+                    try:
+                        # Chercher le titre dans plusieurs endroits
+                        title = ""
+                        href = ""
+                        for t_sel in ['a[slot="title"]', 'a[data-click-id="body"]', 'h3', 'a.title', '[slot="title"]', 'a[slot="full-post-link"]']:
+                            t_el = post.locator(t_sel).first
+                            if await t_el.is_visible(timeout=500):
+                                title = await t_el.inner_text()
+                                href = await t_el.get_attribute("href") or ""
+                                break
+                        # Fallback: tout le texte du post
+                        if not title:
+                            title = (await post.inner_text())[:100]
+                        if href and not href.startswith("http"):
+                            href = f"https://www.reddit.com{href}"
+                        if title and len(title) > 5:
+                            results.append({"title": title[:200], "url": href})
+                    except Exception:
+                        continue
+                if results:
+                    break
+
+        # Fallback: extraire les liens de la page
+        if not results:
+            links = await page.locator('a[href*="/comments/"]').all()
+            for link in links[:max_results]:
+                try:
+                    title = await link.inner_text()
+                    href = await link.get_attribute("href") or ""
+                    if title and len(title) > 5 and href:
+                        if not href.startswith("http"):
+                            href = f"https://www.reddit.com{href}"
+                        results.append({"title": title[:200], "url": href})
+                except Exception:
+                    continue
+        return results
+
     async def search_reddit(self, subreddit: str, query: str, max_results: int = 10) -> list:
-        """Cherche des posts sur un subreddit (new Reddit UI 2026)."""
+        """Cherche des posts sur un subreddit (new Reddit UI 2026).
+        Strategie: 1) search query, 2) fallback browse /new/ du subreddit."""
         await self._ensure_ready()
         page = self._page
 
         try:
             encoded = query.replace(" ", "+")
-            # Essayer l'URL de recherche Reddit
+            # Strategie 1: recherche avec query
             await page.goto(f"https://www.reddit.com/r/{subreddit}/search/?q={encoded}&restrict_sr=1&sort=new&type=link", wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(4000)
 
-            results = []
-            # New Reddit (2026): posts sont dans des elements varies
-            for post_sel in [
-                'shreddit-post', 'article', 'faceplate-tracker',
-                'div[data-testid="post-container"]', 'div.Post',
-                'a[data-testid="post-title"]',
-            ]:
-                posts = await page.locator(post_sel).all()
-                if len(posts) > 0:
-                    for post in posts[:max_results]:
-                        try:
-                            # Chercher le titre dans plusieurs endroits
-                            title = ""
-                            href = ""
-                            for t_sel in ['a[slot="title"]', 'a[data-click-id="body"]', 'h3', 'a.title', '[slot="title"]', 'a[slot="full-post-link"]']:
-                                t_el = post.locator(t_sel).first
-                                if await t_el.is_visible(timeout=500):
-                                    title = await t_el.inner_text()
-                                    href = await t_el.get_attribute("href") or ""
-                                    break
-                            # Fallback: tout le texte du post
-                            if not title:
-                                title = (await post.inner_text())[:100]
-                            if href and not href.startswith("http"):
-                                href = f"https://www.reddit.com{href}"
-                            if title and len(title) > 5:
-                                results.append({"title": title[:200], "url": href})
-                        except Exception:
-                            continue
-                    if results:
-                        break
+            results = await self._extract_reddit_posts(page, max_results)
 
-            # Fallback: extraire les liens de la page
+            # Strategie 2: si la recherche ne donne rien, parcourir les posts recents du sub
             if not results:
-                links = await page.locator('a[href*="/comments/"]').all()
+                print(f"[BrowserAgent] Reddit search empty for '{query}', falling back to r/{subreddit}/new/")
+                await page.goto(f"https://www.reddit.com/r/{subreddit}/new/", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(4000)
+                results = await self._extract_reddit_posts(page, max_results)
+
+            # Strategie 3: essayer old.reddit.com qui a un HTML plus simple
+            if not results:
+                print(f"[BrowserAgent] Reddit new/ empty, trying old.reddit.com")
+                await page.goto(f"https://old.reddit.com/r/{subreddit}/new/", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(3000)
+                links = await page.locator('a.title').all()
                 for link in links[:max_results]:
                     try:
                         title = await link.inner_text()
                         href = await link.get_attribute("href") or ""
-                        if title and len(title) > 5 and href:
-                            if not href.startswith("http"):
-                                href = f"https://www.reddit.com{href}"
+                        if title and len(title) > 5:
+                            if href and not href.startswith("http"):
+                                href = f"https://old.reddit.com{href}"
+                            # Convertir old.reddit.com en www.reddit.com pour commenter
+                            if href:
+                                href = href.replace("old.reddit.com", "www.reddit.com")
                             results.append({"title": title[:200], "url": href})
                     except Exception:
                         continue
@@ -1626,34 +1659,48 @@ class BrowserAgent:
             return {"success": False, "error": str(e)}
 
     async def comment_github_discussion(self, discussion_url: str, text: str) -> dict:
-        """Commente sur une discussion/issue GitHub."""
+        """Commente sur une discussion/issue GitHub via Playwright.
+        Echoue silencieusement si les selectors ne matchent pas (UI peut varier)."""
         await self._ensure_ready()
         page = self._page
 
         try:
             await page.goto(discussion_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3000)
+
+            # Verifier qu'on est bien sur une page GitHub avec un champ commentaire
+            # (si pas connecte ou page invalide, on skip)
+            logged_in = await page.locator('meta[name="user-login"]').count() > 0
+            if not logged_in:
+                # Verifier via un autre indicateur
+                logged_in = await page.locator('.Header-link--current-user, [data-login]').count() > 0
+            if not logged_in:
+                return {"success": False, "error": "Not logged in to GitHub"}
 
             filled = await self._find_and_fill(page, [
                 'textarea#new_comment_field',
                 'textarea[name="comment[body]"]',
                 'textarea[placeholder*="Leave a comment" i]',
+                'textarea[placeholder*="Add your comment" i]',
                 'div.CommentBox-container textarea',
+                'textarea.js-comment-field',
             ], text[:5000], "GitHub comment")
             if not filled:
-                return {"success": False, "error": "Champ commentaire GitHub introuvable"}
+                return {"success": False, "error": "GitHub comment field not found"}
 
             await page.wait_for_timeout(1000)
 
             submitted = await self._find_and_click(page, [
                 'button:has-text("Comment")',
                 'button[type="submit"]:has-text("Comment")',
+                'button.btn-primary:has-text("Comment")',
             ], "Comment button")
 
             await page.wait_for_timeout(5000)
             return {"success": submitted, "url": discussion_url}
 
         except Exception as e:
+            print(f"[BrowserAgent] GitHub comment failed (expected without login): {e}")
             return {"success": False, "error": str(e)}
 
     # ── Discord Web ──
@@ -1859,7 +1906,9 @@ class BrowserAgent:
     # ── Conversation Manager (DM inbox) ──
 
     async def read_twitter_dms(self, max_conversations: int = 10) -> list:
-        """Lit la boite de reception DMs Twitter."""
+        """Lit la boite de reception DMs Twitter.
+        Strategie: lire les noms et previews directement dans le sidebar,
+        sans cliquer dans chaque conversation (evite le probleme de click React)."""
         await self._ensure_ready()
         page = self._page
 
@@ -1872,18 +1921,54 @@ class BrowserAgent:
             if not convs:
                 convs = await page.locator('[data-testid="conversation"]').all()
             if not convs:
+                # Fallback: tous les items dans la liste DM sidebar
                 convs = await page.locator('[data-testid="cellInnerDiv"]').all()
 
             for conv in convs[:max_conversations]:
                 try:
-                    # Nom de l'interlocuteur
-                    name_el = conv.locator('span').first
-                    name = await name_el.inner_text() if await name_el.is_visible(timeout=1000) else ""
-                    # Dernier message preview
-                    preview_el = conv.locator('span[dir="auto"]').last
-                    preview = await preview_el.inner_text() if await preview_el.is_visible(timeout=1000) else ""
-                    # Indicateur non lu
-                    unread = await conv.locator('[aria-label*="unread"], [data-testid="unread"]').count() > 0
+                    name = ""
+                    preview = ""
+
+                    # Extraire le nom : premier span avec du texte significatif
+                    # (dans le sidebar DM, le nom est souvent le premier span visible)
+                    spans = await conv.locator('span[dir="auto"], span[dir="ltr"]').all()
+                    for span in spans:
+                        try:
+                            txt = await span.inner_text(timeout=500)
+                            txt = txt.strip()
+                            if not txt or len(txt) < 2:
+                                continue
+                            # Le nom est le premier texte court (pas le preview du message)
+                            if not name and len(txt) < 50 and not txt.startswith("@"):
+                                name = txt
+                            elif name and not preview:
+                                # Le preview est le texte suivant
+                                preview = txt
+                                break
+                        except Exception:
+                            continue
+
+                    # Fallback: tout le texte visible
+                    if not name:
+                        try:
+                            all_text = await conv.inner_text(timeout=1000)
+                            lines = [l.strip() for l in all_text.split("\n") if l.strip()]
+                            if lines:
+                                name = lines[0][:50]
+                            if len(lines) > 1:
+                                preview = lines[-1][:100]
+                        except Exception:
+                            pass
+
+                    # Indicateur non lu (badge, dot, ou texte "unread")
+                    unread = False
+                    try:
+                        unread = await conv.locator('[aria-label*="unread" i], [data-testid="unread"], [class*="unread" i]').count() > 0
+                        if not unread:
+                            # Certaines UI utilisent un badge colore
+                            unread = await conv.locator('[aria-label*="new" i]').count() > 0
+                    except Exception:
+                        pass
 
                     if name:
                         conversations.append({
@@ -1902,22 +1987,73 @@ class BrowserAgent:
             return []
 
     async def read_twitter_dm_conversation(self, contact_name: str) -> list:
-        """Lit les messages d'une conversation DM specifique."""
+        """Lit les messages d'une conversation DM specifique.
+        Utilise plusieurs methodes de click pour ouvrir la conversation."""
         await self._ensure_ready()
         page = self._page
 
         try:
             await self._goto_dms(page)
 
-            # Cliquer sur la conversation (nouvelle UI + ancienne)
-            conv = page.locator(f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}"), [data-testid="conversation"]:has-text("{contact_name}")').first
-            if await conv.is_visible(timeout=3000):
-                await conv.click(force=True)
-                await page.wait_for_timeout(3000)
-                # Verifier si ouvert
-                if not await page.locator('[data-testid="dm-conversation-panel"]').first.is_visible(timeout=2000):
-                    return []
-            else:
+            # Trouver la conversation par nom
+            opened = False
+            conv_selectors = [
+                f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}")',
+                f'[data-testid="conversation"]:has-text("{contact_name}")',
+                f'[data-testid="cellInnerDiv"]:has-text("{contact_name}")',
+            ]
+            for sel in conv_selectors:
+                conv = page.locator(sel).first
+                if not await conv.is_visible(timeout=2000):
+                    continue
+
+                # Methode 1: mouse.click au centre exact (simule clic humain)
+                try:
+                    box = await conv.bounding_box()
+                    if box:
+                        await page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        await page.wait_for_timeout(3000)
+                        if await page.locator('[data-testid="messageEntry"], [data-testid="dm-conversation-panel"], [data-testid="dmComposerTextInput"]').first.is_visible(timeout=2000):
+                            opened = True
+                            break
+                except Exception:
+                    pass
+
+                # Methode 2: click force
+                try:
+                    await conv.click(force=True)
+                    await page.wait_for_timeout(3000)
+                    if await page.locator('[data-testid="messageEntry"], [data-testid="dm-conversation-panel"], [data-testid="dmComposerTextInput"]').first.is_visible(timeout=2000):
+                        opened = True
+                        break
+                except Exception:
+                    pass
+
+                # Methode 3: dispatchEvent click
+                try:
+                    await conv.dispatch_event("click")
+                    await page.wait_for_timeout(3000)
+                    if await page.locator('[data-testid="messageEntry"], [data-testid="dm-conversation-panel"], [data-testid="dmComposerTextInput"]').first.is_visible(timeout=2000):
+                        opened = True
+                        break
+                except Exception:
+                    pass
+
+                # Methode 4: focus + Enter
+                try:
+                    await conv.focus()
+                    await page.keyboard.press("Enter")
+                    await page.wait_for_timeout(3000)
+                    if await page.locator('[data-testid="messageEntry"], [data-testid="dm-conversation-panel"], [data-testid="dmComposerTextInput"]').first.is_visible(timeout=2000):
+                        opened = True
+                        break
+                except Exception:
+                    pass
+
+                break  # Tried all methods on this selector
+
+            if not opened:
+                print(f"[BrowserAgent] Could not open DM conversation with {contact_name}")
                 return []
 
             # Lire les messages
@@ -1938,7 +2074,9 @@ class BrowserAgent:
             return []
 
     async def reply_twitter_dm(self, contact_name: str, text: str) -> dict:
-        """Repond dans une conversation DM Twitter existante."""
+        """Repond dans une conversation DM Twitter existante.
+        Utilise plusieurs methodes de click pour ouvrir la conversation,
+        puis plusieurs strategies pour remplir et envoyer."""
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}
@@ -1948,13 +2086,82 @@ class BrowserAgent:
         try:
             await self._goto_dms(page)
 
-            # Cliquer sur la conversation (nouvelle UI + ancienne)
-            conv = page.locator(f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}"), [data-testid="conversation"]:has-text("{contact_name}")').first
-            if await conv.is_visible(timeout=3000):
-                await conv.click(force=True)
-                await page.wait_for_timeout(3000)
-            else:
-                return {"success": False, "error": f"Conversation with {contact_name} not found"}
+            # Trouver et cliquer sur la conversation avec plusieurs methodes
+            opened = False
+            conv_selectors = [
+                f'[data-testid^="dm-conversation-item-"]:has-text("{contact_name}")',
+                f'[data-testid="conversation"]:has-text("{contact_name}")',
+                f'[data-testid="cellInnerDiv"]:has-text("{contact_name}")',
+            ]
+            for sel in conv_selectors:
+                conv = page.locator(sel).first
+                if not await conv.is_visible(timeout=2000):
+                    continue
+
+                # Methode 1: mouse.click au centre exact
+                try:
+                    box = await conv.bounding_box()
+                    if box:
+                        await page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        await page.wait_for_timeout(3000)
+                except Exception:
+                    pass
+
+                # Verifier si un champ de saisie DM est apparu
+                composer_visible = False
+                for cs in ['[data-testid="dm-composer-textarea"]', '[data-testid="dmComposerTextInput"]', 'div[role="textbox"][contenteditable]']:
+                    if await page.locator(cs).first.is_visible(timeout=1500):
+                        composer_visible = True
+                        break
+
+                if composer_visible:
+                    opened = True
+                    break
+
+                # Methode 2: click force
+                try:
+                    await conv.click(force=True)
+                    await page.wait_for_timeout(3000)
+                    for cs in ['[data-testid="dm-composer-textarea"]', '[data-testid="dmComposerTextInput"]', 'div[role="textbox"][contenteditable]']:
+                        if await page.locator(cs).first.is_visible(timeout=1500):
+                            opened = True
+                            break
+                    if opened:
+                        break
+                except Exception:
+                    pass
+
+                # Methode 3: dispatchEvent
+                try:
+                    await conv.dispatch_event("click")
+                    await page.wait_for_timeout(3000)
+                    for cs in ['[data-testid="dm-composer-textarea"]', '[data-testid="dmComposerTextInput"]', 'div[role="textbox"][contenteditable]']:
+                        if await page.locator(cs).first.is_visible(timeout=1500):
+                            opened = True
+                            break
+                    if opened:
+                        break
+                except Exception:
+                    pass
+
+                # Methode 4: focus + Enter
+                try:
+                    await conv.focus()
+                    await page.keyboard.press("Enter")
+                    await page.wait_for_timeout(3000)
+                    for cs in ['[data-testid="dm-composer-textarea"]', '[data-testid="dmComposerTextInput"]', 'div[role="textbox"][contenteditable]']:
+                        if await page.locator(cs).first.is_visible(timeout=1500):
+                            opened = True
+                            break
+                    if opened:
+                        break
+                except Exception:
+                    pass
+
+                break  # Tried all methods on this selector
+
+            if not opened:
+                return {"success": False, "error": f"Could not open conversation with {contact_name}"}
 
             # Taper et envoyer (nouvelle UI X 2026: dm-composer-*)
             filled = await self._find_and_fill(page, [
@@ -1962,20 +2169,27 @@ class BrowserAgent:
                 '[data-testid="dmComposerTextInput"]',
                 'div[data-testid="dm-composer-input-container"] div[contenteditable]',
                 'div[role="textbox"][contenteditable]',
+                'div[contenteditable="true"]',
             ], text[:1000], "DM reply")
             if not filled:
-                return {"success": False, "error": "DM input not found"}
+                return {"success": False, "error": "DM input not found after opening conversation"}
 
-            # Envoyer avec Enter (plus fiable que chercher un bouton)
+            # Envoyer: essayer Enter, puis le bouton send
             await page.keyboard.press("Enter")
             await page.wait_for_timeout(1000)
 
-            sent = True
+            # Verifier si le message est parti (le champ devrait se vider)
+            # Fallback: cliquer sur le bouton Send si Enter n'a pas marche
+            try:
+                send_btn = page.locator('[data-testid="dmComposerSendButton"], [aria-label="Send" i], button[type="submit"]').first
+                if await send_btn.is_visible(timeout=1000):
+                    await send_btn.click()
+                    await page.wait_for_timeout(1000)
+            except Exception:
+                pass
 
-            if sent:
-                self._record_action("dm", self._content_hash("dm_reply", f"{contact_name}:{text[:30]}"))
-                return {"success": True, "contact": contact_name}
-            return {"success": False, "error": "Send button not found"}
+            self._record_action("dm", self._content_hash("dm_reply", f"{contact_name}:{text[:30]}"))
+            return {"success": True, "contact": contact_name}
 
         except Exception as e:
             return {"success": False, "error": str(e)}

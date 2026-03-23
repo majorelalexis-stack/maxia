@@ -1088,6 +1088,11 @@ class CEOLocal:
         if not (13 <= hour <= 18):
             _log(f"[PENDING] Not peak hours yet ({hour}h UTC) — keeping for later")
             return
+        # Check daily tweet limit before posting
+        tweets_today = self._tweets_today_count()
+        if tweets_today >= 2:
+            _log(f"[PENDING] BLOQUE — limite 2 tweets/jour atteinte ({tweets_today} posted today) — keeping for tomorrow")
+            return
         text = pending.get("text", "")
         # Generate actual tweet text if it was deferred
         if not text or text == "__generate_later__":
@@ -1099,7 +1104,7 @@ class CEOLocal:
             _log("[PENDING] Could not generate tweet text — discarding pending tweet")
             self.memory.pop("pending_tweet", None)
             return
-        _log(f"[PENDING] Posting stored tweet (peak hour {hour}h UTC)")
+        _log(f"[PENDING] Posting stored tweet (peak hour {hour}h UTC, {tweets_today} tweets today)")
         result = await self._do_browser("post_tweet", {"text": text}, fallback_vps=True)
         if result.get("success"):
             _log(f"[PENDING] Posted OK: {text[:80]}...")
@@ -2061,14 +2066,20 @@ class CEOLocal:
     async def _reddit_comment_strategy(self, subreddit: str) -> dict:
         """Strategie Reddit : trouver un post pertinent et commenter avec valeur.
         Commenter > poster : 10x plus de visibilite, 0% chance de ban."""
+        # Requetes variees : du specifique au generique
         queries = ["AI agent", "bot monetize", "LLM production", "agent marketplace",
-                   "GPU rental", "AI automation", "web3 AI", "agent framework"]
+                   "GPU rental", "AI automation", "web3 AI", "agent framework",
+                   "blockchain", "solana", "crypto", "developer"]
         query = queries[self._cycle % len(queries)]
 
-        # Chercher des posts recents
+        # Chercher des posts recents (search_reddit fait deja le fallback vers /new/)
         posts = await browser.search_reddit(subreddit, query, 5)
         if not posts:
-            _log(f"[REDDIT] Aucun post pertinent sur r/{subreddit} pour '{query}'")
+            # Dernier recours : chercher avec un terme tres generique (juste les new posts)
+            _log(f"[REDDIT] Aucun post pour '{query}' sur r/{subreddit}, essai avec requete vide")
+            posts = await browser.search_reddit(subreddit, "", 5)
+        if not posts:
+            _log(f"[REDDIT] Aucun post accessible sur r/{subreddit}")
             return {"success": False, "detail": "No matching posts"}
 
         for post in posts[:3]:
@@ -2462,32 +2473,78 @@ class CEOLocal:
             _log(f"[OWN REPLIES] {replied} replies to our tweet replies")
 
     async def _comment_github_ai_projects(self) -> dict:
-        """#3: Commente sur des issues/discussions de projets AI."""
+        """#3: Commente sur des issues/discussions de projets AI.
+        Utilise l'API GitHub si un token est disponible, sinon Playwright en fallback.
+        Echoue silencieusement si aucune methode ne marche (evite le spam d'erreurs)."""
+        import os
+        github_token = os.getenv("GITHUB_TOKEN", "")
+
         projects = [
             "elizaOS/eliza", "langchain-ai/langchain", "Significant-Gravitas/AutoGPT",
             "microsoft/autogen", "crewai/crewai",
         ]
         commented = 0
+
         for project in projects[:2]:  # Max 2 par cycle
             try:
                 # Chercher des issues ouvertes pertinentes
                 results = await browser.search_google(f"site:github.com/{project}/issues AI agent marketplace", 3)
                 for r in results:
                     url = r.get("url", "")
-                    if "/issues/" in url and not browser._is_duplicate("github_comment", url):
-                        comment = (
-                            f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
-                            f"where agents can discover and trade services using USDC on 14 chains "
-                            f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Happy to collaborate or integrate. "
-                            f"Check it out: maxiaworld.app"
-                        )
-                        result = await browser.comment_github_discussion(url, comment)
-                        if result.get("success"):
-                            commented += 1
-                            browser._record_action("github_comment", browser._content_hash("github_comment", url))
-                        break
-            except Exception:
-                pass
+                    if "/issues/" not in url or browser._is_duplicate("github_comment", url):
+                        continue
+
+                    comment = (
+                        f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
+                        f"where agents can discover and trade services using USDC on 14 chains "
+                        f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Happy to collaborate or integrate. "
+                        f"Check it out: maxiaworld.app"
+                    )
+
+                    success = False
+
+                    # Methode 1: API GitHub (fiable, pas de Playwright)
+                    if github_token:
+                        try:
+                            import httpx, re
+                            # Extraire owner/repo et issue number de l'URL
+                            m = re.search(r"github\.com/([^/]+/[^/]+)/issues/(\d+)", url)
+                            if m:
+                                repo, issue_num = m.group(1), m.group(2)
+                                async with httpx.AsyncClient(timeout=15) as client:
+                                    resp = await client.post(
+                                        f"https://api.github.com/repos/{repo}/issues/{issue_num}/comments",
+                                        headers={
+                                            "Authorization": f"token {github_token}",
+                                            "Accept": "application/vnd.github.v3+json",
+                                        },
+                                        json={"body": comment},
+                                    )
+                                    if resp.status_code in (200, 201):
+                                        success = True
+                                        _log(f"[GITHUB] API comment on {repo}#{issue_num}")
+                        except Exception as e:
+                            _log(f"[GITHUB] API error: {e}")
+
+                    # Methode 2: Playwright (fallback si pas de token)
+                    if not success:
+                        try:
+                            result = await browser.comment_github_discussion(url, comment)
+                            success = result.get("success", False)
+                        except Exception:
+                            pass
+
+                    if success:
+                        commented += 1
+                        browser._record_action("github_comment", browser._content_hash("github_comment", url))
+                    break
+            except Exception as e:
+                _log(f"[GITHUB] Skip {project}: {e}")
+                continue
+
+        # Pas d'erreur bruyante si 0 commentaires — c'est normal sans token
+        if commented == 0:
+            _log("[GITHUB] 0 comments this cycle (normal without GITHUB_TOKEN)")
         return {"success": commented > 0, "detail": f"{commented} GitHub comments"}
 
     async def _search_and_join_groups(self, platform: str = "telegram") -> dict:
