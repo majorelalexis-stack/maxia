@@ -96,7 +96,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .swap-input-row{display:flex;gap:12px;align-items:center}
 .swap-input-row select{width:130px;padding:12px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text);font-size:15px;font-weight:600;font-family:'Outfit',sans-serif;cursor:pointer;outline:none;appearance:none}
 .swap-input-row select option{background:var(--bg2);color:var(--text)}
-.swap-input-row input{flex:1;padding:12px;background:transparent;border:none;color:var(--text);font-size:22px;font-family:'JetBrains Mono',monospace;text-align:right;outline:none}
+.swap-input-row input{flex:1;padding:12px 16px 12px 12px;background:transparent;border:none;color:var(--text);font-size:20px;font-family:'JetBrains Mono',monospace;text-align:right;outline:none;min-width:0}
 .swap-input-row input::placeholder{color:var(--muted2)}
 .swap-arrow{display:flex;justify-content:center;margin:-8px 0;position:relative;z-index:2}
 .swap-arrow button{width:40px;height:40px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--muted);font-size:18px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
@@ -563,8 +563,23 @@ function fmtUSD(n) {
   if (n == null) return '$0.00';
   if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
   if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+  if (n >= 1e3) return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   return '$' + Number(n).toFixed(2);
+}
+function fmtAmount(n) {
+  if (n == null || isNaN(n)) return '0.00';
+  n = Number(n);
+  if (n >= 1000) return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 1) return n.toFixed(4);
+  if (n >= 0.0001) return n.toFixed(6);
+  return n.toFixed(8);
+}
+function fmtRate(n) {
+  if (n == null || isNaN(n)) return '0';
+  n = Number(n);
+  if (n >= 1) return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 0.001) return n.toFixed(4);
+  return n.toFixed(6);
 }
 
 // ══════════════════════════════════════
@@ -895,7 +910,7 @@ async function getSwapQuote() {
   }
 
   if (from === to) {
-    document.getElementById('swap-to-amount').value = amount.toFixed(4);
+    document.getElementById('swap-to-amount').value = fmtAmount(amount);
     info.style.display = 'none';
     btn.textContent = 'Select different tokens';
     btn.disabled = true;
@@ -909,8 +924,8 @@ async function getSwapQuote() {
     var data = await api('/api/public/crypto/quote?from_token=' + encodeURIComponent(from) + '&to_token=' + encodeURIComponent(to) + '&amount=' + amount);
     if (data) {
       var outAmount = data.output_amount || data.estimated_output || 0;
-      document.getElementById('swap-to-amount').value = Number(outAmount).toFixed(6);
-      document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + (data.rate || (outAmount / amount)).toFixed(6) + ' ' + to;
+      document.getElementById('swap-to-amount').value = fmtAmount(outAmount);
+      document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + fmtRate(data.rate || (outAmount / amount)) + ' ' + to;
       document.getElementById('swap-fee').textContent = fmtUSD(data.commission_usd || 0);
       document.getElementById('swap-tier-info').textContent = data.tier || 'BRONZE';
       document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.10%');
@@ -924,8 +939,8 @@ async function getSwapQuote() {
     if (fromToken && toToken && toToken.price > 0) {
       var rate = fromToken.price / toToken.price;
       var out = amount * rate * 0.95;
-      document.getElementById('swap-to-amount').value = out.toFixed(6);
-      document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + rate.toFixed(6) + ' ' + to;
+      document.getElementById('swap-to-amount').value = fmtAmount(out);
+      document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + fmtRate(rate) + ' ' + to;
       document.getElementById('swap-fee').textContent = '~5%';
       document.getElementById('swap-tier-info').textContent = 'BRONZE';
       info.style.display = 'flex';
