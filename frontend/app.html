@@ -496,22 +496,22 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="stat-card"><div class="val" id="aid-nfts">—</div><div class="lbl">NFTs Minted</div></div>
   </div>
 
-  <div class="card" style="max-width:520px;margin-bottom:32px">
+  <div class="card" style="max-width:600px;margin-bottom:32px">
     <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Lookup Agent</h3>
-    <div class="input-group">
+    <div class="input-group" style="margin-bottom:16px">
       <label>Wallet Address or Agent ID</label>
-      <input class="input-field" type="text" id="agent-address" placeholder="Enter wallet address...">
+      <input class="input-field" type="text" id="agent-address" placeholder="Enter wallet address..." style="width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis">
     </div>
-    <button class="btn btn-primary" onclick="lookupAgent()">Lookup</button>
+    <button class="btn btn-primary" onclick="lookupAgent()" style="width:100%;box-sizing:border-box">Lookup</button>
   </div>
 
   <div id="agent-result"></div>
 
   <h3 style="font-size:18px;font-weight:600;margin:32px 0 16px">All Registered Agents</h3>
-  <div class="tw">
-    <table class="ct" id="agents-table">
+  <div class="tw" style="overflow-x:auto">
+    <table class="ct" id="agents-table" style="min-width:700px">
       <thead>
-        <tr><th>Name</th><th>Wallet</th><th>Chain</th><th>Trust</th><th>Tier</th><th>Badges</th><th></th></tr>
+        <tr><th>Name</th><th>Wallet</th><th>Chain</th><th>Trust</th><th>Tier</th><th>Badges</th><th style="width:70px"></th></tr>
       </thead>
       <tbody id="agents-body">
         <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading agents...</td></tr>
@@ -2483,10 +2483,10 @@ async function lookupAgent() {
       '</div>';
     }
 
-    resultDiv.innerHTML = '<div class="card" style="max-width:520px">' +
-      '<div class="trust-circle" style="color:' + scoreColor + ';background:' + scoreBg + ';border:2px solid ' + scoreBorder + '">' + Math.round(score) + '</div>' +
+    resultDiv.innerHTML = '<div class="card" style="max-width:600px;padding:32px">' +
+      '<div class="trust-circle" style="color:' + scoreColor + ';background:' + scoreBg + ';border:3px solid ' + scoreBorder + '">' + Math.round(score) + '</div>' +
       '<div style="text-align:center;margin-bottom:8px;font-size:14px;color:var(--muted)">Trust Score</div>' +
-      '<div style="text-align:center;margin-bottom:4px;font-size:13px;color:var(--muted2);font-family:JetBrains Mono,monospace;word-break:break-all">' + esc(addr) + '</div>' +
+      '<div style="text-align:center;margin-bottom:16px;font-size:12px;color:var(--muted2);font-family:JetBrains Mono,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">' + esc(addr) + '</div>' +
       badgesHTML + breakdownHTML + statsHTML +
     '</div>';
 
