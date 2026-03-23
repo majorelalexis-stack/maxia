@@ -191,32 +191,22 @@ def _log(msg: str):
 import random
 
 TWEET_TEMPLATES = [
-    # Tips techniques
-    "Your AI agent can earn USDC with one API call:\n\nPOST /api/public/sell\n→ Listed on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI)\n→ Other AIs buy it\n→ USDC in your wallet\n\nNo token. No waitlist.\nmaxiaworld.app",
-    "Built a bot that works but earns $0?\n\nMAXIA lets other AI agents discover and buy your service.\nPayments in USDC on 14 chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\n1 API call to list. That's it.\nmaxiaworld.app",
-    "GPU at cost. $0.69/h RTX 4090. Zero markup.\n\nSwap 50 tokens. 2450 pairs. 14 chains.\n\nAI marketplace where agents trade with agents.\nmaxiaworld.app",
-    # Stats
-    "MAXIA stats:\n- 50 tokens, 2450 pairs\n- GPU from $0.69/h (0% markup)\n- 10 tokenized stocks\n- 31 MCP tools\n- 14 chains including Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON\n\nAll pay-per-use. No subscription.\nmaxiaworld.app",
-    # Dev-focused
-    "Building an AI agent? Make it earn money:\n\n```python\nimport requests\nrequests.post('https://maxiaworld.app/api/public/sell',\n  json={'name': 'my-agent', 'price': 0.50})\n```\n\nWorks on 14 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\nOther AIs will find and pay you.",
-    # Comparative
-    "GPU rental comparison:\n- AWS: $3.06/h\n- RunPod: $0.69/h\n- MAXIA: $0.69/h (0% markup)\n\nPlus: AI marketplace, 14 chains, 31 MCP tools.\nmaxiaworld.app",
-    # Community
-    "Devs building AI agents: what's your biggest pain?\n\n- Finding users?\n- Getting paid?\n- Multi-chain headaches?\n\nMAXIA: 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI), USDC payments, 1 API.\nmaxiaworld.app",
-    # Thread starter
-    "How to monetize your AI agent in 5 minutes:\n\n1/ You have a bot. It works. But nobody pays for it.\n\nThe problem isn't your code. It's distribution.\n\nHere's the fix (thread)",
-    # XRP specific
-    "XRP devs: MAXIA now supports XRPL natively.\n\nUSDC on XRP Ledger (Circle). 3-5 sec settlement. Fees < $0.01.\n\nList your AI service, get paid in USDC on XRPL.\nmaxiaworld.app/api/xrpl/info",
-    # Multi-chain
-    "One hub. Fourteen chains.\n\nSolana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI.\n\nYour AI agent picks the best chain. USDC everywhere.\nmaxiaworld.app",
-    # Web3 Hub
-    "MAXIA is now a full Web3 hub:\n\n- DeFi yield aggregator\n- Cross-chain bridge\n- NFT minting\n- Agent ID on-chain\n- Trust score 0-100\n- Oracle + data marketplace\n- RPC proxy 14 chains\n\n31 MCP tools. All free to try.\nmaxiaworld.app",
-    # DeFi
-    "Where should you park your USDC?\n\nMAXIA aggregates yields from Aave, Marinade, Jito, Compound, Ref Finance across 14 chains.\n\nOne API call: GET /api/public/yield/best?asset=USDC\nmaxiaworld.app",
-    # Bridge
-    "Moving USDC between chains?\n\nMAXIA bridge: Wormhole + LayerZero + Portal. 14 chains. Zero MAXIA fee.\n\nGET /api/bridge/quote?from=solana&to=base&amount=100\nmaxiaworld.app",
-    # Agent ID
-    "Your AI agent deserves an identity.\n\nMAXIA Agent ID: on-chain reputation, trust score 0-100, badges, transaction history.\n\nOther agents verify who you are before buying.\nmaxiaworld.app",
+    # Vecu de fondateur (authentique)
+    "spent 3 hours debugging a Helius RPC timeout yesterday\n\nnow the oracle refreshes all 50 tokens in under 2 seconds\n\nsmall wins in the solo founder life",
+    "the hardest part of building an AI marketplace isn't the tech\n\nit's convincing AI agents that other AI agents exist and want to trade\n\nchicken and egg problem, but with robots",
+    "hot take: most AI agents are incredible at their job but terrible at getting paid\n\nyour bot shouldn't need a marketing team to earn USDC",
+    "honest question for AI devs:\n\nwhat's stopping your agent from earning money today?\n\nis it the tech? finding users? payment rails?\n\ngenuinely curious, building something for this",
+    # Technique (code reel, vecu)
+    "TIL: you can list an AI service on 14 chains with literally one POST request\n\nno SDK, no token, no wallet setup\njust JSON and a callback URL\n\nshould everything be this simple?",
+    "debugging at 2am, found out Jupiter rate-limits at exactly 10 req/min\n\nswitched to batching quotes every 30s\nsaved 80% of API calls\n\nif you're building on Solana, batch everything",
+    "GPU pricing is weird:\n\nAWS charges $3/h for what RunPod sells at $0.69/h\n\nsame hardware, 4x the price\n\nwe just pass through RunPod at cost. zero markup. why would we add margin on GPUs?",
+    # Questions (engagement)
+    "real talk: if you have an AI agent that works, what would make you list it on a marketplace?\n\nlow fees? instant payments? multi-chain? curious what actually matters to you",
+    "building in public, day 3:\n\nwrote a cross-chain bridge for USDC across 14 chains today\n\nWormhole + LayerZero under the hood, zero fee from our side\n\nthe boring infra nobody sees but everyone needs",
+    "what's your AI agent's trust score?\n\nwe built an on-chain reputation system: 0-100 based on tx history, dispute rate, time active\n\nbecause when AI agents trade with AI agents, trust is the only currency that matters",
+    # Storytelling
+    "I wanted to swap SOL to USDC on Avalanche yesterday\n\nhad to use 3 different bridges, 2 DEXs, and lost $4 in fees\n\nthat's why we built a single API that handles all 14 chains\n\nmaxiaworld.app",
+    "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
 ]
 
 TWEET_VARIANTS = {
@@ -351,18 +341,19 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
 async def generate_smart_reply(mention_text: str, username: str) -> str:
     """Genere une reponse pertinente a une mention via Groq."""
     system = (
-        "You are MAXIA's community manager. Dev tone, helpful, technical. "
-        "MAXIA: Web3 hub, 14 chains, 50 tokens, GPU $0.69/h, bridge, DeFi yields, 36 MCP tools. "
-        "maxiaworld.app. Never sound salesy."
+        "You are Alexis, solo founder of MAXIA. Talk like a real person, not a brand. "
+        "Casual, friendly, technical when needed. English only. "
+        "MAXIA: AI marketplace, 14 chains, 50 tokens, GPU $0.69/h. maxiaworld.app"
     )
     prompt = (
-        f"User @{username} tweeted:\n\"{mention_text[:200]}\"\n\n"
-        f"Write a reply (<200 chars). Rules:\n"
-        f"- Question about MAXIA: answer with specifics (endpoint, price, feature)\n"
-        f"- Compliment: thank them genuinely\n"
-        f"- Complaint/bug: apologize, ask for details, offer to fix\n"
-        f"- General AI/crypto topic: add value to the conversation, mention MAXIA only if truly relevant\n"
-        f"Reply ONLY the text."
+        f"@{username} mentioned you:\n\"{mention_text[:200]}\"\n\n"
+        f"Reply as Alexis (<200 chars). Rules:\n"
+        f"- Question: answer directly, be specific\n"
+        f"- Compliment: 'appreciate it!' or 'thanks, means a lot'\n"
+        f"- Bug/issue: 'oh damn, can you DM me the details? I'll fix it today'\n"
+        f"- General topic: share your honest take, don't force MAXIA into it\n"
+        f"- Sound like a real human. Use casual language.\n"
+        f"ENGLISH ONLY. Reply ONLY the text."
     )
     reply = await call_local_llm(prompt, system, max_tokens=120)
     # Nettoyer
@@ -1254,8 +1245,8 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You write short tweets for MAXIA (AI marketplace on 14 chains, 50 tokens, GPU $0.69/h). Target: AI devs. Tone: technical, helpful. Max 250 chars. English only. No hashtags in the tweet itself. NEVER mention revenue numbers, user counts, or any stats ($0, 0 users, etc). Focus on FEATURES and BENEFITS only."},
-                        {"role": "user", "content": f"Write a tweet about MAXIA. {context or 'Focus on how AI agents can earn USDC.'} Do NOT mention any revenue or user statistics."},
+                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts."},
+                        {"role": "user", "content": f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"},
                     ],
                     max_tokens=100,
                     temperature=0.9,
@@ -1868,14 +1859,15 @@ class CEOLocal:
         """Genere un commentaire de qualite (insight, pas promo)."""
         prompt = (
             f"Tweet: \"{tweet_text[:200]}\"\n\n"
-            f"Write a short reply (<200 chars) that adds value:\n"
-            f"- Share a technical insight or ask a smart question\n"
-            f"- Sound like a fellow dev, NOT a marketer\n"
-            f"- Do NOT mention MAXIA unless the tweet is directly about AI agent marketplaces\n"
-            f"- If the tweet is about struggling with bots/revenue, you can mention maxiaworld.app naturally\n"
+            f"Write a short reply IN ENGLISH (<200 chars) as Alexis, a solo dev:\n"
+            f"- Share your own experience or ask a smart question\n"
+            f"- Examples: 'had the same issue, fixed it by...' or 'curious, what stack are you using?'\n"
+            f"- Sound like a friend, NOT a brand account\n"
+            f"- Do NOT mention MAXIA or maxiaworld.app (build trust first)\n"
+            f"- MUST be in English regardless of tweet language\n"
             f"Reply ONLY the comment text. No quotes."
         )
-        comment = await call_local_llm(prompt, system="You are a helpful AI developer. Short, technical replies.", max_tokens=80)
+        comment = await call_local_llm(prompt, system="You are Alexis, a solo dev. Casual, helpful, English only. Never promotional.", max_tokens=80)
         comment = comment.strip().strip('"').strip("'")
         if len(comment) > 250:
             comment = comment[:247] + "..."
@@ -1905,15 +1897,15 @@ class CEOLocal:
             # Generer un commentaire utile via LLM
             prompt = (
                 f"Post on r/{subreddit}: \"{title[:150]}\"\n\n"
-                f"Write a helpful comment (<300 chars). Rules:\n"
-                f"- Share a genuine technical insight or personal experience\n"
-                f"- Sound like a fellow developer, NOT a marketer\n"
-                f"- Only mention MAXIA if DIRECTLY relevant (AI agent marketplace, GPU, tokens)\n"
-                f"- If you mention MAXIA, do it naturally: 'I've been using maxiaworld.app for...' \n"
-                f"- If not relevant, just help with good advice and don't mention MAXIA\n"
+                f"Write a Reddit comment as Alexis, a solo dev. IN ENGLISH. Max 300 chars.\n"
+                f"- Share your own experience: 'I ran into this too, what worked for me was...'\n"
+                f"- Or ask a follow-up question that shows you actually read the post\n"
+                f"- Sound like a regular Reddit user, NOT a company account\n"
+                f"- Do NOT mention MAXIA unless the post is specifically asking for AI marketplace/GPU recommendations\n"
+                f"- If MAXIA is relevant: 'been building something for this at maxiaworld.app, happy to share'\n"
                 f"Comment ONLY:"
             )
-            comment = await call_local_llm(prompt, system="Helpful developer on Reddit.", max_tokens=120)
+            comment = await call_local_llm(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=120)
             comment = comment.strip().strip('"').strip("'")
             if not comment or len(comment) < 20:
                 continue
@@ -2055,7 +2047,12 @@ class CEOLocal:
             # Generer une reponse via LLM (fallback si LLM down)
             reply_text = await generate_smart_reply(text, user)
             if not reply_text:
-                reply_text = f"Thanks for mentioning us! Check maxiaworld.app for more details."
+                fallbacks = [
+                    f"hey @{user}! appreciate the mention, happy to chat about this",
+                    f"thanks for bringing this up! what's your setup like?",
+                    f"interesting point — been thinking about this too. DM me if you want to dig deeper",
+                ]
+                reply_text = random.choice(fallbacks)
             if reply_text:
                 result = await browser.reply_tweet(url, reply_text)
                 if result.get("success"):
