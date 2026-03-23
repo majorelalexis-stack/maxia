@@ -388,14 +388,19 @@ class BrowserAgent:
             await page.goto(url, wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(5000)
 
-            # Titre — multi-selectors
+            # Titre — multi-selectors (Reddit shreddit redesign 2025+)
             filled_title = await self._find_and_fill(page, [
+                'shreddit-composer textarea[name="title"]',
+                'shreddit-composer input[name="title"]',
+                'shreddit-post-composer textarea[name="title"]',
+                '#title-field textarea',
                 'textarea[placeholder*="Title" i]',
                 'input[placeholder*="Title" i]',
                 'textarea[name="title"]',
                 'input[name="title"]',
                 '[data-testid="post-title"] textarea',
                 'div[slot="title"] textarea',
+                'faceplate-form textarea',
             ], title[:300], "Reddit title")
 
             if not filled_title:
@@ -404,21 +409,30 @@ class BrowserAgent:
 
             await page.wait_for_timeout(1000)
 
-            # Body — multi-selectors
+            # Body — multi-selectors (shreddit uses contenteditable or lexical editor)
             await self._find_and_fill(page, [
+                'shreddit-composer div[contenteditable="true"]',
+                'shreddit-post-composer div[contenteditable="true"]',
+                'div[slot="text"] div[contenteditable="true"]',
+                'div[data-lexical-editor="true"]',
+                '.ql-editor[contenteditable="true"]',
+                'div[contenteditable="true"][role="textbox"]',
                 'div[contenteditable="true"]',
                 'textarea[placeholder*="Text" i]',
                 'textarea[placeholder*="body" i]',
                 '.public-DraftEditor-content',
                 '[data-testid="post-body"] div[contenteditable]',
-                'div[slot="text"] div[contenteditable]',
                 'shreddit-composer div[contenteditable]',
             ], body[:10000], "Reddit body")
 
             await page.wait_for_timeout(1000)
 
-            # Poster — multi-selectors
+            # Poster — multi-selectors (shreddit redesign)
             posted = await self._find_and_click(page, [
+                'shreddit-composer button[type="submit"]',
+                'shreddit-post-composer button[type="submit"]',
+                'faceplate-tracker[source="post_submit"] button',
+                'button[slot="submit-button"]',
                 'button:has-text("Post")',
                 'button:has-text("Submit")',
                 'button[type="submit"]:has-text("Post")',
@@ -1079,18 +1093,21 @@ class BrowserAgent:
         page = self._page
 
         try:
-            await page.goto(group_link, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(5000)
+            await page.goto(group_link, wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(3000)
 
-            # Cliquer Join
+            # Cliquer Join (timeout court pour ne pas bloquer)
             joined = await self._find_and_click(page, [
                 'button:has-text("Join Group")',
                 'button:has-text("Join Channel")',
                 'button:has-text("JOIN")',
                 '.btn-primary:has-text("Join")',
-            ], "Join button")
+                'a.tgme_action_button_new:has-text("Join")',
+                'a.tgme_action_button_new',
+            ], "Join button", timeout=3000)
 
-            await page.wait_for_timeout(2000)
+            if joined:
+                await page.wait_for_timeout(2000)
             return {"success": joined, "group": group_link}
 
         except Exception as e:

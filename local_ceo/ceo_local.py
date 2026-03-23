@@ -293,14 +293,16 @@ async def check_ab_results() -> list:
 
         # Verifier engagement via browser
         for variant in ["variant_a", "variant_b"]:
-            url = test[variant].get("tweet_url", "")
-            if url and not test[variant].get("engagement"):
+            v = test.get(variant) or {}
+            url = v.get("tweet_url", "")
+            if url and not v.get("engagement"):
                 eng = await browser.verify_tweet_engagement(url)
-                test[variant]["engagement"] = eng
+                if variant in test and isinstance(test[variant], dict):
+                    test[variant]["engagement"] = eng
 
         # Determiner le gagnant
-        eng_a = test["variant_a"].get("engagement", {})
-        eng_b = test["variant_b"].get("engagement", {})
+        eng_a = (test.get("variant_a") or {}).get("engagement") or {}
+        eng_b = (test.get("variant_b") or {}).get("engagement") or {}
         score_a = eng_a.get("likes", 0) * 2 + eng_a.get("retweets", 0) * 3 + eng_a.get("replies", 0)
         score_b = eng_b.get("likes", 0) * 2 + eng_b.get("retweets", 0) * 3 + eng_b.get("replies", 0)
 
@@ -1797,8 +1799,10 @@ class CEOLocal:
             # Verifier si deja repondu
             if browser._is_duplicate("reply", url):
                 continue
-            # Generer une reponse via Ollama
+            # Generer une reponse via LLM (fallback si LLM down)
             reply_text = await generate_smart_reply(text, user)
+            if not reply_text:
+                reply_text = f"Thanks for mentioning us! Check maxiaworld.app for more details."
             if reply_text:
                 result = await browser.reply_tweet(url, reply_text)
                 if result.get("success"):
