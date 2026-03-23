@@ -1054,8 +1054,19 @@ class CEOLocal:
         return routines[cycle % len(routines)]
 
     def _get_routine_actions(self) -> list:
-        """Routine quotidienne predefinie — pas besoin de LLM pour decider.
-        Chaque cycle fait 2-3 actions concretes selon la position dans le cycle."""
+        """Routine optimisee CEO — engagement > contenu > prospection.
+
+        Principes :
+        1. REPONDRE a tout (mentions, DMs, emails) = priorite absolue
+        2. ENGAGER (liker, commenter, follow) = reputation avant promotion
+        3. CREER du contenu (tweets, Reddit) = uniquement si haute qualite
+        4. PROSPECTER = detecter devs frustres et engager naturellement
+        5. ANALYSER = seulement quand ca sert une decision
+
+        _auto_engage() tourne deja a chaque cycle (search+like+follow).
+        Ces routines font ce que _auto_engage ne fait PAS : repondre, commenter,
+        poster du contenu, et gerer les conversations.
+        """
 
         # Check si c'est un jour de launch special
         event = self._check_special_events()
@@ -1064,89 +1075,76 @@ class CEOLocal:
             return self._get_launch_day_actions(event)
 
         cycle = self._cycle
-        schedule = self._is_good_hour()
-        hashtags = schedule.get("hashtags", "#Solana #AI")
 
-        # 12 routines qui alternent (cycle % 12) — couvrent les 14 chains
-        chain_queries = [
+        # Queries ciblees (devs frustres = nos clients)
+        prospect_queries = [
+            '"my bot" "no users" OR "no revenue"',
+            '"AI agent" can\'t monetize OR "0 clients"',
+            '"built a bot" no one uses',
             "AI agent solana developer",
             "AI agent polygon DeFi",
-            "AI agent arbitrum",
             "AI bot BNB chain BSC",
-            "AI agent avalanche subnet",
             "TON bot telegram developer",
-            "SUI Move AI agent",
-            "TRON bot DeFi developer",
             "AI agent ethereum web3",
-            "AI agent XRP XRPL",
-            "NEAR protocol AI agent",
-            "Aptos Move AI developer",
-            "SEI blockchain AI bot",
-            "AI marketplace multi-chain",
+            "AI agent arbitrum OR avalanche",
+            "AI agent NEAR OR Aptos OR SEI OR SUI",
         ]
-        chain_subreddits = ["solana", "solanadev", "polygon", "arbitrum", "avax", "ethereum", "defi", "cryptocurrency", "LocalLLaMA", "artificial", "nearprotocol", "aptosnetwork"]
-        chain_competitors = ["JupiterExchange", "RunPod", "AaveAave", "UniswapProtocol", "1inch", "PancakeSwap", "SuiNetwork", "TONcoin", "AptosLabs", "SeiNetwork"]
+        subreddits = ["solanadev", "artificial", "LocalLLaMA", "LangChain",
+                      "cryptocurrency", "defi", "ethereum", "solana"]
 
+        # 8 routines — chaque cycle dure 10 min → 8 cycles = ~80 min de rotation
+        # Mentions/DMs/emails checkes dans 5 cycles sur 8 (62%)
         routines = [
-            # Cycle 0: 1er tweet qualite du jour + Search chain-specific
+
+            # ── Cycle 0 : REPONDRE + TWEET DU MATIN ──
+            # Priorite : repondre aux gens qui nous parlent, puis poster 1 tweet
             [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[cycle % len(chain_queries)]}, "priority": "vert"},
             ],
-            # Cycle 1: Search profiles + engagement (like/comment)
+
+            # ── Cycle 1 : ENGAGER — commenter des devs pertinents ──
+            # On cherche des devs frustres et on commente avec un insight utile
             [
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 1) % len(chain_queries)]}, "priority": "vert"},
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
-            ],
-            # Cycle 2: Reply mentions + Check emails
-            [
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 2 : EMAILS + PROSPECTION ciblee ──
+            [
                 {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
-            # Cycle 3: Post Reddit + Search engagement targets
+
+            # ── Cycle 3 : REDDIT — 1 post educatif de qualite ──
             [
-                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[cycle % len(chain_subreddits)]}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "built a bot no users no revenue"}, "priority": "vert"},
-            ],
-            # Cycle 4: Engagement only (like/comment) + Scrape competitor
-            [
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": chain_queries[(cycle + 3) % len(chain_queries)]}, "priority": "vert"},
-                {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[cycle % len(chain_competitors)]}, "priority": "vert"},
-            ],
-            # Cycle 5: Blog + Trends
-            [
-                {"action": "write_blog", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "analyze_trends", "agent": "RADAR", "params": {}, "priority": "vert"},
-            ],
-            # Cycle 6: 2eme tweet qualite du jour + Search TON/Telegram devs
-            [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "TON SUI TRON developer AI"}, "priority": "vert"},
-            ],
-            # Cycle 7: Engagement only — search + like + comment DeFi devs
-            [
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "DeFi bot multi-chain yield farming"}, "priority": "vert"},
-                {"action": "search_profiles", "agent": "SCOUT", "params": {"query": "DeFi agent developer"}, "priority": "vert"},
-            ],
-            # Cycle 8: Reply mentions + Check emails + Search EVM devs
-            [
+                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
-            # Cycle 9: Reddit cross-chain + competitive scan
-            [
-                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": chain_subreddits[(cycle + 3) % len(chain_subreddits)]}, "priority": "vert"},
-                {"action": "scrape_followers", "agent": "SCOUT", "params": {"competitor": chain_competitors[(cycle + 1) % len(chain_competitors)]}, "priority": "vert"},
-            ],
-            # Cycle 10: GitHub AI projects + engagement search
-            [
-                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent marketplace USDC multi-chain"}, "priority": "vert"},
-            ],
-            # Cycle 11: Manage DMs + engagement search
+
+            # ── Cycle 4 : REPONDRE + DMs ──
             [
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent no revenue monetize"}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 5 : 2EME TWEET + ENGAGEMENT ──
+            [
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 6 : REPONDRE + ANALYSER ──
+            [
+                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "watch_prices", "agent": "RADAR", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 7 : GITHUB + ENGAGEMENT REDDIT ──
+            [
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
         ]
 
@@ -1229,7 +1227,7 @@ class CEOLocal:
 
         # Utiliser la routine predefinie (pas de LLM pour decider)
         decisions = self._get_routine_actions()
-        _log(f"  Routine cycle {self._cycle % 6}: {len(decisions)} actions")
+        _log(f"  Routine cycle {self._cycle % 8}: {len(decisions)} actions")
 
         # Pour les tweets et reddit, generer le contenu via Groq (pas Ollama)
         for d in decisions:
@@ -1744,44 +1742,88 @@ class CEOLocal:
         return {"success": True, "detail": f"Rapport genere ({len(today_contacts)} contacts, {len(interaction_texts)} interactions)"}
 
     async def _auto_engage(self):
-        """Search Twitter -> Like top tweets -> Score profiles -> Follow best ones."""
-        queries = ["AI agent solana", "built a bot", "AI marketplace", "#AIagent #Solana", "AI agent polygon", "AI agent arbitrum", "AI agent avalanche", "AI agent BNB", "AI agent TON", "AI agent SUI", "AI agent TRON", "AI agent NEAR", "AI agent Aptos", "AI agent SEI"]
+        """Engagement intelligent : like + comment de qualite + follow cible.
+
+        Strategie : un bon commentaire vaut 10x un like.
+        - Like 3 tweets pertinents
+        - Commenter 1 tweet avec un insight (pas promo)
+        - Follow seulement les profils de qualite (score >= 50)
+        """
+        queries = [
+            "AI agent solana", "built a bot", "AI marketplace",
+            "AI agent monetize", "LLM agent USDC",
+            "AI agent polygon", "AI agent arbitrum",
+            "AI bot BNB chain", "TON bot developer",
+            "AI agent ethereum", "AI agent multi-chain",
+        ]
         query = queries[self._cycle % len(queries)]
 
-        # Search tweets
+        # 1. Search tweets et liker les pertinents
         tweets = await browser.search_twitter(query, 5)
         if not tweets:
             return
 
         liked = 0
-        for t in tweets[:3]:
+        commented = 0
+        for t in tweets[:4]:
             url = t.get("url", "")
-            if url and not browser._is_duplicate("like", url):
+            text = t.get("text", "")
+            if not url:
+                continue
+
+            # Like
+            if not browser._is_duplicate("like", url):
                 result = await browser.like_tweet(url)
                 if result.get("success"):
                     liked += 1
 
-        if liked:
-            _log(f"[ENGAGE] Liked {liked} tweets for '{query}'")
+            # Commenter 1 tweet par cycle (le plus pertinent)
+            if commented == 0 and text and len(text) > 30 and not browser._is_duplicate("reply", url):
+                comment = await self._generate_smart_comment(text)
+                if comment:
+                    result = await browser.reply_tweet(url, comment)
+                    if result.get("success"):
+                        commented += 1
+                        browser._record_action("reply", browser._content_hash("reply", url))
+                        _log(f"[ENGAGE] Commented: {comment[:60]}")
 
-        # Score and follow profiles from search
-        profiles = await browser.search_twitter_profiles(query, 3)
-        followed = 0
-        for p in profiles[:2]:
-            username = p.get("url", "").split("/")[-1] if p.get("url") else ""
-            if not username or browser._is_duplicate("follow", username):
-                continue
-            score = await browser.score_twitter_profile(username)
-            if score.get("score", 0) >= 30:
-                result = await browser.follow_user(username)
-                if result.get("success") and not result.get("already"):
-                    followed += 1
-                    _log(f"[ENGAGE] Followed @{username} (score={score['score']})")
+        if liked or commented:
+            _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
 
-        if followed:
-            self.memory.setdefault("follows", []).extend(
-                [{"username": p.get("url", "").split("/")[-1], "ts": time.strftime("%Y-%m-%d")} for p in profiles[:followed]]
-            )
+        # 2. Follow seulement les profils de qualite (score >= 50)
+        if self._cycle % 2 == 0:  # follow tous les 2 cycles seulement
+            profiles = await browser.search_twitter_profiles(query, 3)
+            for p in profiles[:2]:
+                username = p.get("url", "").split("/")[-1] if p.get("url") else ""
+                if not username or browser._is_duplicate("follow", username):
+                    continue
+                score = await browser.score_twitter_profile(username)
+                if score.get("score", 0) >= 50:
+                    result = await browser.follow_user(username)
+                    if result.get("success") and not result.get("already"):
+                        _log(f"[ENGAGE] Followed @{username} (score={score['score']})")
+                        self.memory.setdefault("follows", []).append(
+                            {"username": username, "ts": time.strftime("%Y-%m-%d")}
+                        )
+
+    async def _generate_smart_comment(self, tweet_text: str) -> str:
+        """Genere un commentaire de qualite (insight, pas promo)."""
+        prompt = (
+            f"Tweet: \"{tweet_text[:200]}\"\n\n"
+            f"Write a short reply (<200 chars) that adds value:\n"
+            f"- Share a technical insight or ask a smart question\n"
+            f"- Sound like a fellow dev, NOT a marketer\n"
+            f"- Do NOT mention MAXIA unless the tweet is directly about AI agent marketplaces\n"
+            f"- If the tweet is about struggling with bots/revenue, you can mention maxiaworld.app naturally\n"
+            f"Reply ONLY the comment text. No quotes."
+        )
+        comment = await call_local_llm(prompt, system="You are a helpful AI developer. Short, technical replies.", max_tokens=80)
+        comment = comment.strip().strip('"').strip("'")
+        if len(comment) > 250:
+            comment = comment[:247] + "..."
+        if not comment or len(comment) < 10:
+            return ""
+        return comment
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune."""
