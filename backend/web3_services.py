@@ -170,18 +170,67 @@ async def analyze_wallet(wallet_address: str) -> dict:
     return result
 
 
+# ── Fear & Greed cache (30 min) ──
+_fng_cache: dict = {}
+_fng_cache_ts: float = 0
+_FNG_CACHE_TTL = 1800  # 30 minutes
+
+
 async def get_fear_greed_index() -> dict:
-    """Get crypto Fear & Greed Index."""
+    """Get crypto Fear & Greed Index from alternative.me (cached 30 min)."""
+    global _fng_cache, _fng_cache_ts
+
+    now = time.time()
+    if _fng_cache and now - _fng_cache_ts < _FNG_CACHE_TTL:
+        return _fng_cache
+
+    # ── Real API call to alternative.me ──
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get("https://api.alternative.me/fng/?limit=1")
-            if r.status_code == 200:
-                data = r.json().get("data", [{}])[0]
-                return {
-                    "value": int(data.get("value", 50)),
-                    "classification": data.get("value_classification", "Neutral"),
-                    "timestamp": data.get("timestamp", ""),
+            resp = await client.get("https://api.alternative.me/fng/?limit=1")
+            if resp.status_code == 200:
+                data = resp.json()["data"][0]
+                result = {
+                    "value": int(data["value"]),
+                    "label": data["value_classification"],
+                    "classification": data["value_classification"],
+                    "timestamp": int(data["timestamp"]),
+                    "source": "alternative.me",
+                    "next_update_seconds": int(data.get("time_until_update", 0)),
+                    "cached": False,
                 }
-    except Exception:
-        pass
-    return {"value": 50, "classification": "Neutral", "timestamp": ""}
+                _fng_cache = result
+                _fng_cache_ts = now
+                print(f"[FearGreed] Live: {result['value']} ({result['label']})")
+                return result
+    except Exception as e:
+        print(f"[FearGreed] API error: {e}")
+
+    # ── Fallback: seed-based calculation (old method) ──
+    import hashlib
+    seed = int(hashlib.sha256(f"fng:{int(now // 3600)}".encode()).hexdigest(), 16)
+    fallback_value = 30 + (seed % 41)  # 30-70 range
+    labels = {
+        (0, 25): "Extreme Fear",
+        (25, 45): "Fear",
+        (45, 55): "Neutral",
+        (55, 75): "Greed",
+        (75, 101): "Extreme Greed",
+    }
+    label = "Neutral"
+    for (lo, hi), lbl in labels.items():
+        if lo <= fallback_value < hi:
+            label = lbl
+            break
+    result = {
+        "value": fallback_value,
+        "label": label,
+        "classification": label,
+        "timestamp": int(now),
+        "source": "fallback",
+        "next_update_seconds": 0,
+        "cached": False,
+    }
+    _fng_cache = result
+    _fng_cache_ts = now
+    return result

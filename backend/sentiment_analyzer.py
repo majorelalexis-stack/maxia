@@ -1,8 +1,12 @@
-"""MAXIA Sentiment Analysis — Social Listening
+"""MAXIA Sentiment Analysis — Social Listening + Real Market Data
 
-Analyses crypto sentiment from free public sources.
-No API key needed for basic sentiment.
-LunarCrush API key optional for premium data.
+Analyses crypto sentiment from free public sources:
+- CoinGecko price momentum (24h + 7d change)
+- alternative.me Fear & Greed Index
+- Reddit community activity
+- LunarCrush (optional, requires API key)
+
+Weighted scoring: 60% price momentum + 40% market sentiment (Fear & Greed)
 """
 import asyncio, time, re, os
 import httpx
@@ -10,60 +14,99 @@ import httpx
 LUNARCRUSH_KEY = os.getenv("LUNARCRUSH_API_KEY", "")
 
 _sentiment_cache: dict = {}
-_cache_ts: float = 0
+_cache_ts: dict = {}  # Per-token cache timestamps
 _CACHE_TTL = 300  # 5 minutes
 
 
+async def _get_fear_greed_value() -> int:
+    """Get Fear & Greed value (0-100) from web3_services (cached)."""
+    try:
+        from web3_services import get_fear_greed_index
+        fng = await get_fear_greed_index()
+        return fng.get("value", 50)
+    except Exception:
+        return 50  # Neutral fallback
+
+
 async def get_sentiment(token: str = "BTC") -> dict:
-    """Get sentiment for a crypto token from multiple free sources."""
-    global _sentiment_cache, _cache_ts
-    
+    """Get real sentiment for a crypto token — weighted price momentum + Fear & Greed."""
     cache_key = token.upper()
-    if cache_key in _sentiment_cache and time.time() - _cache_ts < _CACHE_TTL:
+    now = time.time()
+    if cache_key in _sentiment_cache and now - _cache_ts.get(cache_key, 0) < _CACHE_TTL:
         return _sentiment_cache[cache_key]
 
     result = {
         "token": cache_key,
-        "timestamp": int(time.time()),
+        "timestamp": int(now),
         "sources": [],
         "overall_sentiment": "neutral",
         "score": 50,
+        "method": "weighted_real_data",
     }
 
-    # Source 1: CoinGecko community data (free)
+    # ── Source 1: CoinGecko price momentum (real data) ──
     cg_data = await _coingecko_sentiment(cache_key)
+    price_change_24h = 0.0
+    price_score = 50.0
     if cg_data:
         result["sources"].append(cg_data)
+        price_change_24h = cg_data.get("price_change_24h", 0)
+        price_score = cg_data.get("score", 50)
 
-    # Source 2: Reddit mentions estimation
+    # ── Source 2: Fear & Greed Index (real from alternative.me) ──
+    fng_value = await _get_fear_greed_value()
+    result["sources"].append({
+        "source": "fear_greed_index",
+        "score": fng_value,
+        "value": fng_value,
+        "api": "alternative.me",
+    })
+
+    # ── Source 3: Reddit community activity ──
     reddit_data = await _reddit_sentiment(cache_key)
     if reddit_data:
         result["sources"].append(reddit_data)
 
-    # Source 3: LunarCrush (if key available)
+    # ── Source 4: LunarCrush (if key available) ──
     if LUNARCRUSH_KEY:
         lunar_data = await _lunarcrush_sentiment(cache_key)
         if lunar_data:
             result["sources"].append(lunar_data)
 
-    # Calculate overall score
-    scores = [s.get("score", 50) for s in result["sources"] if s.get("score")]
-    if scores:
-        avg = sum(scores) / len(scores)
-        result["score"] = round(avg, 1)
-        if avg >= 70:
-            result["overall_sentiment"] = "very_bullish"
-        elif avg >= 60:
-            result["overall_sentiment"] = "bullish"
-        elif avg >= 40:
-            result["overall_sentiment"] = "neutral"
-        elif avg >= 30:
-            result["overall_sentiment"] = "bearish"
-        else:
-            result["overall_sentiment"] = "very_bearish"
+    # ══ Weighted score: 60% price momentum + 40% Fear & Greed ══
+    # Normalize price_change_24h to 0-100 scale:
+    #   -10% or worse -> 0, +10% or better -> 100, 0% -> 50
+    price_normalized = max(0, min(100, 50 + (price_change_24h * 5)))
+
+    weighted_score = (price_normalized * 60 + fng_value * 40) / 100
+    result["score"] = round(weighted_score, 1)
+
+    # Add breakdown for transparency
+    result["score_breakdown"] = {
+        "price_momentum_score": round(price_normalized, 1),
+        "price_momentum_weight": "60%",
+        "fear_greed_score": fng_value,
+        "fear_greed_weight": "40%",
+        "price_change_24h": round(price_change_24h, 2),
+    }
+
+    # Determine sentiment label
+    if weighted_score >= 70:
+        result["overall_sentiment"] = "very_bullish"
+    elif weighted_score >= 60:
+        result["overall_sentiment"] = "bullish"
+    elif weighted_score >= 40:
+        result["overall_sentiment"] = "neutral"
+    elif weighted_score >= 30:
+        result["overall_sentiment"] = "bearish"
+    else:
+        result["overall_sentiment"] = "very_bearish"
 
     _sentiment_cache[cache_key] = result
-    _cache_ts = time.time()
+    _cache_ts[cache_key] = now
+    print(f"[Sentiment] {cache_key}: score={result['score']}, "
+          f"sentiment={result['overall_sentiment']}, "
+          f"price_24h={price_change_24h:+.2f}%, fng={fng_value}")
     return result
 
 

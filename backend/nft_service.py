@@ -27,6 +27,7 @@ class MintRequest(BaseModel):
     attributes: dict = Field(default_factory=dict)
     owner_address: str = Field(min_length=1, max_length=100)
     chain: str = "solana"
+    tx_signature: Optional[str] = Field(default=None, max_length=200)
 
 
 class ServicePassCreateRequest(BaseModel):
@@ -45,6 +46,7 @@ class AgentIDCreateRequest(BaseModel):
     agent_address: str = Field(min_length=1, max_length=100)
     name: str = Field(min_length=1, max_length=100)
     chain: str = "solana"
+    tx_signature: Optional[str] = Field(default=None, max_length=200)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -53,7 +55,9 @@ class AgentIDCreateRequest(BaseModel):
 
 @router.post("/mint")
 async def mint_nft(req: MintRequest):
-    """Mint un NFT avec metadata (nom, description, image, attributs)."""
+    """Mint un NFT avec metadata (nom, description, image, attributs).
+    Si tx_signature est fourni, le NFT est lie a une vraie transaction Solana (memo).
+    """
     nft_id = f"nft_{uuid.uuid4().hex[:12]}"
     nft = {
         "nft_id": nft_id,
@@ -65,6 +69,8 @@ async def mint_nft(req: MintRequest):
         "chain": req.chain,
         "minted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "status": "minted",
+        "tx_signature": req.tx_signature,
+        "on_chain": req.tx_signature is not None,
     }
     _nfts[nft_id] = nft
     return {"ok": True, "nft": nft}
@@ -260,7 +266,9 @@ def _compute_badges(agent: dict) -> List[str]:
 
 @router.post("/agent-id")
 async def create_agent_id(req: AgentIDCreateRequest):
-    """Cree un NFT d'identite on-chain pour un agent IA."""
+    """Cree un NFT d'identite on-chain pour un agent IA.
+    Si tx_signature est fourni, l'Agent ID est lie a une vraie transaction Solana (memo).
+    """
     if req.agent_address in _agent_ids:
         raise HTTPException(409, "Agent ID already exists for this address")
 
@@ -281,6 +289,8 @@ async def create_agent_id(req: AgentIDCreateRequest):
         "chain": req.chain,
         "minted_at": now_str,
         "status": "minted",
+        "tx_signature": req.tx_signature,
+        "on_chain": req.tx_signature is not None,
     }
     _nfts[nft_id] = nft
 
@@ -295,6 +305,8 @@ async def create_agent_id(req: AgentIDCreateRequest):
         "trust_score": 50,  # Score initial neutre
         "badges": ["early_adopter"] if now_str < "2026-07-01" else [],
         "nft_id": nft_id,
+        "tx_signature": req.tx_signature,
+        "on_chain": req.tx_signature is not None,
     }
     _agent_ids[req.agent_address] = agent_id
     return {"ok": True, "agent_id": agent_id}

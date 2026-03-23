@@ -43,7 +43,7 @@ _FALLBACK_YIELDS: list[dict] = [
         "tvl_usd": 1_500_000_000,
         "risk": RISK_LOW,
         "type": "liquid_staking",
-        "url": "https://marinade.finance",
+        "url": "https://marinade.finance/app/stake/",
     },
     # Jito — Solana jitoSOL staking
     {
@@ -54,7 +54,7 @@ _FALLBACK_YIELDS: list[dict] = [
         "tvl_usd": 1_200_000_000,
         "risk": RISK_LOW,
         "type": "liquid_staking",
-        "url": "https://www.jito.network",
+        "url": "https://www.jito.network/staking/",
     },
     # Aave V3 — multi-chain USDC lending
     {
@@ -148,7 +148,7 @@ _FALLBACK_YIELDS: list[dict] = [
         "tvl_usd": 14_000_000_000,
         "risk": RISK_LOW,
         "type": "liquid_staking",
-        "url": "https://lido.fi",
+        "url": "https://stake.lido.fi/",
     },
     {
         "protocol": "Rocket Pool",
@@ -158,7 +158,7 @@ _FALLBACK_YIELDS: list[dict] = [
         "tvl_usd": 3_500_000_000,
         "risk": RISK_LOW,
         "type": "liquid_staking",
-        "url": "https://rocketpool.net",
+        "url": "https://stake.rocketpool.net/",
     },
     {
         "protocol": "Aave V3",
@@ -178,7 +178,7 @@ _FALLBACK_YIELDS: list[dict] = [
         "tvl_usd": 8_000_000_000,
         "risk": RISK_MEDIUM,
         "type": "restaking",
-        "url": "https://eigenlayer.xyz",
+        "url": "https://app.eigenlayer.xyz/",
     },
     {
         "protocol": "Aave V3",
@@ -234,7 +234,7 @@ async def _fetch_marinade(client: httpx.AsyncClient) -> list[dict]:
                 "tvl_usd": 1_500_000_000,
                 "risk": RISK_LOW,
                 "type": "liquid_staking",
-                "url": "https://marinade.finance",
+                "url": "https://marinade.finance/app/stake/",
             }]
     except Exception as e:
         logger.warning(f"[Yield] Marinade API error: {e}")
@@ -266,7 +266,7 @@ async def _fetch_jito(client: httpx.AsyncClient) -> list[dict]:
                 "tvl_usd": 1_200_000_000,
                 "risk": RISK_LOW,
                 "type": "liquid_staking",
-                "url": "https://www.jito.network",
+                "url": "https://www.jito.network/staking/",
             }]
     except Exception as e:
         logger.warning(f"[Yield] Jito API error: {e}")
