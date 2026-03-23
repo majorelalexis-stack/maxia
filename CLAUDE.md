@@ -86,7 +86,7 @@ Anchor (Solana) escrow program in Rust. Handles USDC locking in PDAs for trades.
 ## Key Patterns
 
 - **Feature system**: Originally organized as 15 "Articles" (Art.1 = safety, Art.2 = commissions, Art.3 = oracle, etc.), now expanded to 47+ features including trading tools, analytics, and autonomous agent capabilities.
-- **Commission tiers**: BRONZE (5%, <$500), OR (1%, $500-5000), BALEINE (0.1%, >$5000) — configured in `config.py`
+- **Commission tiers (Marketplace)**: BRONZE (1%, <$500), GOLD (0.5%, $500-5000), WHALE (0.1%, >$5000). **Swap**: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01% — configured in `config.py` and `crypto_swap.py`
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
 - **AI models**: Groq `llama-3.3-70b-versatile` for fast inference, Claude Sonnet/Opus for strategic decisions

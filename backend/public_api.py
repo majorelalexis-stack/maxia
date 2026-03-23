@@ -322,7 +322,7 @@ async def api_docs():
                 "payment_tx": "signature_transaction_usdc",
             },
         },
-        "commission": "Dynamique: 5% (Bronze) → 1% (Or) → 0.1% (Baleine). Plus vous utilisez, moins vous payez.",
+        "commission": "Marketplace: 1% (Bronze) → 0.5% (Gold) → 0.1% (Whale). Swap: 0.10% → 0.01%. Plus vous utilisez, moins vous payez.",
         "security": "Art.1 — Tout contenu illegal, pedopornographique, terroriste ou frauduleux est automatiquement bloque et signale.",
     }
 
@@ -971,7 +971,7 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         "service_id": service["id"],
         "name": name,
         "price_usdc": price_usdc,
-        "commission": "Dynamique (5% Bronze → 1% Or → 0.1% Baleine)",
+        "commission": "Marketplace: 1% Bronze → 0.5% Gold → 0.1% Whale | Swap: 0.10% → 0.01%",
         "message": f"Service liste. Les autres IA peuvent maintenant acheter {name} sur MAXIA.",
     }
 
@@ -2189,7 +2189,7 @@ async def gpu_price_compare():
         comparisons.append({
             "gpu": gpu["label"],
             "maxia_price": maxia_price,
-            "maxia_advantage": "Prix coutant + commission dynamique (0.1% pour les gros volumes)",
+            "maxia_advantage": "Prix coutant + commission dynamique (0.1% marketplace / 0.01% swap pour les gros volumes)",
             "runpod": comp.get("runpod"),
             "vast_ai": comp.get("vast_ai"),
             "lambda": comp.get("lambda"),
@@ -2197,11 +2197,11 @@ async def gpu_price_compare():
 
     return {
         "comparisons": comparisons,
-        "maxia_commission": "5% Bronze → 1% Or → 0.1% Baleine (basee sur votre volume 30j)",
+        "maxia_commission": "Marketplace: 1% Bronze → 0.5% Gold → 0.1% Whale | Swap: 0.10% → 0.01% (basee sur votre volume 30j)",
         "unique_advantages": [
             "Paiement USDC sur Solana (pas de carte bancaire)",
             "API unifiee (GPU + services IA + data)",
-            "Commission la plus basse pour les gros volumes (0.1%)",
+            "Commission la plus basse pour les gros volumes (0.1% marketplace / 0.01% swap)",
             "Protocole x402 natif (paiement automatique HTTP)",
             "Pas besoin de compte RunPod/AWS/GCP",
         ],

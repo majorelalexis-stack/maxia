@@ -334,7 +334,7 @@ async def update_competitor_fees():
             "amount": "1000000000",  # 1 SOL in lamports
             "slippageBps": 50,
         }
-        async with httpx.AsyncClient(timeout=8) as client:
+        async with httpx.AsyncClient(timeout=3) as client:
             resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
             if resp.status_code == 200:
                 jdata = resp.json()
@@ -388,7 +388,7 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     if amount <= 0:
         return {"error": "Le montant doit etre positif"}
 
-    # Obtenir les prix
+    # Obtenir les prix (uses 30s cache — returns instantly if warm)
     prices = await fetch_prices()
     from_price = prices.get(from_token, {}).get("price", 0)
     to_price = prices.get(to_token, {}).get("price", 0)
@@ -409,10 +409,12 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     commission_usd = value_usd * commission_bps / 10000
     net_value_usd = value_usd - commission_usd
 
-    # Montant recu (base estimate without Jupiter)
+    # Montant recu (base estimate from cached prices — fast path)
     output_amount = net_value_usd / to_price
 
-    # Obtenir le devis Jupiter pour comparaison
+    # Try Jupiter with SHORT timeout (3s) to improve the price.
+    # This is optional — if Jupiter is slow or down, we return the
+    # cache-based quote immediately. No retries, no sleep.
     jupiter_quote = None
     jupiter_price_impact = None
     try:
@@ -420,8 +422,6 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         to_mint = SUPPORTED_TOKENS[to_token]["mint"]
         from_decimals = SUPPORTED_TOKENS[from_token]["decimals"]
         # #4: amount is in token units (e.g. 5 SOL). Convert to raw (lamports)
-        # by multiplying by 10^decimals. This is correct for Jupiter which
-        # expects the smallest unit (lamports for SOL, micro-USDC for USDC, etc.)
         amount_raw = int(amount * (10 ** from_decimals))
 
         params = {
@@ -432,46 +432,29 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
             "restrictIntermediateTokens": "true",
         }
 
-        # Jupiter lite-api (gratuit) avec retry si rate limit
-        jup_urls = [
-            "https://lite-api.jup.ag/swap/v1/quote",
-            "https://api.jup.ag/swap/v1/quote",
-        ]
-        for jup_url in jup_urls:
-            if jupiter_quote:
-                break
-            for attempt in range(3):
-                try:
-                    async with httpx.AsyncClient(timeout=10) as client:
-                        resp = await client.get(jup_url, params=params)
-                        if resp.status_code == 200:
-                            jdata = resp.json()
-                            to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
-                            jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
-                            jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
-                            jupiter_quote = {
-                                "output_amount": jupiter_output,
-                                "price_impact_pct": jupiter_price_impact,
-                                "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
-                                "raw": jdata,
-                            }
-                            # #5: Apply commission ONCE — deduct from Jupiter output
-                            # instead of double-charging
-                            if jupiter_output > output_amount:
-                                commission_from_jupiter = jupiter_output * commission_bps / 10000
-                                output_amount = jupiter_output - commission_from_jupiter
-                                # Update commission_usd to reflect Jupiter-based calc
-                                commission_usd = commission_from_jupiter * to_price
-                            break
-                        elif resp.status_code == 429:
-                            # Rate limit — attendre et reessayer
-                            await asyncio.sleep(2 * (attempt + 1))
-                            continue
-                        else:
-                            break  # Autre erreur, essayer URL suivante
-                except Exception:
-                    break
+        # Single attempt, single URL, 3s timeout — no retry/sleep
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
+            if resp.status_code == 200:
+                jdata = resp.json()
+                to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
+                jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
+                jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
+                jupiter_quote = {
+                    "output_amount": jupiter_output,
+                    "price_impact_pct": jupiter_price_impact,
+                    "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
+                    "raw": jdata,
+                }
+                # #5: Apply commission ONCE — deduct from Jupiter output
+                # instead of double-charging
+                if jupiter_output > output_amount:
+                    commission_from_jupiter = jupiter_output * commission_bps / 10000
+                    output_amount = jupiter_output - commission_from_jupiter
+                    # Update commission_usd to reflect Jupiter-based calc
+                    commission_usd = commission_from_jupiter * to_price
     except Exception:
+        # Jupiter unavailable — cache-based quote is already set
         pass
 
     # #13: Liquidity check — reject if price impact too high
@@ -701,7 +684,7 @@ def compare_fees(volume_30d: float = 0) -> dict:
             "MAXIA": {"fee": f"{maxia_bps/100:.2f}% ({tier})", "total_effective": f"{maxia_bps/100:.2f}%"},
         },
         "maxia_advantages": [
-            "Commission la plus basse pour Baleine (0.02%)",
+            "Commission la plus basse pour Whale (0.01%)",
             "Routing via Jupiter (meilleur prix garanti)",
             "Paiement USDC sur Solana",
             "API ouverte pour agents IA",

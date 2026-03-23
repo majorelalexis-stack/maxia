@@ -677,7 +677,7 @@ class TokenizedStockExchange:
                 for k, v in COMPETITOR_FEES.items()
             },
             "maxia_advantages": [
-                "Commission la plus basse pour les gros volumes (0.05% Baleine)",
+                "Commission la plus basse pour les gros volumes (0.05% Whale)",
                 "Transparente — pas de spread cache comme Robinhood",
                 "Paiement USDC sur Solana (pas de carte bancaire)",
                 "Achat fractionne a partir de 1 USDC",

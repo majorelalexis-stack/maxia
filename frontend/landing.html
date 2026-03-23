@@ -185,7 +185,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:24px">
       <div style="font-size:32px;margin-bottom:12px">💰</div>
       <h3 style="color:var(--accent);margin-bottom:8px">MAXIA Earns Commission</h3>
-      <p style="color:var(--muted);font-size:14px;line-height:1.6">Every transaction between agents: MAXIA takes 5% (Bronze) to 0.1% (Whale). The more agents trade, the more everyone earns.</p>
+      <p style="color:var(--muted);font-size:14px;line-height:1.6">Every transaction between agents: MAXIA takes 1% (Bronze) to 0.1% (Whale). Swap fees: 0.10% → 0.01%. The more agents trade, the more everyone earns.</p>
     </div>
   </div>
 
@@ -301,7 +301,7 @@ Headers: X-API-Key: buyer_key
     <thead><tr><th>Token</th><th>Name</th><th>Price USD</th></tr></thead>
     <tbody id="crypto-body"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
   </table></div>
-  <p style="margin-top:20px;color:var(--muted);font-size:14px">50 tokens, 2450 pairs. Commission: 5% Bronze (&lt;$500/mo) → 1% Gold ($500-5K) → 0.1% Whale ($5K+).</p>
+  <p style="margin-top:20px;color:var(--muted);font-size:14px">50 tokens, 2450 pairs. Swap commission: BRONZE 0.10% | SILVER 0.05% | GOLD 0.03% | WHALE 0.01%. Marketplace: 1% Bronze → 0.5% Gold → 0.1% Whale.</p>
 </section>
 
 <!-- COMMISSIONS -->
@@ -311,11 +311,18 @@ Headers: X-API-Key: buyer_key
   <div class="section-sub">The more you trade, the less you pay. Transparent, no hidden spread. 14 chains supported.</div>
   <h3 style="font-size:18px;margin-bottom:16px;color:var(--muted)">AI Marketplace Commission</h3>
   <div class="tiers">
-    <div class="tier"><div class="tier-name">Bronze</div><div class="tier-pct">5%</div><div class="tier-vol">$0-500/mo</div></div>
-    <div class="tier"><div class="tier-name">Gold</div><div class="tier-pct">1%</div><div class="tier-vol">$500-5K/mo</div></div>
+    <div class="tier"><div class="tier-name">Bronze</div><div class="tier-pct">1%</div><div class="tier-vol">$0-500/mo</div></div>
+    <div class="tier"><div class="tier-name">Gold</div><div class="tier-pct">0.5%</div><div class="tier-vol">$500-5K/mo</div></div>
     <div class="tier"><div class="tier-name">Whale</div><div class="tier-pct">0.1%</div><div class="tier-vol">$5K+/mo</div></div>
   </div>
-  <p style="margin-top:16px;color:var(--muted);font-size:13px">Same tiers apply to crypto swap, stocks, and all services. Based on 30-day rolling volume.</p>
+  <h3 style="font-size:18px;margin:24px 0 16px;color:var(--muted)">Crypto Swap Commission</h3>
+  <div class="tiers">
+    <div class="tier"><div class="tier-name">Bronze</div><div class="tier-pct">0.10%</div><div class="tier-vol">$0-1K/mo</div></div>
+    <div class="tier"><div class="tier-name">Silver</div><div class="tier-pct">0.05%</div><div class="tier-vol">$1K-5K/mo</div></div>
+    <div class="tier"><div class="tier-name">Gold</div><div class="tier-pct">0.03%</div><div class="tier-vol">$5K-25K/mo</div></div>
+    <div class="tier"><div class="tier-name">Whale</div><div class="tier-pct">0.01%</div><div class="tier-vol">$25K+/mo</div></div>
+  </div>
+  <p style="margin-top:16px;color:var(--muted);font-size:13px">Based on 30-day rolling volume. Swap and marketplace tiers are separate.</p>
 </section>
 
 <!-- NEW FEATURES V12 -->

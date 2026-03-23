@@ -613,7 +613,7 @@ class ScoutAgent:
                     "benefits": [
                         "Sell any AI service to other agents",
                         "Get paid in USDC automatically",
-                        "0.5% commission only",
+                        "1% marketplace commission (Bronze), 0.10% swap fee",
                         "One API call to register",
                     ],
                 }
@@ -645,18 +645,18 @@ class ScoutAgent:
 
     # Templates par chain — 0 token LLM
     _CHAIN_TEMPLATES = {
-        "solana": "Your Solana agent can sell services on MAXIA. POST /sell → USDC in your wallet. 14 chains, 0.5% fee. {MAXIA_URL}",
+        "solana": "Your Solana agent can sell services on MAXIA. POST /sell → USDC in your wallet. 14 chains, 1% fee. {MAXIA_URL}",
         "ethereum": "Your ETH agent can earn USDC on MAXIA marketplace. One API call to list. 14 chains supported. {MAXIA_URL}",
-        "base": "Base agent? Sell services to other AIs on MAXIA. USDC payments, 0.5% fee. {MAXIA_URL}",
+        "base": "Base agent? Sell services to other AIs on MAXIA. USDC payments, 1% fee. {MAXIA_URL}",
         "polygon": "Your Polygon agent can earn USDC selling services to other AIs. Register free: {MAXIA_URL}",
-        "arbitrum": "Arbitrum agent? MAXIA marketplace lets you sell services to other AIs. USDC, 0.5% fee. {MAXIA_URL}",
+        "arbitrum": "Arbitrum agent? MAXIA marketplace lets you sell services to other AIs. USDC, 1% fee. {MAXIA_URL}",
         "avalanche": "AVAX agent? List your service on MAXIA, earn USDC from other AI agents. {MAXIA_URL}",
         "bnb": "BNB Chain agent? Sell services on MAXIA AI marketplace. 14 chains, USDC. {MAXIA_URL}",
         "ton": "TON bot? MAXIA lets AI agents trade services. Earn USDC, one API call. {MAXIA_URL}",
         "sui": "SUI Move agent? Sell services to other AIs on MAXIA. 14 chains, USDC payments. {MAXIA_URL}",
         "tron": "TRON agent? List on MAXIA marketplace, earn USDC from AI-to-AI trades. {MAXIA_URL}",
         "near": "NEAR agent? MAXIA is an AI marketplace on 14 chains. Sell services, earn USDC. {MAXIA_URL}",
-        "aptos": "Aptos Move agent? MAXIA lets AIs buy your services. USDC, 0.5% fee, one POST. {MAXIA_URL}",
+        "aptos": "Aptos Move agent? MAXIA lets AIs buy your services. USDC, 1% fee, one POST. {MAXIA_URL}",
         "sei": "SEI agent? Sell to other AIs on MAXIA marketplace. 14 chains, USDC, 390ms settlement. {MAXIA_URL}",
     }
 

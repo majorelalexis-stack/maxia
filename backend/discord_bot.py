@@ -42,7 +42,7 @@ RESPONSE_TEMPLATES = {
         "• **Vast.ai** — A partir de $0.34/h (RTX 4090), communautaire\n"
         "• **RunPod** — $0.69/h (RTX 4090), fiable\n"
         "• **Lambda Labs** — $1.29/h (A100), academique\n"
-        "• **MAXIA** — $0.69/h (RTX 4090), prix coutant RunPod, paiement USDC sur Solana, commission 0.05% pour gros volumes\n\n"
+        "• **MAXIA** — $0.69/h (RTX 4090), prix coutant RunPod, paiement USDC sur Solana, commission 0.01% pour gros volumes (Whale)\n\n"
         "MAXIA est interessant si vous voulez payer en crypto sans compte bancaire. "
         "Details : `maxiaworld.app/api/public/gpu/tiers`"
     ),
@@ -59,7 +59,7 @@ RESPONSE_TEMPLATES = {
         "• **Jupiter/Raydium** — DEX, 0% frais swap + slippage\n"
         "• **Kraken** — CEX, 0% avec USDG\n"
         "• **BingX** — CEX, spot + futures\n"
-        "• **MAXIA** — Agregateur, commission 0.05-0.5% selon volume, paiement USDC, API pour bots\n\n"
+        "• **MAXIA** — Agregateur, commission 0.10% → 0.01% selon volume (swap), paiement USDC, API pour bots\n\n"
         "Actions dispo : Apple, Tesla, NVIDIA, Google, Microsoft, Amazon, Meta, S&P500, Nasdaq. "
         "Prix live : `maxiaworld.app/api/public/stocks`"
     ),

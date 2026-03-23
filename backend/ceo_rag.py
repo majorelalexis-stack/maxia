@@ -208,7 +208,7 @@ if __name__ == "__main__":
     print("=== RAG Local Test ===")
 
     rag.index_entry("decisions", "d1", "Changement canal HUNTER de memo vers reddit car 0% conversion whale")
-    rag.index_entry("decisions", "d2", "Baisse commission crypto de 0.15% a 0.10% car aucun swap")
+    rag.index_entry("decisions", "d2", "Commission crypto: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01%")
     rag.index_entry("decisions", "d3", "Tweet publie sur les AI tokens trending RENDER PYTH")
     rag.index_entry("conversations", "c1", "twitter_dm dev_42 How do I swap SOL to USDC question_technique")
     rag.index_entry("conversations", "c2", "discord whale_99 Is this project legit prospect")

@@ -1795,7 +1795,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "testimonials": [{"user": t["user"], "feedback": t["feedback"][:100]} for t in testimonials[-5:]],
         },
         "pricing_highlight": {
-            "swap_fee": "0.02%",
+            "swap_fee": "0.01%",
             "gpu_price": "$0.69/h",
             "audit_price": "$4.99",
             "label": "Lowest fees in DeFi",
@@ -1919,7 +1919,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"Genere une page HTML de comparaison de fees pour MAXIA.\n\n"
             f"Tableau comparatif :\n"
             f"| Service | MAXIA | Jupiter | Binance | Coinbase |\n"
-            f"| Swap fee | 0.02-0.15% | 0% + slippage | 0.10% | 0.60% |\n"
+            f"| Swap fee | 0.01-0.10% | 0% + slippage | 0.10% | 0.60% |\n"
             f"| Stocks | 0.05% | N/A | N/A | N/A |\n"
             f"| GPU RTX4090 | $0.69/h | N/A | N/A | N/A |\n"
             f"| API | Gratuite | Gratuite | Payante | Payante |\n"

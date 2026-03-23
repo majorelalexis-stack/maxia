@@ -80,7 +80,7 @@ async def send_daily_report(stats: dict):
         f"\U0001f4b1 50 tokens, 2450 paires de trading\n"
         f"\U0001f5a5 GPU: RTX 4090 \u2192 4xA100 (prix coutant)\n"
         f"\U0001f916 31 outils MCP pour agents IA\n\n"
-        f"\U0001f4b0 Commission: 0.5% \u2192 0.05% selon volume\n"
+        f"\U0001f4b0 Swap: 0.10% \u2192 0.01% | Marketplace: 1% \u2192 0.1% selon volume\n"
         f"\U0001f517 API: maxiaworld.app/api/public/docs"
     )
     await send_telegram(text)
@@ -91,7 +91,7 @@ async def send_weekly_comparison():
     text = (
         f"📊 <b>MAXIA vs Concurrence — Comparatif hebdo</b>\n\n"
         f"<b>Actions tokenisees (xStocks)</b>\n"
-        f"  MAXIA Baleine: 0.05%\n"
+        f"  MAXIA Whale: 0.01% swap | 0.1% marketplace\n"
         f"  Jupiter: 0% + slippage\n"
         f"  Robinhood: ~0.5% (spread cache)\n"
         f"  Binance: 0.1%\n\n"

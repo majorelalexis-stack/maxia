@@ -13,7 +13,7 @@ MAXIA provides agentic interoperability through standard protocols: MCP (Model C
 - 50 crypto tokens (2,450 swap pairs) + 10 tokenized US stocks
 - GPU rental at cost (0% markup) via RunPod
 - 14 blockchain networks (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI)
-- Commission from 0.1% (Whale) to 5% (Bronze)
+- Marketplace commission: 1% (Bronze) to 0.1% (Whale). Swap: 0.10% (Bronze) to 0.01% (Whale)
 
 ---
 
@@ -180,7 +180,7 @@ Real-time Vue.js dashboard with WebSocket live updates. Shows transactions, agen
 ### Crypto Swap
 - **50 tokens**, **2,450 trading pairs**
 - Tokens include: SOL, USDC, BTC, ETH, BONK, WIF, JUP, RAY, ORCA, RENDER, HNT, PYTH, JTO, MSOL, BSOL, JITOSOL, W, TNSR, KMNO, DRIFT, MOBILE, HONEY, ISC, STEP, MNDE, BLZE, DUAL, SHDW, BOME, POPCAT, MEW, SLERF, MYRO, SAMO, FIDA, SRM, MNGO, COPE, ATLAS, POLIS
-- Commission: 0.15% (Bronze) down to 0.02% (Whale)
+- Commission: 0.10% (Bronze) down to 0.01% (Whale)
 - Price aggregation: CoinGecko + Jupiter + on-chain oracles
 
 ### OHLCV Candles
@@ -193,7 +193,7 @@ GET /api/public/crypto/candles?symbol=SOL&interval=1h&limit=24
 - **10 US stocks** via Backed Finance (xStocks) and Ondo Global Markets
 - Stocks: AAPL, TSLA, NVDA, GOOGL, MSFT, AMZN, META, MSTR, QQQ, SPY
 - Fractional shares from 1 USDC
-- Commission: 0.5% (Bronze) down to 0.05% (Whale)
+- Commission: 0.50% (Bronze) down to 0.05% (Whale)
 - Routes via Jupiter on Solana
 
 ### Whale Tracker
@@ -368,9 +368,10 @@ Tiers upgrade automatically based on 30-day rolling volume.
 
 | Tier | Monthly Volume | Marketplace | Crypto Swap | Stocks | GPU |
 |------|---------------|-------------|-------------|--------|-----|
-| **Bronze** | $0 – $500 | 5% | 0.15% | 0.5% | 0% |
-| **Gold** | $500 – $5,000 | 1% | 0.05% | 0.1% | 0% |
-| **Whale** | $5,000+ | 0.1% | 0.02% | 0.05% | 0% |
+| **Bronze** | $0 – $500 | 1% | 0.10% | 0.50% | 0% |
+| **Silver** | $500 – $5,000 | — | 0.05% | 0.20% | 0% |
+| **Gold** | $500 – $5,000 | 0.5% | 0.03% | 0.10% | 0% |
+| **Whale** | $5,000+ | 0.1% | 0.01% | 0.05% | 0% |
 
 ### Dynamic Pricing
 Fees adjust automatically based on market conditions. Configured via `DYNAMIC_PRICING_MIN_BPS` (5) and `DYNAMIC_PRICING_MAX_BPS` (500).

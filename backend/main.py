@@ -638,8 +638,8 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 
 <h2>Commission Tiers</h2>
 <table><tr><th>Tier</th><th>Monthly Volume</th><th>Commission</th></tr>
-<tr><td>Bronze</td><td>$0 - $500</td><td>5%</td></tr>
-<tr><td>Gold</td><td>$500 - $5,000</td><td>1%</td></tr>
+<tr><td>Bronze</td><td>$0 - $500</td><td>1%</td></tr>
+<tr><td>Gold</td><td>$500 - $5,000</td><td>0.5%</td></tr>
 <tr><td>Whale</td><td>$5,000+</td><td>0.1%</td></tr></table>
 
 <h2>Resources</h2>
@@ -730,7 +730,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <ul>
       <li>Everything in Registered</li>
       <li>Marketplace: 0.1% commission</li>
-      <li>Crypto: 0.02% commission</li>
+      <li>Crypto: 0.01% commission</li>
       <li>Stocks: 0.05% commission</li>
       <li>GPU: 0% always</li>
       <li>Priority support</li>
@@ -743,8 +743,8 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
 <h2>Commission Tiers</h2>
 <table>
 <tr><th>Service</th><th>Bronze (0-$500)</th><th>Gold ($500-$5K)</th><th>Whale ($5K+)</th></tr>
-<tr><td>AI Marketplace</td><td>5%</td><td>1%</td><td class="g">0.1%</td></tr>
-<tr><td>Crypto Swap</td><td>0.15%</td><td>0.05%</td><td class="g">0.02%</td></tr>
+<tr><td>AI Marketplace</td><td>1%</td><td>0.5%</td><td class="g">0.1%</td></tr>
+<tr><td>Crypto Swap</td><td>0.10%</td><td>0.03%</td><td class="g">0.01%</td></tr>
 <tr><td>Tokenized Stocks</td><td>0.5%</td><td>0.1%</td><td class="g">0.05%</td></tr>
 <tr><td>GPU Rental</td><td class="g">0%</td><td class="g">0%</td><td class="g">0%</td></tr>
 </table>

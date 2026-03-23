@@ -232,7 +232,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
         <h2 style="font-size:22px;font-weight:700">Swap</h2>
-        <span class="badge" id="swap-tier">BRONZE 5%</span>
+        <span class="badge" id="swap-tier">BRONZE 0.10%</span>
       </div>
 
       <div class="swap-section">
@@ -465,7 +465,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- ─── PAGE: TRADING ─── -->
 <div class="page" id="page-trading">
   <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Trading Tools</h2>
-  <p style="color:var(--muted);margin-bottom:24px">Whale tracker, technical signals, copy trading, price alerts — free tools, lowest swap fees (0.05%-0.15%).</p>
+  <p style="color:var(--muted);margin-bottom:24px">Whale tracker, technical signals, copy trading, price alerts — free tools, lowest swap fees (0.01%-0.10%).</p>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
     <!-- Whale Tracker -->
@@ -633,9 +633,9 @@ async function loadAppSignal() {
   if (d && d.signal) {
     var sigColor = (d.signal||'').indexOf('BUY') >= 0 ? 'var(--green)' : (d.signal||'').indexOf('SELL') >= 0 ? 'var(--red)' : 'var(--orange)';
     var swapBtn = (d.signal||'').indexOf('BUY') >= 0
-      ? '<button onclick="goSwap(\'' + esc(token) + '\')" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#10B981,#06B6D4);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit">Buy ' + esc(token) + ' — 0.05% fee</button>'
+      ? '<button onclick="goSwap(\'' + esc(token) + '\')" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#10B981,#06B6D4);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit">Buy ' + esc(token) + ' — 0.10% fee</button>'
       : (d.signal||'').indexOf('SELL') >= 0
-      ? '<button onclick="goSwap(\'' + esc(token) + '\')" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#EF4444,#F59E0B);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit">Sell ' + esc(token) + ' — 0.05% fee</button>'
+      ? '<button onclick="goSwap(\'' + esc(token) + '\')" style="margin-top:12px;width:100%;padding:10px;background:linear-gradient(135deg,#EF4444,#F59E0B);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit">Sell ' + esc(token) + ' — 0.10% fee</button>'
       : '';
     el.innerHTML = '<div style="text-align:center;margin-bottom:12px"><span style="font-size:28px;font-weight:700;color:' + sigColor + '">' + esc(d.signal||'--') + '</span></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px">'
@@ -643,7 +643,7 @@ async function loadAppSignal() {
       + '<div>SMA(20): <strong>$' + (d.sma_20||0).toFixed(2) + '</strong></div>'
       + '<div>SMA(50): <strong>$' + (d.sma_50||0).toFixed(2) + '</strong></div>'
       + '<div>MACD: <strong>' + (typeof d.macd === 'object' ? (d.macd.histogram||0) : (d.macd||0)).toFixed(4) + '</strong></div></div>'
-      + '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Lowest fees: 0.05% Gold | 0.15% Bronze | Jupiter: 0% + slippage</div>'
+      + '<div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">Lowest fees: 0.03% Gold | 0.10% Bronze | 0.01% Whale | Jupiter: 0% + slippage</div>'
       + swapBtn;
   } else { el.textContent = 'Token not found'; }
   } catch(e) { el.textContent = 'Error: ' + e.message; }
@@ -913,7 +913,7 @@ async function getSwapQuote() {
       document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + (data.rate || (outAmount / amount)).toFixed(6) + ' ' + to;
       document.getElementById('swap-fee').textContent = fmtUSD(data.commission_usd || 0);
       document.getElementById('swap-tier-info').textContent = data.tier || 'BRONZE';
-      document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.15%');
+      document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.10%');
       info.style.display = 'flex';
       btn.textContent = wallet ? 'Swap ' + from + ' → ' + to : 'Connect wallet to swap';
       btn.disabled = !wallet;

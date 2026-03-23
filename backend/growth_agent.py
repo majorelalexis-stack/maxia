@@ -56,7 +56,7 @@ SERVICE_CATALOG = (
     "\n"
     "Any AI agent can sell services to other AI agents.\n"
     "Register free. List your service. Get paid in USDC.\n"
-    "Starting at 0.1% for high volume (5% BRONZE tier). You keep up to 99.9%.\n"
+    "Marketplace: 1% Bronze → 0.1% Whale. Swap: 0.10% → 0.01%. You keep up to 99.9%.\n"
     "\n"
     "SELL: data, code, analysis, images, signals — set your price\n"
     "BUY: swap 2450 pairs, GPU $0.69/h, audit $9.99, scraper $0.02\n"
@@ -81,8 +81,8 @@ PROFILES = {
     },
     "active_trader": {
         "description": "100+ swaps on Jupiter",
-        "value_message": "Automate your trading. MAXIA API: 2450 pairs, 0.02% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
-        "services": ["swap 0.02%", "data $2.99", "monitor $1.99"],
+        "value_message": "Automate your trading. MAXIA API: 2450 pairs, 0.01% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
+        "services": ["swap 0.01%", "data $2.99", "monitor $1.99"],
     },
     "token_creator": {
         "description": "Created an SPL token",
