@@ -789,42 +789,48 @@ class CEOLocal:
                 # 2. ORIENT — analyser localement (0 cout)
                 analysis = await self._orient(state)
 
+                # ── PRIORITE 0 : REPONDRE (avant tout) ──
+                # Si des gens nous parlent, on repond AVANT de faire quoi que ce soit
+                try:
+                    mentions = await browser.get_mentions(10)
+                    pending = [m for m in (mentions or []) if m.get("url") and not browser._is_duplicate("reply", m.get("url", ""))]
+                    if pending:
+                        _log(f"[PRIORITY] {len(pending)} mentions en attente — reponse prioritaire")
+                        reply_result = await self._reply_to_mentions()
+                        _log(f"[MENTIONS] {reply_result.get('detail', '')}")
+                except Exception as e:
+                    _log(f"[MENTIONS] Erreur: {e}")
+
                 # 3. DECIDE — determiner les actions
                 decisions = await self._decide(analysis, state)
 
                 # 4. ACT — executer les actions
                 await self._act(decisions)
 
-                # 5. AUTO-ENGAGE: search -> like -> follow (every cycle)
+                # 5. AUTO-ENGAGE: search -> like -> comment -> follow
                 try:
                     await self._auto_engage()
                 except Exception as e:
                     _log(f"[ENGAGE] Error: {e}")
 
-                # 6. AUTO-REPLY mentions (toutes les 3 cycles)
-                if self._cycle % 3 == 0:
-                    try:
-                        reply_result = await self._reply_to_mentions()
-                        if reply_result.get("detail", "") != "0 mentions":
-                            _log(f"[MENTIONS] {reply_result.get('detail', '')}")
-                    except Exception as e:
-                        _log(f"[MENTIONS] Erreur: {e}")
-
-                # 6. CHECK A/B tests + engagement (toutes les 6 cycles)
+                # 6. ENGAGEMENT FEEDBACK (toutes les 6 cycles = ~1h)
+                # Verifier si nos derniers tweets/commentaires ont eu de l'engagement
                 if self._cycle % 6 == 0:
                     try:
-                        ab_results = await check_ab_results()
-                        if ab_results:
-                            for r in ab_results:
-                                _log(f"[A/B] Test {r['id']}: winner={r['winner']} (A:{r['score_a']} B:{r['score_b']})")
-                                self.memory.setdefault("regles", []).append(
-                                    f"A/B test: variant {r['winner']} performe mieux (score {max(r['score_a'], r['score_b'])})"
-                                )
+                        await self._check_engagement_feedback()
                     except Exception as e:
-                        _log(f"[A/B] Check error: {e}")
+                        _log(f"[FEEDBACK] Error: {e}")
 
-                # 7. MANAGE CONVERSATIONS (toutes les 5 cycles = ~50 min)
-                if self._cycle % 5 == 0:
+                # 7. CRM FOLLOW-UP (toutes les 8 cycles = ~80 min)
+                # Relancer les prospects detectes qui n'ont pas encore repondu
+                if self._cycle % 8 == 0:
+                    try:
+                        await self._crm_followup()
+                    except Exception as e:
+                        _log(f"[CRM] Error: {e}")
+
+                # 8. MANAGE DMs (toutes les 4 cycles = ~40 min)
+                if self._cycle % 4 == 0:
                     try:
                         dm_result = await self._manage_conversations()
                         if dm_result.get("detail", "") != "0 conversations gerees":
@@ -832,21 +838,17 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[DMs] Erreur: {e}")
 
-                # 8. SEARCH GROUPS (toutes les 12 cycles = ~2h)
-                if self._cycle % 12 == 1:
-                    try:
-                        groups = self.memory.get("groups_joined", [])
-                        if len(groups) < 10:  # Max 10 groupes
-                            platform = "telegram" if self._cycle % 24 < 12 else "discord"
-                            gr = await self._search_and_join_groups(platform)
-                            if gr.get("groups"):
-                                _log(f"[GROUPS] {gr['detail']}")
-                    except Exception as e:
-                        _log(f"[GROUPS] Erreur: {e}")
-
                 # 8. CLEAN screenshots (toutes les 50 cycles = ~8h)
                 if self._cycle % 50 == 0:
                     self._clean_screenshots()
+
+                # 8b. RETROSPECTIVE HEBDO (dimanche, 1x par semaine)
+                import datetime as _dt
+                if _dt.datetime.now(_dt.timezone.utc).weekday() == 6 and self._cycle % 100 == 0:
+                    try:
+                        await self._weekly_retrospective()
+                    except Exception as e:
+                        _log(f"[RETRO] Error: {e}")
 
                 # 9. SELF-LEARNING (toutes les 10 cycles = ~100 min)
                 if self._cycle % 10 == 0:
@@ -1161,9 +1163,9 @@ class CEOLocal:
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 3 : REDDIT — 1 post educatif de qualite ──
+            # ── Cycle 3 : REDDIT — commenter des posts existants (10x mieux que poster) ──
             [
-                {"action": "post_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
+                {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
                 {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
@@ -1505,6 +1507,11 @@ class CEOLocal:
             from support_agent import list_services
             return {"success": True, "detail": f"{len(list_services())} services", "data": list_services()}
         # Reddit (local browser, fallback API)
+        elif action == "search_and_comment_reddit":
+            # Chercher un post recent et commenter avec un insight utile
+            sub = params.get("subreddit", "solanadev")
+            return await self._reddit_comment_strategy(sub)
+
         elif action == "post_reddit":
             result = await self._do_browser("post_reddit", params)
             if not result.get("success"):
@@ -1875,6 +1882,159 @@ class CEOLocal:
         if not comment or len(comment) < 10:
             return ""
         return comment
+
+    async def _reddit_comment_strategy(self, subreddit: str) -> dict:
+        """Strategie Reddit : trouver un post pertinent et commenter avec valeur.
+        Commenter > poster : 10x plus de visibilite, 0% chance de ban."""
+        queries = ["AI agent", "bot monetize", "LLM production", "agent marketplace",
+                   "GPU rental", "AI automation", "web3 AI", "agent framework"]
+        query = queries[self._cycle % len(queries)]
+
+        # Chercher des posts recents
+        posts = await browser.search_reddit(subreddit, query, 5)
+        if not posts:
+            _log(f"[REDDIT] Aucun post pertinent sur r/{subreddit} pour '{query}'")
+            return {"success": False, "detail": "No matching posts"}
+
+        for post in posts[:3]:
+            url = post.get("url", "")
+            title = post.get("title", "")
+            if not url or browser._is_duplicate("reddit_comment", url):
+                continue
+
+            # Generer un commentaire utile via LLM
+            prompt = (
+                f"Post on r/{subreddit}: \"{title[:150]}\"\n\n"
+                f"Write a helpful comment (<300 chars). Rules:\n"
+                f"- Share a genuine technical insight or personal experience\n"
+                f"- Sound like a fellow developer, NOT a marketer\n"
+                f"- Only mention MAXIA if DIRECTLY relevant (AI agent marketplace, GPU, tokens)\n"
+                f"- If you mention MAXIA, do it naturally: 'I've been using maxiaworld.app for...' \n"
+                f"- If not relevant, just help with good advice and don't mention MAXIA\n"
+                f"Comment ONLY:"
+            )
+            comment = await call_local_llm(prompt, system="Helpful developer on Reddit.", max_tokens=120)
+            comment = comment.strip().strip('"').strip("'")
+            if not comment or len(comment) < 20:
+                continue
+
+            result = await browser.comment_reddit(url, comment)
+            if result.get("success"):
+                _log(f"[REDDIT] Commented on r/{subreddit}: {comment[:60]}")
+                self.memory.setdefault("conversations", []).append({
+                    "user": f"r/{subreddit}", "message": title[:80],
+                    "reply": comment[:80], "type": "reddit_comment",
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                return {"success": True, "detail": f"Commented on r/{subreddit}"}
+
+        return {"success": False, "detail": "No commentable posts"}
+
+    async def _check_engagement_feedback(self):
+        """Verifie l'engagement des derniers tweets et commentaires.
+        Apprend quel contenu resonne et ajuste."""
+        convos = self.memory.get("conversations", [])[-5:]
+        tweets = self.memory.get("tweets_posted", [])[-3:]
+        if not tweets and not convos:
+            return
+
+        # Verifier engagement du dernier tweet
+        actions = self.memory.get("actions_done", [])
+        tweet_actions = [a for a in actions if a.get("action") == "post_tweet" and a.get("success")]
+        # On ne peut pas facilement retrouver l'URL, mais on peut checker les mentions
+        # pour voir si quelqu'un a repondu a nos tweets
+        mentions = await browser.get_mentions(5)
+        reply_count = len(mentions) if mentions else 0
+
+        if reply_count > 0:
+            _log(f"[FEEDBACK] {reply_count} mentions detectees (engagement positif)")
+            self.memory.setdefault("engagement_stats", []).append({
+                "ts": time.strftime("%Y-%m-%d"), "mentions": reply_count,
+                "tweets_today": len([t for t in tweets if t.get("ts", "").startswith(time.strftime("%Y-%m-%d"))]),
+            })
+        else:
+            _log(f"[FEEDBACK] 0 mention — contenu a ameliorer")
+
+        # Garder max 30 jours de stats
+        stats = self.memory.get("engagement_stats", [])
+        if len(stats) > 30:
+            self.memory["engagement_stats"] = stats[-30:]
+
+    async def _crm_followup(self):
+        """CRM : detecter les prospects chauds et les relancer.
+        Un prospect chaud = quelqu'un qui a interagi avec nous (mention, reply)
+        mais n'a pas encore visite maxiaworld.app."""
+        convos = self.memory.get("conversations", [])
+        if not convos:
+            return
+
+        # Trouver les users avec qui on a eu une conversation mais pas de follow-up
+        contacted = {c.get("target", c.get("username", "")) for c in self.memory.get("contacts", [])}
+        followed = {f.get("username", "") for f in self.memory.get("follows", [])}
+
+        prospects = []
+        seen = set()
+        for c in reversed(convos):
+            user = c.get("user", "")
+            if not user or user in seen or user in contacted:
+                continue
+            seen.add(user)
+            # Si on a repondu a sa mention mais jamais follow → follow + ajouter au CRM
+            if user not in followed:
+                prospects.append(user)
+
+        for username in prospects[:2]:  # Max 2 follow-ups par cycle
+            # Follow le prospect
+            result = await browser.follow_user(username)
+            if result.get("success") and not result.get("already"):
+                _log(f"[CRM] Follow-up: followed @{username} (prospect chaud)")
+                self.memory.setdefault("follows", []).append(
+                    {"username": username, "ts": time.strftime("%Y-%m-%d"), "source": "crm"}
+                )
+                self.memory.setdefault("contacts", []).append({
+                    "target": username, "canal": "twitter_followup",
+                    "ts": time.strftime("%Y-%m-%d"), "status": "followed",
+                })
+
+    async def _weekly_retrospective(self):
+        """Retrospective hebdo : analyser la semaine et ajuster la strategie."""
+        actions = self.memory.get("actions_done", [])
+        tweets = self.memory.get("tweets_posted", [])
+        convos = self.memory.get("conversations", [])
+        follows = self.memory.get("follows", [])
+        contacts = self.memory.get("contacts", [])
+        eng_stats = self.memory.get("engagement_stats", [])
+
+        prompt = (
+            f"RETROSPECTIVE HEBDO CEO MAXIA — semaine du {time.strftime('%Y-%m-%d')}:\n\n"
+            f"Stats: {len(actions)} actions, {len(tweets)} tweets, {len(convos)} conversations,\n"
+            f"  {len(follows)} follows, {len(contacts)} contacts CRM\n"
+            f"Engagement: {json.dumps(eng_stats[-7:], default=str)[:300]}\n"
+            f"Regles actuelles: {json.dumps(self.memory.get('regles', []), default=str)[:300]}\n\n"
+            f"En tant que growth advisor:\n"
+            f"1. Qu'est-ce qui a MARCHE cette semaine ? (1 phrase)\n"
+            f"2. Qu'est-ce qui n'a PAS marche ? (1 phrase)\n"
+            f"3. 3 ACTIONS CONCRETES pour la semaine prochaine (1 ligne chacune)\n"
+            f"4. 1 REGLE a ajouter ou modifier\n"
+            f"Reponse en anglais, max 200 mots."
+        )
+        retro = await call_local_llm(prompt, system="Concise growth advisor. Actionable insights only.", max_tokens=300)
+        if retro and len(retro) > 30:
+            _log(f"[RETRO] {retro[:200]}")
+            self.memory.setdefault("retrospectives", []).append({
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "summary": retro[:500],
+            })
+            # Garder max 10 retros
+            if len(self.memory.get("retrospectives", [])) > 10:
+                self.memory["retrospectives"] = self.memory["retrospectives"][-10:]
+            # Extraire les regles
+            for line in retro.split("\n"):
+                line = line.strip().lstrip("0123456789.-) ")
+                if line and 20 < len(line) < 80 and line not in self.memory.get("regles", []):
+                    if any(kw in line.lower() for kw in ["focus", "stop", "increase", "reduce", "target", "prioritize", "avoid"]):
+                        self.memory.setdefault("regles", []).append(line)
+                        _log(f"[RETRO RULE] {line}")
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune."""
