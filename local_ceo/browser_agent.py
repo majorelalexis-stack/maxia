@@ -684,13 +684,16 @@ class BrowserAgent:
 
             followed = await self._find_and_click(page, [
                 '[data-testid$="-follow"]',
-                'button[aria-label*="Follow" i]',
-                'button[aria-label*="Suivre" i]',
-                'div[role="button"]:has-text("Follow")',
-                'div[role="button"]:has-text("Suivre")',
-            ], "Follow button")
+                '[data-testid="placementTracking"] [role="button"]',
+                'button[aria-label*="Follow @" i]',
+                'button[aria-label*="Suivre @" i]',
+                'button[aria-label*="Follow" i]:not([aria-label*="Following"])',
+                'div[role="button"]:has-text("Follow"):not(:has-text("Following"))',
+                'div[role="button"]:has-text("Suivre"):not(:has-text("Suivi"))',
+            ], "Follow button", timeout=3000)
 
             if not followed:
+                await self._screenshot(page, "follow_fail")
                 return {"success": False, "error": "Bouton Follow introuvable"}
 
             await page.wait_for_timeout(1000)
