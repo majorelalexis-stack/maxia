@@ -451,6 +451,13 @@ async def serve_app():
         return HTMLResponse(APP_PAGE.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA App</h1><p>Coming soon.</p>")
 
+@app.get("/og-image.png", include_in_schema=False)
+async def serve_og_image():
+    og_path = FRONTEND_DIR / "og-image.png"
+    if og_path.exists():
+        return FileResponse(str(og_path), media_type="image/png")
+    return HTMLResponse("Not found", status_code=404)
+
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
