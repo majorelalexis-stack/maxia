@@ -429,6 +429,69 @@ class BrowserAgent:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    async def delete_recent_replies(self, max_delete: int = 20) -> dict:
+        """Supprime les replies/commentaires recents du compte MAXIA."""
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            # Aller sur le profil "Replies" tab
+            await page.goto("https://x.com/MAXIA_WORLD/with_replies", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            deleted = 0
+            for _ in range(max_delete):
+                try:
+                    # Trouver un tweet avec le menu "..."
+                    articles = await page.locator('article[data-testid="tweet"]').all()
+                    if not articles:
+                        break
+
+                    found = False
+                    for article in articles[:5]:
+                        # Verifier si c'est notre reply (pas un retweet)
+                        try:
+                            article_text = await article.inner_text()
+                            # Skip si c'est un tweet original (pas un reply)
+                            if "Replying to" not in article_text and "En réponse à" not in article_text:
+                                continue
+                        except Exception:
+                            continue
+
+                        # Cliquer le menu "..."
+                        menu_btn = article.locator('[data-testid="caret"]').first
+                        if await menu_btn.is_visible(timeout=2000):
+                            await menu_btn.click()
+                            await page.wait_for_timeout(1000)
+
+                            # Cliquer "Delete" / "Supprimer"
+                            delete_btn = page.locator('[data-testid="Dropdown"] [role="menuitem"]:has-text("Delete"), [data-testid="Dropdown"] [role="menuitem"]:has-text("Supprimer")').first
+                            if await delete_btn.is_visible(timeout=2000):
+                                await delete_btn.click()
+                                await page.wait_for_timeout(1000)
+
+                                # Confirmer
+                                confirm_btn = page.locator('[data-testid="confirmationSheetConfirm"], button:has-text("Delete"), button:has-text("Supprimer")').first
+                                if await confirm_btn.is_visible(timeout=2000):
+                                    await confirm_btn.click()
+                                    await page.wait_for_timeout(2000)
+                                    deleted += 1
+                                    found = True
+                                    print(f"[BrowserAgent] Deleted reply #{deleted}")
+                            else:
+                                # Fermer le menu si pas de Delete
+                                await page.keyboard.press("Escape")
+                                await page.wait_for_timeout(500)
+                    if not found:
+                        break
+                except Exception:
+                    break
+
+            return {"success": True, "deleted": deleted}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
     async def quote_tweet(self, tweet_url: str, text: str) -> dict:
         """Quote tweet une URL avec un commentaire."""
         err = self._check_rate("tweet")

@@ -2303,24 +2303,35 @@ class CEOLocal:
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune.
-        Max 1 reply par username par cycle. Max 3 replies total."""
+        Max 1 reply par username par 24h. Max 3 replies total par cycle."""
         mentions = await browser.get_mentions(10)
         if not mentions:
             return {"success": True, "detail": "0 mentions"}
 
+        # Collecter les users deja reply dans les dernieres 24h (depuis conversations)
+        now_ts = time.time()
+        today = time.strftime("%Y-%m-%d")
+        already_replied_users = set()
+        for c in self.memory.get("conversations", []):
+            c_ts = c.get("ts", "")
+            if c_ts.startswith(today) or (len(c_ts) > 10 and c_ts[:10] >= time.strftime("%Y-%m-%d", time.gmtime(now_ts - 86400))):
+                u = c.get("user", "")
+                if u:
+                    already_replied_users.add(u)
+
         replied = 0
-        replied_users = set()  # Dedup par username
+        replied_users = set()
         for m in mentions:
             url = m.get("url", "")
             text = m.get("text", "")
             user = m.get("username", "")
             if not url or not text:
                 continue
-            # Dedup par URL (deja repondu a ce tweet)
+            # Dedup par URL (deja repondu a ce tweet exact)
             if browser._is_duplicate("reply", url):
                 continue
-            # Dedup par username (max 1 reply par user par cycle)
-            if user and user in replied_users:
+            # Dedup par username — 1 reply par user par 24h (persiste entre cycles)
+            if user and (user in replied_users or user in already_replied_users):
                 continue
             # Like the mention first (shows we're attentive)
             if url and not browser._is_duplicate("like", url):
