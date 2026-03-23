@@ -117,9 +117,14 @@ def _load_memory() -> dict:
 def _save_memory(mem: dict):
     try:
         # Garder les listes a taille raisonnable
-        for key in ["decisions", "actions_done", "tweets_posted"]:
-            if len(mem.get(key, [])) > 500:
-                mem[key] = mem[key][-500:]
+        if len(mem.get("decisions", [])) > 50:
+            mem["decisions"] = mem["decisions"][-50:]
+        if len(mem.get("actions_done", [])) > 100:
+            mem["actions_done"] = mem["actions_done"][-100:]
+        if len(mem.get("tweets_posted", [])) > 30:
+            mem["tweets_posted"] = mem["tweets_posted"][-30:]
+        if len(mem.get("regles", [])) > 15:
+            mem["regles"] = mem["regles"][-15:]
         raw = json.dumps(mem, indent=2, default=str, ensure_ascii=False)
         # Save plaintext backup before encrypting (recovery if key changes)
         try:
@@ -846,12 +851,37 @@ class CEOLocal:
                 # 9. SELF-LEARNING (toutes les 10 cycles = ~100 min)
                 if self._cycle % 10 == 0:
                     try:
+                        # Regles basees sur les stats
                         rules = generate_learned_rules()
                         if rules:
                             for r in rules:
                                 if r not in self.memory.get("regles", []):
                                     self.memory.setdefault("regles", []).append(r)
                                     _log(f"[LEARN] {r}")
+
+                        # Analyse qualitative via LLM (toutes les 30 cycles = ~5h)
+                        if self._cycle % 30 == 0:
+                            recent_actions = self.memory.get("actions_done", [])[-20:]
+                            recent_tweets = self.memory.get("tweets_posted", [])[-5:]
+                            follows = self.memory.get("follows", [])
+                            contacts = self.memory.get("contacts", [])
+                            actions_str = json.dumps(recent_actions, default=str)[:800]
+                            tweets_str = json.dumps(recent_tweets, default=str)[:400]
+                            prompt = (
+                                f"Analyse CEO MAXIA — cycle #{self._cycle}:\n"
+                                f"Actions recentes: {actions_str}\n"
+                                f"Tweets recents: {tweets_str}\n"
+                                f"Stats: {len(follows)} follows, {len(contacts)} contacts, 0 clients\n\n"
+                                f"3 regles concretes pour ameliorer. Format: 1 regle par ligne, max 60 chars.\n"
+                                f"Exemples: 'Commenter avant de poster', 'Cibler r/solanadev pas r/crypto'"
+                            )
+                            insight = await call_local_llm(prompt, system="Concise growth advisor. Rules only.", max_tokens=150)
+                            if insight and len(insight) > 20:
+                                for line in insight.strip().split("\n")[:3]:
+                                    line = line.strip().lstrip("0123456789.-) ")
+                                    if line and len(line) > 10 and line not in self.memory.get("regles", []):
+                                        self.memory.setdefault("regles", []).append(line)
+                                        _log(f"[LEARN+] {line}")
                     except Exception as e:
                         _log(f"[LEARN] Error: {e}")
 
@@ -947,31 +977,45 @@ class CEOLocal:
         return analysis
 
     def _get_memory_context(self) -> str:
-        """Resume compact de la memoire pour le prompt DECIDE."""
+        """Resume compact et utile de la memoire pour le prompt DECIDE."""
         mem = self.memory
         parts = []
+
         # Dernieres actions (eviter repetitions)
-        recent = mem.get("actions_done", [])[-5:]
+        recent = mem.get("actions_done", [])[-8:]
         if recent:
             done = [f"{a['action']}({'OK' if a.get('success') else 'FAIL'})" for a in recent]
-            parts.append(f"DEJA FAIT: {', '.join(done)}")
-        # Regles apprises (lues et utilisees dans les decisions)
-        regles = mem.get("regles", [])[-5:]
-        if regles:
-            parts.append(f"REGLES APPRISES: {'; '.join(str(r)[:60] for r in regles)}")
-        # CRM — contacts et follows
+            parts.append(f"RECENT: {', '.join(done)}")
+
+        # Actions qui ECHOUENT (self-learning)
+        from conversion_tracker import get_failing_actions, get_best_actions
+        failing = get_failing_actions(min_attempts=5)
+        if failing:
+            fail_str = ", ".join(f"{f['action']}({f['success_rate']})" for f in failing[:3])
+            parts.append(f"STOP (echec): {fail_str}")
+        best = get_best_actions(min_attempts=5)
+        if best:
+            best_str = ", ".join(f"{b['action']}({b['success_rate']})" for b in best[:3])
+            parts.append(f"BEST: {best_str}")
+
+        # CRM — contacts actifs et conversations
         contacts = mem.get("contacts", [])
         follows = mem.get("follows", [])
-        if contacts or follows:
-            parts.append(f"CRM: {len(contacts)} contacts, {len(follows)} follows")
-        # Tweets postes
+        today = time.strftime("%Y-%m-%d")
+        today_contacts = [c for c in contacts if c.get("ts", "").startswith(today)]
+        parts.append(f"CRM: {len(contacts)} contacts total, {len(today_contacts)} today, {len(follows)} follows")
+
+        # Tweets postes aujourd'hui (eviter doublons)
         tweets = mem.get("tweets_posted", [])
-        if tweets:
-            parts.append(f"TWEETS: {len(tweets)} postes")
-        # Groupes rejoints
-        groups = mem.get("groups_joined", [])
-        if groups:
-            parts.append(f"GROUPES: {', '.join(g[:20] for g in groups[-3:])}")
+        today_tweets = [t for t in tweets if t.get("ts", "").startswith(today)]
+        parts.append(f"TWEETS TODAY: {len(today_tweets)}/2")
+
+        # Conversations recentes (pour contexte)
+        convos = mem.get("conversations", [])[-3:]
+        if convos:
+            convo_str = "; ".join(f"@{c.get('user','?')}: {c.get('summary', c.get('message',''))[:40]}" for c in convos)
+            parts.append(f"CONVERSATIONS: {convo_str}")
+
         return "\n".join(parts) if parts else "Pas d historique."
 
     def _is_good_hour(self) -> dict:
@@ -1786,6 +1830,13 @@ class CEOLocal:
                         commented += 1
                         browser._record_action("reply", browser._content_hash("reply", url))
                         _log(f"[ENGAGE] Commented: {comment[:60]}")
+                        username = t.get("username", "")
+                        if username:
+                            self.memory.setdefault("conversations", []).append({
+                                "user": username, "message": text[:80],
+                                "reply": comment[:80], "type": "comment",
+                                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            })
 
         if liked or commented:
             _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
@@ -1851,6 +1902,14 @@ class CEOLocal:
                     replied += 1
                     _log(f"  Reply @{user}: {reply_text[:60]}")
                     browser._record_action("reply", browser._content_hash("reply", url))
+                    # Tracker la conversation
+                    self.memory.setdefault("conversations", []).append({
+                        "user": user, "message": text[:100],
+                        "reply": reply_text[:100], "url": url,
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    })
+                    if len(self.memory.get("conversations", [])) > 50:
+                        self.memory["conversations"] = self.memory["conversations"][-50:]
             if replied >= 3:  # Max 3 replies par cycle
                 break
 

@@ -1,1345 +1,592 @@
 {
   "decisions": [
     {
+      "action": "comment_github_ai",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
       "action": "search_twitter",
-      "agent": "outreach",
+      "agent": "SCOUT",
       "params": {
-        "query": "AI devs frustrated with Solana tools OR 'no good AI marketplace' OR 'Solana dev tools missing'"
+        "query": "AI agent marketplace USDC multi-chain"
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "AI agent no revenue monetize"
       },
       "priority": "vert"
     },
     {
       "action": "post_tweet",
-      "agent": "content",
+      "agent": "GHOST-WRITER",
       "params": {
-        "text": "🚀 Just launched MAXIA — the first AI marketplace on Solana built for devs by devs. No more jumping between 10 tools to build your AI agent. Everything in one place. Try it now: maxiaworld.app #AIagent #Solana #dev"
+        "text": "Deploy AI models on 11 chains with 50+ tokens. Access affordable GPU power at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and deployment of AI solutions."
       },
       "priority": "vert"
     },
     {
-      "action": "search_groups",
-      "agent": "growth",
+      "action": "search_twitter",
+      "agent": "SCOUT",
       "params": {
-        "platform": "discord"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_thread",
-      "agent": "scout",
-      "params": {
-        "tweets": [
-          "🚀 MAXIA est un marketplace IA sur Solana qui permet aux devs AI de monétiser leurs compétences sans revenus initiaux. 💡",
-          "🔥 Avec MAXIA, pas besoin d’attendre des clients pour gagner de l’argent. Notre plateforme te connecte directement avec des opportunités. 🌍",
-          "💰 Rejoins-nous dès maintenant et commence à générer des revenus dès aujourd’hui ! 👉 maxiaworld.app #AIagent #Solana #crypto #dev #startup"
-        ]
+        "query": "TON bot telegram developer"
       },
       "priority": "vert"
     },
     {
       "action": "search_profiles",
-      "agent": "scout",
+      "agent": "SCOUT",
       "params": {
-        "query": "Solana devs AI"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "comment_reddit",
-      "agent": "scout",
-      "params": {
-        "post_url": "https://www.reddit.com/r/solana/comments/...",
-        "text": "Hey les devs ! Si vous cherchez une plateforme pour monétiser vos compétences IA sur Solana, MAXIA est faite pour vous. 🚀 Essayez-la ici : maxiaworld.app #AIagent #Solana"
+        "query": "TRON bot DeFi developer"
       },
       "priority": "vert"
     },
     {
       "action": "detect_opportunities",
-      "agent": "growth",
+      "agent": "SCOUT",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "reply_mentions",
+      "agent": "RESPONDER",
+      "params": {},
+      "priority": "vert"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
       "params": {},
       "priority": "vert"
     },
     {
       "action": "post_reddit",
-      "agent": "community",
-      "params": {
-        "subreddit": "r/ArtificialInteligence",
-        "title": "AI Devs: Solana-based AI Marketplace with 0% fees for early adopters!",
-        "body": "Hey r/ArtificialInteligence! 🚀 We're MAXIA, a new AI marketplace on Solana with **0% fees** for the first 1000 users. Built by devs, for devs. No more middlemen taking 20-30% cuts. Join us at maxiaworld.app and let's build the future of AI together! #AI #Solana #DevCommunity"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "prospecting",
-      "params": {
-        "query": "AI devs frustrated with marketplace fees OR 'AI tools' OR 'Solana devs' OR 'Web3 AI'"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_template_tweet",
-      "agent": "CEO MAXIA",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "follow_user",
-      "agent": "CEO MAXIA",
-      "params": {
-        "username": "@AIdevsCommunity"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_groups",
-      "agent": "CEO MAXIA",
-      "params": {
-        "platform": "Telegram"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "score_profile",
-      "agent": "SCOUT",
-      "params": {
-        "username": "solana_devs"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI devs frustrated with current tools"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_template_tweet",
-      "agent": "marketing",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "prospection",
-      "params": {
-        "query": "frustrated AI devs Solana OR 'no revenue' OR 'zero clients'"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "comment_reddit",
-      "agent": "community",
-      "params": {
-        "post_url": "https://www.reddit.com/r/Solana/comments/...",
-        "text": "Hey! Just launched MAXIA — an AI marketplace on Solana for devs struggling with monetization. Check it out: maxiaworld.app"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "growth",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_groups",
-      "agent": "community",
-      "params": {
-        "platform": "Discord"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "content",
-      "params": {
-        "text": "🚀 Les devs AI sur Solana, votre marketplace IA est là ! 💡 MAXIA simplifie vos workflows avec des agents autonomes. Rejoignez la révolution IA + blockchain dès maintenant. 👇 #AIagent #Solana #DevLife #Startup"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_thread",
-      "agent": "SCOUT",
-      "params": {
-        "tweets": [
-          "🚀 Just launched MAXIA — the AI marketplace on Solana where devs can monetize their AI agents without upfront costs. 💡",
-          "Why pay for expensive VPS when you can deploy on-chain? MAXIA handles the infra, you keep the profits. 💰",
-          "Join the waitlist now: maxiaworld.app #AIagent #Solana #crypto #dev #startup"
-        ]
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI developer Solana"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "ab_test",
       "agent": "GHOST-WRITER",
       "params": {
-        "text_a": "MAXIA: Deploy AI agents on Solana, earn 100% of profits. No VPS costs. Join now: maxiaworld.app #AI #Solana",
-        "text_b": "Tired of paying for VPS? MAXIA lets AI devs deploy on Solana for free. Start earning today: maxiaworld.app #AIagents #Web3"
+        "subreddit": "arbitrum",
+        "_needs_reddit_gen": true
       },
       "priority": "vert"
     },
     {
-      "action": "detect_opportunities",
-      "agent": "CEO MAXIA",
-      "params": {},
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "built a bot no users no revenue"
+      },
+      "priority": "vert"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "params": {
+        "query": "AI bot BNB chain BSC"
+      },
       "priority": "vert"
     },
     {
       "action": "scrape_followers",
-      "agent": "CEO MAXIA",
+      "agent": "SCOUT",
       "params": {
-        "competitor": "AI Market"
+        "competitor": "SuiNetwork"
       },
       "priority": "vert"
     },
     {
-      "action": "like_tweet",
-      "agent": "CEO MAXIA",
+      "action": "write_blog",
+      "agent": "GHOST-WRITER",
       "params": {
-        "tweet_url": "https://twitter.com/maxia_world/app"
+        "topic": "GPU rental at cost: why MAXIA charges 0% markup"
       },
       "priority": "vert"
     },
     {
-      "action": "post_tweet",
-      "agent": "twitter",
-      "params": {
-        "text": "🚀 Just launched MAXIA — the AI marketplace on Solana where devs can monetize their models without the hassle. No more frustration with low revenue or zero clients. Built for builders, by builders. 🔗 maxiaworld.app #AIagent #Solana #crypto #dev #startup"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_groups",
-      "agent": "discord",
-      "params": {
-        "platform": "discord"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "reddit",
-      "params": {
-        "subreddit": "r/ai",
-        "title": "MAXIA: Monetize your AI models on Solana — No more zero revenue!",
-        "body": "Hey r/ai! 👋 I just launched MAXIA — a marketplace for AI devs to sell their models on Solana. No more frustration with low revenue or zero clients. Built for builders, by builders. Check it out: maxiaworld.app #AI #Solana #Crypto #Dev"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "growth",
+      "action": "analyze_trends",
+      "agent": "RADAR",
       "params": {},
       "priority": "vert"
     },
     {
-      "action": "post_thread",
-      "agent": "content",
+      "action": "post_tweet",
+      "agent": "GHOST-WRITER",
       "params": {
-        "tweets": [
-          "🚀 Solana devs, voici pourquoi MAXIA est fait pour vous :",
-          "✅ 0% de frais cachés, 100% open-source",
-          "✅ Infrastructure IA ultra-rapide sur Solana",
-          "✅ Communauté de devs qui partagent vos frustrations",
-          "👉 On lance bientôt, pré-inscription gratuite : maxiaworld.app"
-        ]
+        "text": "Deploy AI models on 14 chains with 50+ tokens. Access affordable GPU power at cost. Explore the AI agent marketplace on MAXIA, built for developers, by developers."
       },
       "priority": "vert"
     },
     {
       "action": "search_profiles",
-      "agent": "prospecting",
+      "agent": "SCOUT",
       "params": {
-        "query": "Solana dev frustrated OR 'no revenue' OR 'zero clients'"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "vert",
-      "params": {
-        "query": "AI devs frustrated with Solana costs OR 'too expensive' OR 'high fees'"
+        "query": "TON SUI TRON developer AI"
       },
       "priority": "vert"
     },
     {
       "action": "comment_github_ai",
-      "agent": "vert",
-      "params": {
-        "comment": "Need affordable AI infra on Solana? Check out @MAXIAworld_app for cost-efficient GPU/ML solutions. Happy to discuss!"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "vert",
-      "params": {
-        "topic": "How AI Devs Can Cut Solana Costs by 50% with MAXIA"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "Lancer une campagne de prospection ultra-ciblée sur Reddit (r/solanadev, r/aiagents) avec des messages personnalisés pour les devs ayant des bots IA fonctionnels mais sans revenus.",
-      "agent": "HUNTER",
-      "params": {
-        "ciblage": "Reddit (r/solanadev, r/aiagents)",
-        "message": "Hey! Ton bot IA tourne en boucle sans clients? Liste-le sur MAXIA en 1 clic via API et gagne des USDC en dormant. Exemple de code: [lien GitHub]. Réponds 'BOT' pour un accès prioritaire.",
-        "max_contacts": 50,
-        "interval": "1h entre chaque message"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "Déployer un bot de contact automatisé sur Discord (Solana Dev Hub, ElizaOS) pour identifier les agents IA actifs et leur proposer un partenariat de test gratuit avec suivi personnalisé.",
       "agent": "SCOUT",
-      "params": {
-        "chains": [
-          "Solana"
-        ],
-        "protocoles_cibles": [
-          "ElizaOS",
-          "Olas"
-        ],
-        "message": "Bonjour! Votre agent est éligible pour un test gratuit sur MAXIA avec support dédié. Répondez 'TEST' pour démarrer. Lien: maxiaworld.app/api",
-        "max_dm": 100
-      },
+      "params": {},
       "priority": "vert"
     },
     {
-      "action": "Activer le module MICRO pour distribuer 100 micro-grants de 0.1 USDC via airdrop ciblé aux wallets ayant des interactions récentes avec des DEX Solana (Jupiter, Raydium), avec lien direct vers la page de listing.",
-      "agent": "MICRO",
-      "params": {
-        "montant": 0.1,
-        "nombre": 100,
-        "critere_wallet": "interactions DEX Solana (30 derniers jours)",
-        "message_inclus": "Voici 0.1 USDC offerts! Liste ton service IA sur MAXIA et gagne plus: [lien maxiaworld.app/swap]. Pas de token, pas de waitlist."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
+      "action": "manage_dms",
       "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI marketplace solana USDC"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "solanadev",
-        "title": "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)",
-        "body": "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\nOne API call to list your agent. maxiaworld.app"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "built a bot no users no revenue"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "MAXIA alert: currently 0 active clients/services, emergency stop is active. Primary cluster on Solana paused, awaiting restart. Monitor status before deploying AI models. GPU prices unchanged at $0.69/h."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "JupiterExchange"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "topic": "How to monetize your AI agent with MAXIA"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "MAXIA currently has 0 active clients & services, yielding $0 revenue. Emerging opportunities on Solana, 4 chains, and $0.69/h GPU may change this. Explore MAXIA's potential for AI development and growth."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent developer #AIagent"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent solana developer web3"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI marketplace solana USDC"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "solanadev",
-        "title": "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)",
-        "body": "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\nOne API call to list your agent. maxiaworld.app"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "built a bot no users no revenue"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "MAXIA update: currently at $0 revenue with no active clients. Emergency stop activated. Reviewing system stability on 4 chains, GPU usage at $0.69/h. Ongoing maintenance to ensure reliable service for AI devs on Solana."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "JupiterExchange"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "topic": "GPU rental at cost: why MAXIA charges 0% markup"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "MAXIA update: Emergency stop is active due to 0 revenue. However, VPS GHOST-WRITER and SCOUT are still operational, available for AI dev work on 4 chains at $0.69/h GPU."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent developer #AI"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent solana developer web3"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI marketplace solana USDC"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "solanadev",
-        "title": "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)",
-        "body": "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\nOne API call to list your agent. maxiaworld.app"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "built a bot no users no revenue"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "Deploy AI models on MAXIA, a Solana-based marketplace with 50 supported tokens, 4 chain interoperability, and cost-effective GPU rentals at $0.69/h. Build, deploy, and manage AI agents with ease."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "RunPod"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "topic": "GPU rental at cost: why MAXIA charges 0% markup"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "Deploy AI models on MAXIA with 50+ tokens, 4 chain support, and cost-effective GPU at $0.69/h. Discover, create, and deploy AI agents in our marketplace, streamlining your development process."
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent developer #AI"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI agent solana developer web3"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "params": {},
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "AI marketplace solana USDC"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "subreddit": "solanadev",
-        "title": "MAXIA - AI-to-AI Marketplace on 4 Chains (Solana/Base/ETH/XRP)",
-        "body": "Built an AI marketplace where autonomous agents discover and trade services using USDC.\n\n- 50 tokens, 2450 pairs via Jupiter\n- GPU at cost ($0.69/h, 0% markup)\n- 4 chains: Solana + Base + ETH + XRP\n- 22 MCP tools\n\nOne API call to list your agent. maxiaworld.app"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "params": {
-        "query": "built a bot no users no revenue"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "text": "Streamline AI development with MAXIA's marketplace, offering 50+ tokens, 4-chain support, and affordable GPU access at $0.69/h. Discover and deploy AI agents with ease"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "params": {
-        "competitor": "solaboratory"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "params": {
-        "topic": "GPU rental at cost: why MAXIA charges 0% markup"
-      },
-      "priority": "vert"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
       "params": {},
       "priority": "vert"
     }
   ],
   "actions_done": [
     {
-      "action": "search_twitter",
-      "agent": "outreach",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T14:11:32"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "content",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T14:12:42"
-    },
-    {
-      "action": "search_groups",
-      "agent": "growth",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T14:12:59"
-    },
-    {
-      "action": "post_thread",
-      "agent": "scout",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T14:18:16"
-    },
-    {
       "action": "search_profiles",
-      "agent": "scout",
+      "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T14:18:19"
-    },
-    {
-      "action": "comment_reddit",
-      "agent": "scout",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:18:30"
+      "ts": "2026-03-23T00:59:41"
     },
     {
       "action": "detect_opportunities",
-      "agent": "growth",
+      "agent": "SCOUT",
       "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:30:15"
+      "success": true,
+      "ts": "2026-03-23T00:59:46"
+    },
+    {
+      "action": "reply_mentions",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T01:11:21"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T01:11:21"
     },
     {
       "action": "post_reddit",
-      "agent": "community",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:30:15"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "prospecting",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:30:15"
-    },
-    {
-      "action": "post_template_tweet",
-      "agent": "CEO MAXIA",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:41:51"
-    },
-    {
-      "action": "follow_user",
-      "agent": "CEO MAXIA",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:41:52"
-    },
-    {
-      "action": "search_groups",
-      "agent": "CEO MAXIA",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:41:52"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:53:39"
-    },
-    {
-      "action": "score_profile",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:53:39"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T14:53:39"
-    },
-    {
-      "action": "post_template_tweet",
-      "agent": "marketing",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:05:26"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "prospection",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:05:26"
-    },
-    {
-      "action": "comment_reddit",
-      "agent": "community",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:05:26"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "growth",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:17:10"
-    },
-    {
-      "action": "search_groups",
-      "agent": "community",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:17:10"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "content",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T15:17:11"
-    },
-    {
-      "action": "post_thread",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:29:13"
-    },
-    {
-      "action": "search_profiles",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:29:13"
-    },
-    {
-      "action": "ab_test",
       "agent": "GHOST-WRITER",
       "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T15:29:13"
+      "success": false,
+      "ts": "2026-03-23T01:22:50"
     },
     {
-      "action": "detect_opportunities",
-      "agent": "CEO MAXIA",
+      "action": "search_twitter",
+      "agent": "SCOUT",
       "priority": "vert",
       "success": false,
-      "ts": "2026-03-21T15:40:49"
+      "ts": "2026-03-23T01:22:55"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T01:34:00"
     },
     {
       "action": "scrape_followers",
-      "agent": "CEO MAXIA",
+      "agent": "SCOUT",
       "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:40:49"
+      "success": true,
+      "ts": "2026-03-23T01:34:06"
     },
     {
-      "action": "like_tweet",
-      "agent": "CEO MAXIA",
+      "action": "write_blog",
+      "agent": "GHOST-WRITER",
       "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:40:49"
+      "success": true,
+      "ts": "2026-03-23T01:45:10"
+    },
+    {
+      "action": "analyze_trends",
+      "agent": "RADAR",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T01:45:18"
     },
     {
       "action": "post_tweet",
-      "agent": "twitter",
+      "agent": "GHOST-WRITER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T15:52:40"
-    },
-    {
-      "action": "search_groups",
-      "agent": "discord",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:52:40"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "reddit",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T15:52:40"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "growth",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T16:05:00"
-    },
-    {
-      "action": "post_thread",
-      "agent": "content",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T16:05:00"
+      "ts": "2026-03-23T01:56:30"
     },
     {
       "action": "search_profiles",
-      "agent": "prospecting",
+      "agent": "SCOUT",
       "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T16:05:00"
+      "success": true,
+      "ts": "2026-03-23T01:56:36"
     },
     {
       "action": "search_twitter",
-      "agent": "vert",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T02:07:50"
+    },
+    {
+      "action": "search_profiles",
+      "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T16:17:37"
+      "ts": "2026-03-23T02:07:56"
+    },
+    {
+      "action": "reply_mentions",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T02:18:54"
+    },
+    {
+      "action": "check_emails",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T02:18:54"
+    },
+    {
+      "action": "post_reddit",
+      "agent": "GHOST-WRITER",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T02:30:24"
+    },
+    {
+      "action": "scrape_followers",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T02:30:30"
     },
     {
       "action": "comment_github_ai",
-      "agent": "vert",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T16:18:51"
-    },
-    {
-      "action": "write_blog",
-      "agent": "vert",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T16:19:03"
-    },
-    {
-      "action": "Lancer une campagne de prospection ultra-ciblée sur Reddit (r/solanadev, r/aiagents) avec des messages personnalisés pour les devs ayant des bots IA fonctionnels mais sans revenus.",
-      "agent": "HUNTER",
+      "agent": "SCOUT",
       "priority": "vert",
       "success": false,
-      "ts": "2026-03-21T16:30:52"
+      "ts": "2026-03-23T02:43:13"
     },
     {
-      "action": "Déployer un bot de contact automatisé sur Discord (Solana Dev Hub, ElizaOS) pour identifier les agents IA actifs et leur proposer un partenariat de test gratuit avec suivi personnalisé.",
+      "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T16:30:52"
+      "ts": "2026-03-23T02:43:18"
     },
     {
-      "action": "Activer le module MICRO pour distribuer 100 micro-grants de 0.1 USDC via airdrop ciblé aux wallets ayant des interactions récentes avec des DEX Solana (Jupiter, Raydium), avec lien direct vers la page de listing.",
-      "agent": "MICRO",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T16:30:53"
-    },
-    {
-      "action": "reply_mentions",
+      "action": "manage_dms",
       "agent": "RESPONDER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T16:42:56"
+      "ts": "2026-03-23T02:54:31"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T16:43:03"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T16:54:46"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": false,
-      "ts": "2026-03-21T16:54:52"
+      "ts": "2026-03-23T02:54:37"
     },
     {
       "action": "post_tweet",
       "agent": "GHOST-WRITER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:07:25"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T17:07:32"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T17:18:52"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T17:19:01"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T17:31:00"
+      "ts": "2026-03-23T03:05:44"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:31:06"
+      "ts": "2026-03-23T03:05:50"
     },
     {
       "action": "search_profiles",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:43:17"
+      "ts": "2026-03-23T03:17:08"
     },
     {
       "action": "detect_opportunities",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:43:23"
+      "ts": "2026-03-23T03:17:13"
     },
     {
       "action": "reply_mentions",
       "agent": "RESPONDER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:55:29"
+      "ts": "2026-03-23T03:28:58"
     },
     {
-      "action": "search_twitter",
-      "agent": "SCOUT",
+      "action": "check_emails",
+      "agent": "RESPONDER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T17:55:34"
+      "ts": "2026-03-23T03:28:58"
     },
     {
       "action": "post_reddit",
       "agent": "GHOST-WRITER",
       "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:07:01"
+      "success": false,
+      "ts": "2026-03-23T03:40:33"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": false,
-      "ts": "2026-03-21T18:07:06"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:18:30"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:18:37"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:29:54"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:30:02"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:41:23"
+      "ts": "2026-03-23T03:40:38"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T18:41:29"
+      "ts": "2026-03-23T03:51:38"
+    },
+    {
+      "action": "scrape_followers",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T03:51:44"
+    },
+    {
+      "action": "write_blog",
+      "agent": "GHOST-WRITER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T04:02:57"
+    },
+    {
+      "action": "analyze_trends",
+      "agent": "RADAR",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T04:03:05"
+    },
+    {
+      "action": "post_tweet",
+      "agent": "GHOST-WRITER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T04:13:59"
     },
     {
       "action": "search_profiles",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T18:49:07"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:49:13"
-    },
-    {
-      "action": "reply_mentions",
-      "agent": "RESPONDER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:59:22"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T18:59:28"
-    },
-    {
-      "action": "post_reddit",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:10:45"
+      "ts": "2026-03-23T04:14:04"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": false,
-      "ts": "2026-03-21T19:10:51"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:23:03"
-    },
-    {
-      "action": "scrape_followers",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:23:08"
-    },
-    {
-      "action": "write_blog",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:34:24"
-    },
-    {
-      "action": "analyze_trends",
-      "agent": "RADAR",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:34:32"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:45:47"
-    },
-    {
-      "action": "search_twitter",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:45:52"
+      "ts": "2026-03-23T04:25:09"
     },
     {
       "action": "search_profiles",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T19:57:50"
-    },
-    {
-      "action": "detect_opportunities",
-      "agent": "SCOUT",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T19:57:55"
+      "ts": "2026-03-23T04:25:14"
     },
     {
       "action": "reply_mentions",
       "agent": "RESPONDER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:09:08"
+      "ts": "2026-03-23T04:36:15"
     },
     {
-      "action": "search_twitter",
-      "agent": "SCOUT",
+      "action": "check_emails",
+      "agent": "RESPONDER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:09:14"
+      "ts": "2026-03-23T04:36:15"
     },
     {
       "action": "post_reddit",
       "agent": "GHOST-WRITER",
       "priority": "vert",
       "success": false,
-      "ts": "2026-03-21T20:20:20"
+      "ts": "2026-03-23T08:48:36"
+    },
+    {
+      "action": "search_twitter",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T08:48:42"
     },
     {
       "action": "search_twitter",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:20:25"
-    },
-    {
-      "action": "post_tweet",
-      "agent": "GHOST-WRITER",
-      "priority": "vert",
-      "success": true,
-      "ts": "2026-03-21T20:31:51"
+      "ts": "2026-03-23T08:50:17"
     },
     {
       "action": "scrape_followers",
       "agent": "SCOUT",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:31:57"
+      "ts": "2026-03-23T08:50:23"
     },
     {
       "action": "write_blog",
       "agent": "GHOST-WRITER",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:43:14"
+      "ts": "2026-03-23T08:53:49"
     },
     {
       "action": "analyze_trends",
       "agent": "RADAR",
       "priority": "vert",
       "success": true,
-      "ts": "2026-03-21T20:43:22"
+      "ts": "2026-03-23T08:53:58"
+    },
+    {
+      "action": "post_tweet",
+      "agent": "GHOST-WRITER",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T08:54:50"
+    },
+    {
+      "action": "search_profiles",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T08:54:56"
+    },
+    {
+      "action": "comment_github_ai",
+      "agent": "SCOUT",
+      "priority": "vert",
+      "success": false,
+      "ts": "2026-03-23T09:01:08"
+    },
+    {
+      "action": "manage_dms",
+      "agent": "RESPONDER",
+      "priority": "vert",
+      "success": true,
+      "ts": "2026-03-23T09:01:09"
     }
   ],
-  "regles": [
-    "KEEP search_twitter: 83% success rate",
-    "KEEP write_blog: 100% success rate",
-    "KEEP post_tweet: 100% success rate",
-    "KEEP search_twitter: 73% success rate",
-    "KEEP analyze_trends: 100% success rate",
-    "KEEP reply_mentions: 100% success rate",
-    "KEEP post_reddit: 100% success rate",
-    "KEEP scrape_followers: 100% success rate"
-  ],
+  "regles": [],
   "tweets_posted": [
     {
-      "text": "🚀 Just launched MAXIA — the first AI marketplace o",
-      "ts": "2026-03-21"
+      "text": "Develop and deploy AI models on MAXIA, featuring 50+ tokens, 11 blockchain chains, and affordable GPU at cost. Explore our AI agent marketplace for seamless integration and collaboration opportunities.",
+      "ts": "2026-03-22T03:44:02",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774147442.png"
     },
     {
-      "text": "🚀 Les devs AI sur Solana, votre marketplace IA est",
-      "ts": "2026-03-21"
+      "text": "Develop and deploy AI models on MAXIA, featuring 5",
+      "ts": "2026-03-22"
     },
     {
-      "text": "🚀 Just launched MAXIA — the AI marketplace on Sola",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50 tokens, leveraging GPU power at cost. Explore MAXIA's AI agent marketplace for seamless integration and deployment of AI solutions.",
+      "ts": "2026-03-22T04:30:22",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774150222.png"
     },
     {
-      "text": "MAXIA alert: currently 0 active clients/services, emergency stop is active. Primary cluster on Solana paused, awaiting restart. Monitor status before deploying AI models. GPU prices unchanged at $0.69/h.",
-      "ts": "2026-03-21T17:07:25",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774109243.png"
+      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
+      "ts": "2026-03-22"
     },
     {
-      "text": "MAXIA alert: currently 0 active clients/services, ",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50 tokens, leveraging GPUs at cost. MAXIA's AI agent marketplace streamlines development, letting you focus on innovation, not infrastructure.",
+      "ts": "2026-03-22T08:39:22",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774165162.png"
     },
     {
-      "text": "MAXIA currently has 0 active clients & services, yielding $0 revenue. Emerging opportunities on Solana, 4 chains, and $0.69/h GPU may change this. Explore MAXIA's potential for AI development and growth.",
-      "ts": "2026-03-21T17:31:00",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774110660.png"
+      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
+      "ts": "2026-03-22"
     },
     {
-      "text": "MAXIA currently has 0 active clients & services, y",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50 tokens. Access affordable GPU power at cost. Discover and integrate AI agents on MAXIA's marketplace, streamlining your development workflow.",
+      "ts": "2026-03-22T09:49:19",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774169359.png"
     },
     {
-      "text": "MAXIA update: currently at $0 revenue with no active clients. Emergency stop activated. Reviewing system stability on 4 chains, GPU usage at $0.69/h. Ongoing maintenance to ensure reliable service for AI devs on Solana.",
-      "ts": "2026-03-21T18:18:30",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774113510.png"
+      "text": "Deploy AI models on 11 chains with 50 tokens. Acce",
+      "ts": "2026-03-22"
     },
     {
-      "text": "MAXIA update: currently at $0 revenue with no acti",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50+ tokens. Access affordable GPU power at cost. Explore the AI agent marketplace on MAXIA for seamless integration and development",
+      "ts": "2026-03-22T12:24:08",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774178648.png"
     },
     {
-      "text": "MAXIA update: Emergency stop is active due to 0 revenue. However, VPS GHOST-WRITER and SCOUT are still operational, available for AI dev work on 4 chains at $0.69/h GPU.",
-      "ts": "2026-03-21T18:41:23",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774114883.png"
+      "text": "Deploy AI models on 11 chains with 50+ tokens. Acc",
+      "ts": "2026-03-22"
     },
     {
-      "text": "MAXIA update: Emergency stop is active due to 0 re",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50 tokens, and utilize affordable GPU power at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and development solutions.",
+      "ts": "2026-03-22T13:35:51",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774182950.png"
     },
     {
-      "text": "Deploy AI models on MAXIA, a Solana-based marketplace with 50 supported tokens, 4 chain interoperability, and cost-effective GPU rentals at $0.69/h. Build, deploy, and manage AI agents with ease.",
-      "ts": "2026-03-21T19:23:03",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774117382.png"
+      "text": "Deploy AI models on 11 chains with 50 tokens, and ",
+      "ts": "2026-03-22"
     },
     {
-      "text": "Deploy AI models on MAXIA, a Solana-based marketpl",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50+ token optio",
+      "ts": "2026-03-22"
     },
     {
-      "text": "Deploy AI models on MAXIA with 50+ tokens, 4 chain support, and cost-effective GPU at $0.69/h. Discover, create, and deploy AI agents in our marketplace, streamlining your development process.",
-      "ts": "2026-03-21T19:45:47",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774118747.png"
+      "text": "Deploy AI models on MAXIA's 11-chain network with ",
+      "ts": "2026-03-22"
     },
     {
-      "text": "Deploy AI models on MAXIA with 50+ tokens, 4 chain",
-      "ts": "2026-03-21"
+      "text": "Deploy AI models on 11 chains with 50 token options. Access low-cost GPU at $0.69/h. Explore MAXIA's AI agent marketplace for seamless integration and development.",
+      "ts": "2026-03-23T00:48:23",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774223303.png"
     },
     {
-      "text": "Streamline AI development with MAXIA's marketplace, offering 50+ tokens, 4-chain support, and affordable GPU access at $0.69/h. Discover and deploy AI agents with ease",
-      "ts": "2026-03-21T20:31:51",
-      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774121511.png"
+      "text": "Deploy AI models on 11 chains with 50 token option",
+      "ts": "2026-03-23"
     },
     {
-      "text": "Streamline AI development with MAXIA's marketplace",
-      "ts": "2026-03-21"
+      "text": "Deploy AI agents on 11 chains with 50 tokens. Access affordable GPU power at cost. Explore MAXIA's AI agent marketplace for seamless integration and development.",
+      "ts": "2026-03-23T01:56:30",
+      "proof": "C:\\Users\\Mini pc/.maxia-browser\\tweet_ok_1774227390.png"
+    },
+    {
+      "text": "Deploy AI agents on 11 chains with 50 tokens. Acce",
+      "ts": "2026-03-23"
+    },
+    {
+      "text": "Deploy AI models on 11 chains with 50+ tokens. Acc",
+      "ts": "2026-03-23"
+    },
+    {
+      "text": "Deploy AI models on 11 chains with 50 tokens, leve",
+      "ts": "2026-03-23"
     }
   ],
   "contacts": [],
@@ -1351,15 +598,24 @@
     {
       "username": "DeFiNattii",
       "ts": "2026-03-21"
+    },
+    {
+      "username": "alex_lamports",
+      "ts": "2026-03-22"
+    },
+    {
+      "username": "agentfolioHQ",
+      "ts": "2026-03-22"
     }
   ],
   "last_strategic": "",
-  "cycle_count": 35,
+  "cycle_count": 199,
   "daily_stats": {},
   "groups_joined": [
     "https://discord.com/invite/solana",
     "https://discord.com/invite/solanamobile",
     "https://discord.com/invite/ai-automation-community-902668725298278470",
     "https://discord.com/invite/aihub"
-  ]
+  ],
+  "conversations": []
 }
