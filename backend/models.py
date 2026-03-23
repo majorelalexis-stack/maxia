@@ -73,3 +73,14 @@ class AP2PaymentRequest(BaseModel):
     cart_mandate: Optional[dict] = None
     payment_payload: Optional[str] = None
     network: str = "solana-mainnet"
+
+class GpuRentRequest(BaseModel):
+    gpu_tier_id: str
+    hours: float = Field(gt=0, le=720, default=1)
+    payment_tx: Optional[str] = None  # USDC tx signature (None = free trial)
+
+class GpuRentPublicRequest(BaseModel):
+    gpu_tier_id: str
+    hours: float = Field(gt=0, le=720, default=1)
+    wallet: str
+    payment_tx: Optional[str] = None

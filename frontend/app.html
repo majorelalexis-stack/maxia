@@ -185,7 +185,18 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   .nav-menu-btn{display:flex}
   .nav-links.open{display:flex;position:absolute;top:56px;left:0;right:0;background:rgba(10,14,23,.95);backdrop-filter:blur(12px);padding:12px 16px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.05)}
 }
+/* ── Swap status ── */
+.swap-status{margin-top:16px;padding:16px;border-radius:12px;font-size:14px;animation:fadeUp .3s ease}
+.swap-status.pending{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--blue)}
+.swap-status.confirming{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);color:var(--orange)}
+.swap-status.success{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.2);color:var(--green)}
+.swap-status.error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+.swap-status a{color:var(--cyan);text-decoration:underline}
+.swap-status .tx-sig{font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all;margin-top:8px;opacity:.8}
+.swap-spinner{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 </head>
 <body>
 
@@ -278,9 +289,15 @@ select.input-field option{background:var(--bg2);color:var(--text)}
           <span class="label">Tier</span>
           <span class="value green" id="swap-tier-info">BRONZE</span>
         </div>
+        <div class="swap-info-row" id="swap-route-row" style="display:none">
+          <span class="label">Route</span>
+          <span class="value" id="swap-route" style="color:var(--cyan)">Jupiter Aggregator</span>
+        </div>
       </div>
 
       <button class="btn btn-primary" id="btn-swap" onclick="executeSwap()" style="margin-top:20px" disabled>Enter an amount</button>
+
+      <div id="swap-status" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -558,6 +575,64 @@ let wallet = null;
 let walletType = null; // 'phantom' | 'backpack' | 'solflare' | 'metamask' | 'rabby' | 'coinbase' | 'walletconnect' | 'petra' | 'sui'
 let swapTokens = [];
 let quoteTimer = null;
+let lastJupiterQuote = null; // Store the last Jupiter quote for execute
+
+// ── Solana token mint addresses (mainnet, curated from backend) ──
+var TOKEN_MINTS = {
+  "SOL":      { mint: "So11111111111111111111111111111111111111112", decimals: 9 },
+  "USDC":     { mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+  "USDT":     { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 },
+  "BONK":     { mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", decimals: 5 },
+  "JUP":      { mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", decimals: 6 },
+  "RAY":      { mint: "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R", decimals: 6 },
+  "TRUMP":    { mint: "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN", decimals: 6 },
+  "PYTH":     { mint: "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3", decimals: 6 },
+  "W":        { mint: "85VBFQZC9TZkfaptBWjvUw7YbZjy52A6mjtPGjstQAmQ", decimals: 6 },
+  "ETH":      { mint: "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs", decimals: 8 },
+  "BTC":      { mint: "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh", decimals: 8 },
+  "ORCA":     { mint: "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE", decimals: 6 },
+  "WIF":      { mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", decimals: 6 },
+  "RENDER":   { mint: "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof", decimals: 8 },
+  "HNT":      { mint: "hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux", decimals: 8 },
+  "JTO":      { mint: "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL", decimals: 9 },
+  "TNSR":     { mint: "TNSRxcUxoT9xBG3de7PiJyTDYu7kskLqcpddxnEJAS6", decimals: 9 },
+  "MEW":      { mint: "MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5", decimals: 5 },
+  "POPCAT":   { mint: "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr", decimals: 9 },
+  "MOBILE":   { mint: "mb1eu7TzEc71KxDpsmsKoucSSuuoGLv1drys1oP2jh6", decimals: 6 },
+  "MNDE":     { mint: "MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey", decimals: 9 },
+  "MSOL":     { mint: "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So", decimals: 9 },
+  "JITOSOL":  { mint: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn", decimals: 9 },
+  "BSOL":     { mint: "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1", decimals: 9 },
+  "DRIFT":    { mint: "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7", decimals: 6 },
+  "KMNO":     { mint: "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS", decimals: 6 },
+  "PENGU":    { mint: "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv", decimals: 6 },
+  "AI16Z":    { mint: "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC", decimals: 9 },
+  "FARTCOIN": { mint: "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump", decimals: 6 },
+  "GRASS":    { mint: "Grass7B4RdKfBCjTKgSqnXkqjwiGvQyFbuSCUJr3XXjs", decimals: 9 },
+  "ZEUS":     { mint: "ZEUS1aR7aX8DFFJf5QjWj2ftDDdNTroMNGo8YoQm3Gq", decimals: 6 },
+  "NOSOL":    { mint: "nosXBVoaCTtYdLvKY6Csb4AC8JCdQKKAaWYtx2ZMoo7", decimals: 6 },
+  "SAMO":     { mint: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", decimals: 9 },
+  "STEP":     { mint: "StepAscQoEioFxxWGnh2sLBDFp9d8rvKz2Yp39iDpyT", decimals: 9 },
+  "BOME":     { mint: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82", decimals: 6 },
+  "SLERF":    { mint: "7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3", decimals: 9 },
+  "MPLX":     { mint: "METAewgxyPbgwsseH8T16a39CQ5VyVxZi9zXiDPY18m", decimals: 6 },
+  "INF":      { mint: "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm", decimals: 9 },
+  "PNUT":     { mint: "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump", decimals: 6 },
+  "GOAT":     { mint: "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump", decimals: 6 },
+  "LINK":     { mint: "2wpTofQ8SkACrkZWrZDjXPitbbvByJGJy4sQqnfBfQVR", decimals: 8 },
+  "UNI":      { mint: "8FU95xFJhUUkyyCLU13HSzDLs7oC4QZdXQHL6SCeab36", decimals: 8 },
+  "AAVE":     { mint: "3vAs4D1WE6Na4tCgt4BApgFfENbCCJVDP6QDT9zKMJH4", decimals: 8 },
+  "LDO":      { mint: "HZRCwxP2Vq9PCpPXooayhJ2bxTB5AMqFqZbNPc3Ldzsf", decimals: 8 },
+  "VIRTUAL":  { mint: "VRTuawjjBKGfQLFMWrqwZ2KnaDxMFimJonH7miSbFaB", decimals: 9 },
+  "OLAS":     { mint: "Ez3nzG9ofodYCvEmw73XhQ87LWNYVRM2s7diB5tBZPyM", decimals: 8 },
+  "FET":      { mint: "EgLJHNkSFJNJbGMWnN2ESCMQ79HEGPJGDbpPFNX7vagd", decimals: 8 },
+  "PEPE":     { mint: "3Ysmnbdwje7SP2bKSJgST4iFF3FrVLjR2uGaoV1138DP", decimals: 8 },
+  "DOGE":     { mint: "GRFKmwmF14nBnSEyEesFctHYBwRLXSBZdGAjqFNonWon", decimals: 8 },
+  "SHIB":     { mint: "CiKu4eHsVrc1eueVQeHn7qhXTcVu95gSQoBBpX5SQzUt", decimals: 8 }
+};
+
+var SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+var JUPITER_V1_API = "https://lite-api.jup.ag/swap/v1";
 
 // ── Helpers ──
 function esc(s) {
@@ -1011,8 +1086,19 @@ async function getSwapQuote() {
       document.getElementById('swap-tier-info').textContent = data.tier || 'BRONZE';
       document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.10%');
       info.style.display = 'flex';
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to : 'Connect wallet to swap';
+      // Show Jupiter route info for Solana wallets
+      var isSolWallet = walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+      var routeRow = document.getElementById('swap-route-row');
+      if (routeRow) {
+        routeRow.style.display = isSolWallet ? 'flex' : 'none';
+        if (isSolWallet && TOKEN_MINTS[from] && TOKEN_MINTS[to]) {
+          document.getElementById('swap-route').textContent = 'Jupiter Aggregator (on-chain)';
+        }
+      }
+      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + (isSolWallet ? ' (Jupiter)' : '') : 'Connect wallet to swap';
       btn.disabled = !wallet;
+      // Clear previous swap status when getting new quote
+      setSwapStatus(null);
     }
   } catch (e) {
     var fromToken = swapTokens.find(function(t) { return t.symbol === from; });
@@ -1025,8 +1111,12 @@ async function getSwapQuote() {
       document.getElementById('swap-fee').textContent = '~0.10%';
       document.getElementById('swap-tier-info').textContent = 'BRONZE';
       info.style.display = 'flex';
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to : 'Connect wallet to swap';
+      var isSolWallet2 = walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+      var routeRow2 = document.getElementById('swap-route-row');
+      if (routeRow2) routeRow2.style.display = isSolWallet2 ? 'flex' : 'none';
+      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + (isSolWallet2 ? ' (Jupiter)' : '') : 'Connect wallet to swap';
       btn.disabled = !wallet;
+      setSwapStatus(null);
     } else {
       btn.textContent = 'Quote unavailable';
       btn.disabled = true;
@@ -1043,32 +1133,209 @@ function swapDirection() {
   getSwapQuoteDebounced();
 }
 
+function setSwapStatus(msg, type) {
+  var el = document.getElementById('swap-status');
+  if (!msg) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.className = 'swap-status ' + (type || 'pending');
+  el.innerHTML = msg;
+}
+
 async function executeSwap() {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!wallet) {
+    // Open wallet menu
+    var menu = document.getElementById('wallet-menu');
+    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    toast('Connect your wallet first', 'info');
+    return;
+  }
+
+  // Only Solana wallets can do Jupiter swaps
+  if (walletType !== 'phantom' && walletType !== 'backpack' && walletType !== 'solflare') {
+    toast('Jupiter swap requires a Solana wallet (Phantom, Backpack, or Solflare)', 'error');
+    return;
+  }
 
   var from = document.getElementById('swap-from-token').value;
   var to = document.getElementById('swap-to-token').value;
   var amount = parseFloat(document.getElementById('swap-from-amount').value);
 
   if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
+  if (from === to) { toast('Select different tokens', 'error'); return; }
+
+  // Resolve mint addresses
+  var fromInfo = TOKEN_MINTS[from];
+  var toInfo = TOKEN_MINTS[to];
+  if (!fromInfo || !toInfo) {
+    toast('Token not supported for on-chain swap: ' + (!fromInfo ? from : to), 'error');
+    return;
+  }
 
   var btn = document.getElementById('btn-swap');
-  btn.textContent = 'Swapping...';
+  var originalText = btn.textContent;
   btn.disabled = true;
 
   try {
-    await api('/api/public/crypto/swap', {
+    // ── Step 1: Get Jupiter quote ──
+    btn.textContent = 'Getting quote...';
+    setSwapStatus('<span class="swap-spinner"></span>Fetching best route from Jupiter...', 'pending');
+
+    var amountRaw = Math.floor(amount * Math.pow(10, fromInfo.decimals));
+    var quoteUrl = JUPITER_V1_API + '/quote?inputMint=' + fromInfo.mint
+      + '&outputMint=' + toInfo.mint
+      + '&amount=' + amountRaw
+      + '&slippageBps=50';
+
+    var quoteResp = await fetch(quoteUrl);
+    if (!quoteResp.ok) {
+      var quoteErr = await quoteResp.text();
+      throw new Error('Jupiter quote failed: ' + quoteResp.status + ' ' + quoteErr);
+    }
+    var quote = await quoteResp.json();
+
+    if (quote.error) {
+      throw new Error('Jupiter: ' + (quote.error || quote.message || 'Quote failed'));
+    }
+
+    // Display quote output
+    var outRaw = parseInt(quote.outAmount || '0');
+    var outHuman = outRaw / Math.pow(10, toInfo.decimals);
+    setSwapStatus(
+      '<span class="swap-spinner"></span>Route found: ' + amount + ' ' + from + ' → ' +
+      outHuman.toFixed(toInfo.decimals <= 6 ? Math.min(toInfo.decimals, 6) : 4) + ' ' + to +
+      '<br><span style="font-size:12px;opacity:.7">Price impact: ' + ((parseFloat(quote.priceImpactPct) || 0) * 100).toFixed(4) + '%</span>',
+      'pending'
+    );
+
+    // ── Step 2: Get swap transaction from Jupiter ──
+    btn.textContent = 'Building transaction...';
+    setSwapStatus('<span class="swap-spinner"></span>Building swap transaction...', 'pending');
+
+    var swapResp = await fetch(JUPITER_V1_API + '/swap', {
       method: 'POST',
-      body: JSON.stringify({ from_token: from, to_token: to, amount: amount, wallet: wallet })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quoteResponse: quote,
+        userPublicKey: wallet,
+        dynamicComputeUnitLimit: true,
+        prioritizationFeeLamports: 'auto'
+      })
     });
-    toast('Swap executed: ' + from + ' → ' + to, 'success');
+
+    if (!swapResp.ok) {
+      var swapErr = await swapResp.text();
+      throw new Error('Jupiter swap build failed: ' + swapResp.status + ' ' + swapErr);
+    }
+    var swapData = await swapResp.json();
+
+    if (swapData.error) {
+      throw new Error('Jupiter: ' + (swapData.error || 'Swap build failed'));
+    }
+
+    var swapTxBase64 = swapData.swapTransaction;
+    if (!swapTxBase64) {
+      throw new Error('No swap transaction returned from Jupiter');
+    }
+
+    // ── Step 3: Deserialize and sign with wallet ──
+    btn.textContent = 'Confirm in wallet...';
+    setSwapStatus('<span class="swap-spinner"></span>Please confirm the transaction in your wallet...', 'confirming');
+
+    // Decode base64 to Uint8Array
+    var txBytes = Uint8Array.from(atob(swapTxBase64), function(c) { return c.charCodeAt(0); });
+
+    // Jupiter returns VersionedTransaction
+    var transaction = solanaWeb3.VersionedTransaction.deserialize(txBytes);
+
+    // Get the wallet provider
+    var provider = null;
+    if (walletType === 'phantom') provider = window.solana;
+    else if (walletType === 'backpack') provider = window.backpack;
+    else if (walletType === 'solflare') provider = window.solflare;
+
+    if (!provider) {
+      throw new Error('Wallet provider not found. Please reconnect your wallet.');
+    }
+
+    // Sign the transaction
+    var signedTx = await provider.signTransaction(transaction);
+
+    // ── Step 4: Send to Solana network ──
+    btn.textContent = 'Sending transaction...';
+    setSwapStatus('<span class="swap-spinner"></span>Sending signed transaction to Solana...', 'confirming');
+
+    var connection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
+
+    // Serialize the signed transaction
+    var rawTx = signedTx.serialize();
+    var txSignature = await connection.sendRawTransaction(rawTx, {
+      skipPreflight: false,
+      maxRetries: 3,
+      preflightCommitment: 'confirmed'
+    });
+
+    // ── Step 5: Confirm transaction ──
+    btn.textContent = 'Confirming...';
+    setSwapStatus(
+      '<span class="swap-spinner"></span>Transaction sent! Waiting for confirmation...' +
+      '<div class="tx-sig">Signature: ' + txSignature + '</div>',
+      'confirming'
+    );
+
+    // Wait for confirmation with timeout
+    var confirmResult = await connection.confirmTransaction(txSignature, 'confirmed');
+
+    if (confirmResult.value && confirmResult.value.err) {
+      throw new Error('Transaction failed on-chain: ' + JSON.stringify(confirmResult.value.err));
+    }
+
+    // ── Success ──
+    var solscanUrl = 'https://solscan.io/tx/' + txSignature;
+    setSwapStatus(
+      'Swap successful! ' + amount + ' ' + from + ' → ' +
+      outHuman.toFixed(toInfo.decimals <= 6 ? Math.min(toInfo.decimals, 6) : 4) + ' ' + to +
+      '<div class="tx-sig"><a href="' + solscanUrl + '" target="_blank" rel="noopener">View on Solscan: ' + txSignature.slice(0, 20) + '...' + txSignature.slice(-8) + '</a></div>',
+      'success'
+    );
+
+    toast('Swap confirmed! ' + from + ' → ' + to, 'success');
+
+    // Clear form
     document.getElementById('swap-from-amount').value = '';
     document.getElementById('swap-to-amount').value = '';
     document.getElementById('swap-info').style.display = 'none';
     btn.textContent = 'Enter an amount';
     btn.disabled = true;
+
+    // Also log to backend (fire and forget)
+    fetch('/api/public/crypto/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Wallet': wallet },
+      body: JSON.stringify({
+        from_token: from, to_token: to, amount: amount,
+        wallet: wallet, tx_signature: txSignature, source: 'jupiter_phantom'
+      })
+    }).catch(function() {});
+
   } catch (e) {
-    toast('Swap failed: ' + e.message, 'error');
+    var errMsg = e.message || String(e);
+
+    // User rejected
+    if (errMsg.indexOf('User rejected') !== -1 || errMsg.indexOf('user rejected') !== -1 || errMsg.indexOf('cancelled') !== -1) {
+      setSwapStatus('Transaction cancelled by user.', 'error');
+      toast('Transaction cancelled', 'info');
+    }
+    // Insufficient balance
+    else if (errMsg.indexOf('insufficient') !== -1 || errMsg.indexOf('Insufficient') !== -1 || errMsg.indexOf('0x1') !== -1) {
+      setSwapStatus('Insufficient balance for this swap. Make sure you have enough ' + from + ' and SOL for fees.', 'error');
+      toast('Insufficient balance', 'error');
+    }
+    // Generic error
+    else {
+      setSwapStatus('Swap failed: ' + esc(errMsg), 'error');
+      toast('Swap failed: ' + errMsg, 'error');
+    }
+
     btn.textContent = 'Swap ' + from + ' → ' + to;
     btn.disabled = false;
   }
@@ -1077,6 +1344,8 @@ async function executeSwap() {
 // ══════════════════════════════════════
 // GPU
 // ══════════════════════════════════════
+var _gpuTiersCache = [];
+
 async function loadGPU() {
   var grid = document.getElementById('gpu-grid');
   try {
@@ -1084,17 +1353,21 @@ async function loadGPU() {
     var tiers = data.tiers || data.gpu_tiers || data || [];
 
     if (Array.isArray(tiers) && tiers.length > 0) {
+      _gpuTiersCache = tiers;
       grid.innerHTML = tiers.map(function(g) {
+        var tierId = g.id || '';
         var name = g.label || g.name || g.gpu || 'GPU';
         var vram = g.vram_gb || g.vram || '—';
         var price = g.price_per_hour_usdc || g.price_per_hour || g.price || 0;
         var available = g.available !== false;
-        return '<div class="card gpu-card">' +
+        var isTrial = (tierId === 'rtx4090');
+        return '<div class="card gpu-card" data-tier="' + esc(tierId) + '">' +
           '<div class="gpu-name">' + esc(name) + '</div>' +
           '<div class="gpu-vram">' + esc(vram) + (String(vram).includes('GB') ? '' : ' GB') + ' VRAM</div>' +
           '<div class="gpu-price">$' + Number(price).toFixed(2) + '/hr</div>' +
           '<div class="gpu-status"><span class="badge ' + (available ? 'badge-green' : 'badge-red') + '">' + (available ? 'Available' : 'Unavailable') + '</span></div>' +
-          '<button class="btn-green btn-sm" onclick="rentGPU(\'' + esc(name) + '\')" ' + (available ? '' : 'disabled style="opacity:.5;cursor:not-allowed"') + '>Rent</button>' +
+          (isTrial ? '<div style="font-size:12px;color:var(--cyan);margin-bottom:8px">10 min free trial</div>' : '') +
+          '<button class="btn-green btn-sm" onclick="showRentDialog(\'' + esc(tierId) + '\', \'' + esc(name) + '\', ' + price + ')" ' + (available ? '' : 'disabled style="opacity:.5;cursor:not-allowed"') + '>Rent</button>' +
         '</div>';
       }).join('');
     } else {
@@ -1107,12 +1380,12 @@ async function loadGPU() {
 
 function renderFallbackGPU(grid) {
   var gpus = [
-    { name: 'RTX 4090', vram: '24 GB', price: 0.69 },
-    { name: 'RTX A6000', vram: '48 GB', price: 0.99 },
-    { name: 'A100 80GB', vram: '80 GB', price: 1.79 },
-    { name: 'H100 SXM5', vram: '80 GB', price: 2.69 },
-    { name: 'H200 SXM', vram: '141 GB', price: 4.31 },
-    { name: '4x A100 80GB', vram: '320 GB', price: 7.16 }
+    { id: 'rtx4090', name: 'RTX 4090', vram: '24 GB', price: 0.69, trial: true },
+    { id: 'a6000', name: 'RTX A6000', vram: '48 GB', price: 0.99, trial: false },
+    { id: 'a100_80', name: 'A100 80GB', vram: '80 GB', price: 1.79, trial: false },
+    { id: 'h100_sxm5', name: 'H100 SXM5', vram: '80 GB', price: 2.69, trial: false },
+    { id: 'h200', name: 'H200 SXM', vram: '141 GB', price: 4.31, trial: false },
+    { id: '4xa100', name: '4x A100 80GB', vram: '320 GB', price: 7.16, trial: false }
   ];
   grid.innerHTML = gpus.map(function(g) {
     return '<div class="card gpu-card">' +
@@ -1120,23 +1393,128 @@ function renderFallbackGPU(grid) {
       '<div class="gpu-vram">' + g.vram + ' VRAM</div>' +
       '<div class="gpu-price">$' + g.price.toFixed(2) + '/hr</div>' +
       '<div class="gpu-status"><span class="badge badge-green">Available</span></div>' +
-      '<button class="btn-green btn-sm" onclick="rentGPU(\'' + g.name + '\')">Rent</button>' +
+      (g.trial ? '<div style="font-size:12px;color:var(--cyan);margin-bottom:8px">10 min free trial</div>' : '') +
+      '<button class="btn-green btn-sm" onclick="showRentDialog(\'' + g.id + '\', \'' + g.name + '\', ' + g.price + ')">Rent</button>' +
     '</div>';
   }).join('');
 }
 
-async function rentGPU(name) {
+function showRentDialog(tierId, name, pricePerHr) {
   if (!wallet) { toast('Connect your wallet first', 'error'); return; }
-  toast('GPU rental request sent for ' + name, 'info');
+
+  var isTrial = (tierId === 'rtx4090');
+  var existing = document.getElementById('gpu-rent-modal');
+  if (existing) existing.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'gpu-rent-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML =
+    '<div style="background:var(--card);border:1px solid var(--muted2);border-radius:16px;padding:32px;max-width:420px;width:90%">' +
+      '<h3 style="margin:0 0 8px">' + esc(name) + '</h3>' +
+      '<p style="color:var(--muted);margin:0 0 20px">$' + pricePerHr.toFixed(2) + '/hr — SSH + Jupyter included</p>' +
+      (isTrial ? '<div style="background:rgba(0,200,200,.1);border:1px solid var(--cyan);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">' +
+        '<strong style="color:var(--cyan)">Free Trial Available</strong><br>10 minutes free — no payment needed' +
+      '</div>' : '') +
+      '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">Duration (hours)</label>' +
+      '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
+        'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
+      '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:16px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
+      '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (leave empty for free trial)</label>' +
+      '<input type="text" id="gpu-rent-tx" placeholder="' + (isTrial ? 'Leave empty for free trial' : 'Solana USDC tx signature') + '" ' +
+        'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +
+      '<div style="display:flex;gap:12px">' +
+        '<button class="btn-green" style="flex:1" onclick="executeGpuRent(\'' + esc(tierId) + '\', \'' + esc(name) + '\')" id="btn-gpu-rent">' +
+          (isTrial ? 'Start Free Trial' : 'Rent GPU') +
+        '</button>' +
+        '<button class="btn-outline" style="flex:0 0 auto" onclick="closeGpuModal()">Cancel</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeGpuModal(); });
+
+  // Update cost dynamically when hours change
+  var hoursInput = document.getElementById('gpu-rent-hours');
+  hoursInput.addEventListener('input', function() {
+    var h = parseFloat(hoursInput.value) || 1;
+    document.getElementById('gpu-rent-cost').textContent = 'Total: $' + (h * pricePerHr).toFixed(2) + ' USDC';
+  });
+}
+
+function closeGpuModal() {
+  var m = document.getElementById('gpu-rent-modal');
+  if (m) m.remove();
+}
+
+async function executeGpuRent(tierId, name) {
+  var hours = parseFloat(document.getElementById('gpu-rent-hours').value) || 1;
+  var paymentTx = (document.getElementById('gpu-rent-tx').value || '').trim();
+  var btn = document.getElementById('btn-gpu-rent');
+
+  btn.textContent = 'Provisioning...';
+  btn.disabled = true;
+
   try {
-    await api('/api/gpu/rent', {
+    var body = { gpu: tierId, wallet: wallet, hours: hours };
+    if (paymentTx) body.payment_tx = paymentTx;
+
+    var result = await api('/api/gpu/rent', {
       method: 'POST',
-      body: JSON.stringify({ gpu: name, wallet: wallet, hours: 1 })
+      body: JSON.stringify(body)
     });
-    toast('GPU ' + name + ' rented successfully!', 'success');
+
+    closeGpuModal();
+    showGpuCredentials(result, name);
+    toast('GPU ' + name + ' provisioned!', 'success');
   } catch (e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
     toast('GPU rental failed: ' + e.message, 'error');
   }
+}
+
+function showGpuCredentials(result, name) {
+  var existing = document.getElementById('gpu-creds-modal');
+  if (existing) existing.remove();
+
+  var status = result.status || 'provisioning';
+  var statusColor = status === 'running' ? 'var(--green)' : 'orange';
+  var trial = result.is_free_trial ? ' (Free Trial)' : '';
+  var autoTerm = result.auto_terminate_at ? new Date(result.auto_terminate_at * 1000).toLocaleString() : '—';
+
+  var modal = document.createElement('div');
+  modal.id = 'gpu-creds-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML =
+    '<div style="background:var(--card);border:1px solid var(--green);border-radius:16px;padding:32px;max-width:520px;width:90%;max-height:90vh;overflow-y:auto">' +
+      '<h3 style="margin:0 0 4px;color:var(--green)">GPU Provisioned' + esc(trial) + '</h3>' +
+      '<p style="color:var(--muted);margin:0 0 16px">' + esc(name) + ' — ' + result.duration_hours + 'h</p>' +
+      '<div style="margin-bottom:16px">' +
+        '<span style="color:' + statusColor + ';font-weight:600">' + esc(status.toUpperCase()) + '</span>' +
+        (status === 'provisioning' ? '<span style="color:var(--muted);font-size:13px"> — pod is starting up, credentials will work in ~30s</span>' : '') +
+      '</div>' +
+      '<div style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:12px">' +
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:4px">Pod ID</div>' +
+        '<div style="font-family:monospace;font-size:13px;word-break:break-all">' + esc(result.instanceId) + '</div>' +
+      '</div>' +
+      (result.ssh_command ? '<div style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:12px;cursor:pointer" onclick="navigator.clipboard.writeText(\'' + esc(result.ssh_command).replace(/'/g, "\\'") + '\');toast(\'SSH command copied!\',\'success\')">' +
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:4px">SSH Access (click to copy)</div>' +
+        '<div style="font-family:monospace;font-size:13px;word-break:break-all">' + esc(result.ssh_command) + '</div>' +
+      '</div>' : '') +
+      (result.jupyter_url ? '<div style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:12px">' +
+        '<div style="font-size:12px;color:var(--muted);margin-bottom:4px">Jupyter Notebook</div>' +
+        '<a href="' + esc(result.jupyter_url) + '" target="_blank" rel="noopener" style="font-family:monospace;font-size:13px;color:var(--cyan);word-break:break-all">' + esc(result.jupyter_url) + '</a>' +
+      '</div>' : '') +
+      '<div style="display:flex;gap:16px;font-size:13px;color:var(--muted);margin-bottom:16px">' +
+        '<div>Cost: <span style="color:var(--green)">$' + (result.total_cost || 0).toFixed(2) + '</span></div>' +
+        '<div>Auto-stop: ' + autoTerm + '</div>' +
+      '</div>' +
+      (result.instructions ? '<div style="background:rgba(0,200,200,.05);border:1px solid var(--cyan);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;white-space:pre-wrap;font-family:monospace;word-break:break-all">' + esc(result.instructions) + '</div>' : '') +
+      '<button class="btn-green" style="width:100%" onclick="this.closest(\'#gpu-creds-modal\').remove()">Got it</button>' +
+    '</div>';
+
+  document.body.appendChild(modal);
 }
 
 // ══════════════════════════════════════

@@ -285,9 +285,13 @@ async def api_docs():
     """Documentation pour les IA — comment s'integrer a MAXIA."""
     return {
         "name": "MAXIA Public API",
-        "version": "12.0.0",
-        "description": "API ouverte pour agents IA. Achetez et vendez des services IA avec USDC sur Solana.",
+        "version": "12.1.0",
+        "description": "AI-to-AI marketplace. All purchases require real USDC payment on Solana, verified on-chain.",
         "base_url": "https://maxiaworld.app/api/public",
+        "payment_model": "All paid endpoints require a real USDC transfer to MAXIA Treasury on Solana. "
+                         "Send USDC first, then pass the Solana tx signature as payment_tx. "
+                         "MAXIA verifies the transfer on-chain before executing the service.",
+        "treasury_wallet": TREASURY_ADDRESS,
         "authentication": {
             "method": "API Key (header X-API-Key)",
             "register": "POST /register — gratuit, instantane",
@@ -303,27 +307,45 @@ async def api_docs():
             "GET /discover": "A2A discovery: find services by capability, price, rating (no auth)",
             "GET /docs": "This documentation (no auth)",
             "GET /prices": "Live token prices (no auth)",
-            "POST /register": "Free registration → API key",
-            "POST /buy": "Buy a MAXIA native service (API key)",
+            "POST /register": "Free registration -> API key",
+            "POST /buy": "Buy a MAXIA native service — requires payment_tx (API key)",
             "POST /sell": "List YOUR service for sale (API key)",
-            "POST /buy-from-agent": "Buy from another AI agent (API key)",
-            "POST /execute": "Buy AND execute in one call — webhook auto-call (API key)",
+            "POST /buy-from-agent": "Buy from another AI agent — requires payment_tx (API key)",
+            "POST /execute": "Buy AND execute in one call — requires payment_tx, webhook auto-call (API key)",
             "GET /my-stats": "Your stats (API key)",
             "GET /my-earnings": "Your seller earnings (API key)",
             "GET /marketplace-stats": "Global marketplace stats (no auth)",
         },
-        "example_buy": {
+        "purchase_flow": {
+            "step_1": "GET /api/public/discover?capability=code — find a service and note its service_id + price_usdc",
+            "step_2": f"Send price_usdc in USDC to {TREASURY_ADDRESS} on Solana mainnet",
+            "step_3": "POST /api/public/execute with {service_id, prompt, payment_tx: 'your_solana_tx_signature'}",
+            "step_4": "MAXIA verifies on-chain, executes the service, pays the seller (minus commission)",
+            "note": "payment_tx is REQUIRED. Each tx signature can only be used once (idempotent).",
+        },
+        "example_execute": {
+            "method": "POST",
+            "url": "/api/public/execute",
+            "headers": {"X-API-Key": "your_api_key"},
+            "body": {
+                "service_id": "uuid-of-service-or-maxia-code",
+                "prompt": "Write a Solana token transfer function in Rust",
+                "payment_tx": "5xYz...your_real_solana_tx_signature",
+            },
+            "response_includes": ["result", "payment_verified", "seller_gets_usdc", "commission_usdc"],
+        },
+        "example_buy_native": {
             "method": "POST",
             "url": "/api/public/buy",
-            "headers": {"X-API-Key": "votre_cle_api"},
+            "headers": {"X-API-Key": "your_api_key"},
             "body": {
                 "service_type": "code",
                 "prompt": "Write a Solana token transfer function in Rust",
-                "payment_tx": "signature_transaction_usdc",
+                "payment_tx": "5xYz...your_real_solana_tx_signature",
             },
         },
-        "commission": "Marketplace: 1% (Bronze) → 0.5% (Gold) → 0.1% (Whale). Swap: 0.10% → 0.01%. Plus vous utilisez, moins vous payez.",
-        "security": "Art.1 — Tout contenu illegal, pedopornographique, terroriste ou frauduleux est automatiquement bloque et signale.",
+        "commission": "Marketplace: 1% (Bronze) -> 0.5% (Gold) -> 0.1% (Whale). Plus vous utilisez, moins vous payez.",
+        "security": "Art.1 — All illegal content is automatically blocked. All payments verified on-chain.",
     }
 
 
@@ -634,12 +656,25 @@ async def get_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-AP
 # ══════════════════════════════════════════
 
 @router.post("/buy")
-async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Acheter un service MAXIA. L'IA envoie un prompt et recoit le resultat."""
+async def buy_service(req: dict, request: Request, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Acheter un service MAXIA natif. Requiert un vrai paiement USDC on-chain.
+
+    Body: {
+        "service_type": "code|audit|data|text|audit_deep",
+        "prompt": "your request",
+        "payment_tx": "solana_tx_signature"   ← REQUIRED
+    }
+
+    Flow:
+    1. Send USDC to MAXIA Treasury on Solana
+    2. Pass the tx signature here
+    3. MAXIA verifies on-chain, then executes the service
+    """
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
-    agent = _get_agent(x_api_key)
+    client_ip = request.client.host if request.client else ""
+    agent = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
     # Fix #7: String length limits
@@ -649,6 +684,8 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
 
     if not prompt:
         raise HTTPException(400, "Prompt requis")
+    if not payment_tx:
+        raise HTTPException(400, "payment_tx required. Send USDC to Treasury first, then pass the Solana tx signature.")
 
     # Art.1 — Filtrage STRICT anti-pedopornographie et contenu illegal
     _check_safety(prompt, "prompt")
@@ -660,13 +697,39 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
     }
     price = prices.get(service_type, 1.99)
 
+    # ═══ REAL USDC PAYMENT VERIFICATION ═══
+
+    # Idempotency: reject reused payment signatures
+    from database import db as _buy_db
+    if await _buy_db.tx_already_processed(payment_tx):
+        raise HTTPException(400, "Payment already used for a previous purchase")
+
+    # On-chain verification via solana_verifier
+    try:
+        from solana_verifier import verify_transaction
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=price,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}. "
+                                f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[PublicAPI] Payment verification error in /buy: {e}")
+        raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
+
+    print(f"[Marketplace] /buy payment verified: {payment_tx[:16]}... ({price} USDC from {tx_result.get('from', '?')[:12]}...)")
+
     # Calculer la commission
     volume = agent.get("volume_30d", 0)
     commission_bps = get_commission_bps(volume)
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
-    # Executer le service via Groq
+    # Executer le service via Groq (only AFTER payment is verified)
     if not groq_client:
         raise HTTPException(503, "Service IA temporairement indisponible")
 
@@ -709,19 +772,30 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         "commission_bps": commission_bps,
         "seller_gets_usdc": seller_gets,
         "payment_tx": payment_tx,
+        "payment_verified": True,
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)
 
-    # Mettre a jour les stats de l'agent
-    agent["volume_30d"] += price
-    agent["total_spent"] += price
-    agent["tier"] = _get_tier_name(agent["volume_30d"])
+    # Record tx for idempotency
+    try:
+        await _buy_db.record_transaction(agent["wallet"], payment_tx, price, "buy_native")
+    except Exception:
+        pass
+
+    # Mettre a jour les stats de l'agent (with lock)
+    async with _agent_update_lock:
+        agent["volume_30d"] += price
+        agent["total_spent"] += price
+        agent["tier"] = _get_tier_name(agent["volume_30d"])
+
+    # Persist to DB
+    await _save_tx_to_db(tx, agent)
 
     # Alerte Discord
     try:
         from alerts import alert_revenue
-        await alert_revenue(commission, f"API publique — {agent['name']}")
+        await alert_revenue(commission, f"API publique — {agent['name']} (verified on-chain)")
     except Exception:
         pass
 
@@ -742,6 +816,8 @@ async def buy_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key"
         "result_hash": result_hash,
         "price_usdc": price,
         "commission_usdc": commission,
+        "payment_verified": True,
+        "payment_tx": payment_tx,
         "your_tier": agent["tier"],
         "your_volume_30d": agent["volume_30d"],
     }
@@ -1390,6 +1466,13 @@ async def discover_services(
         "query": {"capability": capability, "max_price": max_price, "min_rating": min_rating},
         "results_count": len(results),
         "agents": results,
+        "how_to_buy": {
+            "step_1": "Send price_usdc in USDC to treasury_wallet on Solana mainnet",
+            "step_2": "POST /api/public/execute with {service_id, prompt, payment_tx: 'your_solana_tx_signature'}",
+            "treasury_wallet": TREASURY_ADDRESS,
+            "currency": "USDC on Solana",
+            "usdc_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        },
     }
 
 
@@ -1416,12 +1499,22 @@ async def discover_services_post(req: dict = {}):
 
 @router.post("/execute")
 async def execute_agent_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Buy AND execute a service in one call.
+    """Buy AND execute a service in one call. Requires real USDC payment on Solana.
 
     If the seller has a webhook endpoint, MAXIA calls it automatically
     and returns the result. Full AI-to-AI automation.
 
-    Body: {"service_id": "xxx", "prompt": "your request", "payment_tx": "optional"}
+    Body: {
+        "service_id": "xxx",
+        "prompt": "your request",
+        "payment_tx": "solana_tx_signature"   <- REQUIRED
+    }
+
+    Flow:
+    1. GET /discover to find a service and its price
+    2. Send price in USDC to MAXIA Treasury on Solana
+    3. POST /execute with the tx signature
+    4. MAXIA verifies on-chain -> executes -> pays seller (minus commission)
     """
     await _load_from_db()
     if not x_api_key:
@@ -1438,8 +1531,14 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     # Fix #7: String length limits
     service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
     prompt = req.get("prompt", "").strip()[:50000]
+    payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
+
     if not prompt:
         raise HTTPException(400, "prompt required")
+    if not payment_tx:
+        raise HTTPException(400,
+            "payment_tx required. Send USDC to Treasury on Solana first, then pass the tx signature. "
+            f"Treasury: {TREASURY_ADDRESS}")
 
     _check_safety(prompt, "prompt")
 
@@ -1452,11 +1551,54 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
     # Check if it's a MAXIA native service
     is_native = service_id.startswith("maxia-")
+
     if is_native:
-        # Execute MAXIA native service via Groq
-        result_text = await _execute_native_service(service_id, prompt)
         price = {"maxia-audit": 9.99, "maxia-code": 3.99, "maxia-data": 2.99,
                  "maxia-scraper": 0.05, "maxia-image": 0.10, "maxia-translate": 0.19}.get(service_id, 1.99)
+    elif service:
+        price = service["price_usdc"]
+    else:
+        raise HTTPException(404, "Service not found. Use GET /discover to find services.")
+
+    # ═══ VERIFY REAL USDC PAYMENT ON-CHAIN ═══
+
+    # Idempotency: reject reused payment signatures
+    from database import db as _exec_db
+    if await _exec_db.tx_already_processed(payment_tx):
+        raise HTTPException(400, "Payment already used for a previous purchase")
+
+    # On-chain verification via solana_verifier
+    try:
+        from solana_verifier import verify_transaction
+        verification = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=price,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not verification.get("valid"):
+            raise HTTPException(400,
+                f"Payment invalid: {verification.get('error', 'verification failed')}. "
+                f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[PublicAPI] Payment verification error in /execute: {e}")
+        raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
+
+    payment_verified = True
+    payment_info = {
+        "verified": True,
+        "signature": payment_tx,
+        "amount_usdc": verification.get("amount_usdc", price),
+        "from": verification.get("from", ""),
+        "to": verification.get("to", TREASURY_ADDRESS),
+    }
+
+    print(f"[Marketplace] /execute payment verified: {payment_tx[:16]}... ({price} USDC from {verification.get('from', '?')[:12]}...)")
+
+    # ═══ NATIVE SERVICE EXECUTION ═══
+    if is_native:
+        result_text = await _execute_native_service(service_id, prompt)
         volume = buyer.get("volume_30d", 0)
         commission_bps = get_commission_bps(volume)
         commission = price * commission_bps / 10000
@@ -1466,10 +1608,21 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             "seller": "MAXIA", "service": service_id,
             "price_usdc": price, "commission_usdc": commission,
             "seller_gets_usdc": price - commission, "timestamp": int(time.time()),
+            "payment_tx": payment_tx, "payment_verified": True,
         }
         _transactions.append(tx)
-        buyer["volume_30d"] += price
-        buyer["total_spent"] += price
+
+        async with _agent_update_lock:
+            buyer["volume_30d"] += price
+            buyer["total_spent"] += price
+            buyer["tier"] = _get_tier_name(buyer["volume_30d"])
+
+        # Persist to DB
+        await _save_tx_to_db(tx, buyer)
+        try:
+            await _exec_db.record_transaction(buyer["wallet"], payment_tx, price, "execute_native")
+        except Exception:
+            pass
 
         return {
             "success": True, "tx_id": tx["tx_id"],
@@ -1477,70 +1630,39 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             "price_usdc": price, "commission_usdc": commission,
             "result": result_text,
             "execution": "native",
+            "payment_verified": True,
+            "payment": payment_info,
         }
 
-    if not service:
-        raise HTTPException(404, "Service not found. Use GET /discover to find services.")
-
-    price = service["price_usdc"]
+    # ═══ EXTERNAL AGENT SERVICE — compute commission + pay seller ═══
     volume = buyer.get("volume_30d", 0)
     commission_bps = get_commission_bps(volume)
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
-    # ═══ REAL USDC PAYMENT ═══
-    payment_tx = req.get("payment_tx", "")
-    payment_verified = False
-    payment_info = {}
-
-    # Fix #10: Idempotency — reject reused payment_tx
-    if payment_tx:
-        from database import db as _exec_db
-        if await _exec_db.tx_already_processed(payment_tx):
-            raise HTTPException(400, "Payment already used")
-
-    if payment_tx:
-        # Buyer sent a tx signature — verify on-chain
+    # Transfer seller's share on-chain
+    seller_wallet = service.get("agent_wallet", "")
+    if seller_wallet and seller_gets > 0.001:
         try:
-            from solana_tx import verify_usdc_payment
-            verification = await verify_usdc_payment(payment_tx, expected_amount_usdc=price,
-                                                       expected_to=TREASURY_ADDRESS)
-            payment_verified = verification.get("valid", False)
-            payment_info = verification
-            if payment_verified:
-                print(f"[Marketplace] USDC payment verified: {payment_tx[:16]}... ({price} USDC)")
-                # Transfer seller's share
-                try:
-                    from solana_tx import send_usdc_transfer
-                    from config import ESCROW_PRIVKEY_B58, TREASURY_ADDRESS as TREASURY
-                    seller_wallet = service.get("agent_wallet", "")
-                    if seller_wallet and seller_gets > 0.001:
-                        transfer = await send_usdc_transfer(
-                            to_address=seller_wallet,
-                            amount_usdc=seller_gets,
-                            from_privkey=ESCROW_PRIVKEY_B58,
-                            from_address=TREASURY,
-                        )
-                        if transfer.get("success"):
-                            print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
-                            payment_info["seller_paid"] = True
-                            payment_info["seller_tx"] = transfer.get("signature", "")
-                        else:
-                            payment_info["seller_paid"] = False
-                            payment_info["seller_error"] = transfer.get("error", "")
-                except Exception as e:
-                    payment_info["seller_paid"] = False
-                    payment_info["seller_error"] = str(e)
-                # Commission stays at TREASURY_ADDRESS (buyer paid full price to treasury,
-                # seller receives price - commission via send_usdc_transfer)
+            from solana_tx import send_usdc_transfer
+            from config import ESCROW_PRIVKEY_B58, TREASURY_ADDRESS as TREASURY
+            transfer = await send_usdc_transfer(
+                to_address=seller_wallet,
+                amount_usdc=seller_gets,
+                from_privkey=ESCROW_PRIVKEY_B58,
+                from_address=TREASURY,
+            )
+            if transfer.get("success"):
+                print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
+                payment_info["seller_paid"] = True
+                payment_info["seller_tx"] = transfer.get("signature", "")
             else:
-                print(f"[Marketplace] Payment NOT verified: {verification.get('error', 'unknown')}")
+                payment_info["seller_paid"] = False
+                payment_info["seller_error"] = transfer.get("error", "")
         except Exception as e:
-            # Fix #21: Don't leak internal error details
-            print(f"[PublicAPI] Payment verification error in /execute: {e}")
-            payment_info = {"error": "Payment verification failed"}
-    else:
-        payment_info = {"note": "No payment_tx provided. Send USDC to Treasury first, then pass the tx signature."}
+            print(f"[Marketplace] Seller payment error: {e}")
+            payment_info["seller_paid"] = False
+            payment_info["seller_error"] = "Seller payout pending — will retry"
 
     # Record transaction
     tx = {
@@ -1548,28 +1670,28 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         "seller": service["agent_name"], "service": service["name"],
         "price_usdc": price, "commission_usdc": commission,
         "seller_gets_usdc": seller_gets, "timestamp": int(time.time()),
-        "payment_verified": payment_verified,
+        "payment_tx": payment_tx, "payment_verified": True,
     }
     _transactions.append(tx)
 
-    # Fix #3: Wrap agent stat updates in lock to prevent race conditions
+    # Update agent stats (with lock)
     async with _agent_update_lock:
         buyer["volume_30d"] += price
         buyer["total_spent"] += price
+        buyer["tier"] = _get_tier_name(buyer["volume_30d"])
         service["sales"] += 1
 
-        # Fix #12: Only credit seller if payment verified
         seller_key = service.get("agent_api_key")
         seller = _registered_agents.get(seller_key)
-        if payment_verified and seller:
+        if seller:
             seller["total_earned"] += seller_gets
             seller["volume_30d"] += seller_gets
-            seller["tier"] = _get_tier_name(seller["volume_30d"])  # Fix #24: update seller tier
+            seller["tier"] = _get_tier_name(seller["volume_30d"])
 
-    # Fix #4/#7: Persist tx + seller stats to DB (pass seller_key)
-    await _save_tx_to_db(tx, buyer, seller_key=seller_key if payment_verified else None)
+    # Persist tx + seller stats to DB
+    await _save_tx_to_db(tx, buyer, seller_key=seller_key)
 
-    # Fix #9/#23: Persist service sales count
+    # Persist service sales count
     try:
         from database import db as _exec_db2
         await _exec_db2.update_service(service_id, {"sales": service.get("sales", 0)})
@@ -1577,20 +1699,19 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         pass
 
     # Record in transactions table for idempotency
-    if payment_tx:
-        try:
-            from database import db as _exec_db3
-            await _exec_db3.record_transaction(buyer["wallet"], payment_tx, price, "marketplace")
-        except Exception:
-            pass
+    try:
+        from database import db as _exec_db3
+        await _exec_db3.record_transaction(buyer["wallet"], payment_tx, price, "execute_marketplace")
+    except Exception:
+        pass
 
-    # Execute via webhook if available
+    # Execute via webhook if available (AFTER payment is verified and recorded)
     result_text = None
     execution_method = "pending"
     endpoint = service.get("endpoint", "")
 
     if endpoint and endpoint.startswith("http"):
-        # Fix #10: SSRF protection — validate seller endpoint URL against private IPs
+        # SSRF protection — validate seller endpoint URL against private IPs
         try:
             from webhook_dispatcher import validate_callback_url
             validate_callback_url(endpoint)
@@ -1608,6 +1729,9 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                         "buyer": buyer["name"],
                         "service_id": service_id,
                         "tx_id": tx["tx_id"],
+                        "payment_tx": payment_tx,
+                        "payment_verified": True,
+                        "amount_usdc": price,
                     })
                     if resp.status_code == 200:
                         result_data = resp.json()
@@ -1617,15 +1741,14 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                         result_text = f"Seller webhook returned {resp.status_code}"
                         execution_method = "webhook_error"
             except Exception as e:
-                # Fix #21: Don't leak internal webhook error details
                 print(f"[PublicAPI] Webhook call error: {e}")
                 result_text = "Webhook call failed — seller will be notified"
                 execution_method = "webhook_error"
     else:
         execution_method = "manual"
-        result_text = "Service purchased. Seller will deliver manually (no webhook configured)."
+        result_text = "Service purchased and payment verified. Seller will deliver manually (no webhook configured)."
 
-    # Fix #17: Webhook failure handling — notify buyer but don't rollback (on-chain payment)
+    # Webhook failure handling — notify buyer but don't rollback (on-chain payment is final)
     if execution_method == "webhook_error":
         tx["webhook_failed"] = True
         payment_info["webhook_warning"] = "Webhook call failed. Payment is on-chain and cannot be reversed. Contact the seller for delivery."
@@ -1633,7 +1756,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     # Alert
     try:
         from alerts import alert_revenue
-        await alert_revenue(commission, f"AI-to-AI: {buyer['name']} -> {service['agent_name']}")
+        await alert_revenue(commission, f"AI-to-AI: {buyer['name']} -> {service['agent_name']} (verified on-chain)")
     except Exception:
         pass
 
@@ -1646,10 +1769,10 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             "seller": service["agent_name"],
             "service": service["name"],
             "price_usdc": price,
+            "payment_verified": True,
             "timestamp": int(time.time()),
         })
         # Notify the seller specifically
-        seller_wallet = service.get("agent_wallet", "")
         if seller_wallet:
             await notify_webhook_subscribers("service_sold", {
                 "tx_id": tx["tx_id"],
@@ -1658,17 +1781,18 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                 "price_usdc": price,
                 "your_earnings_usdc": seller_gets,
                 "seller_wallet": seller_wallet,
+                "payment_verified": True,
             }, filter_wallet=seller_wallet)
     except Exception as e:
         print(f"[Marketplace] Webhook notification error: {e}")
 
-    # Telegram/Discord notification to seller (simple push)
+    # Telegram/Discord notification to seller
     try:
         from alerts import alert_system
         await alert_system(
-            "New Sale",
+            "New Sale (Verified)",
             f"**{buyer['name']}** bought **{service['name']}** for **${price:.2f} USDC**. "
-            f"Seller earns ${seller_gets:.2f}. Tx: `{tx['tx_id'][:12]}...`"
+            f"Seller earns ${seller_gets:.2f}. Payment verified on-chain. Tx: `{tx['tx_id'][:12]}...`"
         )
     except Exception:
         pass
@@ -1677,7 +1801,6 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     try:
         from ceo_maxia import ceo
         ceo.memory.log_action_with_tracking("MARKETPLACE", "sale", tx["tx_id"][:16], f"{service['name']} ${price}")
-        # Attribute revenue to the signup action of this buyer
         roi = ceo.memory._data.get("roi_tracking", [])
         for entry in reversed(roi[-100:]):
             if entry.get("type") == "signup" and buyer["name"] in entry.get("details", ""):
@@ -1693,11 +1816,10 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         "seller_gets_usdc": seller_gets,
         "result": result_text,
         "execution": execution_method,
-        "payment_verified": payment_verified,
+        "payment_verified": True,
         "payment": payment_info,
         "seller_wallet": service["agent_wallet"],
         "treasury_wallet": TREASURY_ADDRESS,
-        "how_to_pay": f"Send {price} USDC to {TREASURY_ADDRESS} on Solana, then pass payment_tx in your request.",
     }
 
 

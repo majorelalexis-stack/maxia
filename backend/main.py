@@ -21,8 +21,9 @@ from data_marketplace import router as data_router
 from models import (
     AuctionCreateRequest, AuctionSettleRequest, CommandRequest,
     ListingCreateRequest, BaseVerifyRequest, AP2PaymentRequest,
+    GpuRentRequest, GpuRentPublicRequest,
 )
-from runpod_client import RunPodClient
+from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
 from solana_verifier import verify_transaction
 from security import check_content_safety, check_rate_limit, set_redis_client
 from redis_client import redis_client
@@ -2163,7 +2164,14 @@ async def get_command(command_id: str, wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/tiers")
 async def get_tiers():
-    return GPU_TIERS
+    """GPU tiers with live pricing from RunPod (falls back to static data)."""
+    try:
+        live = await get_gpu_tiers_live()
+        if live and live.get("tiers"):
+            return live
+    except Exception as e:
+        print(f"[GPU] Live tiers fallback to static: {e}")
+    return {"tiers": GPU_TIERS, "provider": "static"}
 
 
 @app.get("/api/gpu/auctions/active")
@@ -2222,13 +2230,215 @@ async def settle_auction(req: AuctionSettleRequest):
     await db.record_transaction(req.winner, req.tx_signature, auction["currentBid"], "gpu_auction")
     await db.update_auction(req.auction_id, {
         "status": "provisioned", "txSignature": req.tx_signature,
-        "gpuInstanceId": instance["instanceId"], "sshEndpoint": instance["sshEndpoint"],
+        "gpuInstanceId": instance["instanceId"], "sshEndpoint": instance.get("ssh_endpoint", ""),
     })
     await auction_manager.broadcast({"type": "GPU_PROVISIONED", "payload": {
         "auctionId": req.auction_id, "winner": req.winner,
-        "gpuLabel": auction["gpuLabel"], "sshEndpoint": instance["sshEndpoint"],
+        "gpuLabel": auction["gpuLabel"], "sshEndpoint": instance.get("ssh_endpoint", ""),
     }})
     return {"ok": True, "instanceId": instance["instanceId"]}
+
+
+# ═══════════════════════════════════════════════════════════
+#  GPU RENTAL — Direct rent (no auction)
+# ═══════════════════════════════════════════════════════════
+
+# Free trial: first 10 minutes free per wallet (RTX 4090 only)
+FREE_TRIAL_MINUTES = 10
+FREE_TRIAL_GPU = "rtx4090"
+
+# Label -> tier ID mapping (for frontend that sends display names)
+_LABEL_TO_TIER = {}
+for _tid, _ginfo in GPU_MAP.items():
+    _label = _ginfo["runpod_id"].replace("NVIDIA ", "").replace("GeForce ", "")
+    _LABEL_TO_TIER[_label.lower()] = _tid
+    _LABEL_TO_TIER[_ginfo["runpod_id"].lower()] = _tid
+# Also add explicit known labels
+_LABEL_TO_TIER.update({
+    "rtx 4090": "rtx4090", "rtx4090": "rtx4090", "geforce rtx 4090": "rtx4090",
+    "a100 80gb": "a100_80", "a100 80gb pcie": "a100_80", "a100": "a100_80",
+    "h100 sxm5": "h100_sxm5", "h100": "h100_sxm5",
+    "rtx a6000": "a6000", "a6000": "a6000",
+    "4x a100 80gb": "4xa100", "4xa100": "4xa100",
+    "h200 sxm": "h200", "h200": "h200",
+    "l40s": "l40s", "rtx 3090": "rtx3090", "rtx3090": "rtx3090",
+})
+
+
+def _resolve_gpu_tier(gpu_input: str) -> str | None:
+    """Resolve a GPU label or tier ID to a canonical tier ID."""
+    normalized = gpu_input.strip().lower()
+    # Direct tier ID match
+    if normalized in GPU_MAP:
+        return normalized
+    # Label lookup
+    return _LABEL_TO_TIER.get(normalized)
+
+
+@app.get("/api/public/gpu/tiers")
+async def get_gpu_tiers_public():
+    """Live GPU pricing + availability from RunPod. No auth required."""
+    return await get_gpu_tiers_live()
+
+
+@app.post("/api/gpu/rent")
+async def rent_gpu_direct(req: dict):
+    """Rent a GPU directly. Supports free trial (10 min RTX 4090) or paid via USDC tx.
+
+    Body: { gpu: str (tier ID or label), wallet: str, hours: float, payment_tx?: str }
+    """
+    gpu_input = req.get("gpu") or req.get("gpu_tier_id", "")
+    wallet = req.get("wallet", "")
+    hours = float(req.get("hours", 1))
+    payment_tx = req.get("payment_tx")
+
+    if not wallet:
+        raise HTTPException(400, "Wallet address required")
+    if hours <= 0 or hours > 720:
+        raise HTTPException(400, "Hours must be between 0 and 720")
+
+    # Resolve GPU tier
+    tier_id = _resolve_gpu_tier(gpu_input)
+    if not tier_id:
+        raise HTTPException(400, f"Unknown GPU: {gpu_input}. Available: {', '.join(GPU_MAP.keys())}")
+    if tier_id not in GPU_MAP:
+        raise HTTPException(400, f"GPU tier not available for rental: {tier_id}")
+
+    gpu_config = GPU_MAP[tier_id]
+    cost_per_hr = gpu_config.get("base_price_per_hour", 0)
+    total_cost = round(cost_per_hr * hours, 4)
+
+    # Determine if this is a free trial
+    is_free_trial = False
+    if not payment_tx:
+        # Check free trial eligibility
+        existing = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM gpu_instances WHERE agent_wallet=? AND payment_tx='free_trial'",
+            (wallet,)
+        )
+        used_trials = existing[0][0] if existing else 0
+
+        if used_trials > 0:
+            raise HTTPException(402, "Free trial already used. Send USDC payment and include payment_tx.")
+
+        if tier_id != FREE_TRIAL_GPU:
+            raise HTTPException(402, f"Free trial only available for {FREE_TRIAL_GPU}. Send USDC payment for {tier_id}.")
+
+        if hours > FREE_TRIAL_MINUTES / 60:
+            raise HTTPException(402, f"Free trial limited to {FREE_TRIAL_MINUTES} minutes. Send USDC payment for longer rentals.")
+
+        is_free_trial = True
+        hours = FREE_TRIAL_MINUTES / 60  # cap at 10 min
+        total_cost = 0
+        payment_tx = "free_trial"
+        print(f"[GPU Rent] Free trial approved for {wallet}")
+
+    else:
+        # Verify USDC payment on-chain
+        if await db.tx_already_processed(payment_tx):
+            raise HTTPException(400, "Transaction already processed.")
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=total_cost,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}")
+
+    # Provision the GPU on RunPod
+    print(f"[GPU Rent] Provisioning {tier_id} for {hours}h — wallet: {wallet}")
+    result = await runpod.rent_gpu(tier_id, hours)
+
+    if not result.get("success"):
+        raise HTTPException(502, f"RunPod provisioning failed: {result.get('error')}")
+
+    # Record in database
+    instance_id = result["instanceId"]
+    try:
+        await db.save_gpu_instance({
+            "instance_id": instance_id,
+            "agent_wallet": wallet,
+            "agent_name": wallet[:8],
+            "gpu_tier": tier_id,
+            "duration_hours": hours,
+            "price_per_hour": cost_per_hr,
+            "total_cost": total_cost,
+            "commission": 0,
+            "payment_tx": payment_tx,
+            "runpod_pod_id": instance_id,
+            "status": result.get("status", "provisioning"),
+            "ssh_endpoint": result.get("ssh_endpoint", ""),
+            "scheduled_end": result.get("auto_terminate_at", 0),
+        })
+    except Exception as e:
+        print(f"[GPU Rent] DB save warning: {e}")
+
+    # Record the transaction (skip for free trial)
+    if not is_free_trial:
+        try:
+            await db.record_transaction(wallet, payment_tx, total_cost, "gpu_rental")
+        except Exception as e:
+            print(f"[GPU Rent] TX record warning: {e}")
+
+    return {
+        "ok": True,
+        "instanceId": instance_id,
+        "gpu": result.get("gpu", tier_id),
+        "gpu_count": result.get("gpu_count", 1),
+        "status": result.get("status", "provisioning"),
+        "ssh_command": result.get("ssh_command", ""),
+        "ssh_endpoint": result.get("ssh_endpoint", ""),
+        "jupyter_url": result.get("jupyter_url", ""),
+        "api_url": result.get("api_url", ""),
+        "cost_per_hr": cost_per_hr,
+        "total_cost": total_cost,
+        "duration_hours": hours,
+        "auto_terminate_at": result.get("auto_terminate_at", 0),
+        "is_free_trial": is_free_trial,
+        "provider": "runpod",
+        "instructions": result.get("instructions", ""),
+    }
+
+
+@app.post("/api/public/gpu/rent")
+async def rent_gpu_public(req: dict):
+    """Public API endpoint for GPU rental (A2A agents). Same logic as /api/gpu/rent."""
+    return await rent_gpu_direct(req)
+
+
+@app.get("/api/gpu/status/{pod_id}")
+async def get_gpu_status(pod_id: str):
+    """Get real-time status of a running GPU pod."""
+    return await runpod.get_pod_status(pod_id)
+
+
+@app.post("/api/gpu/terminate/{pod_id}")
+async def terminate_gpu(pod_id: str, wallet: str = Depends(require_auth)):
+    """Terminate a GPU pod early. Only the renter can terminate."""
+    # Verify ownership
+    instance = await db.get_gpu_instance(pod_id)
+    if not instance:
+        raise HTTPException(404, "GPU instance not found")
+    if instance.get("agent_wallet") != wallet:
+        raise HTTPException(403, "Only the renter can terminate this pod")
+
+    result = await runpod.terminate_pod(pod_id)
+    if result.get("success"):
+        try:
+            await db.update_gpu_instance(pod_id, {
+                "status": "terminated",
+                "actual_end": int(time.time()),
+                "actual_cost": result.get("actual_cost", 0),
+            })
+        except Exception as e:
+            print(f"[GPU] DB update warning: {e}")
+    return result
+
+
+@app.get("/api/gpu/active")
+async def list_active_gpus():
+    """List all currently active GPU pods."""
+    return await runpod.list_active_pods()
 
 
 # ═══════════════════════════════════════════════════════════

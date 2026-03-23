@@ -19,10 +19,13 @@ BASE_URL = "https://api.runpod.io/graphql"
 
 # Mapping tier -> RunPod GPU ID (base_price_per_hour = fallback when RunPod returns 0)
 GPU_MAP = {
+    "rtx3090":   {"runpod_id": "NVIDIA GeForce RTX 3090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.44},
     "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "SECURE", "base_price_per_hour": 0.69},
+    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE", "base_price_per_hour": 0.99},
+    "l40s":      {"runpod_id": "NVIDIA L40S", "cloud_type": "SECURE", "base_price_per_hour": 1.14},
     "a100_80":   {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "base_price_per_hour": 1.79},
     "h100_sxm5": {"runpod_id": "NVIDIA H100 SXM5", "cloud_type": "SECURE", "base_price_per_hour": 2.69},
-    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE", "base_price_per_hour": 0.99},
+    "h200":      {"runpod_id": "NVIDIA H200 SXM", "cloud_type": "SECURE", "base_price_per_hour": 4.31},
     "4xa100":    {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "gpu_count": 4, "base_price_per_hour": 7.16},
 }
 
@@ -64,8 +67,10 @@ class RunPodClient:
         gpu_count = gpu_config.get("gpu_count", 1)
 
         # 1. Creer le pod
+        pod_name = f"maxia-{gpu_tier_id}-{int(time.time())}"
         query = (
             "mutation { podFindAndDeployOnDemand( input: {"
+            f' name: "{pod_name}"'
             f" cloudType: {cloud_type}"
             f" gpuCount: {gpu_count}"
             " volumeInGb: 50"
