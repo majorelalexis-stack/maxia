@@ -782,6 +782,8 @@ class CEOLocal:
 
                 # ── PRIORITE 0 : REPONDRE (avant tout) ──
                 # Si des gens nous parlent, on repond AVANT de faire quoi que ce soit
+                # Flag pour eviter de re-reply dans la routine
+                self._mentions_done_this_cycle = False
                 try:
                     mentions = await browser.get_mentions(10)
                     pending = [m for m in (mentions or []) if m.get("url") and not browser._is_duplicate("reply", m.get("url", ""))]
@@ -789,6 +791,7 @@ class CEOLocal:
                         _log(f"[PRIORITY] {len(pending)} mentions en attente — reponse prioritaire")
                         reply_result = await self._reply_to_mentions()
                         _log(f"[MENTIONS] {reply_result.get('detail', '')}")
+                        self._mentions_done_this_cycle = True
                 except Exception as e:
                     _log(f"[MENTIONS] Erreur: {e}")
 
@@ -1166,55 +1169,54 @@ class CEOLocal:
         # Mentions/DMs/emails checkes dans 5 cycles sur 8 (62%)
         routines = [
 
-            # ── Cycle 0 : REPONDRE + TWEET DU MATIN ──
-            # Priorite : repondre aux gens qui nous parlent, puis poster 1 tweet
+            # Mentions gerees automatiquement en PRIORITY (avant les routines)
+            # Les routines ne font PAS reply_mentions — evite les doublons
+
+            # ── Cycle 0 : TWEET + DMs ──
             [
-                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 1 : ENGAGER — commenter des devs pertinents ──
-            # On cherche des devs frustres et on commente avec un insight utile
+            # ── Cycle 1 : ENGAGER — trouver des devs frustres ──
             [
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
-                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-            ],
-
-            # ── Cycle 2 : EMAILS + PROSPECTION ciblee ──
-            [
                 {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 3 : REDDIT — commenter des posts existants (10x mieux que poster) ──
+            # ── Cycle 2 : PROSPECTION ciblee ──
+            [
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 3 : REDDIT — commenter des posts existants ──
             [
                 {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
-                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 4 : REPONDRE + DMs ──
+            # ── Cycle 4 : EMAILS + DMs ──
             [
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
                 {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 5 : 2EME TWEET + ENGAGEMENT ──
+            # ── Cycle 5 : 2EME TWEET + PROSPECTION ──
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 6 : REPONDRE + ANALYSER ──
+            # ── Cycle 6 : PRIX + GITHUB ──
             [
-                {"action": "reply_mentions", "agent": "RESPONDER", "params": {}, "priority": "vert"},
                 {"action": "watch_prices", "agent": "RADAR", "params": {}, "priority": "vert"},
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 7 : GITHUB + ENGAGEMENT REDDIT ──
+            # ── Cycle 7 : DMs + PROSPECTION ──
             [
-                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 3) % len(prospect_queries)]}, "priority": "vert"},
             ],
         ]
 
@@ -1479,6 +1481,8 @@ class CEOLocal:
             result = await browser.score_twitter_profile(params.get("username", ""))
             return {"success": bool(result.get("score", 0)), "detail": f"Score: {result.get('score', 0)} -> {result.get('recommend', '?')}", "data": result}
         elif action == "reply_mentions":
+            if getattr(self, '_mentions_done_this_cycle', False):
+                return {"success": True, "detail": "Already replied in priority pass"}
             return await self._reply_to_mentions()
         elif action == "detect_opportunities":
             opps = await browser.detect_opportunities(params.get("max", 5))
@@ -2278,20 +2282,25 @@ class CEOLocal:
             _log(f"[THREAD] Failed to post: {result}")
 
     async def _reply_to_mentions(self) -> dict:
-        """Lit les mentions et repond intelligemment a chacune."""
+        """Lit les mentions et repond intelligemment a chacune.
+        Max 1 reply par username par cycle. Max 3 replies total."""
         mentions = await browser.get_mentions(10)
         if not mentions:
             return {"success": True, "detail": "0 mentions"}
 
         replied = 0
+        replied_users = set()  # Dedup par username
         for m in mentions:
             url = m.get("url", "")
             text = m.get("text", "")
             user = m.get("username", "")
             if not url or not text:
                 continue
-            # Verifier si deja repondu
+            # Dedup par URL (deja repondu a ce tweet)
             if browser._is_duplicate("reply", url):
+                continue
+            # Dedup par username (max 1 reply par user par cycle)
+            if user and user in replied_users:
                 continue
             # Like the mention first (shows we're attentive)
             if url and not browser._is_duplicate("like", url):
@@ -2309,6 +2318,8 @@ class CEOLocal:
                 result = await browser.reply_tweet(url, reply_text)
                 if result.get("success"):
                     replied += 1
+                    if user:
+                        replied_users.add(user)
                     _log(f"  Reply @{user}: {reply_text[:60]}")
                     browser._record_action("reply", browser._content_hash("reply", url))
                     # Tracker la conversation
