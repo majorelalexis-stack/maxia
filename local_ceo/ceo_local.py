@@ -358,7 +358,10 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
         f"- Each reply must be DIFFERENT from others\n"
         f"ENGLISH ONLY. Reply text ONLY, no quotes."
     )
-    reply = await call_local_llm(prompt, system, max_tokens=120)
+    # Groq pour les replies publiques (qualite critique)
+    reply = await call_groq_local(prompt, system, max_tokens=80)
+    if not reply:
+        reply = await call_ollama(prompt, system, max_tokens=80)
     # Nettoyer
     reply = reply.strip().strip('"').strip("'")
     if len(reply) > 280:
@@ -461,17 +464,19 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Groq (meilleure qualite) > Mistral (fallback rapide) > Ollama (local, lent)."""
-    # 1. Groq — meilleur modele (Llama 3.3 70B), qualite superieure
+    """Groq (qualite) > Ollama 14B (gratuit illimite) > Mistral (dernier recours).
+    Utilise par les taches non-critiques. Les taches publiques (tweets, comments)
+    appellent directement call_groq_local ou call_ollama."""
+    # 1. Groq — meilleur modele (Llama 3.3 70B)
     result = await call_groq_local(prompt, system, max_tokens)
     if result:
         return result
-    # 2. Mistral — fallback rapide, pas de rate limit dur
-    result = await call_mistral(prompt, system, max_tokens)
+    # 2. Ollama 14B — gratuit, illimite, bonne qualite
+    result = await call_ollama(prompt, system, max_tokens)
     if result:
         return result
-    # 3. Ollama — local, 0 cout, plus lent
-    return await call_ollama(prompt, system, max_tokens)
+    # 3. Mistral — dernier recours si tout echoue
+    return await call_mistral(prompt, system, max_tokens)
 
 
 def parse_json(text: str) -> dict:
@@ -2016,7 +2021,10 @@ class CEOLocal:
             f"- MUST be in English regardless of tweet language\n"
             f"Reply text ONLY. No quotes."
         )
-        comment = await call_local_llm(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=80)
+        # Groq pour les commentaires publics (qualite critique)
+        comment = await call_groq_local(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=60)
+        if not comment:
+            comment = await call_ollama(prompt, system="Senior developer. Thoughtful technical comments. English only. No slang.", max_tokens=60)
         comment = comment.strip().strip('"').strip("'")
         if len(comment) > 250:
             comment = comment[:247] + "..."
@@ -2035,7 +2043,10 @@ class CEOLocal:
             f"- ENGLISH ONLY\n"
             f"Text ONLY:"
         )
-        text = await call_local_llm(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=60)
+        # Groq pour le contenu public, Ollama fallback
+        text = await call_groq_local(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=40)
+        if not text:
+            text = await call_ollama(prompt, system="Solo dev. Casual hot takes. English only.", max_tokens=40)
         text = text.strip().strip('"').strip("'")
         if len(text) < 5 or len(text) > 250:
             return ""
@@ -2077,7 +2088,10 @@ class CEOLocal:
                 f"- If MAXIA is relevant: 'been building something for this at maxiaworld.app, happy to share'\n"
                 f"Comment ONLY:"
             )
-            comment = await call_local_llm(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=120)
+            # Ollama 14B pour Reddit (gratuit, qualite suffisante)
+            comment = await call_ollama(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=80)
+            if not comment:
+                comment = await call_groq_local(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=80)
             comment = comment.strip().strip('"').strip("'")
             if not comment or len(comment) < 20:
                 continue
