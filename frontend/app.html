@@ -241,9 +241,22 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <div class="page active" id="page-swap">
   <div class="swap-card">
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         <h2 style="font-size:22px;font-weight:700">Swap</h2>
         <span class="badge" id="swap-tier">BRONZE 0.10%</span>
+      </div>
+
+      <!-- EVM chain selector (shown when MetaMask/EVM wallet is connected) -->
+      <div id="evm-chain-bar" style="display:none;margin-bottom:16px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-right:4px">Chain:</span>
+          <button class="evm-chain-btn" data-chain="1" onclick="switchAndRefresh(1)" style="padding:5px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">Ethereum</button>
+          <button class="evm-chain-btn" data-chain="8453" onclick="switchAndRefresh(8453)" style="padding:5px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">Base</button>
+          <button class="evm-chain-btn" data-chain="137" onclick="switchAndRefresh(137)" style="padding:5px 12px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">Polygon</button>
+          <button class="evm-chain-btn" data-chain="42161" onclick="switchAndRefresh(42161)" style="padding:5px 12px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">Arbitrum</button>
+          <button class="evm-chain-btn" data-chain="43114" onclick="switchAndRefresh(43114)" style="padding:5px 12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">Avalanche</button>
+          <button class="evm-chain-btn" data-chain="56" onclick="switchAndRefresh(56)" style="padding:5px 12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;font-family:Outfit;transition:all .2s">BNB</button>
+        </div>
       </div>
 
       <div class="swap-section">
@@ -634,6 +647,205 @@ var TOKEN_MINTS = {
 var SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 var JUPITER_V1_API = "https://lite-api.jup.ag/swap/v1";
 
+// ── EVM chain configuration ──
+var EVM_CHAINS = {
+  1:     { name: 'Ethereum',  hex: '0x1',    explorer: 'https://etherscan.io',         paraswapId: 1,     symbol: 'ETH',  wrappedNative: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' },
+  8453:  { name: 'Base',      hex: '0x2105', explorer: 'https://basescan.org',          paraswapId: 8453,  symbol: 'ETH',  wrappedNative: '0x4200000000000000000000000000000000000006' },
+  137:   { name: 'Polygon',   hex: '0x89',   explorer: 'https://polygonscan.com',       paraswapId: 137,   symbol: 'POL',  wrappedNative: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270' },
+  42161: { name: 'Arbitrum',  hex: '0xa4b1', explorer: 'https://arbiscan.io',           paraswapId: 42161, symbol: 'ETH',  wrappedNative: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1' },
+  43114: { name: 'Avalanche', hex: '0xa86a', explorer: 'https://snowtrace.io',          paraswapId: 43114, symbol: 'AVAX', wrappedNative: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7' },
+  56:    { name: 'BNB Chain', hex: '0x38',   explorer: 'https://bscscan.com',           paraswapId: 56,    symbol: 'BNB',  wrappedNative: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c' }
+};
+
+// ── EVM token addresses per chain ──
+// Native token uses 0xEeee...EEeE convention (ParaSwap + most aggregators)
+var EVM_NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+
+var EVM_TOKENS = {
+  // ── Ethereum (chainId 1) ──
+  1: {
+    'ETH':  { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',    decimals: 6  },
+    'USDT': { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',    decimals: 6  },
+    'LINK': { address: '0x514910771AF9Ca656af840dff83E8264EcF986CA',    decimals: 18 },
+    'UNI':  { address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',    decimals: 18 },
+    'AAVE': { address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9',    decimals: 18 },
+    'LDO':  { address: '0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32',    decimals: 18 },
+    'PEPE': { address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933',    decimals: 18 },
+    'SHIB': { address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE',    decimals: 18 },
+    'DOGE': { address: '0x4206931337dc273a630d328dA6441786BfaD668f',    decimals: 8  },
+    'WBTC': { address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',    decimals: 8  },
+    'DAI':  { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F',    decimals: 18 }
+  },
+  // ── Base (chainId 8453) ──
+  8453: {
+    'ETH':  { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',    decimals: 6  },
+    'DAI':  { address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',    decimals: 18 },
+    'WETH': { address: '0x4200000000000000000000000000000000000006',      decimals: 18 }
+  },
+  // ── Polygon (chainId 137) ──
+  137: {
+    'POL':  { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',    decimals: 6  },
+    'USDT': { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',    decimals: 6  },
+    'WETH': { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',    decimals: 18 },
+    'LINK': { address: '0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39',    decimals: 18 },
+    'AAVE': { address: '0xD6DF932A45C0f255f85145f286eA0b292B21C90B',    decimals: 18 },
+    'DAI':  { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',    decimals: 18 }
+  },
+  // ── Arbitrum (chainId 42161) ──
+  42161: {
+    'ETH':  { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',    decimals: 6  },
+    'USDT': { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',    decimals: 6  },
+    'LINK': { address: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4',    decimals: 18 },
+    'UNI':  { address: '0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0',    decimals: 18 },
+    'DAI':  { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',    decimals: 18 },
+    'WBTC': { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',    decimals: 8  }
+  },
+  // ── Avalanche (chainId 43114) ──
+  43114: {
+    'AVAX': { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',    decimals: 6  },
+    'USDT': { address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7',    decimals: 6  },
+    'DAI':  { address: '0xd586E7F844cEa2F87f50152665BCbc2C279D8d70',    decimals: 18 }
+  },
+  // ── BNB Chain (chainId 56) ──
+  56: {
+    'BNB':  { address: EVM_NATIVE,                                       decimals: 18 },
+    'USDC': { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',    decimals: 18 },
+    'USDT': { address: '0x55d398326f99059fF775485246999027B3197955',    decimals: 18 },
+    'DAI':  { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3',    decimals: 18 },
+    'ETH':  { address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8',    decimals: 18 }
+  }
+};
+
+// ── ParaSwap API ──
+var PARASWAP_API = 'https://apiv5.paraswap.io';
+
+// ── Helper: detect if current wallet is EVM ──
+function isEvmWallet() {
+  return walletType === 'metamask' || walletType === 'rabby' || walletType === 'coinbase' || walletType === 'walletconnect';
+}
+
+function isSolanaWallet() {
+  return walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+}
+
+// ── Get current EVM chain ID (decimal) ──
+async function getEvmChainId() {
+  if (!window.ethereum) return null;
+  try {
+    var hex = await window.ethereum.request({ method: 'eth_chainId' });
+    return parseInt(hex, 16);
+  } catch(e) { return null; }
+}
+
+// ── Switch MetaMask to a specific chain ──
+async function switchEvmChain(chainId) {
+  var chain = EVM_CHAINS[chainId];
+  if (!chain) return false;
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: chain.hex }]
+    });
+    return true;
+  } catch (switchError) {
+    // Chain not added to wallet — try to add it
+    if (switchError.code === 4902) {
+      try {
+        var addParams = {
+          chainId: chain.hex,
+          chainName: chain.name,
+          rpcUrls: [],
+          blockExplorerUrls: [chain.explorer]
+        };
+        // Add common RPC URLs
+        if (chainId === 137) addParams.rpcUrls = ['https://polygon-rpc.com'];
+        else if (chainId === 42161) addParams.rpcUrls = ['https://arb1.arbitrum.io/rpc'];
+        else if (chainId === 43114) addParams.rpcUrls = ['https://api.avax.network/ext/bc/C/rpc'];
+        else if (chainId === 56) addParams.rpcUrls = ['https://bsc-dataseed.binance.org'];
+        else if (chainId === 8453) addParams.rpcUrls = ['https://mainnet.base.org'];
+
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [addParams]
+        });
+        return true;
+      } catch(addError) { return false; }
+    }
+    return false;
+  }
+}
+
+// ── Resolve token to EVM address for a given chain ──
+function resolveEvmToken(symbol, chainId) {
+  var chainTokens = EVM_TOKENS[chainId];
+  if (!chainTokens) return null;
+  // Direct match
+  if (chainTokens[symbol]) return chainTokens[symbol];
+  // ETH on chains that use ETH as native (Ethereum, Base, Arbitrum)
+  if (symbol === 'ETH' && (chainId === 1 || chainId === 8453 || chainId === 42161)) {
+    return { address: EVM_NATIVE, decimals: 18 };
+  }
+  return null;
+}
+
+// ── EVM token approval (for ERC-20 tokens, not native ETH) ──
+async function approveEvmToken(tokenAddress, spenderAddress, amountRaw) {
+  if (tokenAddress.toLowerCase() === EVM_NATIVE.toLowerCase()) return true; // native, no approval needed
+
+  // Check current allowance
+  var allowanceData = '0xdd62ed3e'
+    + wallet.slice(2).toLowerCase().padStart(64, '0')
+    + spenderAddress.slice(2).toLowerCase().padStart(64, '0');
+
+  try {
+    var allowance = await window.ethereum.request({
+      method: 'eth_call',
+      params: [{ to: tokenAddress, data: allowanceData }, 'latest']
+    });
+    var currentAllowance = BigInt(allowance);
+    var needed = BigInt(amountRaw);
+    if (currentAllowance >= needed) return true; // already approved
+  } catch(e) { /* continue to approve */ }
+
+  // Send approve tx: approve(spender, maxUint256)
+  var maxUint = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+  var approveData = '0x095ea7b3'
+    + spenderAddress.slice(2).toLowerCase().padStart(64, '0')
+    + maxUint;
+
+  var txHash = await window.ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: wallet,
+      to: tokenAddress,
+      data: approveData
+    }]
+  });
+
+  // Wait for approval tx to be mined (simple polling)
+  for (var i = 0; i < 60; i++) {
+    await new Promise(function(r) { setTimeout(r, 2000); });
+    try {
+      var receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash]
+      });
+      if (receipt && receipt.status) {
+        if (receipt.status === '0x1') return true;
+        else throw new Error('Approval transaction reverted');
+      }
+    } catch(e) {
+      if (e.message && e.message.indexOf('reverted') !== -1) throw e;
+    }
+  }
+  throw new Error('Approval transaction timeout');
+}
+
 // ── Helpers ──
 function esc(s) {
   if (s == null) return '';
@@ -874,6 +1086,9 @@ function toggleWalletMenu() {
     btn.textContent = 'Connect Wallet';
     btn.classList.remove('connected');
     menu.style.display = 'none';
+    // Hide EVM chain bar
+    var bar = document.getElementById('evm-chain-bar');
+    if (bar) bar.style.display = 'none';
     toast('Wallet disconnected', 'info');
     return;
   }
@@ -944,9 +1159,59 @@ async function connectSpecific(type) {
 
     if (wallet) {
       var display = wallet.length > 20 ? wallet.slice(0, 6) + '...' + wallet.slice(-4) : wallet;
-      btn.textContent = display;
       btn.classList.add('connected');
+
+      // For EVM wallets, show the chain name in the button
+      if (isEvmWallet()) {
+        getEvmChainId().then(function(cid) {
+          var ci = EVM_CHAINS[cid];
+          var chainLabel = ci ? ci.name : 'EVM';
+          btn.textContent = display + ' (' + chainLabel + ')';
+        });
+        // Listen for chain changes
+        if (window.ethereum && !window.ethereum._maxiaChainListener) {
+          window.ethereum._maxiaChainListener = true;
+          window.ethereum.on('chainChanged', function(newChainHex) {
+            var newCid = parseInt(newChainHex, 16);
+            var ci = EVM_CHAINS[newCid];
+            var chainLabel = ci ? ci.name : 'Chain ' + newCid;
+            var d = wallet.length > 20 ? wallet.slice(0, 6) + '...' + wallet.slice(-4) : wallet;
+            document.getElementById('btn-wallet').textContent = d + ' (' + chainLabel + ')';
+            toast('Switched to ' + chainLabel, 'info');
+            // Re-fetch quote if on swap page
+            if (document.getElementById('page-swap').classList.contains('active')) {
+              getSwapQuoteDebounced();
+            }
+          });
+          window.ethereum.on('accountsChanged', function(accounts) {
+            if (accounts.length === 0) {
+              wallet = null; walletType = null;
+              document.getElementById('btn-wallet').textContent = 'Connect Wallet';
+              document.getElementById('btn-wallet').classList.remove('connected');
+              toast('Wallet disconnected', 'info');
+            } else {
+              wallet = accounts[0];
+              var d = wallet.slice(0, 6) + '...' + wallet.slice(-4);
+              getEvmChainId().then(function(cid) {
+                var ci = EVM_CHAINS[cid];
+                document.getElementById('btn-wallet').textContent = d + ' (' + (ci ? ci.name : 'EVM') + ')';
+              });
+            }
+          });
+        }
+      } else {
+        btn.textContent = display;
+      }
+
       toast(type.charAt(0).toUpperCase() + type.slice(1) + ' connected', 'success');
+
+      // Update EVM chain bar visibility and active chain highlight
+      updateEvmChainBar();
+
+      // Re-fetch swap quote with new wallet context
+      if (document.getElementById('page-swap').classList.contains('active')) {
+        getSwapQuoteDebounced();
+      }
     }
   } catch (e) {
     toast('Connection failed: ' + (e.message || e), 'error');
@@ -1086,16 +1351,25 @@ async function getSwapQuote() {
       document.getElementById('swap-tier-info').textContent = data.tier || 'BRONZE';
       document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.10%');
       info.style.display = 'flex';
-      // Show Jupiter route info for Solana wallets
-      var isSolWallet = walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+      // Show route info based on wallet type
+      var isSolWallet = isSolanaWallet();
+      var isEvm = isEvmWallet();
       var routeRow = document.getElementById('swap-route-row');
       if (routeRow) {
-        routeRow.style.display = isSolWallet ? 'flex' : 'none';
+        var showRoute = isSolWallet || isEvm;
+        routeRow.style.display = showRoute ? 'flex' : 'none';
         if (isSolWallet && TOKEN_MINTS[from] && TOKEN_MINTS[to]) {
           document.getElementById('swap-route').textContent = 'Jupiter Aggregator (on-chain)';
+        } else if (isEvm) {
+          getEvmChainId().then(function(cid) {
+            var chainInfo = EVM_CHAINS[cid];
+            var chainName = chainInfo ? chainInfo.name : 'EVM';
+            document.getElementById('swap-route').textContent = 'ParaSwap (' + chainName + ')';
+          });
         }
       }
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + (isSolWallet ? ' (Jupiter)' : '') : 'Connect wallet to swap';
+      var routeLabel = isSolWallet ? ' (Jupiter)' : (isEvm ? ' (ParaSwap)' : '');
+      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel : 'Connect wallet to swap';
       btn.disabled = !wallet;
       // Clear previous swap status when getting new quote
       setSwapStatus(null);
@@ -1111,10 +1385,20 @@ async function getSwapQuote() {
       document.getElementById('swap-fee').textContent = '~0.10%';
       document.getElementById('swap-tier-info').textContent = 'BRONZE';
       info.style.display = 'flex';
-      var isSolWallet2 = walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+      var isSolWallet2 = isSolanaWallet();
+      var isEvm2 = isEvmWallet();
       var routeRow2 = document.getElementById('swap-route-row');
-      if (routeRow2) routeRow2.style.display = isSolWallet2 ? 'flex' : 'none';
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + (isSolWallet2 ? ' (Jupiter)' : '') : 'Connect wallet to swap';
+      if (routeRow2) {
+        routeRow2.style.display = (isSolWallet2 || isEvm2) ? 'flex' : 'none';
+        if (isEvm2) {
+          getEvmChainId().then(function(cid) {
+            var ci = EVM_CHAINS[cid];
+            document.getElementById('swap-route').textContent = 'ParaSwap (' + (ci ? ci.name : 'EVM') + ')';
+          });
+        }
+      }
+      var routeLabel2 = isSolWallet2 ? ' (Jupiter)' : (isEvm2 ? ' (ParaSwap)' : '');
+      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel2 : 'Connect wallet to swap';
       btn.disabled = !wallet;
       setSwapStatus(null);
     } else {
@@ -1150,12 +1434,6 @@ async function executeSwap() {
     return;
   }
 
-  // Only Solana wallets can do Jupiter swaps
-  if (walletType !== 'phantom' && walletType !== 'backpack' && walletType !== 'solflare') {
-    toast('Jupiter swap requires a Solana wallet (Phantom, Backpack, or Solflare)', 'error');
-    return;
-  }
-
   var from = document.getElementById('swap-from-token').value;
   var to = document.getElementById('swap-to-token').value;
   var amount = parseFloat(document.getElementById('swap-from-amount').value);
@@ -1163,6 +1441,20 @@ async function executeSwap() {
   if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
   if (from === to) { toast('Select different tokens', 'error'); return; }
 
+  // Route to the appropriate swap engine
+  if (isEvmWallet()) {
+    await executeEvmSwap(from, to, amount);
+  } else if (isSolanaWallet()) {
+    await executeSolanaSwap(from, to, amount);
+  } else {
+    toast('Swap not yet supported for this wallet type. Use Phantom (Solana) or MetaMask (EVM).', 'error');
+  }
+}
+
+// ══════════════════════════════════════
+// SOLANA SWAP (Jupiter)
+// ══════════════════════════════════════
+async function executeSolanaSwap(from, to, amount) {
   // Resolve mint addresses
   var fromInfo = TOKEN_MINTS[from];
   var toInfo = TOKEN_MINTS[to];
@@ -1337,6 +1629,267 @@ async function executeSwap() {
 
     btn.textContent = 'Swap ' + from + ' → ' + to;
     btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════
+// EVM SWAP (ParaSwap — Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB)
+// ══════════════════════════════════════
+async function executeEvmSwap(from, to, amount) {
+  var btn = document.getElementById('btn-swap');
+  btn.disabled = true;
+
+  try {
+    // ── Step 1: Detect chain ──
+    var chainId = await getEvmChainId();
+    var chainInfo = EVM_CHAINS[chainId];
+
+    if (!chainInfo) {
+      // Offer to switch to a supported chain
+      var supportedNames = Object.values(EVM_CHAINS).map(function(c) { return c.name; }).join(', ');
+      setSwapStatus(
+        'Unsupported chain (ID: ' + chainId + '). Please switch to: ' + supportedNames + '.' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
+          '<button onclick="switchEvmChain(1).then(function(){executeSwap()})" style="padding:6px 14px;background:rgba(59,130,246,.2);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:8px;cursor:pointer;font-size:13px;font-family:Outfit">Ethereum</button>' +
+          '<button onclick="switchEvmChain(8453).then(function(){executeSwap()})" style="padding:6px 14px;background:rgba(59,130,246,.2);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:8px;cursor:pointer;font-size:13px;font-family:Outfit">Base</button>' +
+          '<button onclick="switchEvmChain(137).then(function(){executeSwap()})" style="padding:6px 14px;background:rgba(139,92,246,.2);color:var(--purple);border:1px solid rgba(139,92,246,.3);border-radius:8px;cursor:pointer;font-size:13px;font-family:Outfit">Polygon</button>' +
+          '<button onclick="switchEvmChain(42161).then(function(){executeSwap()})" style="padding:6px 14px;background:rgba(59,130,246,.2);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:8px;cursor:pointer;font-size:13px;font-family:Outfit">Arbitrum</button>' +
+        '</div>',
+        'error'
+      );
+      btn.textContent = 'Switch chain';
+      btn.disabled = false;
+      return;
+    }
+
+    // ── Step 2: Resolve token addresses on this chain ──
+    var fromEvm = resolveEvmToken(from, chainId);
+    var toEvm = resolveEvmToken(to, chainId);
+
+    if (!fromEvm || !toEvm) {
+      var missing = !fromEvm ? from : to;
+      setSwapStatus(
+        missing + ' is not available on ' + chainInfo.name + '. ' +
+        'Try a different token or switch to a chain that supports it.' +
+        '<div style="margin-top:8px;font-size:12px;color:var(--muted)">Available on ' + chainInfo.name + ': ' +
+          Object.keys(EVM_TOKENS[chainId] || {}).join(', ') +
+        '</div>',
+        'error'
+      );
+      btn.textContent = 'Token not available on ' + chainInfo.name;
+      btn.disabled = false;
+      return;
+    }
+
+    btn.textContent = 'Getting quote...';
+    setSwapStatus('<span class="swap-spinner"></span>Fetching best route from ParaSwap on ' + chainInfo.name + '...', 'pending');
+
+    // ── Step 3: Get ParaSwap price quote ──
+    var amountRaw = BigInt(Math.floor(amount * Math.pow(10, fromEvm.decimals))).toString();
+
+    var priceUrl = PARASWAP_API + '/prices?'
+      + 'srcToken=' + encodeURIComponent(fromEvm.address)
+      + '&destToken=' + encodeURIComponent(toEvm.address)
+      + '&amount=' + amountRaw
+      + '&srcDecimals=' + fromEvm.decimals
+      + '&destDecimals=' + toEvm.decimals
+      + '&network=' + chainId
+      + '&side=SELL'
+      + '&partner=maxia';
+
+    var priceResp = await fetch(priceUrl);
+    if (!priceResp.ok) {
+      var priceErr = await priceResp.json().catch(function() { return {}; });
+      throw new Error('ParaSwap price failed: ' + (priceErr.error || priceResp.status));
+    }
+    var priceData = await priceResp.json();
+
+    if (priceData.error) {
+      throw new Error('ParaSwap: ' + priceData.error);
+    }
+
+    var priceRoute = priceData.priceRoute;
+    if (!priceRoute) {
+      throw new Error('No route found on ParaSwap for ' + from + ' → ' + to + ' on ' + chainInfo.name);
+    }
+
+    var destAmountRaw = priceRoute.destAmount || '0';
+    var destHuman = Number(destAmountRaw) / Math.pow(10, toEvm.decimals);
+    var gasCostUSD = priceRoute.gasCostUSD || '0';
+
+    setSwapStatus(
+      '<span class="swap-spinner"></span>Route found on ' + chainInfo.name + ': ' + amount + ' ' + from + ' → ' +
+      destHuman.toFixed(toEvm.decimals <= 6 ? Math.min(toEvm.decimals, 6) : 4) + ' ' + to +
+      '<br><span style="font-size:12px;opacity:.7">Gas cost: ~$' + Number(gasCostUSD).toFixed(2) + '</span>',
+      'pending'
+    );
+
+    // ── Step 4: Build swap transaction via ParaSwap ──
+    btn.textContent = 'Building transaction...';
+    setSwapStatus('<span class="swap-spinner"></span>Building swap transaction on ' + chainInfo.name + '...', 'pending');
+
+    // Allow 1% slippage
+    var minDestAmount = BigInt(destAmountRaw) * BigInt(99) / BigInt(100);
+
+    var txBuildResp = await fetch(PARASWAP_API + '/transactions/' + chainId + '?ignoreChecks=true', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        srcToken: fromEvm.address,
+        destToken: toEvm.address,
+        srcAmount: amountRaw,
+        destAmount: minDestAmount.toString(),
+        priceRoute: priceRoute,
+        userAddress: wallet,
+        partner: 'maxia',
+        srcDecimals: fromEvm.decimals,
+        destDecimals: toEvm.decimals
+      })
+    });
+
+    if (!txBuildResp.ok) {
+      var buildErr = await txBuildResp.json().catch(function() { return {}; });
+      throw new Error('ParaSwap build failed: ' + (buildErr.error || txBuildResp.status));
+    }
+    var txData = await txBuildResp.json();
+
+    if (txData.error) {
+      throw new Error('ParaSwap: ' + txData.error);
+    }
+
+    // ── Step 5: Approve ERC-20 token if needed ──
+    if (fromEvm.address.toLowerCase() !== EVM_NATIVE.toLowerCase()) {
+      btn.textContent = 'Checking approval...';
+      setSwapStatus('<span class="swap-spinner"></span>Checking token approval...', 'pending');
+
+      var spender = txData.to; // ParaSwap contract that needs approval
+      var needsApproval = await checkEvmApproval(fromEvm.address, spender, amountRaw);
+      if (needsApproval) {
+        btn.textContent = 'Approve ' + from + ' in wallet...';
+        setSwapStatus('<span class="swap-spinner"></span>Please approve ' + from + ' spending in your wallet...', 'confirming');
+        await approveEvmToken(fromEvm.address, spender, amountRaw);
+        setSwapStatus('<span class="swap-spinner"></span>Approval confirmed. Sending swap...', 'pending');
+      }
+    }
+
+    // ── Step 6: Send swap transaction via MetaMask ──
+    btn.textContent = 'Confirm in wallet...';
+    setSwapStatus('<span class="swap-spinner"></span>Please confirm the swap in your wallet...', 'confirming');
+
+    var txParams = {
+      from: wallet,
+      to: txData.to,
+      data: txData.data,
+      value: txData.value || '0x0',
+      gas: txData.gas ? '0x' + parseInt(txData.gas).toString(16) : undefined,
+      chainId: chainInfo.hex
+    };
+    // Remove undefined fields
+    if (!txParams.gas) delete txParams.gas;
+
+    var txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [txParams]
+    });
+
+    // ── Step 7: Wait for confirmation ──
+    btn.textContent = 'Confirming...';
+    setSwapStatus(
+      '<span class="swap-spinner"></span>Transaction sent on ' + chainInfo.name + '! Waiting for confirmation...' +
+      '<div class="tx-sig">Tx: ' + txHash + '</div>',
+      'confirming'
+    );
+
+    // Poll for receipt
+    var receipt = null;
+    for (var i = 0; i < 120; i++) {
+      await new Promise(function(r) { setTimeout(r, 2000); });
+      try {
+        receipt = await window.ethereum.request({
+          method: 'eth_getTransactionReceipt',
+          params: [txHash]
+        });
+        if (receipt) break;
+      } catch(pollErr) { /* keep polling */ }
+    }
+
+    if (receipt && receipt.status === '0x0') {
+      throw new Error('Transaction reverted on-chain');
+    }
+
+    // ── Success ──
+    var explorerUrl = chainInfo.explorer + '/tx/' + txHash;
+    setSwapStatus(
+      'Swap successful on ' + chainInfo.name + '! ' + amount + ' ' + from + ' → ' +
+      destHuman.toFixed(toEvm.decimals <= 6 ? Math.min(toEvm.decimals, 6) : 4) + ' ' + to +
+      '<div class="tx-sig"><a href="' + explorerUrl + '" target="_blank" rel="noopener">View on ' + chainInfo.name + ' Explorer: ' + txHash.slice(0, 20) + '...' + txHash.slice(-8) + '</a></div>',
+      'success'
+    );
+
+    toast('Swap confirmed on ' + chainInfo.name + '! ' + from + ' → ' + to, 'success');
+
+    // Clear form
+    document.getElementById('swap-from-amount').value = '';
+    document.getElementById('swap-to-amount').value = '';
+    document.getElementById('swap-info').style.display = 'none';
+    btn.textContent = 'Enter an amount';
+    btn.disabled = true;
+
+    // Log to backend (fire and forget)
+    fetch('/api/public/crypto/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Wallet': wallet },
+      body: JSON.stringify({
+        from_token: from, to_token: to, amount: amount,
+        wallet: wallet, tx_signature: txHash,
+        source: 'paraswap_' + chainInfo.name.toLowerCase(),
+        chain: chainInfo.name.toLowerCase(),
+        chain_id: chainId
+      })
+    }).catch(function() {});
+
+  } catch (e) {
+    var errMsg = e.message || String(e);
+
+    if (errMsg.indexOf('User rejected') !== -1 || errMsg.indexOf('user rejected') !== -1 ||
+        errMsg.indexOf('User denied') !== -1 || errMsg.indexOf('denied') !== -1 || errMsg.indexOf('cancelled') !== -1) {
+      setSwapStatus('Transaction cancelled by user.', 'error');
+      toast('Transaction cancelled', 'info');
+    }
+    else if (errMsg.indexOf('insufficient') !== -1 || errMsg.indexOf('Insufficient') !== -1) {
+      var chainLabel = (chainInfo && chainInfo.name) || 'this chain';
+      var gasToken = (chainInfo && chainInfo.symbol) || 'native token';
+      setSwapStatus('Insufficient balance. Make sure you have enough ' + from + ' and ' + gasToken + ' for gas on ' + chainLabel + '.', 'error');
+      toast('Insufficient balance', 'error');
+    }
+    else if (errMsg.indexOf('reverted') !== -1) {
+      setSwapStatus('Swap reverted on-chain. The route may have expired or slippage was too high. Try again.', 'error');
+      toast('Transaction reverted', 'error');
+    }
+    else {
+      setSwapStatus('Swap failed: ' + esc(errMsg), 'error');
+      toast('Swap failed: ' + errMsg, 'error');
+    }
+
+    btn.textContent = 'Swap ' + from + ' → ' + to;
+    btn.disabled = false;
+  }
+}
+
+// ── Check if ERC-20 approval is needed ──
+async function checkEvmApproval(tokenAddress, spenderAddress, amountRaw) {
+  if (tokenAddress.toLowerCase() === EVM_NATIVE.toLowerCase()) return false;
+  try {
+    var allowanceData = '0xdd62ed3e'
+      + wallet.slice(2).toLowerCase().padStart(64, '0')
+      + spenderAddress.slice(2).toLowerCase().padStart(64, '0');
+    var allowance = await window.ethereum.request({
+      method: 'eth_call',
+      params: [{ to: tokenAddress, data: allowanceData }, 'latest']
+    });
+    return BigInt(allowance) < BigInt(amountRaw);
+  } catch(e) {
+    return true; // assume approval needed if check fails
   }
 }
 
@@ -1943,6 +2496,51 @@ async function lookupAgent() {
       '<div style="text-align:center;color:var(--muted)">Agent not found or no data available</div>' +
       '<div style="text-align:center;color:var(--muted2);font-size:13px;margin-top:8px">' + esc(e.message) + '</div>' +
     '</div>';
+  }
+}
+
+// ══════════════════════════════════════
+// EVM CHAIN BAR
+// ══════════════════════════════════════
+
+// Show/hide EVM chain bar based on wallet type
+function updateEvmChainBar() {
+  var bar = document.getElementById('evm-chain-bar');
+  if (!bar) return;
+  if (isEvmWallet()) {
+    bar.style.display = 'block';
+    highlightActiveChain();
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// Highlight the active chain button
+async function highlightActiveChain() {
+  var chainId = await getEvmChainId();
+  document.querySelectorAll('.evm-chain-btn').forEach(function(b) {
+    var btnChain = parseInt(b.getAttribute('data-chain'));
+    if (btnChain === chainId) {
+      b.style.borderColor = 'var(--cyan)';
+      b.style.color = 'var(--cyan)';
+      b.style.fontWeight = '700';
+    } else {
+      b.style.borderColor = '';
+      b.style.color = 'var(--text)';
+      b.style.fontWeight = '';
+    }
+  });
+}
+
+// Switch chain and refresh quote
+async function switchAndRefresh(chainId) {
+  var ok = await switchEvmChain(chainId);
+  if (ok) {
+    highlightActiveChain();
+    getSwapQuoteDebounced();
+    toast('Switched to ' + EVM_CHAINS[chainId].name, 'success');
+  } else {
+    toast('Could not switch chain', 'error');
   }
 }
 
