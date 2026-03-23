@@ -72,6 +72,15 @@ class BrowserAgent:
         self._minute_counts.setdefault(action_type, []).append(time.time())
         if content_hash:
             self._action_history.append({"action": action_type, "hash": content_hash, "ts": time.time()})
+        # Cap action history to prevent memory leak
+        if len(self._action_history) > 500:
+            self._action_history = self._action_history[-500:]
+        # Clean old timestamps from minute counts
+        now = time.time()
+        for key in list(self._minute_counts.keys()):
+            self._minute_counts[key] = [t for t in self._minute_counts[key] if t > now - 120]
+            if not self._minute_counts[key]:
+                del self._minute_counts[key]
 
     def _is_duplicate(self, action_type: str, content: str) -> bool:
         """Verifie si cette action a deja ete faite (meme contenu)."""

@@ -108,8 +108,8 @@ def _load_memory() -> dict:
                 print(f"[Memory] Load error: {e} — loading from plaintext backup")
                 with open(bak, "r", encoding="utf-8") as fb:
                     return json.loads(fb.read())
-            except Exception:
-                pass
+            except Exception as e2:
+                print(f"[Memory] Error: {e2}")
         print(f"[Memory] Load error: {e} — starting fresh memory")
     return _default
 
@@ -229,6 +229,8 @@ def _load_ab() -> dict:
 
 
 def _save_ab(data: dict):
+    if len(data.get("tests", [])) > 50:
+        data["tests"] = data["tests"][-50:]
     try:
         with open(_AB_FILE, "w") as f:
             json.dump(data, f, indent=2, default=str)
@@ -2392,22 +2394,6 @@ class CEOLocal:
 
         if replied:
             _log(f"[OWN REPLIES] {replied} replies to our tweet replies")
-
-    async def _check_engagement(self):
-        """Feedback loop: verifie l'engagement des derniers tweets."""
-        tweets_done = [a for a in self.memory.get("actions_done", [])
-                       if a.get("action") == "post_tweet" and a.get("success")]
-        if not tweets_done:
-            return
-
-        # Verifier le dernier tweet (pas plus d'une fois par heure)
-        last = tweets_done[-1]
-        if last.get("engagement_checked"):
-            return
-
-        # On ne peut pas facilement retrouver l'URL du tweet poste
-        # mais on peut verifier l'engagement du profil
-        _log("[FEEDBACK] Verification engagement (a implementer avec URL tracking)")
 
     async def _comment_github_ai_projects(self) -> dict:
         """#3: Commente sur des issues/discussions de projets AI."""

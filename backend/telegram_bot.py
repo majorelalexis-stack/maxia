@@ -239,8 +239,8 @@ async def run_telegram_bot():
             if hour == 20 and day != str(last_daily):
                 try:
                     async with httpx.AsyncClient(timeout=10) as client:
-                        r1 = await client.get("http://localhost:8000/api/stats")
-                        r2 = await client.get("http://localhost:8000/api/public/marketplace-stats")
+                        r1 = await client.get(f"http://127.0.0.1:{PORT}/api/stats")
+                        r2 = await client.get(f"http://127.0.0.1:{PORT}/api/public/marketplace-stats")
                         stats = {**r1.json(), **r2.json()}
                     await send_daily_report(stats)
                     last_daily = day

@@ -244,7 +244,7 @@ SWAP_COMMISSION_TIERS = {
     "BRONZE":  {"min_volume": 0,     "max_volume": 1000,   "bps": 10},   # 0.10% = Binance
     "SILVER":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 5},    # 0.05% < Binance
     "GOLD":    {"min_volume": 5000,  "max_volume": 25000,  "bps": 3},    # 0.03% < tout le monde
-    "WHALE":   {"min_volume": 25000, "max_volume": float("inf"), "bps": 1},  # 0.01% imbattable
+    "WHALE":   {"min_volume": 25000, "max_volume": 999999999, "bps": 1},  # 0.01% imbattable
 }
 
 # Cache prix
@@ -651,7 +651,7 @@ def list_tokens() -> dict:
 
 def get_swap_stats() -> dict:
     """Stats des swaps."""
-    total_volume = sum(s.get("commission_usd", 0) / (s.get("commission_bps", 15) / 10000) for s in _swap_history if s.get("commission_bps"))
+    total_volume = sum(s.get("commission_usd", 0) / (s.get("commission_bps", 15) / 10000) for s in _swap_history if s.get("commission_bps", 0) > 0)
     total_commission = sum(s.get("commission_usd", 0) for s in _swap_history)
     return {
         "total_swaps": len(_swap_history),
