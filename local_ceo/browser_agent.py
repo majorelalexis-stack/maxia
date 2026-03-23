@@ -39,6 +39,30 @@ class BrowserAgent:
         self._minute_counts = {}  # {action: [timestamps]}
         self._action_history = []  # Deduplication: [{action, hash, ts}]
         self._profile_dir = BROWSER_PROFILE_DIR
+        self._dedup_file = os.path.join(os.path.dirname(__file__), ".browser_dedup.json")
+        self._load_dedup()
+
+    def _load_dedup(self):
+        """Charge l'historique de dedup depuis le disque (survit aux restarts)."""
+        try:
+            if os.path.exists(self._dedup_file):
+                import json
+                with open(self._dedup_file, "r") as f:
+                    data = json.load(f)
+                cutoff = time.time() - 86400 * 3  # Garder 3 jours
+                self._action_history = [a for a in data if a.get("ts", 0) > cutoff]
+                print(f"[BrowserAgent] Dedup loaded: {len(self._action_history)} actions")
+        except Exception:
+            self._action_history = []
+
+    def _save_dedup(self):
+        """Sauvegarde l'historique de dedup sur disque."""
+        try:
+            import json
+            with open(self._dedup_file, "w") as f:
+                json.dump(self._action_history[-500:], f)
+        except Exception:
+            pass
 
     def _reset_if_new_day(self):
         today = time.strftime("%Y-%m-%d")
@@ -75,6 +99,8 @@ class BrowserAgent:
         # Cap action history to prevent memory leak
         if len(self._action_history) > 500:
             self._action_history = self._action_history[-500:]
+        # Persister sur disque (survit aux restarts)
+        self._save_dedup()
         # Clean old timestamps from minute counts
         now = time.time()
         for key in list(self._minute_counts.keys()):

@@ -1236,8 +1236,8 @@ class CEOLocal:
                 if d["action"] == "post_template_tweet":
                     _log(f"  [TIMING] Not peak hours ({hour_utc}h UTC) — storing tweet for later")
                     self.memory["pending_tweet"] = {"text": "__generate_later__", "stored_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-                    d["action"] = "detect_opportunities"
-                    d["agent"] = "SCOUT"
+                    d["action"] = "manage_dms"
+                    d["agent"] = "RESPONDER"
                     d["params"] = {}
                     break
 
