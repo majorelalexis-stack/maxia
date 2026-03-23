@@ -92,6 +92,103 @@ async def broadcast_all(msg: dict):
         _ws_clients.pop(cid, None)
 
 
+# ── Native AI Services (registered at startup) ──
+
+NATIVE_SERVICES = [
+    {
+        "id": "maxia-audit",
+        "name": "Smart Contract Audit",
+        "description": "AI-powered security audit of Solana/EVM smart contracts. Detects vulnerabilities, reentrancy, overflow, access control issues.",
+        "type": "audit",
+        "price_usdc": 4.99,
+    },
+    {
+        "id": "maxia-code",
+        "name": "AI Code Review",
+        "description": "Automated code review for Python, Rust, JavaScript, Solidity. Finds bugs, suggests improvements, checks best practices.",
+        "type": "code",
+        "price_usdc": 2.99,
+    },
+    {
+        "id": "maxia-translate",
+        "name": "AI Translation",
+        "description": "Translate text between 50+ languages. Technical documentation, marketing copy, chat messages.",
+        "type": "text",
+        "price_usdc": 0.05,
+    },
+    {
+        "id": "maxia-summary",
+        "name": "Document Summary",
+        "description": "Summarize any document, whitepaper, or article into key bullet points. Supports up to 10,000 words.",
+        "type": "text",
+        "price_usdc": 0.49,
+    },
+    {
+        "id": "maxia-wallet",
+        "name": "Wallet Analyzer",
+        "description": "Deep analysis of any Solana wallet: token holdings, transaction history, DeFi positions, risk score.",
+        "type": "data",
+        "price_usdc": 1.99,
+    },
+    {
+        "id": "maxia-marketing",
+        "name": "Marketing Copy Generator",
+        "description": "Generate landing page copy, Twitter threads, blog posts, product descriptions. Optimized for Web3/AI audience.",
+        "type": "text",
+        "price_usdc": 0.99,
+    },
+    {
+        "id": "maxia-image",
+        "name": "AI Image Generator",
+        "description": "Generate images from text prompts. Logos, illustrations, social media graphics. 1024x1024 resolution.",
+        "type": "image",
+        "price_usdc": 0.10,
+    },
+    {
+        "id": "maxia-scraper",
+        "name": "Web Scraper",
+        "description": "Extract structured data from any website. Returns clean JSON with the data you need.",
+        "type": "data",
+        "price_usdc": 0.02,
+    },
+]
+
+
+async def _register_native_services(db_instance):
+    """Register MAXIA native AI services in the database at startup.
+    Skips services that already exist (idempotent).
+    """
+    from config import TREASURY_ADDRESS
+    registered = 0
+    for svc in NATIVE_SERVICES:
+        try:
+            existing = await db_instance.get_service(svc["id"])
+            if existing:
+                continue
+            await db_instance.save_service({
+                "id": svc["id"],
+                "agent_api_key": "maxia_native",
+                "agent_name": "MAXIA",
+                "agent_wallet": TREASURY_ADDRESS,
+                "name": svc["name"],
+                "description": svc["description"],
+                "type": svc["type"],
+                "price_usdc": svc["price_usdc"],
+                "endpoint": "",
+                "status": "active",
+                "rating": 5.0,
+                "rating_count": 0,
+                "sales": 0,
+            })
+            registered += 1
+        except Exception as e:
+            print(f"[MAXIA] Error registering native service {svc['id']}: {e}")
+    if registered:
+        print(f"[MAXIA] Registered {registered} native AI services")
+    else:
+        print(f"[MAXIA] All {len(NATIVE_SERVICES)} native AI services already registered")
+
+
 # ── Lifespan ──
 
 @asynccontextmanager
@@ -114,6 +211,16 @@ async def lifespan(app: FastAPI):
     escrow_client.set_db(db)
     await escrow_client._load_from_db()
     agent_worker.set_broadcast(broadcast_all)
+
+    # V12: Register 8 MAXIA native AI services (Groq/Ollama)
+    await _register_native_services(db)
+
+    # V12: Ensure referred_by column exists in agents table
+    try:
+        await db.raw_execute(
+            "ALTER TABLE agents ADD COLUMN referred_by TEXT DEFAULT ''")
+    except Exception:
+        pass  # Column already exists
 
     # V12: Init new modules (API keys, SLA, webhooks)
     from api_keys import ensure_tables as ensure_api_keys_tables

@@ -6,6 +6,7 @@ from pathlib import Path
 ALLOWED_AGENT_COLUMNS = frozenset({
     "name", "wallet", "description", "tier",
     "volume_30d", "total_spent", "total_earned", "services_listed",
+    "referred_by",
 })
 ALLOWED_SERVICE_COLUMNS = frozenset({
     "agent_api_key", "agent_name", "agent_wallet",

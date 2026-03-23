@@ -418,20 +418,37 @@ async def register_agent(req: dict):
     except Exception as e:
         print(f"[PublicAPI] DB save agent error: {e}")
 
-    # Referral tracking
+    # Referral tracking — referral code = first 8 chars of api_key (after "maxia_" prefix)
     referral_code = req.get("referral_code", "") if isinstance(req.get("referral_code"), str) else ""
     # Fix #5: Referral code validation
     if referral_code and (len(referral_code) > 50 or not referral_code.isalnum()):
         referral_code = ""  # Silently ignore invalid
+    referrer_api_key = ""
     if referral_code:
         try:
             from database import db as _db
-            await _db.raw_execute(
-                "INSERT OR IGNORE INTO referrals(ref_id,referrer,referee,data) VALUES(?,?,?,?)",
-                (str(uuid.uuid4()), referral_code, wallet,
-                 json.dumps({"referralId": str(uuid.uuid4()), "referrer": referral_code,
-                             "referee": wallet, "registeredAt": int(time.time()), "earnedUsdc": 0})))
-            print(f"[PublicAPI] Referral: {name} referred by {referral_code}")
+            # Find the referrer agent by matching referral code to api_key prefix
+            all_agents = await _db.get_all_agents()
+            for a in all_agents:
+                if a["api_key"][6:14] == referral_code:
+                    referrer_api_key = a["api_key"]
+                    break
+            if referrer_api_key:
+                # Store referred_by in agents table
+                await _db.raw_execute(
+                    "UPDATE agents SET referred_by=? WHERE api_key=?",
+                    (referrer_api_key, api_key))
+                # Also store in referrals table for tracking
+                await _db.raw_execute(
+                    "INSERT OR IGNORE INTO referrals(ref_id,referrer,referee,data) VALUES(?,?,?,?)",
+                    (str(uuid.uuid4()), referrer_api_key, api_key,
+                     json.dumps({"referralId": str(uuid.uuid4()), "referrer": referrer_api_key,
+                                 "referrer_code": referral_code, "referee_api_key": api_key,
+                                 "referee_wallet": wallet, "referee_name": name,
+                                 "registeredAt": int(time.time()), "earnedUsdc": 0})))
+                print(f"[PublicAPI] Referral: {name} referred by {referral_code} (agent {referrer_api_key[:14]}...)")
+            else:
+                print(f"[PublicAPI] Referral code {referral_code} not found — ignored")
         except Exception as e:
             print(f"[PublicAPI] Referral error: {e}")
 
@@ -495,14 +512,20 @@ async def register_agent(req: dict):
 
     sandbox_note = " (SANDBOX MODE — fake USDC)" if SANDBOX_MODE else ""
 
+    # Generate referral code for this agent
+    my_referral_code = api_key[6:14]
+
     return {
         "success": True,
         "api_key": api_key,
+        "referral_code": my_referral_code,
+        "referral_url": f"https://maxiaworld.app/api/public/register?referral_code={my_referral_code}",
         "sandbox": SANDBOX_MODE,
         "name": name,
         "tier": "BRONZE",
         "rate_limit": f"{RATE_LIMIT_FREE} requetes/jour",
         "message": "Bienvenue sur MAXIA. Utilisez X-API-Key dans vos headers pour acceder aux services.",
+        "referred_by": referral_code if referrer_api_key else None,
         "welcome": {
             "next_steps": [
                 "1. Try free endpoints: GET /api/public/crypto/prices",
@@ -513,6 +536,7 @@ async def register_agent(req: dict):
                 "6. MCP Server: https://maxiaworld.app/mcp/manifest",
                 "7. Python SDK: pip install maxia",
                 "8. JS SDK: npm install maxia-sdk",
+                "9. Share your referral code to earn 50% of commissions: " + my_referral_code,
             ],
             "free_endpoints": [
                 "/api/public/crypto/prices",
@@ -692,8 +716,8 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
 
     # Determiner le prix
     prices = {
-        "audit": 9.99, "data": 2.99, "code": 3.99,
-        "text": 0.19, "audit_deep": 49.99,
+        "audit": 4.99, "data": 1.99, "code": 2.99,
+        "text": 0.05, "image": 0.10, "audit_deep": 49.99,
     }
     price = prices.get(service_type, 1.99)
 
@@ -799,7 +823,7 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     except Exception:
         pass
 
-    # Referral commission (10% of MAXIA's commission to referrer)
+    # Referral commission (50% of MAXIA's commission to referrer)
     try:
         from referral_manager import add_commission
         await add_commission(agent["wallet"], commission)
@@ -1458,14 +1482,16 @@ async def discover_services(
             "listed_at": s.get("listed_at", 0),
         })
 
-    # Also include MAXIA native services
+    # Also include MAXIA native services (8 AI services powered by Groq/Ollama)
     maxia_native = [
-        {"service_id": "maxia-audit", "name": "AI Security Audit", "type": "code", "price_usdc": 9.99, "seller": "MAXIA", "rating": 5, "description": "Smart contract vulnerability scanner"},
-        {"service_id": "maxia-code", "name": "Code Generation", "type": "code", "price_usdc": 3.99, "seller": "MAXIA", "rating": 5, "description": "Python, Rust, JS, Solidity. Production-ready"},
-        {"service_id": "maxia-data", "name": "Crypto Data Analyst", "type": "data", "price_usdc": 2.99, "seller": "MAXIA", "rating": 5, "description": "DeFi analytics, whale tracking, predictions"},
-        {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Scrape any URL, structured JSON output"},
-        {"service_id": "maxia-image", "name": "Image Generation", "type": "media", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "FLUX.1, up to 2048x2048 HD"},
-        {"service_id": "maxia-translate", "name": "Universal Translator", "type": "text", "price_usdc": 0.19, "seller": "MAXIA", "rating": 5, "description": "50+ languages, context-aware"},
+        {"service_id": "maxia-audit", "name": "Smart Contract Audit", "type": "audit", "price_usdc": 4.99, "seller": "MAXIA", "rating": 5, "description": "AI-powered security audit of Solana/EVM smart contracts. Detects vulnerabilities, reentrancy, overflow, access control issues."},
+        {"service_id": "maxia-code", "name": "AI Code Review", "type": "code", "price_usdc": 2.99, "seller": "MAXIA", "rating": 5, "description": "Automated code review for Python, Rust, JavaScript, Solidity. Finds bugs, suggests improvements, checks best practices."},
+        {"service_id": "maxia-translate", "name": "AI Translation", "type": "text", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Translate text between 50+ languages. Technical documentation, marketing copy, chat messages."},
+        {"service_id": "maxia-summary", "name": "Document Summary", "type": "text", "price_usdc": 0.49, "seller": "MAXIA", "rating": 5, "description": "Summarize any document, whitepaper, or article into key bullet points. Supports up to 10,000 words."},
+        {"service_id": "maxia-wallet", "name": "Wallet Analyzer", "type": "data", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "Deep analysis of any Solana wallet: token holdings, transaction history, DeFi positions, risk score."},
+        {"service_id": "maxia-marketing", "name": "Marketing Copy Generator", "type": "text", "price_usdc": 0.99, "seller": "MAXIA", "rating": 5, "description": "Generate landing page copy, Twitter threads, blog posts, product descriptions. Optimized for Web3/AI audience."},
+        {"service_id": "maxia-image", "name": "AI Image Generator", "type": "image", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Generate images from text prompts. Logos, illustrations, social media graphics. 1024x1024 resolution."},
+        {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.02, "seller": "MAXIA", "rating": 5, "description": "Extract structured data from any website. Returns clean JSON with the data you need."},
     ]
     for ns in maxia_native:
         searchable = f"{ns['name']} {ns['description']} {ns['type']}".lower()
@@ -1569,8 +1595,11 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     is_native = service_id.startswith("maxia-")
 
     if is_native:
-        price = {"maxia-audit": 9.99, "maxia-code": 3.99, "maxia-data": 2.99,
-                 "maxia-scraper": 0.05, "maxia-image": 0.10, "maxia-translate": 0.19}.get(service_id, 1.99)
+        price = {
+            "maxia-audit": 4.99, "maxia-code": 2.99, "maxia-data": 2.99,
+            "maxia-scraper": 0.02, "maxia-image": 0.10, "maxia-translate": 0.05,
+            "maxia-summary": 0.49, "maxia-wallet": 1.99, "maxia-marketing": 0.99,
+        }.get(service_id, 1.99)
     elif service:
         price = service["price_usdc"]
     else:
@@ -1637,6 +1666,13 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         await _save_tx_to_db(tx, buyer)
         try:
             await _exec_db.record_transaction(buyer["wallet"], payment_tx, price, "execute_native")
+        except Exception:
+            pass
+
+        # Referral commission (50% of MAXIA's commission to referrer)
+        try:
+            from referral_manager import add_commission
+            await add_commission(buyer["wallet"], commission)
         except Exception:
             pass
 
@@ -1718,6 +1754,13 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     try:
         from database import db as _exec_db3
         await _exec_db3.record_transaction(buyer["wallet"], payment_tx, price, "execute_marketplace")
+    except Exception:
+        pass
+
+    # Referral commission (50% of MAXIA's commission to referrer)
+    try:
+        from referral_manager import add_commission
+        await add_commission(buyer["wallet"], commission)
     except Exception:
         pass
 
@@ -1845,10 +1888,15 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
         return "Service temporarily unavailable (no LLM)"
 
     system_prompts = {
-        "maxia-audit": "You are a smart contract security auditor. Analyze the code for vulnerabilities. Be thorough and specific.",
-        "maxia-code": "You are a senior software engineer. Write production-ready code. Include error handling and comments.",
+        "maxia-audit": "You are a smart contract security auditor. Analyze the code for vulnerabilities: reentrancy, overflow, access control, flash loan attacks. Structure: [CRITICAL][MAJOR][MINOR][INFO]. Be thorough and specific.",
+        "maxia-code": "You are a senior software engineer. Review code for bugs, performance issues, and best practices. Suggest improvements. Write production-ready code with error handling and comments.",
         "maxia-data": "You are a DeFi data analyst. Provide detailed analytics with numbers and insights.",
-        "maxia-translate": "You are a professional translator. Translate accurately while preserving meaning and tone.",
+        "maxia-translate": "You are a professional translator. Translate accurately while preserving meaning and tone. Auto-detect source language.",
+        "maxia-summary": "You are a document summarizer. Extract key points into clear bullet points. Be concise but comprehensive. Supports up to 10,000 words.",
+        "maxia-wallet": "You are a blockchain wallet analyst. Analyze wallet addresses for token holdings, transaction patterns, DeFi positions, and risk indicators. Provide a risk score from 0-100.",
+        "maxia-marketing": "You are a Web3 marketing copywriter. Generate compelling landing page copy, Twitter threads, blog posts, or product descriptions. Optimize for the Web3/AI audience.",
+        "maxia-image": "You are an image generation prompt engineer. Create a detailed image generation prompt based on the user's request. Output the optimized prompt for FLUX.1 / Stable Diffusion.",
+        "maxia-scraper": "You are a web scraping assistant. Extract and structure data from the provided URL or content into clean JSON format.",
     }
     sys = system_prompts.get(service_id, "You are a helpful AI assistant.")
 
@@ -2852,27 +2900,28 @@ async def my_wallet_alerts(x_api_key: str = Header(None, alias="X-API-Key"), lim
 
 
 # ══════════════════════════════════════════
-# REFERRAL PROGRAM — 10% commission share
+# REFERRAL PROGRAM — 50% commission share
 # ══════════════════════════════════════════
 
-REFERRAL_SHARE_PCT = 10  # referrer gets 10% of referee's commissions
+REFERRAL_SHARE_PCT = 50  # referrer gets 50% of MAXIA's commission on referee's transactions
 
 @router.get("/referral/my-code")
 async def referral_my_code(x_api_key: str = Header(None, alias="X-API-Key")):
-    """Get your referral code. Share it to earn 10% of referred agents' commissions."""
+    """Get your referral code. Share it to earn 50% of referred agents' commissions."""
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     agent = _get_agent(x_api_key)
-    code = agent["wallet"][:8].upper() + "MAXIA"
+    # Referral code = first 8 chars of api_key after "maxia_" prefix
+    code = x_api_key[6:14]
     from database import db
     rows = await db.raw_execute_fetchall(
-        "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (code,))
+        "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (x_api_key,))
     count = rows[0]["cnt"] if rows else 0
     # Calculate earnings
     earnings = 0.0
     try:
         rows2 = await db.raw_execute_fetchall(
-            "SELECT data FROM referrals WHERE referrer=?", (code,))
+            "SELECT data FROM referrals WHERE referrer=?", (x_api_key,))
         for r in rows2:
             d = json.loads(r["data"])
             earnings += d.get("earnedUsdc", 0)
@@ -2883,12 +2932,12 @@ async def referral_my_code(x_api_key: str = Header(None, alias="X-API-Key")):
         "share_url": f"https://maxiaworld.app/api/public/register?referral_code={code}",
         "referrals": count,
         "earnings_usdc": round(earnings, 4),
-        "commission": f"{REFERRAL_SHARE_PCT}% of referred agents' commissions",
+        "commission": f"{REFERRAL_SHARE_PCT}% of MAXIA's commission on referred agents' transactions",
         "how_it_works": [
             "1. Share your referral code or link",
             "2. New agent registers with your code",
-            "3. You earn 10% of every commission they generate",
-            "4. Passive income forever",
+            "3. You earn 50% of every commission MAXIA takes on their transactions",
+            "4. Passive income forever — swaps, service buys, GPU rentals",
         ],
     }
 
@@ -2899,10 +2948,9 @@ async def referral_list(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     agent = _get_agent(x_api_key)
-    code = agent["wallet"][:8].upper() + "MAXIA"
     from database import db
     rows = await db.raw_execute_fetchall(
-        "SELECT data FROM referrals WHERE referrer=? ORDER BY rowid DESC", (code,))
+        "SELECT data FROM referrals WHERE referrer=? ORDER BY rowid DESC", (x_api_key,))
     referrals = []
     total_earned = 0.0
     for r in rows:
@@ -2910,9 +2958,46 @@ async def referral_list(x_api_key: str = Header(None, alias="X-API-Key")):
         earned = d.get("earnedUsdc", 0)
         total_earned += earned
         referrals.append({
-            "referee": d.get("referee", "")[:8] + "...",
+            "referee_name": d.get("referee_name", d.get("referee", "")[:8] + "..."),
             "registered_at": d.get("registeredAt", 0),
             "earned_usdc": round(earned, 4),
         })
     return {"referrals": referrals, "total": len(referrals),
             "total_earned_usdc": round(total_earned, 4)}
+
+
+@router.get("/referral/{api_key}")
+async def referral_stats(api_key: str):
+    """Public referral stats for any agent. Returns referral count and total commission earned."""
+    await _load_from_db()
+    # Validate the api_key exists
+    agent = _registered_agents.get(api_key)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    referral_code = api_key[6:14]
+    from database import db
+    # Count referrals
+    rows = await db.raw_execute_fetchall(
+        "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (api_key,))
+    count = rows[0]["cnt"] if rows else 0
+
+    # Total commission earned
+    earnings = 0.0
+    try:
+        rows2 = await db.raw_execute_fetchall(
+            "SELECT data FROM referrals WHERE referrer=?", (api_key,))
+        for r in rows2:
+            d = json.loads(r["data"])
+            earnings += d.get("earnedUsdc", 0)
+    except Exception:
+        pass
+
+    return {
+        "agent_name": agent.get("name", ""),
+        "referral_code": referral_code,
+        "total_referred": count,
+        "total_commission_earned_usdc": round(earnings, 4),
+        "commission_rate": f"{REFERRAL_SHARE_PCT}% of MAXIA's commission",
+        "share_url": f"https://maxiaworld.app/api/public/register?referral_code={referral_code}",
+    }

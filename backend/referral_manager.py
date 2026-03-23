@@ -1,4 +1,4 @@
-"""MAXIA Art.11 - Reseau de Reference"""
+"""MAXIA Art.11 - Reseau de Reference (50% commission share)"""
 import os, uuid, time, json
 from fastapi import APIRouter, Depends, HTTPException
 from auth import require_auth
@@ -6,7 +6,7 @@ from database import db
 from models import RegisterReferralRequest
 
 router = APIRouter(prefix="/api/referrals", tags=["referrals"])
-RATE_BPS = int(os.getenv("REFERRAL_RATE_BPS", "200"))
+RATE_BPS = int(os.getenv("REFERRAL_RATE_BPS", "5000"))  # 50% of MAXIA's commission
 
 @router.get("/my-code")
 async def my_code(wallet: str = Depends(require_auth)):
@@ -48,15 +48,42 @@ async def _earnings(wallet: str) -> float:
     except Exception:
         return 0.0
 
-async def add_commission(referee: str, amount: float):
+async def add_commission(referee_wallet: str, commission_amount: float):
+    """Credit 50% of MAXIA's commission to the referrer.
+
+    Looks up the referee by wallet in referrals table (legacy) or by api_key
+    in the agents.referred_by column (new system).
+    """
     try:
-        rows = await db.raw_execute_fetchall("SELECT ref_id,data FROM referrals WHERE referee=?", (referee,))
-        row = rows[0] if rows else None
-        if not row:
-            return
-        commission = amount * RATE_BPS / 10000
-        d = json.loads(row["data"])
-        d["earnedUsdc"] = d.get("earnedUsdc", 0) + commission
-        await db.raw_execute("UPDATE referrals SET data=? WHERE ref_id=?", (json.dumps(d), row["ref_id"]))
+        referral_credit = commission_amount * RATE_BPS / 10000  # 50% of commission
+
+        # New system: look up referred_by in agents table
+        rows = await db.raw_execute_fetchall(
+            "SELECT api_key FROM agents WHERE wallet=? LIMIT 1", (referee_wallet,))
+        if rows:
+            referee_api_key = rows[0]["api_key"]
+            # Check if this agent was referred (has referred_by set)
+            try:
+                ref_rows = await db.raw_execute_fetchall(
+                    "SELECT ref_id, data FROM referrals WHERE referee=?", (referee_api_key,))
+                if ref_rows:
+                    row = ref_rows[0]
+                    d = json.loads(row["data"])
+                    d["earnedUsdc"] = d.get("earnedUsdc", 0) + referral_credit
+                    await db.raw_execute("UPDATE referrals SET data=? WHERE ref_id=?",
+                                         (json.dumps(d), row["ref_id"]))
+                    return
+            except Exception:
+                pass
+
+        # Legacy fallback: look up by wallet in referrals.referee
+        rows = await db.raw_execute_fetchall(
+            "SELECT ref_id, data FROM referrals WHERE referee=?", (referee_wallet,))
+        if rows:
+            row = rows[0]
+            d = json.loads(row["data"])
+            d["earnedUsdc"] = d.get("earnedUsdc", 0) + referral_credit
+            await db.raw_execute("UPDATE referrals SET data=? WHERE ref_id=?",
+                                 (json.dumps(d), row["ref_id"]))
     except Exception:
         pass

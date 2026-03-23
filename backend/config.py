@@ -142,14 +142,14 @@ def get_commission_bps(volume_30d: float) -> int:
 
 # ── GPU Tiers ──
 GPU_TIERS = [
-    {"id": "rtx3090",   "label": "RTX 3090",     "vram_gb": 24,  "base_price_per_hour": 0.44},
-    {"id": "rtx4090",   "label": "RTX 4090",     "vram_gb": 24,  "base_price_per_hour": 0.69},
-    {"id": "a6000",     "label": "RTX A6000",    "vram_gb": 48,  "base_price_per_hour": 0.99},
-    {"id": "l40s",      "label": "L40S",         "vram_gb": 48,  "base_price_per_hour": 1.14},
-    {"id": "a100_80",   "label": "A100 80GB",    "vram_gb": 80,  "base_price_per_hour": 1.79},
-    {"id": "h100_sxm5", "label": "H100 SXM5",    "vram_gb": 80,  "base_price_per_hour": 2.69},
-    {"id": "h200",      "label": "H200 SXM",     "vram_gb": 141, "base_price_per_hour": 4.31},
-    {"id": "4xa100",    "label": "4x A100 80GB", "vram_gb": 320, "base_price_per_hour": 7.16},
+    {"id": "rtx3090",   "label": "RTX 3090",     "vram_gb": 24,  "base_price_per_hour": 0.48},
+    {"id": "rtx4090",   "label": "RTX 4090",     "vram_gb": 24,  "base_price_per_hour": 0.76},
+    {"id": "a6000",     "label": "RTX A6000",    "vram_gb": 48,  "base_price_per_hour": 1.09},
+    {"id": "l40s",      "label": "L40S",         "vram_gb": 48,  "base_price_per_hour": 1.25},
+    {"id": "a100_80",   "label": "A100 80GB",    "vram_gb": 80,  "base_price_per_hour": 1.97},
+    {"id": "h100_sxm5", "label": "H100 SXM5",    "vram_gb": 80,  "base_price_per_hour": 2.96},
+    {"id": "h200",      "label": "H200 SXM",     "vram_gb": 141, "base_price_per_hour": 4.74},
+    {"id": "4xa100",    "label": "4x A100 80GB", "vram_gb": 320, "base_price_per_hour": 7.88},
 ]
 
 # ── Securite Art.1 ──
