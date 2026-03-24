@@ -904,12 +904,17 @@ async function api(path, opts) {
   opts = opts || {};
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (wallet) headers['X-Wallet'] = wallet;
-  const res = await fetch(path, Object.assign({}, opts, { headers: headers }));
-  if (!res.ok) {
-    const err = await res.json().catch(function() { return { detail: 'Request failed' }; });
-    throw new Error(err.detail || err.error || 'Request failed');
+  try {
+    const res = await fetch(path, Object.assign({}, opts, { headers: headers }));
+    if (!res.ok) {
+      const err = await res.json().catch(function() { return { detail: 'Request failed (' + res.status + ')' }; });
+      throw new Error(err.detail || err.error || 'Request failed');
+    }
+    return await res.json();
+  } catch(e) {
+    console.warn('API error:', path, e.message);
+    return null;
   }
-  return res.json();
 }
 
 function toast(msg, type) {
@@ -1284,8 +1289,9 @@ async function loadPortfolio() {
   var prices = {};
   try {
     var priceResp = await fetch('/api/public/crypto/prices');
+    if (!priceResp.ok) { console.warn('Price fetch failed:', priceResp.status); throw new Error('price fetch failed'); }
     var priceData = await priceResp.json();
-    prices = priceData.prices || {};
+    prices = (priceData && priceData.prices) || {};
   } catch(e) { /* prices stay empty, values will show $0 */ }
 
   var holdings = [];
@@ -1324,10 +1330,13 @@ async function loadPortfolio() {
         mintToSymbol[TOKEN_MINTS[sym].mint] = sym;
       }
 
-      tokenAccounts.value.forEach(function(acc) {
+      var tokenList = (tokenAccounts && tokenAccounts.value) || [];
+      tokenList.forEach(function(acc) {
+        if (!acc || !acc.account || !acc.account.data || !acc.account.data.parsed || !acc.account.data.parsed.info) return;
         var info = acc.account.data.parsed.info;
         var mint = info.mint;
-        var amount = parseFloat(info.tokenAmount.uiAmountString || '0');
+        var tokenAmount = (info.tokenAmount) || {};
+        var amount = parseFloat(tokenAmount.uiAmountString || '0');
         if (amount > 0) {
           var symbol = mintToSymbol[mint] || (mint.slice(0, 4) + '...' + mint.slice(-4));
           var tokenPrice = (prices[symbol] && prices[symbol].price) ? prices[symbol].price : 0;
@@ -1823,7 +1832,7 @@ async function executeSolanaSwap(from, to, amount) {
         from_token: from, to_token: to, amount: amount,
         wallet: wallet, tx_signature: txSignature, source: 'jupiter_phantom'
       })
-    }).catch(function() {});
+    }).catch(function(err) { console.warn('Swap log failed:', err); });
 
   } catch (e) {
     var errMsg = e.message || String(e);
@@ -2063,7 +2072,7 @@ async function executeEvmSwap(from, to, amount) {
         chain: chainInfo.name.toLowerCase(),
         chain_id: chainId
       })
-    }).catch(function() {});
+    }).catch(function(err) { console.warn('EVM swap log failed:', err); });
 
   } catch (e) {
     var errMsg = e.message || String(e);
@@ -2119,7 +2128,7 @@ async function loadGPU() {
   var grid = document.getElementById('gpu-grid');
   try {
     var data = await api('/api/public/gpu/tiers');
-    var tiers = data.tiers || data.gpu_tiers || data || [];
+    var tiers = (data && data.tiers) || (data && data.gpu_tiers) || (Array.isArray(data) ? data : []);
 
     if (Array.isArray(tiers) && tiers.length > 0) {
       _gpuTiersCache = tiers;
@@ -2837,7 +2846,7 @@ async function loadStocks() {
   var grid = document.getElementById('stocks-grid');
   try {
     var data = await api('/api/public/stocks');
-    var stocks = data.stocks || data || [];
+    var stocks = (data && data.stocks) || (Array.isArray(data) ? data : []);
 
     if (Array.isArray(stocks) && stocks.length > 0) {
       // Cache prices for modal use
