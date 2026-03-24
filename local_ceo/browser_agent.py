@@ -1819,31 +1819,58 @@ class BrowserAgent:
 
     # ── Discord Web ──
 
-    async def send_discord(self, server_channel_url: str, text: str) -> dict:
-        """Envoie un message sur Discord Web."""
+    async def send_discord(self, server_or_channel_url: str, text: str) -> dict:
+        """Envoie un message sur Discord Web. Accepte invite URL ou channel URL."""
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}
+        if not text:
+            return {"success": False, "error": "Empty text"}
         await self._ensure_ready()
         page = self._page
 
         try:
-            await page.goto(server_channel_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(5000)
+            # Si c'est un invite link (discord.gg/...), aller sur Discord app
+            # et trouver le channel general du serveur
+            if "discord.gg/" in server_or_channel_url or "discord.com/invite/" in server_or_channel_url:
+                # D'abord naviguer vers l'invite pour arriver sur le serveur
+                await page.goto(server_or_channel_url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(5000)
+                # Cliquer "Accept Invite" si demandé
+                for sel in ['button:has-text("Accept Invite")', 'button:has-text("Accepter l\'invitation")',
+                            'button:has-text("Join")', 'button:has-text("Continue to Discord")']:
+                    try:
+                        btn = page.locator(sel).first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            await page.wait_for_timeout(3000)
+                            break
+                    except Exception:
+                        continue
+                # Attendre d'etre sur discord.com/channels/...
+                await page.wait_for_timeout(3000)
+            elif "discord.com/channels/" in server_or_channel_url:
+                await page.goto(server_or_channel_url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(5000)
+            else:
+                # Aller sur Discord app directement
+                await page.goto("https://discord.com/channels/@me", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(3000)
 
+            # Chercher et remplir le champ de message
             filled = await self._find_and_fill(page, [
                 'div[role="textbox"][contenteditable="true"]',
                 'div[data-slate-editor="true"]',
                 'div.slateTextArea-1Mkdgw',
             ], text[:2000], "Discord message")
             if not filled:
-                return {"success": False, "error": "Champ message Discord introuvable"}
+                return {"success": False, "error": "Champ message Discord introuvable (pas connecte?)"}
 
             await page.keyboard.press("Enter")
             await page.wait_for_timeout(2000)
 
-            self._record_action("dm", self._content_hash("discord", f"{server_channel_url}:{text[:50]}"))
-            return {"success": True, "channel": server_channel_url}
+            self._record_action("dm", self._content_hash("discord", f"{server_or_channel_url}:{text[:50]}"))
+            return {"success": True, "channel": server_or_channel_url}
 
         except Exception as e:
             return {"success": False, "error": str(e)}
