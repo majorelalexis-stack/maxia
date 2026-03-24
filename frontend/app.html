@@ -13,23 +13,54 @@ html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
 a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
 
-/* ── Navbar ── */
-.navbar{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
-.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer}
-.nav-links{display:flex;gap:6px;align-items:center}
-.nav-link{color:var(--muted);font-size:14px;padding:6px 14px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;background:none;font-family:'Outfit',sans-serif}
+/* ── Sidebar ── */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:220px;background:var(--bg2);border-right:1px solid rgba(255,255,255,.06);z-index:1000;display:flex;flex-direction:column;padding:20px 12px;overflow-y:auto}
+.sidebar .nav-logo{font-size:24px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer;padding:8px 12px;margin-bottom:24px;display:block;text-decoration:none}
+.sidebar-section{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.5px;padding:12px 12px 6px;margin-top:8px}
+.nav-link{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s;border:none;background:none;font-family:'Outfit',sans-serif;width:100%;text-align:left}
 .nav-link:hover{color:var(--text);background:rgba(255,255,255,.04)}
-.nav-link.active{color:var(--cyan);background:rgba(6,182,212,.08)}
-.btn-connect{padding:8px 20px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border-radius:8px;font-weight:600;border:none;cursor:pointer;font-size:14px;font-family:'Outfit',sans-serif;transition:all .2s;margin-left:8px}
+.nav-link.active{color:var(--cyan);background:rgba(6,182,212,.1);font-weight:600}
+.nav-link .icon{font-size:18px;width:24px;text-align:center}
+.sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
+.btn-connect{padding:10px 16px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border-radius:10px;font-weight:600;border:none;cursor:pointer;font-size:13px;font-family:'Outfit',sans-serif;transition:all .2s;width:100%}
 .btn-connect:hover{opacity:.9;transform:translateY(-1px)}
 .btn-connect.connected{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
-.wallet-opt{display:block;width:100%;text-align:left;padding:10px 12px;background:none;border:none;color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;cursor:pointer;border-radius:8px;transition:background .15s}
+.wallet-opt{display:block;width:100%;text-align:left;padding:10px 12px;background:none;border:none;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;cursor:pointer;border-radius:8px;transition:background .15s}
 .wallet-opt:hover{background:rgba(59,130,246,.1)}
 .form-input{background:var(--bg2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border .2s}
 .form-input:focus{border-color:var(--cyan)}
+/* Mobile: top navbar instead of sidebar */
+.nav-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:24px;cursor:pointer}
+@media(max-width:768px){
+  .sidebar{position:fixed;top:0;left:-260px;width:260px;transition:left .3s;z-index:2000}
+  .sidebar.open{left:0}
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1999}
+  .sidebar-overlay.open{display:block}
+  .mobile-header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--bg2);border-bottom:1px solid rgba(255,255,255,.06);position:fixed;top:0;left:0;right:0;z-index:1000}
+  .mobile-header .nav-logo{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .nav-menu-btn{display:block}
+  .main{padding-top:60px;padding-left:16px;padding-right:16px;margin-left:0}
+}
+@media(min-width:769px){
+  .mobile-header{display:none}
+}
 
 /* ── Main ── */
-.main{padding-top:70px;max-width:1100px;margin:0 auto;padding-left:24px;padding-right:24px;padding-bottom:60px;min-height:100vh}
+.main{margin-left:220px;padding-top:24px;max-width:1000px;padding-left:32px;padding-right:32px;padding-bottom:60px;min-height:100vh}
+
+/* ── Home cards ── */
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px}
+.home-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;cursor:pointer;transition:all .3s;text-align:center}
+.home-card:hover{border-color:rgba(59,130,246,.4);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.home-card .hc-icon{font-size:36px;margin-bottom:12px}
+.home-card .hc-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.home-card .hc-desc{font-size:12px;color:var(--muted);line-height:1.4}
+.home-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+.home-stat{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 20px;flex:1;min-width:120px;text-align:center}
+.home-stat .hs-num{font-size:24px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.home-stat .hs-label{font-size:11px;color:var(--muted);margin-top:4px}
+.trust-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;justify-content:center}
+.trust-badge{font-size:11px;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);padding:6px 14px;border-radius:20px}
 
 /* ── Pages ── */
 .page{display:none;animation:fadeUp .4s ease}
@@ -226,45 +257,118 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 </head>
 <body>
 
-<!-- ══════════ NAVBAR ══════════ -->
-<nav class="navbar">
+<!-- ══════════ MOBILE HEADER ══════════ -->
+<div class="mobile-header">
+  <span class="nav-logo">MAXIA</span>
+  <button class="nav-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('open')">&#9776;</button>
+</div>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<nav class="sidebar">
   <a href="/" class="nav-logo">MAXIA</a>
-  <button class="nav-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
-  <div class="nav-links">
-    <button class="nav-link active" onclick="showPage('swap')">Swap</button>
-    <button class="nav-link" onclick="showPage('portfolio')">Portfolio</button>
-    <button class="nav-link" onclick="showPage('gpu')">GPU</button>
-    <button class="nav-link" onclick="showPage('yields')">Yields</button>
-    <button class="nav-link" onclick="showPage('bridge')">Bridge</button>
-    <button class="nav-link" onclick="showPage('stocks')">Stocks</button>
-    <button class="nav-link" onclick="showPage('nfts')">NFT</button>
-    <button class="nav-link" onclick="showPage('agentid')">Agent ID</button>
-    <button class="nav-link" onclick="showPage('trading')">Trading</button>
-  </div>
-  <div style="position:relative">
-    <button class="btn-connect" id="btn-wallet" onclick="toggleWalletMenu()">Connect Wallet</button>
-    <div id="wallet-menu" style="display:none;position:absolute;right:0;top:46px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:220px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.5)">
-      <div style="padding:8px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div>
-      <button class="wallet-opt" onclick="connectSpecific('phantom')">Phantom</button>
-      <button class="wallet-opt" onclick="connectSpecific('backpack')">Backpack</button>
-      <button class="wallet-opt" onclick="connectSpecific('solflare')">Solflare</button>
-      <div style="padding:8px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div>
-      <button class="wallet-opt" onclick="connectSpecific('metamask')">MetaMask</button>
-      <button class="wallet-opt" onclick="connectSpecific('rabby')">Rabby</button>
-      <button class="wallet-opt" onclick="connectSpecific('coinbase')">Coinbase Wallet</button>
-      <button class="wallet-opt" onclick="connectSpecific('walletconnect')">WalletConnect</button>
-      <div style="padding:8px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other Chains</div>
-      <button class="wallet-opt" onclick="connectSpecific('petra')">Petra (Aptos)</button>
-      <button class="wallet-opt" onclick="connectSpecific('sui')">SUI Wallet</button>
-    </div>
+
+  <button class="nav-link active" onclick="showPage('home',this)"><span class="icon">&#127968;</span> Home</button>
+
+  <div class="sidebar-section">Trade</div>
+  <button class="nav-link" onclick="showPage('swap',this)"><span class="icon">&#128260;</span> Swap</button>
+  <button class="nav-link" onclick="showPage('stocks',this)"><span class="icon">&#128200;</span> Stocks</button>
+  <button class="nav-link" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</button>
+
+  <div class="sidebar-section">Earn</div>
+  <button class="nav-link" onclick="showPage('yields',this)"><span class="icon">&#127793;</span> DeFi Yields</button>
+  <button class="nav-link" onclick="showPage('gpu',this)"><span class="icon">&#9889;</span> GPU Rental</button>
+
+  <div class="sidebar-section">Build</div>
+  <button class="nav-link" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT</button>
+  <button class="nav-link" onclick="showPage('agentid',this)"><span class="icon">&#129302;</span> Agent ID</button>
+  <button class="nav-link" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</button>
+  <button class="nav-link" onclick="showPage('portfolio',this)"><span class="icon">&#128188;</span> Portfolio</button>
+
+  <div class="sidebar-bottom">
+    <div style="position:relative">
+      <button class="btn-connect" id="btn-wallet" onclick="toggleWalletMenu()">Connect Wallet</button>
+      <div id="wallet-menu" style="display:none;position:absolute;left:0;bottom:50px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:200px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div>
+        <button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button>
+        <button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button>
+        <button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button>
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div>
+        <button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button>
+        <button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button>
+        <button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase Wallet</button>
+        <button class="wallet-opt" onclick="connectSpecific('walletconnect')">&#128279; WalletConnect</button>
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div>
+        <button class="wallet-opt" onclick="connectSpecific('petra')">&#127800; Petra (Aptos)</button>
+        <button class="wallet-opt" onclick="connectSpecific('sui')">&#128167; SUI Wallet</button>
+      </div>
   </div>
 </nav>
 
 <!-- ══════════ MAIN ══════════ -->
 <div class="main">
 
+<!-- ─── PAGE: HOME ─── -->
+<div class="page active" id="page-home">
+  <div style="text-align:center;padding:20px 0">
+    <h1 style="font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Welcome to MAXIA</h1>
+    <p style="color:var(--muted);margin-top:8px;font-size:15px">AI-to-AI Marketplace on 14 Blockchains</p>
+  </div>
+
+  <div class="home-stats">
+    <div class="home-stat"><div class="hs-num">14</div><div class="hs-label">Blockchains</div></div>
+    <div class="home-stat"><div class="hs-num">50</div><div class="hs-label">Tokens</div></div>
+    <div class="home-stat"><div class="hs-num">13</div><div class="hs-label">Stocks</div></div>
+    <div class="home-stat"><div class="hs-num">46</div><div class="hs-label">MCP Tools</div></div>
+    <div class="home-stat"><div class="hs-num">17</div><div class="hs-label">AI Services</div></div>
+  </div>
+
+  <div class="home-grid">
+    <div class="home-card" onclick="showPage('swap')">
+      <div class="hc-icon">&#128260;</div>
+      <div class="hc-title">Swap Tokens</div>
+      <div class="hc-desc">Trade 50 tokens across 2450 pairs. Lowest fees on Solana.</div>
+    </div>
+    <div class="home-card" onclick="showPage('stocks')">
+      <div class="hc-icon">&#128200;</div>
+      <div class="hc-title">Tokenized Stocks</div>
+      <div class="hc-desc">Buy AAPL, TSLA, NVDA and 10 more. 3 providers, multi-chain.</div>
+    </div>
+    <div class="home-card" onclick="showPage('yields')">
+      <div class="hc-icon">&#127793;</div>
+      <div class="hc-title">DeFi Yields</div>
+      <div class="hc-desc">Find the best APY across 14 chains. Staking, lending, LP.</div>
+    </div>
+    <div class="home-card" onclick="showPage('gpu')">
+      <div class="hc-icon">&#9889;</div>
+      <div class="hc-title">GPU Rental</div>
+      <div class="hc-desc">RTX 4090 to H200. From $0.35/h. Fine-tune LLMs.</div>
+    </div>
+    <div class="home-card" onclick="showPage('bridge')">
+      <div class="hc-icon">&#128279;</div>
+      <div class="hc-title">Cross-Chain Bridge</div>
+      <div class="hc-desc">Move assets between 14 chains. Powered by Li.Fi.</div>
+    </div>
+    <div class="home-card" onclick="showPage('nfts')">
+      <div class="hc-icon">&#127912;</div>
+      <div class="hc-title">NFT & Agent ID</div>
+      <div class="hc-desc">Mint your AI agent on-chain. Trust score, identity.</div>
+    </div>
+  </div>
+
+  <div class="trust-badges">
+    <span class="trust-badge">Powered by Jupiter</span>
+    <span class="trust-badge">Powered by 1inch</span>
+    <span class="trust-badge">Powered by RunPod</span>
+    <span class="trust-badge">Powered by Li.Fi</span>
+    <span class="trust-badge">Powered by DeFiLlama</span>
+    <span class="trust-badge">14 Blockchains</span>
+    <span class="trust-badge">USDC Settlement</span>
+  </div>
+</div>
+
 <!-- ─── PAGE: SWAP ─── -->
-<div class="page active" id="page-swap">
+<div class="page" id="page-swap">
   <div class="swap-card">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -951,15 +1055,33 @@ function fmtRate(n) {
 // ══════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════
-function showPage(name) {
+function showPage(name, btn) {
   // Hide all pages
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   // Show target
   var target = document.getElementById('page-' + name);
   if (target) target.classList.add('active');
 
-  // Update nav active state
+  // Update sidebar active state
   document.querySelectorAll('.nav-link').forEach(function(l) { l.classList.remove('active'); });
+  if (btn) {
+    btn.classList.add('active');
+  } else {
+    document.querySelectorAll('.nav-link').forEach(function(l) {
+      var txt = l.textContent.trim().toLowerCase().replace(/[\s&#;\d]/g, '');
+      if (txt.indexOf(name) >= 0 || (name === 'agentid' && txt.indexOf('agent') >= 0) ||
+          (name === 'nfts' && txt.indexOf('nft') >= 0) || (name === 'home' && txt.indexOf('home') >= 0)) {
+        l.classList.add('active');
+      }
+    });
+  }
+
+  // Close mobile sidebar
+  document.querySelector('.sidebar').classList.remove('open');
+  var overlay = document.querySelector('.sidebar-overlay');
+  if (overlay) overlay.classList.remove('open');
+
+  // Legacy compat
   document.querySelectorAll('.nav-link').forEach(function(l) {
     var txt = l.textContent.trim().toLowerCase().replace(/\s+/g, '');
     if (txt === name || (l.textContent.trim() === 'Agent ID' && name === 'agentid') ||
