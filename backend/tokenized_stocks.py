@@ -613,59 +613,57 @@ class TokenizedStockExchange:
 
         print(f"[Stocks] {route_used} swap OK: {swap_result.get('signature', swap_result.get('tx_hash', ''))[:16]}...")
 
-                # Record trade ONLY after successful swap
-                trade = {
-                    "trade_id": str(uuid.uuid4()),
-                    "type": "buy",
-                    "buyer": buyer_name,
-                    "buyer_wallet": buyer_wallet,
-                    "symbol": symbol,
-                    "name": TOKENIZED_STOCKS[symbol]["name"],
-                    "amount_usdc": amount_usdc,
-                    "commission_usdc": commission,
-                    "commission_bps": commission_bps,
-                    "net_amount_usdc": net_amount,
-                    "price_per_share": price,
-                    "shares": shares,
-                    "tier": tier,
-                    "payment_tx": payment_tx,
-                    "timestamp": int(time.time()),
-                    "route": route_used,
-                    "swap_signature": swap_result.get("signature", swap_result.get("tx_hash", "")),
-                    "swap_explorer": swap_result.get("explorer", ""),
-                    "on_chain": True,
-                    "price_source": price_source,
-                }
-                _stock_trades.append(trade)
+        # Record trade ONLY after successful swap
+        trade = {
+            "trade_id": str(uuid.uuid4()),
+            "type": "buy",
+            "buyer": buyer_name,
+            "buyer_wallet": buyer_wallet,
+            "symbol": symbol,
+            "name": TOKENIZED_STOCKS[symbol]["name"],
+            "amount_usdc": amount_usdc,
+            "commission_usdc": commission,
+            "commission_bps": commission_bps,
+            "net_amount_usdc": net_amount,
+            "price_per_share": price,
+            "shares": shares,
+            "tier": tier,
+            "payment_tx": payment_tx,
+            "timestamp": int(time.time()),
+            "route": route_used,
+            "swap_signature": swap_result.get("signature", swap_result.get("tx_hash", "")),
+            "swap_explorer": swap_result.get("explorer", ""),
+            "on_chain": True,
+            "price_source": price_source,
+        }
+        _stock_trades.append(trade)
 
-                # Mettre a jour le portfolio
-                _portfolios.setdefault(buyer_api_key, {})
-                _portfolios[buyer_api_key].setdefault(symbol, 0)
-                _portfolios[buyer_api_key][symbol] += shares
-                await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
-                await _persist_trade(trade)
+        # Mettre a jour le portfolio
+        _portfolios.setdefault(buyer_api_key, {})
+        _portfolios[buyer_api_key].setdefault(symbol, 0)
+        _portfolios[buyer_api_key][symbol] += shares
+        await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
+        await _persist_trade(trade)
 
-                # ── Fix #6: Record transaction in DB ──
-                from database import db as _db
-                await _db.record_transaction(buyer_wallet, payment_tx, amount_usdc, "stock_trade")
+        # Record transaction in DB
+        from database import db as _db
+        await _db.record_transaction(buyer_wallet, payment_tx, amount_usdc, "stock_trade")
 
-                # Alerte Discord
-                try:
-                    from alerts import alert_revenue
-                    await alert_revenue(commission, f"Achat action {symbol} — {buyer_name} ({amount_usdc} USDC)")
-                except Exception:
-                    pass
+        # Alerte Discord
+        try:
+            from alerts import alert_revenue
+            await alert_revenue(commission, f"Achat action {symbol} — {buyer_name} ({amount_usdc} USDC)")
+        except Exception:
+            pass
 
-                print(f"[Stocks] BUY {shares:.4f} {symbol} @ ${price} par {buyer_name} — commission {commission} USDC")
+        print(f"[Stocks] BUY {shares:.4f} {symbol} @ ${price} par {buyer_name} — commission {commission} USDC")
 
-                return {
-                    "success": True,
-                    **trade,
-                    "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
-                    "price_source": price_source,
-                }
-            except Exception as e:
-                return {"success": False, "error": f"Trade execution error: {e}"}
+        return {
+            "success": True,
+            **trade,
+            "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
+            "price_source": price_source,
+        }
 
     async def sell_stock(self, seller_api_key: str, seller_name: str,
                           seller_wallet: str, symbol: str, shares: float,
