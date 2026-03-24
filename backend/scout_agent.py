@@ -23,6 +23,7 @@ from config import (
     MARKETING_WALLET_ADDRESS, PROSPECT_MAX_PER_DAY,
     POLYGON_RPC, ARBITRUM_RPC, AVALANCHE_RPC, BNB_RPC,
     NEAR_RPC, APTOS_API, SEI_RPC,
+    XRPL_RPC, TRON_API_URL,
 )
 from alerts import alert_system, alert_error
 
@@ -38,6 +39,9 @@ SOLANA_AI_PROGRAMS = {
     "CLoCKyJ6DXBhqMJ8NwfD6gFS3FAhKdiQRYem8yKc8is": "Clockwork",
     "SW1TCH7qEPTdLsDHRgPuMQjbQxKdH2aBStViMFnt64f": "Switchboard",
     "SENDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "SendAI",
+    "ai16zxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "AI16z",
+    "GoATi9B21g5Vm7yLuNs6bXiNK1DH4D7T32BE8pCNbVMq": "GOAT SDK",
+    "VRTLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": "Virtuals Solana",
 }
 
 # Ethereum contracts for AI agent protocols
@@ -72,6 +76,18 @@ ETH_AI_CONTRACTS = {
         "type": "nft",
         "scan_method": "logs",
     },
+    # Morpheus AI
+    "0x47176B2Af9885dC6C4575d4eFd63895f7Aaa4790": {
+        "name": "Morpheus AI MOR",
+        "type": "token",
+        "scan_method": "transfers",
+    },
+    # ChainML
+    "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0": {
+        "name": "ChainML MATIC Staking",
+        "type": "staking",
+        "scan_method": "logs",
+    },
 }
 
 # Base L2 contracts for AI agents
@@ -80,6 +96,12 @@ BASE_AI_CONTRACTS = {
     "0x44e09c0A7Eb39dBC0653e7b0e240a4dA1Bd8DE37": {
         "name": "Virtuals Protocol",
         "type": "factory",
+        "scan_method": "logs",
+    },
+    # Based Agents
+    "0x532f27101965dd16442E59d40670FaF5eBB142E4": {
+        "name": "Based Agents",
+        "type": "registry",
         "scan_method": "logs",
     },
 }
@@ -140,6 +162,30 @@ AI_REGISTRIES = [
         "type": "near-ai",
         "chain": "near",
     },
+    {
+        "name": "Virtuals Protocol",
+        "url": "https://api.virtuals.io/api/agents",
+        "type": "virtuals",
+        "chain": "base",
+    },
+    {
+        "name": "LangChain Hub",
+        "url": "https://api.hub.langchain.com/repos",
+        "type": "langchain",
+        "chain": "multi",
+    },
+]
+
+# XRP AI accounts
+XRP_AI_ACCOUNTS = [
+    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",  # Genesis account
+    "rhub8VRN55s94qWKDv6jmDy1pUykJzF3wq",   # XRP Hub
+]
+
+# TRON AI contracts
+TRON_AI_CONTRACTS = [
+    "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",   # USDT TRC-20
+    "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",    # USDC TRC-20
 ]
 
 # ERC-20 Transfer topic
@@ -192,7 +238,7 @@ class ScoutAgent:
             except Exception as e:
                 print(f"[SCOUT] Erreur boucle: {e}")
                 await alert_error("SCOUT", str(e))
-            await asyncio.sleep(7200)  # 2 heures (scan plus frequent)
+            await asyncio.sleep(1800)  # 30 min (GPU local = gratuit, on peut scanner souvent)
 
     def stop(self):
         self._running = False
@@ -216,6 +262,8 @@ class ScoutAgent:
             self._scan_near(),
             self._scan_aptos(),
             self._scan_evm_chain("sei", SEI_RPC, SEI_AI_CONTRACTS),
+            self._scan_xrp(),
+            self._scan_tron(),
             self._scan_registries(),
             return_exceptions=True,
         )
@@ -247,10 +295,10 @@ class ScoutAgent:
                     resp = await client.post(rpc, json={
                         "jsonrpc": "2.0", "id": 1,
                         "method": "getSignaturesForAddress",
-                        "params": [program, {"limit": 10}],
+                        "params": [program, {"limit": 50}],
                     })
                     sigs = resp.json().get("result", [])
-                    for sig_info in sigs[:5]:
+                    for sig_info in sigs[:20]:
                         sig = sig_info.get("signature", "")
                         if not sig:
                             continue
@@ -287,7 +335,7 @@ class ScoutAgent:
                 from eth_verifier import get_contract_logs
                 logs = await get_contract_logs(contract)
                 wallets = set()
-                for log in logs[:20]:
+                for log in logs[:100]:
                     topics = log.get("topics", [])
                     # Extract interacting wallets from topics
                     for t in topics[1:]:
@@ -345,7 +393,7 @@ class ScoutAgent:
                     resp = await client.post(BASE_RPC, json=payload)
                     logs = resp.json().get("result", [])
                     wallets = set()
-                    for log in logs[:20]:
+                    for log in logs[:100]:
                         topics = log.get("topics", [])
                         for t in topics[1:]:
                             if len(t) == 66:
@@ -378,7 +426,7 @@ class ScoutAgent:
                     resp = await client.post(rpc_url, json=payload)
                     logs = resp.json().get("result", [])
                     wallets = set()
-                    for log in logs[:20]:
+                    for log in logs[:100]:
                         topics = log.get("topics", [])
                         for t in topics[1:]:
                             if len(t) == 66:
@@ -404,7 +452,7 @@ class ScoutAgent:
             async with httpx.AsyncClient(timeout=15) as client:
                 # Chercher les transactions recentes sur des contrats connus
                 resp = await client.get("https://toncenter.com/api/v2/getTransactions",
-                    params={"address": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs", "limit": 10})
+                    params={"address": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs", "limit": 50})
                 data = resp.json()
                 if data.get("ok"):
                     for tx in data.get("result", [])[:10]:
@@ -429,7 +477,7 @@ class ScoutAgent:
                 resp = await client.post("https://fullnode.mainnet.sui.io:443", json={
                     "jsonrpc": "2.0", "id": 1,
                     "method": "suix_queryEvents",
-                    "params": [{"MoveModule": {"package": "0x2", "module": "coin"}}, None, 10, True],
+                    "params": [{"MoveModule": {"package": "0x2", "module": "coin"}}, None, 50, True],
                 })
                 data = resp.json()
                 events = data.get("result", {}).get("data", [])
@@ -480,7 +528,7 @@ class ScoutAgent:
                     resp = await client.get("https://api.near.ai/v1/agents", timeout=10)
                     if resp.status_code == 200:
                         data = resp.json()
-                        for agent in (data if isinstance(data, list) else data.get("agents", []))[:20]:
+                        for agent in (data if isinstance(data, list) else data.get("agents", []))[:50]:
                             addr = agent.get("account_id", agent.get("id", ""))
                             if addr:
                                 agents.append({
@@ -521,18 +569,82 @@ class ScoutAgent:
         print(f"[SCOUT] Aptos: {len(agents)} agents trouves")
         return agents
 
+    async def _scan_xrp(self) -> list:
+        """Scan XRP Ledger pour trouver des agents/bots actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                for acct in XRP_AI_ACCOUNTS:
+                    try:
+                        resp = await client.post(XRPL_RPC, json={
+                            "method": "account_tx",
+                            "params": [{"account": acct, "limit": 50, "ledger_index_min": -1}],
+                        })
+                        data = resp.json()
+                        txs = data.get("result", {}).get("transactions", [])
+                        for tx in txs[:50]:
+                            dest = tx.get("tx", {}).get("Destination", "")
+                            source = tx.get("tx", {}).get("Account", "")
+                            for addr in [dest, source]:
+                                if addr and addr != acct:
+                                    agents.append({
+                                        "address": addr,
+                                        "chain": "xrp",
+                                        "protocol": "XRPL",
+                                        "type": "active_wallet",
+                                        "contact_method": "api_or_onchain",
+                                    })
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"[SCOUT] XRP scan error: {e}")
+        print(f"[SCOUT] XRP: {len(agents)} agents trouves")
+        return agents
+
+    async def _scan_tron(self) -> list:
+        """Scan TRON pour trouver des agents/bots actifs."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                for contract in TRON_AI_CONTRACTS:
+                    try:
+                        resp = await client.get(
+                            f"{TRON_API_URL}/v1/contracts/{contract}/events",
+                            params={"limit": 50, "only_confirmed": "true"},
+                        )
+                        data = resp.json()
+                        events = data.get("data", [])
+                        for event in events[:50]:
+                            caller = event.get("caller_contract_address", "")
+                            tx_owner = event.get("transaction_owner_address", "")
+                            for addr in [caller, tx_owner]:
+                                if addr:
+                                    agents.append({
+                                        "address": addr,
+                                        "chain": "tron",
+                                        "protocol": "TRON DeFi",
+                                        "type": "active_wallet",
+                                        "contact_method": "api_or_onchain",
+                                    })
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"[SCOUT] TRON scan error: {e}")
+        print(f"[SCOUT] TRON: {len(agents)} agents trouves")
+        return agents
+
     async def _scan_registries(self) -> list:
         """Scan les registries HTTP d'agents IA (Autonolas, etc)."""
         agents = []
         for registry in AI_REGISTRIES:
             try:
                 async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.get(registry["url"], params={"limit": 20})
+                    resp = await client.get(registry["url"], params={"limit": 50})
                     if resp.status_code != 200:
                         continue
                     data = resp.json()
                     services = data if isinstance(data, list) else data.get("results", data.get("services", []))
-                    for svc in services[:10]:
+                    for svc in services[:30]:
                         # Olas format
                         owner = svc.get("owner", svc.get("agent_address", ""))
                         name = svc.get("name", svc.get("description", ""))
@@ -754,7 +866,7 @@ class ScoutAgent:
             "max_per_day": self._max_contacts_day,
             "by_chain": by_chain,
             "by_protocol": by_protocol,
-            "chains": ["solana", "base", "ethereum"],
+            "chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei"],
             "protocols_watched": (
                 list(SOLANA_AI_PROGRAMS.values())
                 + [v["name"] for v in ETH_AI_CONTRACTS.values()]
