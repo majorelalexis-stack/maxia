@@ -153,6 +153,62 @@ COMPETITOR_FEES = {
     "binance": {"name": "Binance", "fee_bps": 10, "note": "0.1% maker/taker"},
 }
 
+# ── EVM Swap via 1inch API (Ethereum, Arbitrum, Base) ──
+
+# USDC addresses per chain
+_EVM_USDC = {
+    1: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",      # Ethereum
+    42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",    # Arbitrum
+    8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",     # Base
+}
+
+
+async def _swap_evm_1inch(chain_id: int, token_address: str, amount_usdc: float, wallet: str) -> dict:
+    """Get a swap quote from 1inch API for EVM chains. Returns tx data for the user to sign."""
+    usdc = _EVM_USDC.get(chain_id)
+    if not usdc:
+        return {"success": False, "error": f"Chain {chain_id} not supported for EVM swaps"}
+
+    # Amount in USDC raw (6 decimals)
+    amount_raw = str(int(amount_usdc * 1_000_000))
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            # 1inch Swap API v6
+            resp = await client.get(
+                f"https://api.1inch.dev/swap/v6.0/{chain_id}/quote",
+                params={
+                    "src": usdc,
+                    "dst": token_address,
+                    "amount": amount_raw,
+                },
+                headers={"Accept": "application/json"},
+            )
+            if resp.status_code != 200:
+                return {"success": False, "error": f"1inch API error: {resp.status_code}"}
+
+            data = resp.json()
+            dst_amount = data.get("dstAmount", "0")
+
+            return {
+                "success": True,
+                "tx_hash": "",  # User must sign — we return the quote
+                "quote": {
+                    "from_token": usdc,
+                    "to_token": token_address,
+                    "amount_in": amount_raw,
+                    "amount_out": dst_amount,
+                    "chain_id": chain_id,
+                    "protocol": "1inch",
+                },
+                "signature": f"evm-quote-{chain_id}-{token_address[:10]}",
+                "explorer": f"https://{'etherscan.io' if chain_id == 1 else 'arbiscan.io'}/tx/",
+                "note": "EVM swap requires user wallet signature via MetaMask/WalletConnect",
+            }
+    except Exception as e:
+        return {"success": False, "error": f"1inch error: {e}"}
+
+
 # ── Auto-decouverte des tokens xStocks/Ondo sur Solana ──
 
 _discovery_cache: list = []
@@ -511,15 +567,51 @@ class TokenizedStockExchange:
         shares = round(net_amount / price, 6)
         tier = get_stock_tier_name(buyer_volume_30d)
 
-        # ── Fix #3: Only record trade AFTER Jupiter swap succeeds ──
-        mint = TOKENIZED_STOCKS[symbol].get("mint_xstock") or TOKENIZED_STOCKS[symbol].get("mint_ondo", "")
-        if mint and len(mint) > 20:
+        # ── Route swap: Solana (Jupiter) ou EVM (1inch) selon le stock ──
+        stock_info = TOKENIZED_STOCKS[symbol]
+        mint_sol = stock_info.get("mint_xstock", "")
+        mint_eth = stock_info.get("mint_eth", "")
+        mint_arb = stock_info.get("mint_dinari_arb", "")
+        chain = stock_info.get("chain_preference", "")
+
+        # Determine best route: prefer Solana, fallback to ETH, then Arbitrum
+        swap_result = None
+        route_used = ""
+
+        # Route 1: Solana via Jupiter
+        if mint_sol and len(mint_sol) > 20:
             try:
                 from jupiter_router import buy_token_via_jupiter
-                jupiter_result = await buy_token_via_jupiter(mint, net_amount, buyer_wallet)
-                if not jupiter_result.get("success"):
-                    return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}
-                print(f"[Stocks] Jupiter swap OK: {jupiter_result.get('signature', '')[:16]}...")
+                swap_result = await buy_token_via_jupiter(mint_sol, net_amount, buyer_wallet)
+                route_used = "Jupiter (Solana)"
+            except Exception as e:
+                print(f"[Stocks] Jupiter route failed for {symbol}: {e}")
+
+        # Route 2: Ethereum/Arbitrum via 1inch API
+        if not swap_result or not swap_result.get("success"):
+            evm_mint = mint_eth or mint_arb
+            evm_chain_id = 1 if mint_eth else 42161  # ETH mainnet or Arbitrum
+            evm_rpc = ""
+            if mint_eth:
+                from config import ETH_RPC
+                evm_rpc = ETH_RPC
+                route_used = "1inch (Ethereum)"
+            elif mint_arb:
+                from config import ARBITRUM_RPC
+                evm_rpc = ARBITRUM_RPC
+                route_used = "1inch (Arbitrum)"
+
+            if evm_mint and len(evm_mint) > 10:
+                try:
+                    swap_result = await _swap_evm_1inch(evm_chain_id, evm_mint, net_amount, buyer_wallet)
+                except Exception as e:
+                    print(f"[Stocks] 1inch route failed for {symbol}: {e}")
+
+        if not swap_result or not swap_result.get("success"):
+            err = swap_result.get("error", "No swap route available") if swap_result else "No on-chain token found"
+            return {"success": False, "error": f"Swap failed: {err}"}
+
+        print(f"[Stocks] {route_used} swap OK: {swap_result.get('signature', swap_result.get('tx_hash', ''))[:16]}...")
 
                 # Record trade ONLY after successful swap
                 trade = {
@@ -538,9 +630,9 @@ class TokenizedStockExchange:
                     "tier": tier,
                     "payment_tx": payment_tx,
                     "timestamp": int(time.time()),
-                    "route": "Jupiter -> xStocks/Ondo",
-                    "jupiter_signature": jupiter_result.get("signature", ""),
-                    "jupiter_explorer": jupiter_result.get("explorer", ""),
+                    "route": route_used,
+                    "swap_signature": swap_result.get("signature", swap_result.get("tx_hash", "")),
+                    "swap_explorer": swap_result.get("explorer", ""),
                     "on_chain": True,
                     "price_source": price_source,
                 }
@@ -573,9 +665,7 @@ class TokenizedStockExchange:
                     "price_source": price_source,
                 }
             except Exception as e:
-                return {"success": False, "error": f"Jupiter error: {e}"}
-        else:
-            return {"success": False, "error": f"Stock {symbol} not available for trading (no on-chain token)"}
+                return {"success": False, "error": f"Trade execution error: {e}"}
 
     async def sell_stock(self, seller_api_key: str, seller_name: str,
                           seller_wallet: str, symbol: str, shares: float,
