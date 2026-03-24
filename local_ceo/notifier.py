@@ -127,10 +127,17 @@ async def _poll_telegram_approval(action_id: str, timeout_s: int) -> str:
     last_update_id = 0
 
     while time.time() - start < timeout_s:
+        # Check dashboard approval (dict) BEFORE polling Telegram
+        entry = _pending_approvals.get(action_id)
+        if entry and entry.get("approved") is not None:
+            result = "approved" if entry["approved"] else "denied"
+            print(f"[Notifier] Dashboard: {result.upper()} ({action_id})")
+            return result
+
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                # Long polling (10s) — bloque jusqu'a recevoir un message
-                params = {"timeout": 10, "allowed_updates": ["callback_query", "message"]}
+                # Short polling (5s) — permet de checker le dict entre les polls
+                params = {"timeout": 5, "allowed_updates": ["callback_query", "message"]}
                 if last_update_id:
                     params["offset"] = last_update_id + 1
                 resp = await client.get(

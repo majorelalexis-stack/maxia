@@ -467,9 +467,15 @@ class GrowthAgent:
         if not MARKETING_WALLET_ADDRESS:
             return True
         balance = await get_sol_balance(MARKETING_WALLET_ADDRESS)
+        # Alert if below reserve threshold (default 0.05 SOL ~ $7)
+        reserve_sol = GROWTH_RESERVE_ALERT / 150  # Approximate SOL price
         if balance < 0.001:
             await alert_low_balance(balance, MARKETING_WALLET_ADDRESS)
+            print(f"[GrowthAgent] CRITICAL: wallet empty ({balance:.6f} SOL)")
             return False
+        if balance < max(0.05, reserve_sol):
+            await alert_low_balance(balance, MARKETING_WALLET_ADDRESS)
+            print(f"[GrowthAgent] WARNING: low balance ({balance:.4f} SOL)")
         return True
 
     def get_stats(self) -> dict:
