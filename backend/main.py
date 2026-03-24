@@ -2441,9 +2441,12 @@ FREE_TRIAL_GPU = "rtx4090"
 # Label -> tier ID mapping (for frontend that sends display names)
 _LABEL_TO_TIER = {}
 for _tid, _ginfo in GPU_MAP.items():
-    _label = _ginfo["runpod_id"].replace("NVIDIA ", "").replace("GeForce ", "")
+    _rpid = _ginfo.get("runpod_id")
+    if not _rpid:
+        continue  # Skip local GPU tier (no runpod_id)
+    _label = _rpid.replace("NVIDIA ", "").replace("GeForce ", "")
     _LABEL_TO_TIER[_label.lower()] = _tid
-    _LABEL_TO_TIER[_ginfo["runpod_id"].lower()] = _tid
+    _LABEL_TO_TIER[_rpid.lower()] = _tid
 # Also add explicit known labels
 _LABEL_TO_TIER.update({
     "rtx 4090": "rtx4090", "rtx4090": "rtx4090", "geforce rtx 4090": "rtx4090",
