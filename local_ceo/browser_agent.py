@@ -210,21 +210,14 @@ class BrowserAgent:
 
             self._pw = await async_playwright().start()
             os.makedirs(self._profile_dir, exist_ok=True)
-            # Utiliser le Chrome systeme (pas le Chromium Playwright) pour garder le profil
-            import platform
-            if platform.system() == "Windows":
-                chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-            elif platform.system() == "Darwin":
-                chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-            else:
-                chrome_path = "/usr/bin/google-chrome"
-            if not os.path.exists(chrome_path):
-                chrome_path = None  # Fallback Chromium Playwright
+            # Utiliser le Chromium de Playwright (PAS Chrome systeme)
+            # Avantage: pas de conflit si l'utilisateur ouvre Chrome normalement
+            # Les cookies sont dans le profil self._profile_dir (persiste entre les sessions)
             self._context = await self._pw.chromium.launch_persistent_context(
                 user_data_dir=self._profile_dir,
                 headless=False,
                 viewport={"width": 1280, "height": 900},
-                executable_path=chrome_path,
+                executable_path=None,  # None = Playwright Chromium (pas Chrome systeme)
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",

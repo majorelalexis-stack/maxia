@@ -31,7 +31,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # Browser
-BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.maxia-browser"))
+BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.maxia-ceo-browser"))
 
 # Limites quotidiennes
 MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "2"))  # Qualite > quantite : max 2/jour
