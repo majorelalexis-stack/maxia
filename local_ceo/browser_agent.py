@@ -127,9 +127,11 @@ class BrowserAgent:
 
         # ETAPE A: Forcer les prefs Chrome a NE PAS restaurer de session
         # restore_on_startup: 1 = new tab page, 4 = continue, 5 = specific URLs
+        # IMPORTANT: toujours ecrire exit_type=Normal AVANT le lancement
         for prefs_path in [
             os.path.join(self._profile_dir, "Default", "Preferences"),
             os.path.join(self._profile_dir, "Preferences"),
+            os.path.join(self._profile_dir, "Local State"),
         ]:
             try:
                 if os.path.exists(prefs_path):
@@ -230,7 +232,11 @@ class BrowserAgent:
                     "--disable-session-crashed-bubble",
                     "--homepage=about:blank",
                     "--no-first-run",
-                    "--disable-features=SessionRestore",
+                    "--disable-features=SessionRestore,InfiniteSessionRestore",
+                    "--disable-background-networking",
+                    "--disable-sync",
+                    "--noerrdialogs",
+                    "--hide-crash-restore-bubble",
                 ],
                 ignore_default_args=["--enable-automation"],
             )
