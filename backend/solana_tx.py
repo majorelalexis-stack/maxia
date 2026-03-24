@@ -3,7 +3,12 @@ import asyncio, time, struct, base64
 import httpx
 import base58
 from nacl.signing import SigningKey
-from config import get_rpc_url, MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
+from config import get_rpc_url
+
+# V-07: Lazy load private keys (not at module level to avoid stack trace exposure)
+def _get_marketing_wallet():
+    from config import MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
+    return MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
 
 print("[SolanaTx] Mode RPC HTTP natif — transactions reelles activees")
 
@@ -109,18 +114,19 @@ async def get_recent_blockhash() -> str:
 
 async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str) -> dict:
     """Envoie un micro-transfert SOL avec memo. VRAIE TRANSACTION."""
-    if not MARKETING_WALLET_PRIVKEY:
+    _privkey, _wallet_addr = _get_marketing_wallet()
+    if not _privkey:
         return {"success": False, "error": "MARKETING_WALLET_PRIVKEY non configure"}
     if amount_sol > 0.01:
         return {"success": False, "error": "Securite: max 0.01 SOL par tx"}
 
-    balance = await get_sol_balance(MARKETING_WALLET_ADDRESS)
+    balance = await get_sol_balance(_wallet_addr)
     if balance < amount_sol + 0.005:
         return {"success": False, "error": f"Solde insuffisant: {balance:.4f} SOL"}
 
     try:
         rpc = get_rpc_url()
-        signing_key = _keypair_from_b58(MARKETING_WALLET_PRIVKEY)
+        signing_key = _keypair_from_b58(_privkey)
         from_pubkey = bytes(signing_key.verify_key)
         to_pubkey = base58.b58decode(to_address)
 
@@ -151,7 +157,7 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
             print(f"[SolanaTx] SENT: {sig[:20]}... -> {to_address[:8]}...")
             return {
                 "success": True, "status": "sent", "signature": sig,
-                "from": MARKETING_WALLET_ADDRESS, "to": to_address,
+                "from": _wallet_addr, "to": to_address,
                 "amount_sol": amount_sol, "memo": memo_text[:400],
                 "explorer": f"https://solscan.io/tx/{sig}",
             }

@@ -280,8 +280,21 @@ class GrowthAgent:
         if not message:
             return
         memo = f"MAXIA | {message[:380]}"
+        # V-12: Check financial limits via security module before spending
+        try:
+            from security import check_financial_limits, record_spend
+            can_spend = check_financial_limits(0.00001)
+            if not can_spend:
+                print(f"[GrowthAgent] Financial limit reached — skipping {wallet[:12]}")
+                return
+        except Exception:
+            pass
         result = await send_memo_transfer(wallet, 0.00001, memo)
         if result.get("success"):
+            try:
+                record_spend(0.00001)
+            except Exception:
+                pass
             if wallet not in self._contacted:
                 self._contacted[wallet] = {"count": 0, "channels": [], "first": int(time.time())}
             self._contacted[wallet]["count"] += 1

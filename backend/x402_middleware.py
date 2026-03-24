@@ -352,6 +352,16 @@ async def x402_middleware(request: Request, call_next):
 
         print(f"[x402] Verification result: {'VALID' if is_valid else 'INVALID'}")
 
+        # V-16: Replay protection — record tx signature to prevent reuse
+        if is_valid and pay_header:
+            try:
+                from database import db as _x402_db
+                if await _x402_db.tx_already_processed(pay_header):
+                    return JSONResponse(status_code=402, content={"error": "Payment already used (replay detected)"})
+                await _x402_db.record_transaction("x402", pay_header, price, "x402_payment")
+            except Exception as e:
+                print(f"[x402] Replay check error: {e}")
+
         if not is_valid:
             return JSONResponse(
                 status_code=402,

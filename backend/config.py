@@ -12,8 +12,15 @@ HELIUS_API_KEY     = os.getenv("HELIUS_API_KEY", "")
 FEE_BPS            = int(os.getenv("FEE_BPS", "10"))
 
 def get_rpc_url() -> str:
+    """V-20: Helius requires API key in URL (no header option). Never log this URL."""
     if HELIUS_API_KEY:
         return f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
+    return SOLANA_RPC
+
+def get_rpc_url_safe() -> str:
+    """Safe version for logging — masks the API key."""
+    if HELIUS_API_KEY:
+        return f"https://mainnet.helius-rpc.com/?api-key=***"
     return SOLANA_RPC
 
 # ── IA (Groq) ──

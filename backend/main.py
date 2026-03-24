@@ -2306,9 +2306,19 @@ async def auction_ws(ws: WebSocket):
         await auction_manager.unregister(cid)
 
 
+# V-09: WebSocket connection limiter
+_ws_connections: dict = {}  # ip -> count
+_WS_MAX_PER_IP = 5
+
 @app.websocket("/ws/prices")
 async def ws_prices(websocket: WebSocket):
-    """WebSocket: real-time price updates every 10 seconds."""
+    """WebSocket: real-time price updates every 10 seconds. Max 5 per IP."""
+    ip = websocket.client.host if websocket.client else "unknown"
+    _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
+    if _ws_connections[ip] > _WS_MAX_PER_IP:
+        _ws_connections[ip] -= 1
+        await websocket.close(code=1008, reason="Too many connections")
+        return
     await websocket.accept()
     try:
         while True:
@@ -2322,6 +2332,8 @@ async def ws_prices(websocket: WebSocket):
     except Exception as e:
         if "disconnect" not in str(e).lower():
             print(f"[WS/prices] Connection error: {e}")
+    finally:
+        _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
 @app.websocket("/ws/candles")
 async def ws_candles(websocket: WebSocket):

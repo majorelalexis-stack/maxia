@@ -26,16 +26,20 @@ def _cleanup_nonces():
 
 # JWT-like session tokens (HMAC-signed, not ed25519)
 _JWT_SECRET = os.getenv("JWT_SECRET", "")
+_SANDBOX = os.getenv("SANDBOX_MODE", "false").lower() == "true"
 if not _JWT_SECRET or len(_JWT_SECRET) < 16:
-    # Genere un secret ephemere si non configure (valable uniquement pour cette instance)
-    _JWT_SECRET = secrets.token_hex(32)
-    print("[Auth] ⚠️  JWT_SECRET not set — using ephemeral secret (sessions lost on restart)")
+    if _SANDBOX:
+        _JWT_SECRET = secrets.token_hex(32)
+        print("[Auth] SANDBOX: JWT_SECRET ephemere genere")
+    else:
+        _JWT_SECRET = secrets.token_hex(32)
+        print("[Auth] CRITICAL: JWT_SECRET missing or weak (<16 chars). Sessions will be lost on restart. Set JWT_SECRET in .env!")
 
 
 def create_session_token(wallet: str) -> str:
     """Cree un token de session signe HMAC-SHA256."""
     payload = f"{wallet}:{int(time.time()) + 86400}"  # 24h expiry
-    sig = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    sig = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}:{sig}"
 
 
@@ -46,7 +50,7 @@ def verify_session_token(token: str) -> str:
         raise HTTPException(401, "Token invalide")
     wallet, expiry_str, sig = parts
     payload = f"{wallet}:{expiry_str}"
-    expected = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:32]
+    expected = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         raise HTTPException(401, "Token signature invalide")
     if int(expiry_str) < int(time.time()):
@@ -131,7 +135,8 @@ async def verify_signature(req: AuthRequest):
         vk.verify(message, sig_bytes)
     except (BadSignatureError, Exception) as e:
         _record_failed(req.wallet)
-        raise HTTPException(401, f"Signature invalide: {e}")
+        print(f"[Auth] Signature verification failed: {e}")
+        raise HTTPException(401, "Authentication failed")
 
     # Consommer le nonce (anti-replay)
     del NONCES[req.wallet]

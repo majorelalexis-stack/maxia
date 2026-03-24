@@ -102,14 +102,10 @@ class EscrowClient:
         if amount_raw <= 0:
             return {"success": False, "error": "amount_usdc must be positive"}
 
-        # #11: SQL LIKE injection fix — escape wildcards in tx_signature
+        # V-10: Use tx_already_processed (indexed column) instead of LIKE on JSON
         if self._db:
             try:
-                safe_sig = tx_signature.replace("%", "").replace("_", "")
-                existing = await self._db.raw_execute_fetchall(
-                    "SELECT escrow_id FROM escrow_records WHERE data LIKE ?",
-                    (f'%"txSignature":"{safe_sig}"%',))
-                if existing:
+                if await self._db.tx_already_processed(tx_signature):
                     return {"success": False, "error": f"Escrow already exists for tx {tx_signature[:16]}..."}
             except Exception:
                 pass  # Table may not exist yet
