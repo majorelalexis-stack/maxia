@@ -824,10 +824,12 @@ class CEOLocal:
                 await self._act(decisions)
 
                 # 5. AUTO-ENGAGE: search -> like -> comment -> follow
-                try:
-                    await self._auto_engage()
-                except Exception as e:
-                    _log(f"[ENGAGE] Error: {e}")
+                # Seulement 1 cycle sur 2 — laisser de la place aux autres plateformes
+                if self._cycle % 2 == 0:
+                    try:
+                        await self._auto_engage()
+                    except Exception as e:
+                        _log(f"[ENGAGE] Error: {e}")
 
                 # 6. ENGAGEMENT FEEDBACK (toutes les 6 cycles = ~1h)
                 # Verifier si nos derniers tweets/commentaires ont eu de l'engagement
@@ -1368,89 +1370,72 @@ class CEOLocal:
         all_telegram = telegram_groups + [t for t in discovered.get("telegram", []) if t not in telegram_groups]
         all_github = github_repos + [g for g in discovered.get("github", []) if g not in github_repos]
 
-        # 13 routines — chaque cycle dure 5 min → 13 cycles = ~65 min de rotation
-        # Couvre : Twitter, Reddit, Discord, Telegram groups, GitHub, DMs, emails, decouverte
+        # 10 routines equilibrees — chaque plateforme apparait au moins 2x
+        # Twitter: 2 cycles (tweet + search) + auto_engage tous les 2 cycles
+        # Discord: 2 cycles
+        # Reddit: 2 cycles
+        # Telegram: 2 cycles
+        # GitHub: 2 cycles
+        # DMs/emails: 2 cycles
         routines = [
 
-            # Mentions gerees automatiquement en PRIORITY (avant les routines)
-
-            # ── Cycle 0 : TWEET + DMs ──
-            [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-            ],
-
-            # ── Cycle 1 : ENGAGER — trouver des devs frustres + DM prospects ──
-            [
-                {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
-                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "orange"},
-            ],
-
-            # ── Cycle 2 : DISCORD — rejoindre et commenter ──
+            # ── Cycle 0 : DISCORD — rejoindre et poster ──
             [
                 {"action": "join_discord", "agent": "SCOUT", "params": {"invite_link": all_discord[cycle % len(all_discord)]}, "priority": "vert"},
                 {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[cycle % len(all_discord)], "text": ""}, "priority": "vert"},
             ],
 
-            # ── Cycle 3 : REDDIT — commenter des posts existants ──
+            # ── Cycle 1 : REDDIT — commenter ──
             [
                 {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 4 : TELEGRAM GROUPS — rejoindre et engager ──
+            # ── Cycle 2 : TELEGRAM — rejoindre et poster ──
             [
                 {"action": "join_telegram", "agent": "SCOUT", "params": {"group_link": all_telegram[cycle % len(all_telegram)]}, "priority": "vert"},
                 {"action": "send_telegram_group", "agent": "GHOST-WRITER", "params": {"target": all_telegram[cycle % len(all_telegram)], "text": ""}, "priority": "vert"},
             ],
 
-            # ── Cycle 5 : PROSPECTION TWITTER ciblee ──
-            [
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-            ],
-
-            # ── Cycle 6 : GITHUB — commenter issues/discussions AI ──
+            # ── Cycle 3 : GITHUB — star + comment issues ──
             [
                 {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[cycle % len(all_github)]}, "priority": "vert"},
                 {"action": "star_github", "agent": "SCOUT", "params": {"repo_url": f"https://github.com/{all_github[cycle % len(all_github)]}"}, "priority": "vert"},
             ],
 
-            # ── Cycle 7 : EMAILS + DMs + CRM follow-up ──
+            # ── Cycle 4 : TWITTER — tweet + DMs ──
             [
-                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 5 : DISCORD #2 + EMAILS ──
+            [
+                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[(cycle + 3) % len(all_discord)], "text": ""}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 6 : REDDIT #2 + DM prospect ──
+            [
+                {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[(cycle + 5) % len(subreddits)]}, "priority": "vert"},
+                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "orange"},
+            ],
+
+            # ── Cycle 7 : TELEGRAM #2 + CRM ──
+            [
+                {"action": "send_telegram_group", "agent": "GHOST-WRITER", "params": {"target": all_telegram[(cycle + 2) % len(all_telegram)], "text": ""}, "priority": "vert"},
                 {"action": "crm_followup", "agent": "CLOSER", "params": {}, "priority": "orange"},
             ],
 
-            # ── Cycle 8 : 2EME TWEET + PROSPECTION ──
+            # ── Cycle 8 : GITHUB #2 + TWITTER search ──
             [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
-            ],
-
-            # ── Cycle 9 : DISCORD #2 — autre serveur ──
-            [
-                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[(cycle + 3) % len(all_discord)], "text": ""}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 5) % len(prospect_queries)]}, "priority": "vert"},
-            ],
-
-            # ── Cycle 10 : PRIX + GITHUB #2 ──
-            [
-                {"action": "watch_prices", "agent": "RADAR", "params": {}, "priority": "vert"},
                 {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[(cycle + 3) % len(all_github)]}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 11 : DMs + PROSPECTION LARGE ──
-            [
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 7) % len(prospect_queries)]}, "priority": "vert"},
-            ],
-
-            # ── Cycle 12 : DECOUVERTE — trouver nouveaux groupes/serveurs/repos ──
+            # ── Cycle 9 : DECOUVERTE + DMs ──
             [
                 {"action": "discover_communities", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
         ]
 
