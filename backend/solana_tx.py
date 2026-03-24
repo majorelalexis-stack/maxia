@@ -80,16 +80,22 @@ def _build_message(from_pubkey: bytes, to_pubkey: bytes,
 
 
 async def get_sol_balance(wallet_address: str) -> float:
-    rpc = get_rpc_url()
-    try:
-        payload = {"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [wallet_address]}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
-        return data.get("result", {}).get("value", 0) / 1e9
-    except Exception as e:
-        print(f"[SolanaTx] Balance error: {e}")
-        return 0.0
+    """Get SOL balance. Tries Helius first, falls back to public RPC."""
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [wallet_address]}
+    # Try Helius first, then public RPC as fallback
+    for rpc in [get_rpc_url(), "https://api.mainnet-beta.solana.com"]:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(rpc, json=payload)
+                data = resp.json()
+            if data.get("error"):
+                continue  # Rate limited or error, try next RPC
+            balance = data.get("result", {}).get("value", 0) / 1e9
+            if balance > 0 or "api.mainnet-beta" in rpc:
+                return balance  # Trust public RPC even if 0
+        except Exception:
+            continue
+    return 0.0
 
 
 async def get_recent_blockhash() -> str:
