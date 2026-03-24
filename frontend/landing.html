@@ -633,6 +633,7 @@ async function updateSwapWidget(){
     if(from===to){document.getElementById('sw-result').textContent=amount.toLocaleString('en-US',{maximumFractionDigits:4})+' '+to;return;}
     try{
       var resp=await fetch('/api/public/crypto/quote?from_token='+from+'&to_token='+to+'&amount='+amount);
+      if(!resp.ok){document.getElementById('sw-result').textContent='—';return;}
       var data=await resp.json();
       var output=data.output_amount||0;
       document.getElementById('sw-result').textContent=output.toLocaleString('en-US',{maximumFractionDigits:6})+' '+to;
@@ -652,7 +653,7 @@ async function registerAgent(){
   if(wallet.length<32||wallet.length>44){alert("Invalid Solana wallet address. Must be 32-44 characters.");return;}
   try{
     const r=await fetch("/api/public/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,wallet:wallet,description:"AI Agent registered via maxiaworld.app"})});
-    const d=await r.json();
+    const d=r.ok?await r.json():{error:"Server error "+r.status};
     if(d.api_key){alert("Registration successful!\n\nAgent: "+name+"\nWallet: "+wallet+"\n\nYour API Key: "+d.api_key+"\n\nSave this key — you won't see it again.\n\nDocs: https://maxiaworld.app/api/public/docs");}
     else{alert("Error: "+(d.detail||d.error||JSON.stringify(d)));}
   }catch(e){alert("Connection error: "+e.message);}
@@ -665,7 +666,7 @@ async function tryEndpoint(path, title) {
   document.getElementById('demo-json').textContent = 'Loading...';
   try {
     const r = await fetch(path);
-    const d = await r.json();
+    const d = r.ok ? await r.json() : {error: "Server error " + r.status};
     const ms = Date.now() - t0;
     document.getElementById('demo-time').textContent = ms + 'ms';
     document.getElementById('demo-json').textContent = JSON.stringify(d, null, 2).substring(0, 3000);

@@ -2249,11 +2249,12 @@ async def ws_prices(websocket: WebSocket):
                 from price_oracle import get_crypto_prices
                 prices = await get_crypto_prices()
                 await websocket.send_json({"type": "prices", "data": prices, "ts": int(time.time())})
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WS/prices] Error: {e}")
             await asyncio.sleep(10)
-    except Exception:
-        pass
+    except Exception as e:
+        if "disconnect" not in str(e).lower():
+            print(f"[WS/prices] Connection error: {e}")
 
 @app.websocket("/ws/candles")
 async def ws_candles(websocket: WebSocket):
@@ -2273,11 +2274,12 @@ async def ws_candles(websocket: WebSocket):
                     r = rows[0]
                     await websocket.send_json({"type": "candle", "symbol": symbol, "interval": interval,
                         "o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"], "v": r["volume"], "t": r["timestamp"]})
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WS/candles] Error: {e}")
             await asyncio.sleep(60 if interval != "1m" else 10)
-    except Exception:
-        pass
+    except Exception as e:
+        if "disconnect" not in str(e).lower():
+            print(f"[WS/candles] Connection error: {e}")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2397,7 +2399,9 @@ async def create_auction_rest(req: AuctionCreateRequest, wallet: str = Depends(r
 
 
 @app.post("/api/gpu/auctions/settle")
-async def settle_auction(req: AuctionSettleRequest):
+async def settle_auction(req: AuctionSettleRequest, wallet: str = Depends(require_auth)):
+    if wallet != req.winner:
+        raise HTTPException(403, "Wallet mismatch: you can only settle auctions you won")
     if await db.tx_already_processed(req.tx_signature):
         raise HTTPException(400, "Transaction deja traitee.")
     auction = await db.get_auction(req.auction_id)
@@ -2469,13 +2473,13 @@ async def get_gpu_tiers_public():
 
 
 @app.post("/api/gpu/rent")
-async def rent_gpu_direct(req: dict):
+async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
     """Rent a GPU. Requires USDC payment verified on-chain.
 
-    Body: { gpu: str (tier ID or label), wallet: str, hours: float, payment_tx: str }
+    Body: { gpu: str (tier ID or label), hours: float, payment_tx: str }
     """
     gpu_input = req.get("gpu") or req.get("gpu_tier_id", "")
-    wallet = req.get("wallet", "")
+    wallet = auth_wallet  # Use authenticated wallet, not body
     hours = float(req.get("hours", 1))
     payment_tx = req.get("payment_tx")
 
@@ -3100,7 +3104,9 @@ async def open_dispute(req: dict, wallet: str = Depends(require_auth)):
     )
 
 @app.post("/api/staking/resolve")
-async def resolve_dispute(req: dict):
+async def resolve_dispute(req: dict, request: Request):
+    from security import require_admin
+    require_admin(request)
     return await reputation_staking.resolve_dispute(
         dispute_id=req.get("dispute_id", ""),
         slash=req.get("slash", False),

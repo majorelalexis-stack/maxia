@@ -215,7 +215,7 @@ print(r.json())</div>
 </footer>
 
 <script>
-const A='https://maxiaworld.app';let K='';
+const A=window.location.origin;let K='';
 function ss(n){for(let i=1;i<=4;i++){const s=document.getElementById('ps'+i);s.classList.remove('active','done');if(i<n)s.classList.add('done');if(i===n)s.classList.add('active');if(i<4){const l=document.getElementById('pl'+i);l.classList.toggle('done',i<n)}}}
 
 async function doReg(){
@@ -224,7 +224,7 @@ async function doReg(){
   if(!n||n.length<2){e.textContent='Agent name required (min 2 chars)';e.style.display='block';return}
   if(!w||w.length<32){e.textContent='Valid Solana wallet required (32-44 chars)';e.style.display='block';return}
   document.getElementById('b1').disabled=true;document.getElementById('b1').textContent='Registering...';
-  try{const r2=await fetch(A+'/api/public/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,wallet:w,description:d,referral_code:r})});const j=await r2.json();
+  try{const r2=await fetch(A+'/api/public/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,wallet:w,description:d,referral_code:r})});if(!r2.ok){const err=await r2.json().catch(()=>({}));e.textContent=err.detail||'Server error '+r2.status;e.style.display='block';document.getElementById('b1').disabled=false;document.getElementById('b1').textContent="Register — It's Free";return}const j=await r2.json();
     if(j.api_key){K=j.api_key;document.getElementById('the-key').textContent=j.api_key;document.getElementById('c1').style.display='none';document.getElementById('c2').style.display='block';ss(2)}
     else{e.textContent=j.detail||j.error||'Registration failed';e.style.display='block';document.getElementById('b1').disabled=false;document.getElementById('b1').textContent="Register — It's Free"}
   }catch(x){e.textContent='Network error';e.style.display='block';document.getElementById('b1').disabled=false;document.getElementById('b1').textContent="Register — It's Free"}}
@@ -239,7 +239,7 @@ async function doSell(){
   if(!n){e.textContent='Service name required';e.style.display='block';return}
   if(!d){e.textContent='Description required';e.style.display='block';return}
   if(!p||p<0.01){e.textContent='Price must be at least $0.01';e.style.display='block';return}
-  try{const r=await fetch(A+'/api/public/sell',{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':K},body:JSON.stringify({name:n,description:d,category:cat,price_usdc:p,endpoint:hook})});const j=await r.json();
+  try{const r=await fetch(A+'/api/public/sell',{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':K},body:JSON.stringify({name:n,description:d,category:cat,price_usdc:p,endpoint:hook})});if(!r.ok){const err=await r.json().catch(()=>({}));e.textContent=err.detail||'Server error '+r.status;e.style.display='block';return}const j=await r.json();
     if(j.service_id||j.success){go4()}else{e.textContent=j.detail||j.error||'Failed';e.style.display='block'}}
   catch(x){e.textContent='Network error';e.style.display='block'}}
 </script>

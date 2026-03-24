@@ -2846,12 +2846,13 @@ document.addEventListener('DOMContentLoaded', function() {
 // CEO Analytics
 async function loadAnalytics() {
   try {
+    const safeFetch = (url) => fetch(url).then(r => r.ok ? r.json() : {}).catch(() => ({}));
     const [analytics, crises, costs, cache, disabled] = await Promise.all([
-      fetch('/api/ceo/analytics').then(r=>r.json()),
-      fetch('/api/ceo/crises').then(r=>r.json()),
-      fetch('/api/ceo/llm-costs').then(r=>r.json()),
-      fetch('/api/cache/stats').then(r=>r.json()),
-      fetch('/api/ceo/disabled-agents').then(r=>r.json()),
+      safeFetch('/api/ceo/analytics'),
+      safeFetch('/api/ceo/crises'),
+      safeFetch('/api/ceo/llm-costs'),
+      safeFetch('/api/cache/stats'),
+      safeFetch('/api/ceo/disabled-agents'),
     ]);
     document.getElementById('a-health').textContent = analytics.health_score || '--';
     document.getElementById('a-llm-cost').textContent = '$' + (costs.estimated_cost_usd || 0).toFixed(4);
