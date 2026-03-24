@@ -114,11 +114,13 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
   <p style="color:var(--muted2);font-size:13px;margin-top:16px">Free to use. No signup. Connect wallet and trade.</p>
 
   <!-- Live Swap Widget -->
-  <div class="swap-widget" style="max-width:400px;margin:30px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;padding:24px;animation:fadeUp 1.6s ease">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+  <!-- Swap widget collapsible -->
+  <div class="swap-widget" style="max-width:400px;margin:30px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.6s ease">
+    <div onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
       <span style="font-weight:700;font-size:18px">Try a Swap</span>
-      <span style="font-size:12px;color:var(--cyan)">LIVE &mdash; Jupiter Aggregator</span>
+      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--cyan)">LIVE</span><span class="arrow" style="color:var(--muted);font-size:12px">&#9660;</span></span>
     </div>
+    <div style="display:none;padding:0 24px 24px">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <select id="sw-from" onchange="updateSwapWidget()" style="flex:1;padding:10px 12px;border-radius:8px;background:var(--bg2);border:1px solid rgba(255,255,255,.1);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;cursor:pointer;outline:none">
         <option value="SOL">SOL</option><option value="ETH">ETH</option><option value="BTC">BTC</option><option value="USDC">USDC</option><option value="BONK">BONK</option>
@@ -138,6 +140,22 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     <a href="/app#swap" style="display:block;text-align:center;padding:12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border-radius:8px;font-weight:700;text-decoration:none;transition:all .3s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 30px rgba(59,130,246,.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">
       Swap Now &mdash; Connect Wallet &#8594;
     </a>
+    </div>
+  </div>
+
+  <!-- Stocks widget collapsible -->
+  <div style="max-width:500px;margin:20px auto 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.8s ease">
+    <div onclick="var b=this.nextElementSibling;if(b.style.display==='none'){b.style.display='block';loadLandingStocks()}else{b.style.display='none'};this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
+      <span style="font-weight:700;font-size:18px">Tokenized Stocks</span>
+      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--green)">13 STOCKS LIVE</span><span class="arrow" style="color:var(--muted);font-size:12px">&#9660;</span></span>
+    </div>
+    <div id="landing-stocks" style="display:none;padding:0 24px 24px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Real-time prices via Yahoo Finance. Buy with USDC on Solana, Ethereum, or Arbitrum.</div>
+      <div id="stocks-list" style="font-size:13px">Loading...</div>
+      <a href="/app#stocks" style="display:block;text-align:center;padding:12px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#fff;border-radius:8px;font-weight:700;text-decoration:none;margin-top:16px;transition:all .3s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        Trade Stocks &#8594;
+      </a>
+    </div>
   </div>
 
   <style>@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}</style>
@@ -670,6 +688,32 @@ async function updateSwapWidget(){
   },300);
 }
 setTimeout(updateSwapWidget,1500);
+
+async function loadLandingStocks(){
+  var el=document.getElementById('stocks-list');
+  if(!el)return;
+  try{
+    var resp=await fetch('/api/public/stocks');
+    if(!resp.ok){el.textContent='Unavailable';return;}
+    var data=await resp.json();
+    var stocks=data.stocks||data.tickers||[];
+    if(!stocks.length){el.textContent='No stocks available';return;}
+    var html='<table style="width:100%;border-collapse:collapse">';
+    html+='<tr style="font-size:11px;color:var(--muted);text-transform:uppercase"><td style="padding:6px 0">Symbol</td><td>Name</td><td style="text-align:right">Price</td><td style="text-align:right">Provider</td></tr>';
+    stocks.forEach(function(s){
+      var price=s.price_usd?('$'+s.price_usd.toFixed(2)):'—';
+      var color=s.change_24h_pct>=0?'var(--green)':'var(--red)';
+      html+='<tr style="border-top:1px solid rgba(255,255,255,.04)">';
+      html+='<td style="padding:8px 0;font-weight:700;color:var(--cyan)">'+s.symbol+'</td>';
+      html+='<td style="color:var(--muted);font-size:13px">'+s.name+'</td>';
+      html+='<td style="text-align:right;font-family:JetBrains Mono,monospace;font-weight:600;color:'+color+'">'+price+'</td>';
+      html+='<td style="text-align:right;font-size:11px;color:var(--muted2)">'+(s.provider||'xstocks')+'</td>';
+      html+='</tr>';
+    });
+    html+='</table>';
+    el.innerHTML=html;
+  }catch(e){el.textContent='Error loading stocks';}
+}
 
 async function registerAgent(){
   const name=prompt("Agent name:");
