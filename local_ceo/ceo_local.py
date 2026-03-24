@@ -789,47 +789,80 @@ class CEOLocal:
         while self._running:
             self._cycle += 1
             start = time.time()
-            _log(f"\n=== Cycle #{self._cycle} ===")
+            is_action_cycle = (self._cycle % 3 == 0)  # 1 action cycle pour 2 observation cycles
+            cycle_type = "ACT" if is_action_cycle else "OBSERVE"
+            _log(f"\n=== Cycle #{self._cycle} [{cycle_type}] ===")
 
             try:
-                # 1. OBSERVE — recuperer l'etat du VPS
+                # ═══ PHASE 1: OBSERVATION (every cycle — 60s) ═══
+                # Lire mentions, trending, DMs — sans agir
+
+                # 1a. OBSERVE — etat VPS
                 state = await self._observe()
                 if not state:
                     _log("[CEO Local] VPS inaccessible, retry dans 60s")
                     await asyncio.sleep(60)
                     continue
 
-                # 2. ORIENT — analyser localement (0 cout)
-                analysis = await self._orient(state)
-
-                # ── PRIORITE 0 : REPONDRE (avant tout) ──
-                # Si des gens nous parlent, on repond AVANT de faire quoi que ce soit
-                # Flag pour eviter de re-reply dans la routine
+                # 1b. LIRE les mentions (toujours, meme en observation)
                 self._mentions_done_this_cycle = False
                 try:
                     mentions = await browser.get_mentions(10)
                     pending = [m for m in (mentions or []) if m.get("url") and not browser._is_duplicate("reply", m.get("url", ""))]
                     if pending:
-                        _log(f"[PRIORITY] {len(pending)} mentions en attente — reponse prioritaire")
+                        # Toujours repondre aux mentions (meme en cycle observation)
+                        _log(f"[PRIORITY] {len(pending)} mentions — reponse immediate")
                         reply_result = await self._reply_to_mentions()
                         _log(f"[MENTIONS] {reply_result.get('detail', '')}")
                         self._mentions_done_this_cycle = True
+                    # Stocker le nombre de mentions pour la memoire
+                    self.memory.setdefault("observation", {})["last_mentions"] = len(mentions or [])
+                    self.memory["observation"]["last_pending"] = len(pending) if pending else 0
                 except Exception as e:
                     _log(f"[MENTIONS] Erreur: {e}")
 
-                # 3. DECIDE — determiner les actions
-                decisions = await self._decide(analysis, state)
-
-                # 4. ACT — executer les actions
-                await self._act(decisions)
-
-                # 5. AUTO-ENGAGE: search -> like -> comment -> follow
-                # Seulement 1 cycle sur 2 — laisser de la place aux autres plateformes
-                if self._cycle % 2 == 0:
+                # 1c. LIRE les DMs (sans repondre en observation)
+                if not is_action_cycle:
                     try:
-                        await self._auto_engage()
-                    except Exception as e:
-                        _log(f"[ENGAGE] Error: {e}")
+                        dms = await browser.read_twitter_dms(5)
+                        unread = len([d for d in (dms or []) if d.get("unread")])
+                        self.memory.setdefault("observation", {})["unread_dms"] = unread
+                        if unread:
+                            _log(f"[OBSERVE] {unread} DMs non lus detectes")
+                    except Exception:
+                        pass
+
+                # 1d. SCANNER trending topics (observation only)
+                if not is_action_cycle and self._cycle % 6 == 0:
+                    try:
+                        trending = await browser.search_twitter("AI agent OR crypto swap OR DeFi yield", 5)
+                        if trending:
+                            topics = [t.get("text", "")[:80] for t in trending[:3]]
+                            self.memory.setdefault("observation", {})["trending"] = topics
+                            self.memory["observation"]["trending_ts"] = time.strftime("%H:%M")
+                            _log(f"[OBSERVE] Trending: {len(trending)} posts scannés")
+                    except Exception:
+                        pass
+
+                # ═══ PHASE 2: ANALYSE (every cycle) ═══
+                analysis = await self._orient(state)
+
+                # ═══ PHASE 3: ACTION (1 cycle sur 3 seulement) ═══
+                if is_action_cycle:
+                    # 3. DECIDE
+                    decisions = await self._decide(analysis, state)
+
+                    # 4. ACT
+                    await self._act(decisions)
+
+                    # 5. AUTO-ENGAGE (1 action cycle sur 2)
+                    if (self._cycle // 3) % 2 == 0:
+                        try:
+                            await self._auto_engage()
+                        except Exception as e:
+                            _log(f"[ENGAGE] Error: {e}")
+                else:
+                    _log(f"[OBSERVE] Cycle d'observation — accumulation d'info ({self.memory.get('observation', {}).get('last_mentions', 0)} mentions, {self.memory.get('observation', {}).get('unread_dms', 0)} DMs)")
 
                 # 6. ENGAGEMENT FEEDBACK (toutes les 6 cycles = ~1h)
                 # Verifier si nos derniers tweets/commentaires ont eu de l'engagement
@@ -1024,9 +1057,8 @@ class CEOLocal:
                 _log(f"ERREUR cycle #{self._cycle}: {e}")
                 await audit.log(f"cycle_error: {e}", success=False)
 
-            # 7. SLEEP (respecte le dashboard control)
+            # 7. SLEEP — observation cycles rapides, action cycles normaux
             ctrl = self._load_control()
-            interval = ctrl.get("interval_s", OODA_INTERVAL_S)
             if ctrl.get("paused"):
                 _log("[CEO Local] PAUSE (via dashboard). Attente resume...")
                 while ctrl.get("paused"):
@@ -1034,7 +1066,11 @@ class CEOLocal:
                     ctrl = self._load_control()
                 _log("[CEO Local] RESUME")
             else:
-                await asyncio.sleep(interval)
+                if is_action_cycle:
+                    interval = ctrl.get("interval_s", OODA_INTERVAL_S)
+                    await asyncio.sleep(interval)  # 5 min after action
+                else:
+                    await asyncio.sleep(60)  # 60s between observation cycles (gratuit)
 
     @staticmethod
     def _load_control() -> dict:
@@ -2125,6 +2161,10 @@ class CEOLocal:
         - Commenter 1 tweet avec un insight (pas promo)
         - Follow seulement les profils de qualite (score >= 50)
         """
+        # Use trending topics from observation cycles if available
+        observed_trending = self.memory.get("observation", {}).get("trending", [])
+        trending_query = observed_trending[self._cycle % len(observed_trending)] if observed_trending else ""
+
         queries = [
             # AI agents
             "AI agent solana", "built a bot", "AI marketplace",
@@ -2142,7 +2182,12 @@ class CEOLocal:
             # Fine-tuning
             "fine-tune LLM", "LoRA training tips",
         ]
-        query = queries[self._cycle % len(queries)]
+        # Prefer trending topic from observations, fallback to static queries
+        if trending_query and self._cycle % 3 == 0:
+            query = trending_query
+            _log(f"[ENGAGE] Using observed trending: {query[:50]}")
+        else:
+            query = queries[self._cycle % len(queries)]
 
         # 1. Search tweets et liker les pertinents
         tweets = await browser.search_twitter(query, 5)
