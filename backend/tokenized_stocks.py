@@ -406,16 +406,22 @@ class TokenizedStockExchange:
             stocks.append({
                 "symbol": sym,
                 "name": info["name"],
-                "sector": info["sector"],
-                "xstock": info["xstock_symbol"],
-                "ondo": info["ondo_symbol"],
+                "sector": info.get("sector", ""),
+                "provider": info.get("provider", "xstocks"),
+                "chains": [c for c in ["solana", "ethereum", "arbitrum", "polygon"]
+                           if info.get("mint_xstock") or info.get("mint_eth") or info.get("mint_dinari_arb") or info.get("mint_polygon")],
                 "price_usd": price_data.get("price", 0),
                 "change_24h_pct": round(price_data.get("change", 0), 2),
                 "volume": price_data.get("volume", 0),
                 "price_source": price_data.get("source", "fallback"),
                 "fractional": True,
                 "min_buy_usdc": 1.0,
-                "payment": "USDC on Solana",
+                "payment": "USDC",
+                "mints": {
+                    "solana": info.get("mint_xstock", ""),
+                    "ethereum": info.get("mint_eth", info.get("mint_ondo", "")),
+                    "arbitrum": info.get("mint_dinari_arb", ""),
+                },
             })
 
         return {
@@ -448,8 +454,9 @@ class TokenizedStockExchange:
             "change_24h_pct": round(price_data.get("change", 0), 2),
             "volume": price_data.get("volume", 0),
             "market_cap": price_data.get("market_cap", 0),
-            "tokens_available": [info["xstock_symbol"], info["ondo_symbol"]],
-            "sector": info["sector"],
+            "tokens_available": [k for k in ["mint_xstock", "mint_eth", "mint_ondo", "mint_dinari_arb"] if info.get(k)],
+            "provider": info.get("provider", "xstocks"),
+            "sector": info.get("sector", ""),
             "price_source": price_data.get("source", "fallback"),
             "updated_at": int(time.time()),
         }
