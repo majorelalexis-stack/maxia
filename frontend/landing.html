@@ -37,11 +37,11 @@ html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;
 :root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
 body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
 a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
-.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 80% 20%,rgba(139,92,246,.06) 0%,transparent 50%)}
+.hero{min-height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 24px 30px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 80% 20%,rgba(139,92,246,.06) 0%,transparent 50%)}
 .hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='0.02'/%3E%3C/svg%3E");pointer-events:none}
-.logo-text{font-size:72px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
-.tagline{font-size:22px;color:var(--muted);margin-top:16px;font-weight:300;animation:fadeUp 1s ease}
-.hero-badges{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1.2s ease}
+.logo-text{font-size:60px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
+.tagline{font-size:20px;color:var(--muted);margin-top:12px;font-weight:300;animation:fadeUp 1s ease;line-height:1.5}
+.hero-badges{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1.2s ease}
 .badge{padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--cyan)}
 .hero-cta{display:flex;gap:16px;margin-top:40px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1.4s ease}
 .btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'Outfit',sans-serif;display:inline-block}
@@ -95,7 +95,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
   </div>
 </nav>
 
-<section class="hero" style="padding-top:80px">
+<section class="hero" style="padding-top:70px">
   <div class="logo-text">MAXIA</div>
   <p class="tagline">Trade 50 tokens on 14 blockchains. One platform, lowest fees.</p>
   <p style="color:var(--muted2);margin-top:12px;font-size:16px;max-width:600px">Swap crypto, buy tokenized stocks, rent GPUs, earn DeFi yields — all settled in USDC. For traders and AI agents.</p>
@@ -115,10 +115,10 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 
   <!-- Live Swap Widget -->
   <!-- Swap widget collapsible -->
-  <div class="swap-widget" style="max-width:400px;margin:30px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.6s ease">
+  <div class="swap-widget" style="max-width:400px;margin:16px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.6s ease">
     <div onclick="var b=document.getElementById('swap-body');if(b.style.display==='none'){b.style.display='block';updateSwapWidget()}else{b.style.display='none'};this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
-      <span style="font-weight:700;font-size:18px">&#128260; Try a Swap</span>
-      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--cyan)">LIVE — Jupiter</span><span class="arrow" style="color:var(--cyan);font-size:24px;line-height:1">&#9660;</span></span>
+      <span style="font-weight:700;font-size:16px">&#128260; Try a Swap</span>
+      <span style="display:flex;align-items:center;gap:12px"><span style="font-size:12px;color:var(--cyan)">LIVE — Jupiter</span><span class="arrow" style="color:var(--cyan);font-size:28px;line-height:1">&#9660;</span></span>
     </div>
     <div id="swap-body" style="display:none;padding:0 24px 24px">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
@@ -144,10 +144,10 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
   </div>
 
   <!-- Stocks widget collapsible -->
-  <div style="max-width:500px;margin:20px auto 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.8s ease">
+  <div style="max-width:500px;margin:16px auto 0;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.8s ease">
     <div onclick="var b=this.nextElementSibling;if(b.style.display==='none'){b.style.display='block';loadLandingStocks()}else{b.style.display='none'};this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
-      <span style="font-weight:700;font-size:18px">Tokenized Stocks</span>
-      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--green)">13 STOCKS LIVE</span><span class="arrow" style="color:var(--muted);font-size:12px">&#9660;</span></span>
+      <span style="font-weight:700;font-size:16px">Tokenized Stocks</span>
+      <span style="display:flex;align-items:center;gap:12px"><span style="font-size:12px;color:var(--green)">13 STOCKS</span><span class="arrow" style="color:var(--cyan);font-size:28px;line-height:1">&#9660;</span></span>
     </div>
     <div id="landing-stocks" style="display:none;padding:0 24px 24px">
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Real-time prices via Yahoo Finance. Buy with USDC on Solana, Ethereum, or Arbitrum.</div>
@@ -354,7 +354,7 @@ Headers: X-API-Key: buyer_key
 
 <!-- STOCKS (collapsible) -->
 <a id="stocks"></a>
-<section class="section fade-in" style="max-width:1100px;margin:0 auto;padding:80px 24px">
+<section class="section fade-in" style="max-width:1100px;margin:0 auto;padding:40px 24px">
   <div onclick="var b=document.getElementById('stocks-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;position:relative;padding-right:80px">
     <div>
       <div class="section-title" style="margin-bottom:4px">Tokenized Stocks</div>
@@ -373,7 +373,7 @@ Headers: X-API-Key: buyer_key
 
 <!-- CRYPTO (collapsible) -->
 <a id="crypto"></a>
-<section class="section fade-in section-dark" style="max-width:1100px;margin:0 auto;padding:80px 24px">
+<section class="section fade-in section-dark" style="max-width:1100px;margin:0 auto;padding:40px 24px">
   <div onclick="var b=document.getElementById('crypto-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;position:relative;padding-right:80px">
     <div>
       <div class="section-title" style="margin-bottom:4px">Crypto Swap — 2450 Pairs</div>
