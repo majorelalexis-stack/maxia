@@ -280,6 +280,14 @@ async def lifespan(app: FastAPI):
 
     reputation_staking.set_db(db)
     escrow_client.set_db(db)
+
+    # #1 Add metrics columns to agent_services (idempotent)
+    for col in ["total_executions INTEGER DEFAULT 0", "successful_executions INTEGER DEFAULT 0",
+                 "avg_response_ms REAL DEFAULT 0", "uptime_pct REAL DEFAULT 100"]:
+        try:
+            await db.raw_execute(f"ALTER TABLE agent_services ADD COLUMN {col}")
+        except Exception:
+            pass  # Column already exists
     await escrow_client._load_from_db()
     agent_worker.set_broadcast(broadcast_all)
 

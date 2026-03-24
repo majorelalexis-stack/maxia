@@ -1416,6 +1416,34 @@ async def marketplace_stats():
     }
 
 
+# #2 Transparence multi-chain
+@router.get("/chain-support")
+async def chain_support():
+    """What features are available on which chains. Honest transparency."""
+    return {
+        "chains": 14,
+        "features": {
+            "swap": {"chains": ["solana", "ethereum", "base", "arbitrum", "polygon", "avalanche", "bnb"], "method": "Jupiter (Solana) + 1inch (EVM)", "tokens": 71},
+            "tokenized_stocks": {"chains": ["solana", "ethereum", "arbitrum"], "method": "Jupiter + 1inch + Dinari", "stocks": 25},
+            "escrow": {"chains": ["solana"], "method": "Wallet-based (smart contract pending)", "note": "On-chain PDA escrow coming with 2.91 SOL deploy"},
+            "gpu_rental": {"chains": ["solana"], "method": "RunPod + local 7900XT", "tiers": 7},
+            "defi_yields": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "near"], "method": "DeFiLlama + direct protocol APIs"},
+            "bridge": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "optimism"], "method": "Li.Fi aggregator"},
+            "wallet_analysis": {"chains": ["solana"], "method": "Helius DAS API"},
+            "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron"], "method": "RPC + registries"},
+            "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei"], "method": "USDC verification on each chain"},
+        },
+        "note": "Not all features are available on all chains. We prioritize where agents actually are.",
+    }
+
+
+# #14 Prix plancher par catégorie
+SERVICE_MIN_PRICES = {
+    "audit": 1.00, "code": 0.50, "text": 0.01, "data": 0.01,
+    "image": 0.05, "ai": 0.001, "compute": 1.00, "defi": 0,
+}
+
+
 # ══════════════════════════════════════════
 #  DISCOVER — Agent-to-Agent Discovery (A2A style)
 # ══════════════════════════════════════════
@@ -1469,17 +1497,51 @@ async def discover_services(
         if capability_lower and agent_type and agent_type.lower() not in s.get("type", "").lower():
             continue
 
+        # #8 Success rate + #1 Metrics + #9 Tags + #18 Commission transparent + #14 Quality minimum
+        total_exec = s.get("total_executions", 0)
+        success_exec = s.get("successful_executions", 0)
+        success_rate = round(success_exec / max(total_exec, 1) * 100, 1)
+
+        # #17 Quality minimum: delist if success rate < 80% and > 10 executions
+        if total_exec > 10 and success_rate < 80:
+            continue
+
+        # #9 Auto-tags based on metrics
+        tags = []
+        avg_response = s.get("avg_response_ms", 0)
+        if avg_response and avg_response < 1000:
+            tags.append("fast")
+        if success_rate >= 99 and total_exec > 5:
+            tags.append("reliable")
+        if s.get("price_usdc", 0) < 0.10:
+            tags.append("cheap")
+        if s.get("rating", 0) >= 4.5 and s.get("sales", 0) >= 5:
+            tags.append("top-rated")
+
+        # #18 Commission transparent
+        price = s.get("price_usdc", 0)
+        commission_bps = get_commission_bps(0)  # default tier
+        commission = round(price * commission_bps / 10000, 4)
+
         results.append({
             "service_id": s["id"],
             "name": s.get("name", ""),
             "description": s.get("description", ""),
             "type": s.get("type", ""),
-            "price_usdc": s.get("price_usdc", 0),
+            "price_usdc": price,
+            "commission_usdc": commission,
+            "seller_gets_usdc": round(price - commission, 4),
             "seller": s.get("agent_name", ""),
             "rating": s.get("rating", 5),
             "sales": s.get("sales", 0),
+            "success_rate_pct": success_rate,
+            "total_executions": total_exec,
+            "avg_response_ms": avg_response,
+            "uptime_pct": s.get("uptime_pct", 100),
+            "tags": tags,
             "endpoint": s.get("endpoint", ""),
             "listed_at": s.get("listed_at", 0),
+            "chains": s.get("chains", ["solana"]),
         })
 
     # Also include MAXIA native services (8 AI services powered by Groq/Ollama)
@@ -1501,13 +1563,28 @@ async def discover_services(
             continue
         results.append(ns)
 
-    # Sort by rating then price
-    results.sort(key=lambda x: (-x.get("rating", 0), x["price_usdc"]))
+    # #7 Sort by composite score: success_rate * rating * log(sales+1)
+    import math
+    for r in results:
+        r["_score"] = (r.get("success_rate_pct", 50) / 100) * r.get("rating", 3) * math.log(r.get("sales", 0) + 2)
+    results.sort(key=lambda x: (-x.get("_score", 0), x["price_usdc"]))
+    for r in results:
+        r.pop("_score", None)
+
+    # #7 Leaderboard: top 3 per type
+    leaderboard = {}
+    for r in results:
+        t = r.get("type", "other")
+        if t not in leaderboard:
+            leaderboard[t] = []
+        if len(leaderboard[t]) < 3:
+            leaderboard[t].append({"service_id": r["service_id"], "name": r.get("name", ""), "rating": r.get("rating", 0), "success_rate": r.get("success_rate_pct", 0)})
 
     return {
         "query": {"capability": capability, "max_price": max_price, "min_rating": min_rating},
         "results_count": len(results),
         "agents": results,
+        "leaderboard": leaderboard,
         "how_to_buy": {
             "step_1": "Send price_usdc in USDC to treasury_wallet on Solana mainnet",
             "step_2": "POST /api/public/execute with {service_id, prompt, payment_tx: 'your_solana_tx_signature'}",
@@ -1648,7 +1725,25 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
     # ═══ NATIVE SERVICE EXECUTION ═══
     if is_native:
+        _exec_start = time.time()
         result_text = await _execute_native_service(service_id, prompt)
+        _exec_ms = int((time.time() - _exec_start) * 1000)
+
+        # #6 Refund auto if service failed
+        _service_failed = not result_text or "unavailable" in result_text.lower() or "error" in result_text.lower()
+
+        # #1 Track execution metrics
+        try:
+            from database import db as _metrics_db
+            await _metrics_db.raw_execute(
+                "UPDATE agent_services SET total_executions = COALESCE(total_executions, 0) + 1, "
+                "successful_executions = COALESCE(successful_executions, 0) + ?, "
+                "avg_response_ms = COALESCE(avg_response_ms, 0) * 0.9 + ? * 0.1 "
+                "WHERE id = ?",
+                (0 if _service_failed else 1, _exec_ms, service_id))
+        except Exception:
+            pass
+
         volume = buyer.get("volume_30d", 0)
         commission_bps = get_commission_bps(volume)
         commission = price * commission_bps / 10000
