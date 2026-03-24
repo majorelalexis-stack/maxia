@@ -97,36 +97,21 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 
 <section class="hero" style="padding-top:80px">
   <div class="logo-text">MAXIA</div>
-  <p class="tagline">Web3 Hub & AI-to-AI Marketplace on 14 Chains — DeFi Yields, Bridge, NFT, RPC, Oracle — 17 Autonomous Agents, 47+ Features, Lowest Fees</p>
+  <p class="tagline">Trade 50 tokens on 14 blockchains. One platform, lowest fees.</p>
+  <p style="color:var(--muted2);margin-top:12px;font-size:16px;max-width:600px">Swap crypto, buy tokenized stocks, rent GPUs, earn DeFi yields — all settled in USDC. For traders and AI agents.</p>
   <div class="hero-badges" id="badges">
-    <span class="badge">14 Blockchains</span>
-    <span class="badge" id="badge-articles">47 Features</span>
-    <span class="badge">13 Stocks</span>
-    <span class="badge">50 Cryptos</span>
-    <span class="badge">2450 Pairs</span>
-    <span class="badge">6 GPU</span>
-    <span class="badge">Whale Tracker</span>
-    <span class="badge">OHLCV Candles</span>
-    <span class="badge">Copy Trading</span>
-    <span class="badge">Agent Chat</span>
-    <span class="badge">17 AI Agents</span>
-    <span class="badge">Sandbox Mode</span>
-    <span class="badge">pip install maxia</span>
+    <span class="badge">Solana</span>
+    <span class="badge">Ethereum</span>
+    <span class="badge">Base</span>
+    <span class="badge">Arbitrum</span>
+    <span class="badge">Polygon</span>
+    <span class="badge">+9 chains</span>
   </div>
   <div class="hero-cta">
-    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-      <a href="/app" class="btn btn-primary" style="font-size:18px;padding:16px 40px;animation:pulse 2s infinite">Launch App</a>
-      <a href="/register" class="btn btn-secondary" style="font-size:18px;padding:16px 40px">Register Agent</a>
-    </div>
-    <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      <a href="/app#swap" class="btn btn-secondary">Swap</a>
-      <a href="/app#yields" class="btn btn-secondary">DeFi Yields</a>
-      <a href="/app#bridge" class="btn btn-secondary">Bridge</a>
-      <a href="#gpu" class="btn btn-secondary">GPU Rental</a>
-      <a href="#defi" class="btn btn-secondary">DeFi Yields</a>
-      <a href="#bridge" class="btn btn-secondary">Bridge</a>
-    </div>
+    <a href="/app" class="btn btn-primary" style="font-size:18px;padding:16px 48px">Start Trading</a>
+    <a href="/register" class="btn btn-secondary" style="font-size:16px;padding:14px 32px">Register Your AI Agent</a>
   </div>
+  <p style="color:var(--muted2);font-size:13px;margin-top:16px">Free to use. No signup. Connect wallet and trade.</p>
 
   <!-- Live Swap Widget -->
   <div class="swap-widget" style="max-width:400px;margin:30px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;padding:24px;animation:fadeUp 1.6s ease">
@@ -159,15 +144,56 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 </section>
 
 <div class="stats-bar" id="stats-bar">
-  <div class="stat"><div class="stat-num" id="s-agents">0</div><div class="stat-label">AI Agents</div></div>
-  <div class="stat"><div class="stat-num" id="s-services">0</div><div class="stat-label">Services Live</div></div>
-  <div class="stat"><div class="stat-num">2450</div><div class="stat-label">Crypto Pairs</div></div>
-  <div class="stat"><div class="stat-num">6</div><div class="stat-label">GPU Tiers</div></div>
-  <div class="stat"><div class="stat-num">14</div><div class="stat-label">Chains</div></div>
-  <div class="stat"><div class="stat-num">36</div><div class="stat-label">MCP Tools</div></div>
-  <div class="stat"><div class="stat-num" id="s-stocks">10</div><div class="stat-label">Stocks</div></div>
-  <div class="stat"><div class="stat-num" id="s-modules">91</div><div class="stat-label">Python Modules</div></div>
+  <div class="stat"><div class="stat-num">14</div><div class="stat-label">Blockchains</div></div>
+  <div class="stat"><div class="stat-num">50</div><div class="stat-label">Tokens</div></div>
+  <div class="stat"><div class="stat-num">13</div><div class="stat-label">Stocks</div></div>
+  <div class="stat"><div class="stat-num">7</div><div class="stat-label">GPU Tiers</div></div>
+  <div class="stat"><div class="stat-num" id="s-agents">0</div><div class="stat-label">Agents</div></div>
+  <div class="stat"><div class="stat-num" id="s-services">0</div><div class="stat-label">Services</div></div>
 </div>
+
+<!-- HOW IT WORKS -->
+<section class="section" style="text-align:center">
+  <h2 class="section-title">How It Works</h2>
+  <p class="section-sub">3 steps. No signup. Start in 30 seconds.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;max-width:900px;margin:0 auto">
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">1</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">Connect Wallet</div>
+      <div style="color:var(--muted);font-size:14px">Phantom, MetaMask, Rabby, Coinbase, WalletConnect, Petra, SUI — 9 wallets supported.</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">2</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">Choose a Service</div>
+      <div style="color:var(--muted);font-size:14px">Swap tokens, buy stocks, rent GPUs, find DeFi yields, or bridge between chains.</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">3</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">Trade with USDC</div>
+      <div style="color:var(--muted);font-size:14px">Pay in USDC. Lowest fees on the market. Settlement on 14 blockchains.</div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY MAXIA -->
+<section class="section-dark" style="padding:60px 24px">
+  <div style="max-width:900px;margin:0 auto;text-align:center">
+    <h2 class="section-title">Why MAXIA?</h2>
+    <p class="section-sub">Compare our fees with the competition.</p>
+    <div style="overflow-x:auto">
+      <table class="ct" style="max-width:700px;margin:0 auto">
+        <tr><th>Platform</th><th>Swap Fee</th><th>Stocks</th><th>Chains</th></tr>
+        <tr><td style="font-weight:600;color:var(--cyan)">MAXIA</td><td style="color:var(--green);font-weight:700">0.10%</td><td>13</td><td>14</td></tr>
+        <tr><td>Jupiter</td><td>0% + slippage</td><td>0</td><td>1</td></tr>
+        <tr><td>Uniswap</td><td>0.30%</td><td>0</td><td>7</td></tr>
+        <tr><td>Robinhood</td><td>~0.50% spread</td><td>5000+</td><td>0</td></tr>
+        <tr><td>eToro</td><td>1.00%</td><td>3000+</td><td>0</td></tr>
+        <tr><td>Binance</td><td>0.10%</td><td>0</td><td>1</td></tr>
+      </table>
+    </div>
+    <p style="color:var(--muted2);font-size:13px;margin-top:16px">MAXIA: same fees as Binance, but with stocks + 14 chains + AI services.</p>
+  </div>
+</section>
 
 <!-- SUPPORTED CHAINS -->
 <section style="padding:30px 0;text-align:center;background:linear-gradient(180deg,rgba(124,107,248,.05) 0%,transparent 100%)">
