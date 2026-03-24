@@ -354,13 +354,13 @@ Headers: X-API-Key: buyer_key
 
 <!-- STOCKS (collapsible) -->
 <a id="stocks"></a>
-<section class="section fade-in">
-  <div onclick="var b=document.getElementById('stocks-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center">
+<section class="section fade-in" style="max-width:1100px;margin:0 auto;padding:80px 24px">
+  <div onclick="var b=document.getElementById('stocks-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;position:relative;padding-right:80px">
     <div>
       <div class="section-title" style="margin-bottom:4px">Tokenized Stocks</div>
       <div style="color:var(--muted);font-size:15px">13 stocks. 3 providers. Multi-chain (Solana, ETH, Arbitrum).</div>
     </div>
-    <span class="arr" style="font-size:32px;color:var(--cyan);line-height:1">&#9660;</span>
+    <span class="arr" style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:48px;color:var(--cyan);line-height:1">&#9660;</span>
   </div>
   <div id="stocks-body-wrap" style="display:none;margin-top:20px">
     <div class="tw"><table class="ct" id="stocks-table">
@@ -373,13 +373,13 @@ Headers: X-API-Key: buyer_key
 
 <!-- CRYPTO (collapsible) -->
 <a id="crypto"></a>
-<section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
-  <div onclick="var b=document.getElementById('crypto-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center">
+<section class="section fade-in section-dark" style="max-width:1100px;margin:0 auto;padding:80px 24px">
+  <div onclick="var b=document.getElementById('crypto-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;position:relative;padding-right:80px">
     <div>
       <div class="section-title" style="margin-bottom:4px">Crypto Swap — 2450 Pairs</div>
       <div style="color:var(--muted);font-size:15px">50 tokens. Lowest fees. Powered by Jupiter & 1inch.</div>
     </div>
-    <span class="arr" style="font-size:32px;color:var(--cyan);line-height:1">&#9660;</span>
+    <span class="arr" style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:48px;color:var(--cyan);line-height:1">&#9660;</span>
   </div>
   <div id="crypto-body-wrap" style="display:none;margin-top:20px">
     <div class="tw"><table class="ct" id="crypto-table">
