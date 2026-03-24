@@ -117,14 +117,20 @@ def _load_memory() -> dict:
 def _save_memory(mem: dict):
     try:
         # Garder les listes a taille raisonnable
-        if len(mem.get("decisions", [])) > 50:
-            mem["decisions"] = mem["decisions"][-50:]
-        if len(mem.get("actions_done", [])) > 100:
-            mem["actions_done"] = mem["actions_done"][-100:]
-        if len(mem.get("tweets_posted", [])) > 30:
-            mem["tweets_posted"] = mem["tweets_posted"][-30:]
-        if len(mem.get("regles", [])) > 15:
-            mem["regles"] = mem["regles"][-15:]
+        if len(mem.get("decisions", [])) > 200:
+            mem["decisions"] = mem["decisions"][-200:]
+        if len(mem.get("actions_done", [])) > 500:
+            mem["actions_done"] = mem["actions_done"][-500:]
+        if len(mem.get("tweets_posted", [])) > 100:
+            mem["tweets_posted"] = mem["tweets_posted"][-100:]
+        if len(mem.get("regles", [])) > 50:
+            mem["regles"] = mem["regles"][-50:]
+        if len(mem.get("conversations", [])) > 200:
+            mem["conversations"] = mem["conversations"][-200:]
+        if len(mem.get("conversation_summaries", [])) > 50:
+            mem["conversation_summaries"] = mem["conversation_summaries"][-50:]
+        if len(mem.get("engagement_stats", [])) > 60:
+            mem["engagement_stats"] = mem["engagement_stats"][-60:]
         raw = json.dumps(mem, indent=2, default=str, ensure_ascii=False)
         # Save plaintext backup before encrypting (recovery if key changes)
         try:
@@ -867,10 +873,10 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[RETRO] Error: {e}")
 
-                # 9. SELF-LEARNING (toutes les 10 cycles = ~100 min)
-                if self._cycle % 10 == 0:
+                # 9. SELF-LEARNING (toutes les 5 cycles = ~25 min, GPU local = gratuit)
+                if self._cycle % 5 == 0:
                     try:
-                        # Regles basees sur les stats
+                        # 9a. Regles basees sur les stats (quel action reussit/echoue)
                         rules = generate_learned_rules()
                         if rules:
                             for r in rules:
@@ -878,29 +884,69 @@ class CEOLocal:
                                     self.memory.setdefault("regles", []).append(r)
                                     _log(f"[LEARN] {r}")
 
-                        # Analyse qualitative via LLM (toutes les 30 cycles = ~5h)
-                        if self._cycle % 30 == 0:
-                            recent_actions = self.memory.get("actions_done", [])[-20:]
-                            recent_tweets = self.memory.get("tweets_posted", [])[-5:]
+                        # 9b. Analyse qualitative via LLM (toutes les 10 cycles = ~50 min)
+                        if self._cycle % 10 == 0:
+                            recent_actions = self.memory.get("actions_done", [])[-30:]
+                            recent_tweets = self.memory.get("tweets_posted", [])[-10:]
+                            convos = self.memory.get("conversations", [])[-15:]
+                            summaries = self.memory.get("conversation_summaries", [])[-5:]
+                            eng_stats = self.memory.get("engagement_stats", [])[-7:]
                             follows = self.memory.get("follows", [])
                             contacts = self.memory.get("contacts", [])
-                            actions_str = json.dumps(recent_actions, default=str)[:800]
-                            tweets_str = json.dumps(recent_tweets, default=str)[:400]
+                            groups = self.memory.get("groups_joined", [])
+                            discovered = self.memory.get("discovered_communities", {})
+
+                            # Compter succes/echecs par type d'action
+                            action_stats = {}
+                            for a in recent_actions:
+                                act = a.get("action", "unknown")
+                                action_stats.setdefault(act, {"ok": 0, "fail": 0})
+                                if a.get("success"):
+                                    action_stats[act]["ok"] += 1
+                                else:
+                                    action_stats[act]["fail"] += 1
+
                             prompt = (
                                 f"Analyse CEO MAXIA — cycle #{self._cycle}:\n"
-                                f"Actions recentes: {actions_str}\n"
-                                f"Tweets recents: {tweets_str}\n"
-                                f"Stats: {len(follows)} follows, {len(contacts)} contacts, 0 clients\n\n"
-                                f"3 regles concretes pour ameliorer. Format: 1 regle par ligne, max 60 chars.\n"
-                                f"Exemples: 'Commenter avant de poster', 'Cibler r/solanadev pas r/crypto'"
+                                f"Action success rates: {json.dumps(action_stats, default=str)[:400]}\n"
+                                f"Engagement (7 days): {json.dumps(eng_stats, default=str)[:200]}\n"
+                                f"CRM summaries: {json.dumps(summaries, default=str)[:300]}\n"
+                                f"Stats: {len(follows)} follows, {len(contacts)} contacts, {len(groups)} groups joined\n"
+                                f"Discovered: {len(discovered.get('discord',[]))} Discord, {len(discovered.get('telegram',[]))} Telegram, {len(discovered.get('github',[]))} GitHub\n"
+                                f"Current rules: {json.dumps(self.memory.get('regles', [])[-5:], default=str)[:200]}\n\n"
+                                f"Based on what's WORKING and what's FAILING, give 3 NEW concrete rules.\n"
+                                f"Focus on: which platforms get engagement, which actions fail, what to do more/less.\n"
+                                f"Format: 1 rule per line, max 60 chars. English only."
                             )
-                            insight = await call_local_llm(prompt, system="Concise growth advisor. Rules only.", max_tokens=150)
+                            insight = await call_ollama(prompt, system="Concise growth advisor. Data-driven rules only. English.", max_tokens=150)
                             if insight and len(insight) > 20:
                                 for line in insight.strip().split("\n")[:3]:
                                     line = line.strip().lstrip("0123456789.-) ")
                                     if line and len(line) > 10 and line not in self.memory.get("regles", []):
                                         self.memory.setdefault("regles", []).append(line)
                                         _log(f"[LEARN+] {line}")
+
+                        # 9c. Track best performing content (toutes les 20 cycles = ~100 min)
+                        if self._cycle % 20 == 0:
+                            convos = self.memory.get("conversations", [])[-30:]
+                            if convos:
+                                # Identifier les types de commentaires qui generent des reponses
+                                replied_to = [c for c in convos if c.get("type") in ("mention_reply", "own_tweet_reply")]
+                                commented = [c for c in convos if c.get("type") == "comment"]
+                                reddit = [c for c in convos if c.get("type") == "reddit_comment"]
+                                best_platform = "twitter"
+                                if len(reddit) > len(commented):
+                                    best_platform = "reddit"
+                                self.memory.setdefault("learning", {}).update({
+                                    "last_analysis": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "replies_received": len(replied_to),
+                                    "comments_made": len(commented),
+                                    "reddit_comments": len(reddit),
+                                    "best_platform": best_platform,
+                                    "total_convos": len(convos),
+                                })
+                                _log(f"[LEARN] Platform analysis: {len(replied_to)} replies, {len(commented)} comments, {len(reddit)} reddit — best: {best_platform}")
+
                     except Exception as e:
                         _log(f"[LEARN] Error: {e}")
 
@@ -1021,6 +1067,13 @@ class CEOLocal:
         # Utiliser Ollama (0 cout) par defaut, Groq seulement tous les 5 cycles
         use_groq = (self._cycle % 5 == 0)
 
+        # Injecter les regles apprises + CRM summaries dans l'analyse
+        regles = self.memory.get("regles", [])[-10:]
+        summaries = self.memory.get("conversation_summaries", [])[-3:]
+        learning = self.memory.get("learning", {})
+        regles_str = "\n".join(f"  - {r}" for r in regles) if regles else "  (none yet)"
+        summaries_str = "\n".join(f"  - {s.get('summary', '')[:150]}" for s in summaries) if summaries else ""
+
         summary = (
             f"Etat VPS MAXIA:\n"
             f"- Revenu 24h: ${kpis.get('revenue_24h', 0)}\n"
@@ -1029,7 +1082,12 @@ class CEOLocal:
             f"- Emergency stop: {kpis.get('emergency_stop', False)}\n"
             f"- Agents: {json.dumps(agents, default=str)[:500]}\n"
             f"- Erreurs recentes: {json.dumps(errors, default=str)[:300]}\n"
+            f"\nLEARNED RULES (follow these):\n{regles_str}\n"
         )
+        if summaries_str:
+            summary += f"\nRECENT CRM INSIGHTS:\n{summaries_str}\n"
+        if learning:
+            summary += f"\nLEARNING: best_platform={learning.get('best_platform','?')}, replies={learning.get('replies_received',0)}, comments={learning.get('comments_made',0)}\n"
 
         if use_groq:
             # Groq pour analyse strategique (tous les 5 cycles)
