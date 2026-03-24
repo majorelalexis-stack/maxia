@@ -116,11 +116,11 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
   <!-- Live Swap Widget -->
   <!-- Swap widget collapsible -->
   <div class="swap-widget" style="max-width:400px;margin:30px auto 0;background:rgba(6,182,212,0.05);border:1px solid rgba(6,182,212,0.2);border-radius:16px;overflow:hidden;animation:fadeUp 1.6s ease">
-    <div onclick="var b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
-      <span style="font-weight:700;font-size:18px">Try a Swap</span>
-      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--cyan)">LIVE</span><span class="arrow" style="color:var(--muted);font-size:12px">&#9660;</span></span>
+    <div onclick="var b=document.getElementById('swap-body');if(b.style.display==='none'){b.style.display='block';updateSwapWidget()}else{b.style.display='none'};this.querySelector('.arrow').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;cursor:pointer;user-select:none">
+      <span style="font-weight:700;font-size:18px">&#128260; Try a Swap</span>
+      <span style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--cyan)">LIVE — Jupiter</span><span class="arrow" style="color:var(--muted);font-size:14px">&#9660;</span></span>
     </div>
-    <div style="display:none;padding:0 24px 24px">
+    <div id="swap-body" style="display:none;padding:0 24px 24px">
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <select id="sw-from" onchange="updateSwapWidget()" style="flex:1;padding:10px 12px;border-radius:8px;background:var(--bg2);border:1px solid rgba(255,255,255,.1);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;cursor:pointer;outline:none">
         <option value="SOL">SOL</option><option value="ETH">ETH</option><option value="BTC">BTC</option><option value="USDC">USDC</option><option value="BONK">BONK</option>
@@ -132,7 +132,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
       </select>
     </div>
     <div id="sw-result" style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:22px;color:var(--green);margin:12px 0">
-      Loading...
+      —
     </div>
     <div id="sw-fee" style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:16px">
       Fee: 0.10% (BRONZE)
@@ -151,7 +151,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     </div>
     <div id="landing-stocks" style="display:none;padding:0 24px 24px">
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Real-time prices via Yahoo Finance. Buy with USDC on Solana, Ethereum, or Arbitrum.</div>
-      <div id="stocks-list" style="font-size:13px">Loading...</div>
+      <div id="stocks-list" style="font-size:13px"></div>
       <a href="/app#stocks" style="display:block;text-align:center;padding:12px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#fff;border-radius:8px;font-weight:700;text-decoration:none;margin-top:16px;transition:all .3s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
         Trade Stocks &#8594;
       </a>
@@ -687,7 +687,7 @@ async function updateSwapWidget(){
     }
   },300);
 }
-setTimeout(updateSwapWidget,1500);
+// Swap loads only when user opens the widget (not on page load)
 
 async function loadLandingStocks(){
   var el=document.getElementById('stocks-list');
