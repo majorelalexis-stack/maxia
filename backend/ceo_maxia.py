@@ -189,7 +189,7 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 50 tokens, 10 stocks, 8 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, subscriptions, 31 MCP tools, 91 modules"
+PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 50 tokens, 13 stocks (xStocks/Ondo/Dinari), 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, 46 MCP tools, 17 AI services, 91 modules"
 PHASE = "Pre-seed"
 VISION = "Devenir le hub Web3 de reference pour les agents IA autonomes"
 URL = "maxiaworld.app"
@@ -1795,7 +1795,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 "14 Chains",
-                "50 Tokens", "2450 Pairs", "10 Stocks", "6 GPU",
+                "50 Tokens", "2450 Pairs", "13 Stocks", "7 GPU", "46 MCP Tools",
             ],
         },
         "stats": {
@@ -1896,7 +1896,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 50 tokens, 2450 pairs, 10 stocks, 6 GPU — Live on Solana\n"
+            f"Footer: 50 tokens, 2450 pairs, 13 stocks, 7 GPU, 46 MCP tools — Live on 14 chains\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),

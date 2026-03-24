@@ -328,7 +328,7 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
     system = (
         "You are the community manager of MAXIA, a Web3 hub on 14 blockchains. "
         "You talk like a dev helping another dev — technical, direct, no marketing BS. "
-        "MAXIA features: swap 50 tokens, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 36 MCP tools. "
+        "MAXIA features: swap 50 tokens, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 46 MCP tools. "
         "URL: maxiaworld.app. Free to use, pay per use only."
     )
     prompt = (
@@ -613,7 +613,7 @@ class VPSClient:
 # ══════════════════════════════════════════
 
 CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI).
-Produit : AI Web3 Hub — swap 50 tokens, 10 stocks, 8 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID on-chain, trust score, oracle, data marketplace, RPC service, subscriptions. 31 MCP tools, 14 chains, 91 modules.
+Produit : AI Web3 Hub — swap 50 tokens, 13 stocks, 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID on-chain, trust score, oracle, data marketplace, RPC service, subscriptions. 46 MCP tools, 14 chains, 91 modules.
 Phase : Pre-seed | Vision : Devenir la couche d intelligence liquide de l ecosysteme Solana.
 Fondateur : Alexis (autorite finale sur decisions rouges)
 URL : maxiaworld.app
@@ -1466,7 +1466,7 @@ class CEOLocal:
             groq_key = os.getenv("GROQ_API_KEY", "")
             if not groq_key:
                 return {"title": "How AI agents can earn USDC autonomously",
-                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
             def _gen():
                 c = Groq(api_key=groq_key)
@@ -1479,7 +1479,7 @@ class CEOLocal:
                             "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
                             "2. Body: minimum 600 characters. Be educational and genuine.\n"
                             "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
-                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h, 31 MCP tools, USDC payments.\n"
+                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 50 tokens, GPU $0.69/h, 46 MCP tools, USDC payments.\n"
                             "5. End with a genuine question to the community.\n"
                             "6. Include maxiaworld.app at the end.\n"
                             "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
@@ -1502,7 +1502,7 @@ class CEOLocal:
         except Exception as e:
             _log(f"  [REDDIT] Groq gen error: {e}")
             return {"title": "How AI agents can earn USDC autonomously",
-                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 31 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 50 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
     async def _generate_tweet_via_groq(self, context: str = "") -> str:
         """Genere un tweet via Groq (gratuit, rapide, anglais)."""

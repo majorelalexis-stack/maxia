@@ -716,7 +716,7 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 8 GPU tiers, 46 MCP tools. LLM fine-tuning via Unsloth. AWP agent staking.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 13 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
@@ -883,7 +883,7 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 91 modules, 350+ endpoints, 31 MCP tools, 14 chains, 8 GPU tiers, 10 stocks — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 91 modules, 350+ endpoints, 46 MCP tools, 14 chains, 7 GPU tiers, 13 stocks, 17 AI services — maxiaworld.app</p>
 </div></body></html>""")
 
 @app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
@@ -936,7 +936,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
       <li>Rug pull detection</li>
       <li>Wallet analysis</li>
       <li>DeFi yield scanner</li>
-      <li>Stock prices (10 stocks)</li>
+      <li>Stock prices (13 stocks, 3 providers)</li>
       <li>GPU tier listing</li>
       <li>Leaderboard</li>
       <li>Service templates</li>
