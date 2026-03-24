@@ -418,12 +418,30 @@ async def mcp_list_tools():
     return {"tools": MCP_TOOLS}
 
 
+# #10 MCP free tier: read-only tools work without API key (5 calls/min per IP)
+_mcp_free_calls: dict = {}  # ip -> [timestamps]
+FREE_TOOLS = {"maxia_discover", "maxia_prices", "maxia_trending", "maxia_fear_greed",
+              "maxia_marketplace_stats", "maxia_stocks_list", "maxia_stocks_price",
+              "maxia_stocks_fees", "maxia_yield_best", "maxia_gpu_tiers", "maxia_defi_yield",
+              "maxia_whales", "maxia_candles", "maxia_signals", "maxia_portfolio"}
+
 @router.post("/tools/call")
 async def mcp_call_tool(request: Request):
-    """Execute an MCP tool call."""
+    """Execute an MCP tool call. Read-only tools work without API key (free tier: 5/min)."""
     body = await request.json()
     tool_name = body.get("name", "")
     args = body.get("arguments", {})
+
+    # Free tier rate limiting for tools that don't need API key
+    if tool_name in FREE_TOOLS and not args.get("api_key"):
+        ip = request.client.host if request.client else "unknown"
+        import time as _t
+        now = _t.time()
+        calls = _mcp_free_calls.setdefault(ip, [])
+        calls[:] = [t for t in calls if now - t < 60]  # Keep last 60s
+        if len(calls) >= 5:
+            return {"content": [{"type": "text", "text": "Free tier: max 5 calls/min. Register for unlimited: POST /api/public/register"}], "isError": True}
+        calls.append(now)
 
     try:
         result = await _execute_tool(tool_name, args)

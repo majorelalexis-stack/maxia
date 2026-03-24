@@ -1416,6 +1416,114 @@ async def marketplace_stats():
     }
 
 
+# #15 Encheres inversees — buyer poste une demande, sellers encherissent
+_reverse_auctions: list = []
+
+@router.post("/request-service")
+async def request_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Reverse auction: buyer posts what they need, sellers can bid.
+
+    Body: { "capability": "sentiment", "max_price": 0.05, "description": "Analyze 1000 tweets", "deadline_hours": 24 }
+    """
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+
+    capability = req.get("capability", "").strip()
+    max_price = float(req.get("max_price", 10))
+    description = req.get("description", "").strip()
+    deadline_hours = int(req.get("deadline_hours", 24))
+
+    if not capability:
+        raise HTTPException(400, "capability required")
+    if max_price <= 0:
+        raise HTTPException(400, "max_price must be > 0")
+
+    auction = {
+        "id": str(uuid.uuid4()),
+        "buyer_key": x_api_key,
+        "capability": capability,
+        "max_price": max_price,
+        "description": description[:500],
+        "deadline_at": int(time.time()) + deadline_hours * 3600,
+        "created_at": int(time.time()),
+        "bids": [],
+        "status": "open",
+    }
+    _reverse_auctions.append(auction)
+
+    return {"success": True, "auction_id": auction["id"], "expires_in_hours": deadline_hours,
+            "message": f"Request posted. Sellers can bid at GET /api/public/auctions/{auction['id']}"}
+
+
+@router.get("/auctions")
+async def list_reverse_auctions():
+    """List open reverse auctions (service requests from buyers)."""
+    now = int(time.time())
+    open_auctions = [a for a in _reverse_auctions if a["status"] == "open" and a["deadline_at"] > now]
+    return {"count": len(open_auctions), "auctions": [{
+        "id": a["id"], "capability": a["capability"], "max_price": a["max_price"],
+        "description": a["description"], "bids_count": len(a["bids"]),
+        "deadline_at": a["deadline_at"], "created_at": a["created_at"],
+    } for a in open_auctions]}
+
+
+@router.post("/auctions/{auction_id}/bid")
+async def bid_on_auction(auction_id: str, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Seller bids on a reverse auction.
+
+    Body: { "price": 0.03, "estimated_time_s": 5 }
+    """
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+
+    auction = next((a for a in _reverse_auctions if a["id"] == auction_id and a["status"] == "open"), None)
+    if not auction:
+        raise HTTPException(404, "Auction not found or closed")
+
+    price = float(req.get("price", 0))
+    if price <= 0 or price > auction["max_price"]:
+        raise HTTPException(400, f"Price must be between 0 and {auction['max_price']}")
+
+    bid = {
+        "seller_key": x_api_key,
+        "price": price,
+        "estimated_time_s": int(req.get("estimated_time_s", 10)),
+        "bid_at": int(time.time()),
+    }
+    auction["bids"].append(bid)
+    auction["bids"].sort(key=lambda b: b["price"])  # Cheapest first
+
+    return {"success": True, "position": auction["bids"].index(bid) + 1, "total_bids": len(auction["bids"])}
+
+
+# #16 Prix dynamique supply/demand
+_demand_tracker: dict = {}  # service_type -> request_count_last_hour
+
+def _track_demand(service_type: str):
+    """Track demand for dynamic pricing signals."""
+    now = int(time.time())
+    key = service_type.lower()
+    if key not in _demand_tracker:
+        _demand_tracker[key] = []
+    _demand_tracker[key].append(now)
+    # Keep only last hour
+    _demand_tracker[key] = [t for t in _demand_tracker[key] if now - t < 3600]
+
+
+@router.get("/demand")
+async def get_demand():
+    """See current demand levels per service type. Sellers can adjust prices accordingly."""
+    now = int(time.time())
+    result = {}
+    for stype, timestamps in _demand_tracker.items():
+        recent = [t for t in timestamps if now - t < 3600]
+        result[stype] = {
+            "requests_last_hour": len(recent),
+            "trend": "high" if len(recent) > 10 else "medium" if len(recent) > 3 else "low",
+        }
+    return {"demand": result, "note": "High demand = opportunity to list services at higher prices"}
+
+
 # #2 Transparence multi-chain
 @router.get("/chain-support")
 async def chain_support():
@@ -1465,6 +1573,10 @@ async def discover_services(
     await _load_from_db()
     results = []
     capability_lower = capability.lower()
+
+    # #16 Track demand
+    if capability_lower:
+        _track_demand(capability_lower)
 
     # Search services directly from DB using SQL LIKE (matches name, description, AND type)
     # This avoids stale in-memory cache issues and ensures fresh results
