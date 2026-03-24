@@ -352,28 +352,43 @@ Headers: X-API-Key: buyer_key
   </div>
 </section>
 
-<!-- STOCKS (dynamic) -->
+<!-- STOCKS (collapsible) -->
 <a id="stocks"></a>
 <section class="section fade-in">
-  <div class="section-title">📈 Tokenized Stocks</div>
-  <div class="section-sub">Trade US equities 24/7 on Solana. Real xStock mint addresses. Jupiter routing.</div>
-  <div class="tw"><table class="ct" id="stocks-table">
-    <thead><tr><th>Stock</th><th>Symbol</th><th>Sector</th><th>xStock</th><th>Price</th></tr></thead>
-    <tbody id="stocks-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
-  </table></div>
-  <p style="margin-top:20px;color:var(--muted);font-size:14px">10 real tokenized US stocks with verified on-chain mint addresses via Jupiter.</p>
+  <div onclick="var b=document.getElementById('stocks-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div class="section-title" style="margin-bottom:4px">Tokenized Stocks</div>
+      <div style="color:var(--muted);font-size:15px">13 stocks. 3 providers. Multi-chain (Solana, ETH, Arbitrum).</div>
+    </div>
+    <span class="arr" style="font-size:20px;color:var(--muted)">&#9660;</span>
+  </div>
+  <div id="stocks-body-wrap" style="display:none;margin-top:20px">
+    <div class="tw"><table class="ct" id="stocks-table">
+      <thead><tr><th>Stock</th><th>Name</th><th>Provider</th><th>Price</th></tr></thead>
+      <tbody id="stocks-body"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Loading prices...</td></tr></tbody>
+    </table></div>
+    <a href="/app#stocks" style="display:inline-block;margin-top:16px;padding:10px 24px;background:linear-gradient(135deg,var(--green),var(--cyan));color:#fff;border-radius:8px;font-weight:600;text-decoration:none">Trade Stocks</a>
+  </div>
 </section>
 
-<!-- CRYPTO (dynamic) -->
+<!-- CRYPTO (collapsible) -->
 <a id="crypto"></a>
 <section class="section fade-in section-dark" style="max-width:100%;padding-left:calc((100% - 1100px)/2);padding-right:calc((100% - 1100px)/2)">
-  <div class="section-title">🔄 Crypto Swap — 2450 Pairs</div>
-  <div class="section-sub">Swap any token instantly via Jupiter. Real-time competitive pricing.</div>
-  <div class="tw"><table class="ct" id="crypto-table">
-    <thead><tr><th>Token</th><th>Name</th><th>Price USD</th></tr></thead>
-    <tbody id="crypto-body"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading...</td></tr></tbody>
-  </table></div>
-  <p style="margin-top:20px;color:var(--muted);font-size:14px">50 tokens, 2450 pairs. Swap commission: BRONZE 0.10% | SILVER 0.05% | GOLD 0.03% | WHALE 0.01%. Marketplace: 1% Bronze → 0.5% Gold → 0.1% Whale.</p>
+  <div onclick="var b=document.getElementById('crypto-body-wrap');if(b.style.display==='none'){b.style.display='block'}else{b.style.display='none'};this.querySelector('.arr').textContent=b.style.display==='none'?'\u25BC':'\u25B2'" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <div class="section-title" style="margin-bottom:4px">Crypto Swap — 2450 Pairs</div>
+      <div style="color:var(--muted);font-size:15px">50 tokens. Lowest fees. Powered by Jupiter & 1inch.</div>
+    </div>
+    <span class="arr" style="font-size:20px;color:var(--muted)">&#9660;</span>
+  </div>
+  <div id="crypto-body-wrap" style="display:none;margin-top:20px">
+    <div class="tw"><table class="ct" id="crypto-table">
+      <thead><tr><th>Token</th><th>Name</th><th>Price USD</th></tr></thead>
+      <tbody id="crypto-body"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">Loading prices...</td></tr></tbody>
+    </table></div>
+    <p style="margin-top:16px;color:var(--muted);font-size:13px">Swap fees: BRONZE 0.10% | SILVER 0.05% | GOLD 0.03% | WHALE 0.01%</p>
+    <a href="/app#swap" style="display:inline-block;margin-top:12px;padding:10px 24px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border-radius:8px;font-weight:600;text-decoration:none">Swap Now</a>
+  </div>
 </section>
 
 <!-- COMMISSIONS -->
@@ -641,11 +656,9 @@ async function loadDynamic(){
     // Stocks
     const st=await(await fetch('/api/public/stocks')).json();
     if(st.stocks&&st.stocks.length>0){
-      document.getElementById('s-stocks').textContent=st.stocks.length;
       document.getElementById('stocks-body').innerHTML=st.stocks.map(s=>
-        '<tr><td style="font-weight:600">'+s.name+'</td><td>'+s.symbol+'</td>'
-        +'<td style="color:var(--muted)">'+s.sector+'</td>'
-        +'<td style="color:var(--purple)">'+s.xstock+'</td>'
+        '<tr><td style="font-weight:600">'+s.name+'</td><td style="color:var(--cyan)">'+s.symbol+'</td>'
+        +'<td style="color:var(--muted);font-size:13px">'+(s.provider||'xstocks')+'</td>'
         +'<td style="font-family:JetBrains Mono;color:var(--green)">$'+(s.price_usd||0).toFixed(2)+'</td></tr>'
       ).join('');
     }
