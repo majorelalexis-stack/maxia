@@ -1599,6 +1599,11 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             "maxia-audit": 4.99, "maxia-code": 2.99, "maxia-data": 2.99,
             "maxia-scraper": 0.02, "maxia-image": 0.10, "maxia-translate": 0.05,
             "maxia-summary": 0.49, "maxia-wallet": 1.99, "maxia-marketing": 0.99,
+            "maxia-finetune": 2.99, "maxia-awp-stake": 0,
+            "maxia-transcription": 0.01, "maxia-embedding": 0.001,
+            "maxia-sentiment": 0.005, "maxia-wallet-score": 0.10,
+            "maxia-airdrop-scan": 0.50, "maxia-smart-money": 0.25,
+            "maxia-nft-rarity": 0.05,
         }.get(service_id, 1.99)
     elif service:
         price = service["price_usdc"]
@@ -1897,6 +1902,13 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
         "maxia-marketing": "You are a Web3 marketing copywriter. Generate compelling landing page copy, Twitter threads, blog posts, or product descriptions. Optimize for the Web3/AI audience.",
         "maxia-image": "You are an image generation prompt engineer. Create a detailed image generation prompt based on the user's request. Output the optimized prompt for FLUX.1 / Stable Diffusion.",
         "maxia-scraper": "You are a web scraping assistant. Extract and structure data from the provided URL or content into clean JSON format.",
+        "maxia-transcription": "You are an audio transcription assistant. The user provides audio context or a description. Provide a structured transcription. If no real audio, explain that the service requires audio file upload via the /api/public/transcribe endpoint.",
+        "maxia-embedding": "You are a text embedding assistant. Convert the provided text into a structured representation suitable for vector search. Return a JSON array of key concepts and their semantic categories.",
+        "maxia-sentiment": "You are a sentiment analysis engine. Analyze the provided text and return: sentiment_score (-1.0 to 1.0), confidence (0-1), label (very_negative/negative/neutral/positive/very_positive), and key_phrases that influenced the score. Return JSON.",
+        "maxia-wallet-score": "You are a blockchain wallet analyst. Based on the wallet address provided, explain what data points would be analyzed (balance, age, tx count, DeFi exposure, token diversity) and provide a risk assessment framework. Score 0-100 where 0=high risk, 100=safe. Return JSON.",
+        "maxia-airdrop-scan": "You are an airdrop eligibility analyst. Based on the wallet address, list protocols where the wallet may be eligible for airdrops. Check for: early adopter status, governance participation, liquidity provision, bridge usage, NFT holdings. Return JSON with protocol names and eligibility likelihood.",
+        "maxia-smart-money": "You are a smart money tracker. Analyze whale wallet movements and provide insights on: large transfers, accumulation patterns, DeFi position changes, and potential market signals. Return JSON.",
+        "maxia-nft-rarity": "You are an NFT rarity calculator. Based on the collection and token ID provided, calculate a rarity score based on trait distribution. Return JSON with score, rank estimate, and rare traits.",
     }
     sys = system_prompts.get(service_id, "You are a helpful AI assistant.")
 
