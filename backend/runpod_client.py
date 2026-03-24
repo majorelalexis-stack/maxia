@@ -250,6 +250,17 @@ class RunPodClient:
                 log.error(f"[RunPod] Monitor error: {e}")
             await asyncio.sleep(60)
 
+    async def get_logs(self, pod_id: str) -> str:
+        """Fetch stdout/stderr logs from a running pod."""
+        if pod_id.startswith("local-"):
+            return ""  # Local GPU has no pod logs
+        query = f'query {{ pod(input: {{ podId: "{pod_id}" }}) {{ runtime {{ logs }} }} }}'
+        data = await self._query(query)
+        try:
+            return data.get("data", {}).get("pod", {}).get("runtime", {}).get("logs", "") or ""
+        except Exception:
+            return ""
+
     async def terminate_pod(self, pod_id: str) -> dict:
         """Arrete et supprime un pod. Fix #5: 3-attempt retry. Fix #6: returns actual_cost."""
         last_error = None

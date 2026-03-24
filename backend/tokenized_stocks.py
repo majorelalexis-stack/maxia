@@ -585,7 +585,9 @@ class TokenizedStockExchange:
         if mint and len(mint) > 20:
             try:
                 from jupiter_router import sell_token_via_jupiter
-                amount_raw = int(shares * 1e6)  # approximation
+                # Token decimals: USDC = 6, most xStocks = 6, Ondo = 18
+                token_decimals = TOKENIZED_STOCKS[symbol].get("decimals", 6)
+                amount_raw = int(shares * (10 ** token_decimals))
                 jupiter_result = await sell_token_via_jupiter(mint, amount_raw, seller_wallet)
                 if not jupiter_result.get("success"):
                     return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}

@@ -1,5 +1,5 @@
 """MAXIA Art.9 V2 — x402 Middleware (14 chains: Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB + TRON + NEAR + Aptos + SEI)"""
-import asyncio
+import asyncio, os
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from config import (

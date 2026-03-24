@@ -507,8 +507,9 @@ async def _fetch_all_yields() -> list[dict]:
             f"{y['protocol']}_{y['chain']}_{y.get('asset','')}" == key for y in all_yields
         )
         if not already_have:
-            entry = {**fb, "updated_at": now}
+            entry = {**fb, "updated_at": now, "source": "fallback", "is_fallback": True}
             all_yields.append(entry)
+            print(f"[Yield] {fb.get('protocol','?')} on {fb.get('chain','?')}: using fallback data (API unavailable)")
 
     # ── Post-processing: clean data for humans ──
 

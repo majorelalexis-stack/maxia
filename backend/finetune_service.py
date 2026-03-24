@@ -360,9 +360,11 @@ async def _run_finetune_job(job: dict):
         # 3. Execute training
         log.info(f"[Finetune] {job_id}: Training started on {'local 7900XT' if is_local else f'pod {pod_id}'}")
 
-        # Monitor progress (poll every 60s)
+        # Monitor progress — poll pod logs for real completion marker
+        import re as _re
         start_time = time.time()
         max_duration = (job["estimated_hours"] + 1) * 3600  # +1h safety margin
+        training_completed = False
 
         while time.time() - start_time < max_duration:
             if job["status"] == "cancelled":
@@ -370,14 +372,39 @@ async def _run_finetune_job(job: dict):
                     await _reload_ollama_model()
                 return
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(15)  # Poll every 15s (not 60s)
 
-            # Increment progress estimate
+            # Update progress estimate
             elapsed = time.time() - start_time
             estimated_total = job["estimated_hours"] * 3600
             job["progress"] = min(95, int((elapsed / estimated_total) * 100))
 
-        # 4. Training complete
+            # Check pod logs for real completion marker
+            if not is_local and pod_id:
+                try:
+                    logs_text = await client.get_logs(pod_id)
+                    if logs_text:
+                        if "MAXIA_TRAINING_COMPLETE" in logs_text:
+                            training_completed = True
+                            # Parse training loss from logs
+                            loss_match = _re.search(r"'loss':\s*([\d.]+)", logs_text)
+                            if loss_match:
+                                job["training_loss"] = float(loss_match.group(1))
+                            log.info(f"[Finetune] {job_id}: Training complete marker found in logs")
+                            break
+                        elif "Error" in logs_text and "CUDA" in logs_text:
+                            job["status"] = "failed"
+                            job["error"] = "CUDA error during training"
+                            log.error(f"[Finetune] {job_id}: CUDA error detected in logs")
+                            if is_local:
+                                await _reload_ollama_model()
+                            return
+                except Exception:
+                    pass  # Log fetch failed, continue polling
+
+        # 4. Training complete (either by marker or timeout)
+        if not training_completed:
+            log.warning(f"[Finetune] {job_id}: No completion marker found — assuming done by timeout")
         job["status"] = "completed"
         job["progress"] = 100
         elapsed_hours = round((time.time() - start_time) / 3600, 2)
@@ -388,9 +415,8 @@ async def _run_finetune_job(job: dict):
             job["download_url"] = f"file:///workspace/output/{job_id}/"
         else:
             job["download_url"] = f"https://{pod_id}-8888.proxy.runpod.net/workspace/output/"
-        job["training_loss"] = None  # Would be parsed from logs in production
 
-        log.info(f"[Finetune] {job_id}: Completed in {elapsed_hours}h — cost: ${job['final_cost']}")
+        log.info(f"[Finetune] {job_id}: Completed in {elapsed_hours}h — cost: ${job['final_cost']} — loss: {job.get('training_loss', 'N/A')}")
 
         # 5. Cleanup: terminate pod or reload Ollama
         if is_local:
