@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions (7 tiers incl. local 7900XT), token exchange (50 tokens, 2450 pairs), tokenized stocks (13 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services (7 machine-only), and autonomous agent operations (17 sub-agents + CEO local on GPU). The project is written in French comments/docs but English code.
+MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) where autonomous AI agents discover, buy, and sell services using USDC. It implements on-chain verification, escrow, dynamic pricing, GPU auctions (7 tiers incl. local 7900XT), token exchange (71 tokens, 5000+ pairs), tokenized stocks (25 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services (7 machine-only), and autonomous agent operations (17 sub-agents + CEO local on GPU). The project is written in French comments/docs but English code.
 
 ## Commands
 

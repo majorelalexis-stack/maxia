@@ -94,7 +94,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_swap_quote",
-        "description": "Get a crypto swap quote on Solana. 50 tokens, 2450 pairs. Returns price and commission.",
+        "description": "Get a crypto swap quote on Solana. 71 tokens, 2450 pairs. Returns price and commission.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -107,7 +107,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_prices",
-        "description": "Get live cryptocurrency prices. 50 tokens + 10 US stocks. Updated every 30 seconds.",
+        "description": "Get live cryptocurrency prices. 71 tokens + 10 US stocks. Updated every 30 seconds.",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -339,6 +339,59 @@ MCP_TOOLS = [
         "name": "maxia_price_alert",
         "description": "Create a price alert for a token (triggers when price goes above/below target).",
         "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}, "condition": {"type": "string", "enum": ["above", "below"]}, "target_price": {"type": "number"}, "wallet": {"type": "string"}}, "required": ["token", "condition", "target_price"]},
+    },
+    # ── Fine-Tuning LLM Tools ──
+    {
+        "name": "maxia_finetune_models",
+        "description": "List all base models available for fine-tuning (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) with VRAM requirements and GPU recommendations.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "maxia_finetune_quote",
+        "description": "Get a price quote for fine-tuning an LLM on your dataset via Unsloth + RunPod GPU.",
+        "inputSchema": {"type": "object", "properties": {"base_model": {"type": "string", "description": "Model ID: llama-3.3-8b, qwen-2.5-14b, mistral-7b, etc."}, "dataset_rows": {"type": "integer", "description": "Number of rows in your JSONL dataset"}, "epochs": {"type": "integer", "default": 3}}, "required": ["base_model", "dataset_rows"]},
+    },
+    {
+        "name": "maxia_finetune_start",
+        "description": "Start a fine-tuning job. Provisions GPU, runs Unsloth training, returns model. Supports GGUF, safetensors, merged, LoRA output.",
+        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "base_model": {"type": "string"}, "dataset_url": {"type": "string", "description": "HTTPS URL to JSONL dataset"}, "epochs": {"type": "integer", "default": 3}, "output_format": {"type": "string", "enum": ["gguf", "safetensors", "merged", "lora_only"], "default": "gguf"}}, "required": ["api_key", "base_model", "dataset_url"]},
+    },
+    {
+        "name": "maxia_finetune_status",
+        "description": "Check status and progress of a fine-tuning job.",
+        "inputSchema": {"type": "object", "properties": {"job_id": {"type": "string"}}, "required": ["job_id"]},
+    },
+    # ── AWP Protocol Tools ──
+    {
+        "name": "maxia_awp_register",
+        "description": "Register an AI agent on the AWP (Autonomous Worker Protocol) on Base L2 for staking and cross-protocol discovery.",
+        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "agent_name": {"type": "string"}, "wallet_address": {"type": "string", "description": "EVM wallet on Base"}, "capabilities": {"type": "array", "items": {"type": "string"}}}, "required": ["api_key", "agent_name", "wallet_address"]},
+    },
+    {
+        "name": "maxia_awp_stake",
+        "description": "Stake USDC on the AWP protocol to increase your agent's trust score and earn 3-12% APY rewards.",
+        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "amount_usdc": {"type": "number", "minimum": 10}, "lock_period_days": {"type": "integer", "default": 30}}, "required": ["api_key", "amount_usdc"]},
+    },
+    {
+        "name": "maxia_awp_discover",
+        "description": "Discover AI agents on the AWP decentralized network. Filter by capability and trust score.",
+        "inputSchema": {"type": "object", "properties": {"capability": {"type": "string"}, "min_trust": {"type": "integer", "default": 0}}},
+    },
+    {
+        "name": "maxia_awp_rewards",
+        "description": "Check staking rewards for an AWP agent.",
+        "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "string"}}, "required": ["agent_id"]},
+    },
+    # ── LLM-as-a-Service ──
+    {
+        "name": "maxia_llm_models",
+        "description": "List available LLM tiers (local/fast/mid/strategic) with pricing per 1K tokens in USDC.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "maxia_llm_chat",
+        "description": "Send a chat completion request to MAXIA's multi-provider LLM gateway. OpenAI-compatible. Auto-routes to optimal tier.",
+        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string"}, "content": {"type": "string"}}}}, "model": {"type": "string", "enum": ["auto", "local", "fast", "mid", "strategic"], "default": "auto"}, "max_tokens": {"type": "integer", "default": 500}}, "required": ["api_key", "messages"]},
     },
 ]
 
@@ -587,6 +640,53 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.post("/api/trading/alerts", json=args)
             return r.json()
 
+        # ── Fine-Tuning LLM ──
+        elif name == "maxia_finetune_models":
+            r = await client.get("/api/finetune/models")
+            return r.json()
+        elif name == "maxia_finetune_quote":
+            r = await client.post("/api/finetune/quote", json=args)
+            return r.json()
+        elif name == "maxia_finetune_start":
+            r = await client.post("/api/finetune/start",
+                headers={"X-API-Key": args.get("api_key", "")},
+                json={k: v for k, v in args.items() if k != "api_key"})
+            return r.json()
+        elif name == "maxia_finetune_status":
+            r = await client.get(f"/api/finetune/status/{args.get('job_id', '')}")
+            return r.json()
+
+        # ── AWP Protocol ──
+        elif name == "maxia_awp_register":
+            r = await client.post("/api/awp/register",
+                headers={"X-API-Key": args.get("api_key", "")},
+                json={k: v for k, v in args.items() if k != "api_key"})
+            return r.json()
+        elif name == "maxia_awp_stake":
+            r = await client.post("/api/awp/stake",
+                headers={"X-API-Key": args.get("api_key", "")},
+                json={k: v for k, v in args.items() if k != "api_key"})
+            return r.json()
+        elif name == "maxia_awp_discover":
+            r = await client.get("/api/awp/discover", params={
+                "capability": args.get("capability", ""),
+                "min_trust": args.get("min_trust", 0),
+            })
+            return r.json()
+        elif name == "maxia_awp_rewards":
+            r = await client.get(f"/api/awp/rewards/{args.get('agent_id', '')}")
+            return r.json()
+
+        # ── LLM-as-a-Service ──
+        elif name == "maxia_llm_models":
+            r = await client.get("/api/llm/models")
+            return r.json()
+        elif name == "maxia_llm_chat":
+            r = await client.post("/api/llm/chat",
+                headers={"X-API-Key": args.get("api_key", "")},
+                json={"messages": args.get("messages", []), "model": args.get("model", "auto"), "max_tokens": args.get("max_tokens", 500)})
+            return r.json()
+
         else:
             return {"error": f"Unknown tool: {name}", "available": [t["name"] for t in MCP_TOOLS]}
 
@@ -643,5 +743,5 @@ async def mcp_manifest():
             "header": "X-API-Key",
             "register_url": f"{MAXIA_URL}/api/public/register",
         },
-        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi", "sentiment", "token-risk", "wallet-analysis", "trending", "fear-greed", "gpu-rental", "tokenized-stocks", "candles", "whale-tracker", "copy-trading", "leaderboard", "agent-chat", "templates", "webhooks", "escrow", "sla", "clones"],
+        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi", "sentiment", "token-risk", "wallet-analysis", "trending", "fear-greed", "gpu-rental", "tokenized-stocks", "candles", "whale-tracker", "copy-trading", "leaderboard", "agent-chat", "templates", "webhooks", "escrow", "sla", "clones", "llm-finetune", "awp-staking", "awp-discovery"],
     }

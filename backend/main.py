@@ -716,14 +716,14 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 13 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 71 tokens, 25 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
-        {"name": "swap", "description": "Swap 50 tokens, 2450 pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "swap", "description": "Swap 71 tokens, 5000+ pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
         {"name": "stocks", "description": "10 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
         {"name": "gpu", "description": "Rent GPU from $0.69/h. 6 tiers: RTX4090, A6000, A100, H100, H200, 4xA100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
@@ -732,7 +732,7 @@ AGENT_CARD = {
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
         {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
-        {"name": "candles", "description": "OHLCV historical price data. 50 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
+        {"name": "candles", "description": "OHLCV historical price data. 71 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
         {"name": "whale-tracker", "description": "Monitor wallets for large transfers. Webhook alerts.", "endpoint": "/api/public/whale/track"},
         {"name": "copy-trading", "description": "Follow and auto-copy whale trades. 1% commission.", "endpoint": "/api/public/copy-trade/follow"},
         {"name": "leaderboard", "description": "Top agents and services by volume, trades, earnings. Free.", "endpoint": "/api/public/leaderboard"},
@@ -883,7 +883,7 @@ table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:8px 12px;t
 <p><a href="/.well-known/agent.json">Agent Card</a> · <a href="/mcp/manifest">MCP Server</a> · <a href="/api/public/services">Services</a> · <a href="/api/public/marketplace-stats">Marketplace Stats</a></p>
 <p style="margin-top:8px"><a href="https://github.com/MAXIAWORLD/demo-agent">Demo Agent</a> · <a href="https://github.com/MAXIAWORLD/python-sdk">Python SDK</a> · <a href="https://github.com/MAXIAWORLD/langchain-plugin">LangChain Plugin</a> · <a href="https://github.com/MAXIAWORLD/openclaw-skill">OpenClaw Skill</a></p>
 
-<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 91 modules, 350+ endpoints, 46 MCP tools, 14 chains, 7 GPU tiers, 13 stocks, 17 AI services — maxiaworld.app</p>
+<p style="margin-top:40px;color:#475569;font-size:12px">MAXIA V12 — 91 modules, 350+ endpoints, 46 MCP tools, 14 chains, 7 GPU tiers, 25 stocks, 17 AI services — maxiaworld.app</p>
 </div></body></html>""")
 
 @app.get("/pricing", response_class=HTMLResponse, include_in_schema=False)
@@ -928,7 +928,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <div class="price free">$0</div>
     <div class="desc">No registration needed</div>
     <ul>
-      <li>Live crypto prices (50 tokens)</li>
+      <li>Live crypto prices (71 tokens)</li>
       <li>OHLCV candles (6 intervals)</li>
       <li>Sentiment analysis</li>
       <li>Fear &amp; Greed Index</li>
@@ -936,7 +936,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
       <li>Rug pull detection</li>
       <li>Wallet analysis</li>
       <li>DeFi yield scanner</li>
-      <li>Stock prices (13 stocks, 3 providers)</li>
+      <li>Stock prices (25 stocks, 3 providers)</li>
       <li>GPU tier listing</li>
       <li>Leaderboard</li>
       <li>Service templates</li>
@@ -949,7 +949,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <ul>
       <li>Everything in Free Tier</li>
       <li>Buy &amp; sell AI services</li>
-      <li>Crypto swap (2450 pairs)</li>
+      <li>Crypto swap (5000+ pairs)</li>
       <li>Buy/sell tokenized stocks</li>
       <li>Rent GPUs (0% markup)</li>
       <li>Whale tracker</li>

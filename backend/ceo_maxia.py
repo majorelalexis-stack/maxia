@@ -189,7 +189,7 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 50 tokens, 13 stocks (xStocks/Ondo/Dinari), 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, 46 MCP tools, 17 AI services, 91 modules"
+PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 71 tokens, 25 stocks (xStocks/Ondo/Dinari), 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, 46 MCP tools, 17 AI services, 91 modules"
 PHASE = "Pre-seed"
 VISION = "Devenir le hub Web3 de reference pour les agents IA autonomes"
 URL = "maxiaworld.app"
@@ -1538,7 +1538,7 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
     ctx = (
         f"CANAL: {canal}\nUSER: {user}\nMESSAGE: {msg}\n"
         f"HISTORIQUE:\n{json.dumps(prev, indent=1, default=str) if prev else '(Premier contact)'}\n"
-        f"MAXIA: 50 tokens, 2450 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
+        f"MAXIA: 71 tokens, 2450 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
     # Router: FAST pour les reponses (besoin de qualite, mais pas strategique)
@@ -1795,7 +1795,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 "14 Chains",
-                "50 Tokens", "2450 Pairs", "13 Stocks", "7 GPU", "46 MCP Tools",
+                "50 Tokens", "5000+ Pairs", "13 Stocks", "7 GPU", "46 MCP Tools",
             ],
         },
         "stats": {
@@ -1860,7 +1860,7 @@ DEPLOYABLE_PAGES = {
     },
     "status": {
         "trigger": "toujours",
-        "description": "Uptime, prix live 50 tokens, volume, agents actifs",
+        "description": "Uptime, prix live 71 tokens, volume, agents actifs",
     },
     "testimonials": {
         "trigger": "3_feedbacks_positifs",
@@ -1896,7 +1896,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 50 tokens, 2450 pairs, 13 stocks, 7 GPU, 46 MCP tools — Live on 14 chains\n"
+            f"Footer: 71 tokens, 5000+ pairs, 25 stocks, 7 GPU, 46 MCP tools — Live on 14 chains\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),
@@ -1939,7 +1939,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"| Stocks | 0.05% | N/A | N/A | N/A |\n"
             f"| GPU RTX4090 | $0.69/h | N/A | N/A | N/A |\n"
             f"| API | Gratuite | Gratuite | Payante | Payante |\n"
-            f"| Prix live | 50 tokens | Oui | Oui | Oui |\n"
+            f"| Prix live | 71 tokens | Oui | Oui | Oui |\n"
             f"| AI Services | 9 services | Non | Non | Non |\n\n"
             f"Mets en evidence les avantages MAXIA (vert)\n"
             f"Ajoute un calculateur : 'Combien economisez-vous avec MAXIA ?'\n"
@@ -1953,7 +1953,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"Sections :\n"
             f"- Resume executif (2 phrases)\n"
             f"- KPI (revenus, clients, volume, swaps)\n"
-            f"- Prix des 50 tokens (tableau)\n"
+            f"- Prix des 71 tokens (tableau)\n"
             f"- Top 5 swaps de la semaine\n"
             f"- Decisions du CEO cette semaine\n"
             f"- Perspectives semaine prochaine\n\n"
@@ -3454,7 +3454,7 @@ if __name__ == "__main__":
 
         # GHOST-WRITER + WATCHDOG
         print("\n--- GHOST-WRITER + WATCHDOG ---")
-        c = await ghost_write("tweet", "MAXIA 50 tokens live", "twitter")
+        c = await ghost_write("tweet", "MAXIA 71 tokens live", "twitter")
         print(f"  Blocked: {c.get('blocked', False)} | {json.dumps(c, default=str)[:100]}")
 
         # TESTIMONIAL
@@ -3499,7 +3499,7 @@ if __name__ == "__main__":
 
         # BLOG
         print("\n--- BLOG ---")
-        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 50 tokens")
+        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 71 tokens")
         print(f"  Blog: {blog.get('success', False)} | {blog.get('url', blog.get('error', ''))}")
 
         # STATUS
