@@ -59,7 +59,7 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
                 )
                 amount_match = (
                     expected_amount_usdc <= 0
-                    or transfer["amount_usdc"] >= expected_amount_usdc * 0.99  # 1% tolerance
+                    or transfer["amount_usdc"] >= expected_amount_usdc * 0.999  # 0.1% tolerance (V-06)
                 )
 
                 if recipient_match and amount_match:
@@ -121,11 +121,16 @@ def _parse_transfers(result: dict) -> dict:
         ix_type = parsed.get("type", "")
         info = parsed.get("info", {})
 
-        # SPL Token transfer / transferChecked
+        # SPL Token transfer / transferChecked — USDC ONLY
+        USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         if ix_type in ("transfer", "transferChecked") and ix.get("program") == "spl-token":
+            # V-05: Verify token mint is USDC (reject worthless tokens)
+            token_mint = info.get("mint", "")
+            if ix_type == "transferChecked" and token_mint and token_mint != USDC_MINT:
+                continue  # Not USDC — skip this transfer
+
             amount_str = info.get("tokenAmount", {}).get("uiAmountString")
             if amount_str is None:
-                # Pour "transfer" simple (pas transferChecked)
                 amount_raw = int(info.get("amount", 0))
                 amount_usdc = amount_raw / 1e6
             else:
@@ -138,7 +143,7 @@ def _parse_transfers(result: dict) -> dict:
                 "to": info.get("destination", ""),
                 "amount_usdc": amount_usdc,
                 "amount_raw": amount_raw,
-                "mint": info.get("mint", ""),
+                "mint": token_mint or USDC_MINT,
             })
 
         # SOL transfer

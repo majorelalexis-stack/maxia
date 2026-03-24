@@ -699,7 +699,8 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded d
 async def serve_dashboard(request: Request):
     # Accept X-Admin-Key header OR ?key= query param (dashboard is browser-accessed)
     key = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
-    if not key or key != ADMIN_KEY:
+    import hmac as _hmac_dash
+    if not key or not _hmac_dash.compare_digest(key, ADMIN_KEY):
         return HTMLResponse(
             "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
             "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
@@ -1088,7 +1089,8 @@ async def event_stream(request: Request):
     # Simple API key check — accept admin key via header or query param
     _admin_key = os.getenv("ADMIN_KEY", "")
     _provided = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
-    if not _admin_key or _provided != _admin_key:
+    import hmac as _hmac_sse
+    if not _admin_key or not _hmac_sse.compare_digest(_provided, _admin_key):
         raise HTTPException(403, "Unauthorized — provide X-Admin-Key header")
     from starlette.responses import StreamingResponse
 
@@ -3053,36 +3055,48 @@ async def preflight():
     return results
 
 @app.post("/api/agent/growth/stop")
-async def stop_growth():
-    """Arret d'urgence de l'agent marketing."""
+async def stop_growth(request: Request):
+    """Arret d'urgence de l'agent marketing. Admin only."""
+    from security import require_admin
+    require_admin(request)
     growth_agent.stop()
     return {"ok": True, "message": "Growth agent arrete"}
 
 @app.post("/api/agent/growth/start")
-async def start_growth():
-    """Relance l'agent marketing."""
+async def start_growth(request: Request):
+    """Relance l'agent marketing. Admin only."""
+    from security import require_admin
+    require_admin(request)
     if not growth_agent._running:
         asyncio.create_task(growth_agent.run())
     return {"ok": True, "message": "Growth agent relance"}
 
 @app.get("/api/agent/scout")
 async def scout_status():
-    """Stats du SCOUT (prospection IA-to-IA)."""
+    """Stats du SCOUT (prospection IA-to-IA). Public read-only."""
     return scout_agent.get_stats()
 
 @app.post("/api/agent/scout/scan")
-async def scout_scan_now():
-    """Force un scan SCOUT immediat sur les 14 chains."""
+async def scout_scan_now(request: Request):
+    """Force un scan SCOUT immediat. Admin only."""
+    from security import require_admin
+    require_admin(request)
     agents = await scout_agent.scan_all_chains()
     return {"ok": True, "agents_found": len(agents), "stats": scout_agent.get_stats()}
 
 @app.post("/api/agent/scout/stop")
-async def stop_scout():
+async def stop_scout(request: Request):
+    """Arrete le SCOUT. Admin only."""
+    from security import require_admin
+    require_admin(request)
     scout_agent.stop()
     return {"ok": True, "message": "SCOUT arrete"}
 
 @app.post("/api/agent/scout/start")
-async def start_scout():
+async def start_scout(request: Request):
+    """Relance le SCOUT. Admin only."""
+    from security import require_admin
+    require_admin(request)
     if not scout_agent._running:
         asyncio.create_task(scout_agent.run())
     return {"ok": True, "message": "SCOUT relance"}
@@ -3097,8 +3111,10 @@ async def pricing_status():
     return get_pricing_status()
 
 @app.post("/api/pricing/adjust")
-async def pricing_force_adjust():
-    """Force un ajustement du pricing."""
+async def pricing_force_adjust(request: Request):
+    """Force un ajustement du pricing. Admin only."""
+    from security import require_admin
+    require_admin(request)
     result = await adjust_market_fees(db)
     return result
 
@@ -3269,12 +3285,21 @@ async def swarm_stop(clone_id: str, request: Request):
 # ══════════════════════════════════════════════════════════
 
 @app.get("/api/escrow/stats")
-async def escrow_stats():
+async def escrow_stats(request: Request):
+    """Escrow stats. Admin only (leaks wallet addresses)."""
+    from security import require_admin
+    require_admin(request)
     return escrow_client.get_stats()
 
 @app.get("/api/escrow/{escrow_id}")
-async def get_escrow(escrow_id: str):
-    return escrow_client.get_escrow(escrow_id)
+async def get_escrow(escrow_id: str, wallet: str = Depends(require_auth)):
+    """Get escrow details. Auth required (only buyer/seller can view)."""
+    data = escrow_client.get_escrow(escrow_id)
+    if data.get("error"):
+        raise HTTPException(404, data["error"])
+    if wallet not in (data.get("buyer", ""), data.get("seller", "")):
+        raise HTTPException(403, "Not authorized to view this escrow")
+    return data
 
 @app.post("/api/escrow/create")
 async def create_escrow(req: dict, wallet: str = Depends(require_auth)):
