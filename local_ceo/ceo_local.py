@@ -1366,9 +1366,9 @@ class CEOLocal:
             '"too many chains" OR "which chain to deploy"',
             "multi-chain headache OR fragmentation",
         ]
-        subreddits = ["solanadev", "artificial", "LocalLLaMA", "LangChain",
-                      "cryptocurrency", "defi", "ethereum", "solana",
-                      "MachineLearning", "GPUdeals", "algotrading"]
+        subreddits = ["LocalLLaMA", "cryptocurrency", "solana", "ethereum",
+                      "MachineLearning", "artificial", "ChatGPT", "singularity",
+                      "defi", "CryptoTechnology", "SolanaDev"]
 
         # Discord servers (invite links)
         discord_servers = [
@@ -1386,7 +1386,7 @@ class CEOLocal:
             "https://t.me/DeFi_Discussions",        # DeFi
             "https://t.me/aiagents",                # AI agents
             "https://t.me/cryptodevs",              # Crypto devs
-            "https://t.me/langaboratory",           # LangChain
+            "https://t.me/LangChainAI",             # LangChain
         ]
 
         # GitHub repos to engage with (issues/discussions)
@@ -2628,8 +2628,11 @@ class CEOLocal:
 
         for username in prospects[:2]:  # Max 2 follow-ups par cycle
             # Follow le prospect
-            result = await browser.follow_user(username)
-            if result.get("success") and not result.get("already"):
+            try:
+                result = await browser.follow_user(username)
+            except Exception:
+                result = None
+            if result and result.get("success") and not result.get("already"):
                 _log(f"[CRM] Follow-up: followed @{username} (prospect chaud)")
                 self.memory.setdefault("follows", []).append(
                     {"username": username, "ts": time.strftime("%Y-%m-%d"), "source": "crm"}
@@ -2673,8 +2676,11 @@ class CEOLocal:
                 user, "Twitter"
             )
             if followup:
-                result = await browser.dm_twitter(user, followup)
-                if result.get("success"):
+                try:
+                    result = await browser.dm_twitter(user, followup)
+                except Exception:
+                    result = None
+                if result and result.get("success"):
                     _log(f"[CRM] Follow-up DM to @{user}: {followup[:60]}")
                     self.memory.setdefault("contacts", []).append({
                         "target": user, "canal": "twitter_dm_followup",
@@ -2721,7 +2727,7 @@ class CEOLocal:
         dm_text = await call_ollama(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
         if not dm_text:
             dm_text = await call_groq_local(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
-        dm_text = dm_text.strip().strip('"').strip("'")
+        dm_text = (dm_text or "").strip().strip('"').strip("'")
         if not dm_text or len(dm_text) < 10:
             return {"success": False, "detail": "Echec generation DM"}
 
@@ -2857,13 +2863,13 @@ class CEOLocal:
         if not mentions:
             return {"success": True, "detail": "0 mentions"}
 
-        # Collecter les users deja reply dans les dernieres 24h (depuis conversations)
+        # Collecter les users deja reply dans les dernieres 6h (pas 24h — trop agressif)
         now_ts = time.time()
-        today = time.strftime("%Y-%m-%d")
+        cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now_ts - 6 * 3600))
         already_replied_users = set()
         for c in self.memory.get("conversations", []):
             c_ts = c.get("ts", "")
-            if c_ts.startswith(today) or (len(c_ts) > 10 and c_ts[:10] >= time.strftime("%Y-%m-%d", time.gmtime(now_ts - 86400))):
+            if c_ts and c_ts >= cutoff:
                 u = c.get("user", "")
                 if u:
                     already_replied_users.add(u)
