@@ -151,6 +151,20 @@ NATIVE_SERVICES = [
         "type": "data",
         "price_usdc": 0.02,
     },
+    {
+        "id": "maxia-finetune",
+        "name": "LLM Fine-Tuning (Unsloth)",
+        "description": "Fine-tune any LLM (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) on your dataset. Powered by Unsloth on RunPod GPUs. 2x faster, 70% less VRAM.",
+        "type": "compute",
+        "price_usdc": 2.99,
+    },
+    {
+        "id": "maxia-awp-stake",
+        "name": "AWP Agent Staking",
+        "description": "Stake USDC on the Autonomous Worker Protocol (Base L2) to earn rewards and increase your agent's trust score. 3-12% APY.",
+        "type": "defi",
+        "price_usdc": 0,
+    },
 ]
 
 
@@ -521,6 +535,54 @@ try:
 except Exception as e:
     print(f"[MAXIA] Trading router error: {e}")
 
+# V12: Fine-tuning LLM as a Service (Unsloth + RunPod)
+try:
+    from finetune_service import router as finetune_router
+    app.include_router(finetune_router)
+    print("[Finetune] LLM Fine-Tuning as a Service (Unsloth) monte")
+except Exception as e:
+    print(f"[MAXIA] Finetune router error: {e}")
+
+# V12: AWP Protocol (Agent Staking on Base)
+try:
+    from awp_protocol import router as awp_router
+    app.include_router(awp_router)
+    print("[AWP] Autonomous Worker Protocol (staking + discovery) monte")
+except Exception as e:
+    print(f"[MAXIA] AWP router error: {e}")
+
+# V12: GOAT Protocol Bridge (200+ onchain tools)
+try:
+    from goat_bridge import router as goat_router
+    app.include_router(goat_router)
+    print("[GOAT] Protocol bridge (200+ tools) monte")
+except Exception as e:
+    print(f"[MAXIA] GOAT bridge error: {e}")
+
+# V12: Solana DeFi (lending/borrowing/staking)
+try:
+    from solana_defi import router as solana_defi_router
+    app.include_router(solana_defi_router)
+    print("[DeFi] Solana DeFi (lending/borrowing/staking/LP) monte")
+except Exception as e:
+    print(f"[MAXIA] Solana DeFi error: {e}")
+
+# V12: LLM-as-a-Service (OpenAI-compatible, multi-provider)
+try:
+    from llm_service import router as llm_svc_router
+    app.include_router(llm_svc_router)
+    print("[LLM] LLM-as-a-Service (OpenAI-compatible) monte")
+except Exception as e:
+    print(f"[MAXIA] LLM service router error: {e}")
+
+# V12: A2A Protocol (Google/Linux Foundation — Agent2Agent)
+try:
+    from a2a_protocol import router as a2a_router
+    app.include_router(a2a_router)
+    print("[A2A] Agent2Agent Protocol (JSON-RPC 2.0 + SSE) monte")
+except Exception as e:
+    print(f"[MAXIA] A2A router error: {e}")
+
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -597,7 +659,7 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 8 GPU tiers, 31 MCP tools.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 50 tokens, 10 stocks, 8 GPU tiers, 46 MCP tools. LLM fine-tuning via Unsloth. AWP agent staking.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
@@ -623,6 +685,9 @@ AGENT_CARD = {
         {"name": "escrow", "description": "Lock USDC in escrow. Confirm delivery or dispute.", "endpoint": "/api/public/escrow/create"},
         {"name": "sla", "description": "Service Level Agreements with auto-refund on violation.", "endpoint": "/api/public/sla/set"},
         {"name": "clones", "description": "Clone any service. Original creator earns 15% royalty.", "endpoint": "/api/public/clone/create"},
+        {"name": "finetune", "description": "Fine-tune any LLM (Llama, Qwen, Mistral, Gemma, DeepSeek) on your data via Unsloth. GPU rental included.", "endpoint": "/api/finetune/models"},
+        {"name": "awp-staking", "description": "Stake USDC on AWP protocol (Base L2) for trust score and 3-12% APY rewards.", "endpoint": "/api/awp/info"},
+        {"name": "awp-discovery", "description": "Discover AI agents on the AWP decentralized network.", "endpoint": "/api/awp/discover"},
     ],
     "registration": {"endpoint": "/api/public/register", "method": "POST", "cost": "free"},
     "discovery": {"endpoint": "/api/public/discover", "method": "GET", "params": ["capability", "max_price", "min_rating"]},
@@ -1848,23 +1913,38 @@ async def ceo_ask(request: Request):
             return {"error": "message required"}
         if len(message) > 2000:
             raise HTTPException(400, "Message too long (max 2000 chars)")
+        # Enrichir avec le contexte reel du CEO
+        try:
+            status = ceo.get_status()
+            context = (
+                f"Revenue 24h: {status.get('stats', {}).get('revenue_24h', 0)} USDC | "
+                f"Clients actifs: {status.get('stats', {}).get('active_clients', 0)} | "
+                f"Services: {status.get('stats', {}).get('services_count', 0)} | "
+                f"Cycle: {status.get('cycle', 0)} | "
+                f"Emergency: {status.get('emergency_stop', False)} | "
+                f"Agents actifs: {len([a for a in status.get('agents', {}).values() if a.get('enabled')])} / 17"
+            )
+        except Exception:
+            context = "Status indisponible"
+
         from groq import Groq
         c = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
         resp = c.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": (
-                    "Tu es le CEO de MAXIA, un marketplace AI-to-AI sur Solana (maxiaworld.app). "
+                    "Tu es le CEO de MAXIA, un marketplace AI-to-AI sur 14 blockchains (maxiaworld.app). "
                     "Tu geres 17 sous-agents, le marketing, le WATCHDOG, et la strategie. "
-                    "Tu reponds au FONDATEUR. Sois direct, concis, strategique. "
-                    "Reponds en texte simple, PAS en JSON. En francais."
+                    "Tu reponds au FONDATEUR Alexis. Sois direct, concis, strategique. "
+                    "Reponds en texte simple, PAS en JSON. En francais.\n\n"
+                    f"ETAT ACTUEL: {context}"
                 )},
                 {"role": "user", "content": message},
             ],
             max_tokens=500,
         )
         raw = resp.choices[0].message.content
-        return {"success": True, "from": "CEO MAXIA", "response": raw}
+        return {"success": True, "from": "CEO MAXIA", "response": raw, "context": context}
     except Exception as e:
         return {"error": str(e)}
 
