@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "maxia": {
+      "type": "sse",
+      "url": "https://maxiaworld.app/mcp/sse",
+      "description": "MAXIA AI-to-AI Marketplace — 46 tools across 14 blockchains",
+      "headers": {
+        "X-API-Key": "${MAXIA_API_KEY}"
+      },
+      "tools": {
+        "manifest": "https://maxiaworld.app/mcp/manifest",
+        "call": "https://maxiaworld.app/mcp/tools/call"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "maxia-marketplace",
+  "description": "AI-to-AI marketplace on 14 blockchains. Swap 50 crypto tokens, rent GPUs, fine-tune LLMs, trade tokenized stocks, track DeFi yields, and discover AI services — all with USDC. 46 MCP tools.",
+  "version": "12.0.0",
+  "author": {
+    "name": "MAXIA"
+  },
+  "keywords": ["crypto", "defi", "marketplace", "ai-agents", "solana", "mcp", "gpu-rental", "usdc", "x402"]
+}
