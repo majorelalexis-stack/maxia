@@ -72,8 +72,156 @@ async def notify_all(title: str, message: str, priority: str = "vert"):
     )
 
 
+async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
+                                   priority: str, params: dict) -> int:
+    """Envoie un message Telegram avec boutons inline Go/No-Go. Retourne le message_id."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return 0
+    emoji = "🟠" if priority == "orange" else "🔴"
+    # Resume des params utiles
+    details = ""
+    if params.get("username"):
+        details += f"Target: @{params['username']}\n"
+    if params.get("text"):
+        details += f"Message: {params['text'][:200]}\n"
+    if params.get("amount_usd"):
+        details += f"Montant: ${params['amount_usd']:.2f}\n"
+
+    text = (
+        f"{emoji} *{priority.upper()}* — {action_desc}\n"
+        f"Agent: {agent}\n"
+        f"{details}\n"
+        f"Reponds *Go* ou *No*"
+    )
+    keyboard = {
+        "inline_keyboard": [[
+            {"text": "✅ Go", "callback_data": f"approve:{action_id}"},
+            {"text": "❌ No", "callback_data": f"deny:{action_id}"},
+        ]]
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                    "reply_markup": keyboard,
+                },
+            )
+            data = resp.json()
+            return data.get("result", {}).get("message_id", 0)
+    except Exception as e:
+        print(f"[Notifier] Telegram approval send failed: {e}")
+        return 0
+
+
+async def _poll_telegram_approval(action_id: str, timeout_s: int) -> str:
+    """Poll Telegram pour les callback queries (boutons) et messages texte.
+    Retourne 'approved', 'denied', ou 'timeout'."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return "timeout"
+
+    start = time.time()
+    last_update_id = 0
+
+    while time.time() - start < timeout_s:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                # Long polling (10s) — bloque jusqu'a recevoir un message
+                params = {"timeout": 10, "allowed_updates": ["callback_query", "message"]}
+                if last_update_id:
+                    params["offset"] = last_update_id + 1
+                resp = await client.get(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                    params=params,
+                )
+                updates = resp.json().get("result", [])
+
+                for update in updates:
+                    last_update_id = update.get("update_id", last_update_id)
+
+                    # Check callback query (bouton clique)
+                    cb = update.get("callback_query")
+                    if cb:
+                        data = cb.get("data", "")
+                        cb_id = cb.get("id", "")
+                        msg_id = cb.get("message", {}).get("message_id", 0)
+                        chat_id = cb.get("message", {}).get("chat", {}).get("id", "")
+
+                        if data == f"approve:{action_id}":
+                            # Confirmer visuellement : modifier le message + popup
+                            try:
+                                await client.post(
+                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                    json={"callback_query_id": cb_id, "text": "✅ Approuve!"},
+                                )
+                                if msg_id and chat_id:
+                                    await client.post(
+                                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                        json={
+                                            "chat_id": chat_id,
+                                            "message_id": msg_id,
+                                            "text": f"✅ APPROUVE — {action_id}\n\nAction en cours...",
+                                        },
+                                    )
+                            except Exception:
+                                pass
+                            print(f"[Notifier] Telegram: APPROVED by button ({action_id})")
+                            return "approved"
+
+                        elif data == f"deny:{action_id}":
+                            try:
+                                await client.post(
+                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                    json={"callback_query_id": cb_id, "text": "❌ Refuse!"},
+                                )
+                                if msg_id and chat_id:
+                                    await client.post(
+                                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                        json={
+                                            "chat_id": chat_id,
+                                            "message_id": msg_id,
+                                            "text": f"❌ REFUSE — {action_id}\n\nAction annulee.",
+                                        },
+                                    )
+                            except Exception:
+                                pass
+                            print(f"[Notifier] Telegram: DENIED by button ({action_id})")
+                            return "denied"
+
+                        else:
+                            # Bouton d'un autre action_id — ignorer
+                            try:
+                                await client.post(
+                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                    json={"callback_query_id": cb_id},
+                                )
+                            except Exception:
+                                pass
+
+                    # Check text message (Go / No)
+                    msg = update.get("message", {})
+                    chat_id = str(msg.get("chat", {}).get("id", ""))
+                    text = msg.get("text", "").strip().lower()
+                    if chat_id == str(TELEGRAM_CHAT_ID) and text:
+                        if text in ("go", "yes", "oui", "ok", "approve", f"approve {action_id}"):
+                            print(f"[Notifier] Telegram: APPROVED by text ({action_id})")
+                            return "approved"
+                        elif text in ("no", "non", "stop", "deny", "refuse"):
+                            print(f"[Notifier] Telegram: DENIED by text ({action_id})")
+                            return "denied"
+
+        except Exception as e:
+            print(f"[Notifier] Telegram poll error: {e}")
+            await asyncio.sleep(5)
+
+    return "timeout"
+
+
 async def request_approval(action_id: str, decision: dict) -> str:
-    """Demande une approbation humaine pour une decision ORANGE/ROUGE.
+    """Demande une approbation humaine via Telegram (boutons Go/No-Go).
 
     Returns: "auto" | "human" | "timeout" | "denied"
     """
@@ -85,18 +233,9 @@ async def request_approval(action_id: str, decision: dict) -> str:
 
     timeout = APPROVAL_TIMEOUT_ORANGE_S if priority == "orange" else APPROVAL_TIMEOUT_ROUGE_S
 
-    # Notifier
     action_desc = decision.get("action", "unknown")
     agent = decision.get("agent", "?")
-    msg = (
-        f"Action: {action_desc}\n"
-        f"Agent: {agent}\n"
-        f"Priorite: {priority.upper()}\n"
-        f"Montant: ${amount:.2f}\n\n"
-        f"Timeout: {timeout // 60} min\n"
-        f"Repondre 'approve {action_id}' pour valider."
-    )
-    await notify_all(f"Approbation requise [{priority.upper()}]", msg, priority)
+    params = decision.get("params", {})
 
     # Enregistrer dans la file
     _pending_approvals[action_id] = {
@@ -105,30 +244,31 @@ async def request_approval(action_id: str, decision: dict) -> str:
         "timestamp": time.time(),
     }
 
-    # Essayer l'approbation via Discord (poll les messages)
-    try:
-        from discord_approval import send_approval_request
-        discord_result = await send_approval_request(
-            action_id, action_desc, agent, priority,
-        )
-        if discord_result == "approved":
-            _pending_approvals.pop(action_id, None)
-            return "human"
-        elif discord_result == "denied":
-            _pending_approvals.pop(action_id, None)
-            return "denied"
-    except Exception:
-        pass
+    # Envoyer message Telegram avec boutons Go/No-Go
+    msg_id = await _send_telegram_approval(action_id, action_desc, agent, priority, params)
 
-    # Fallback: attendre via dashboard/poll
-    start = time.time()
-    remaining = max(0, timeout - (time.time() - start))
-    while time.time() - start < remaining:
-        entry = _pending_approvals.get(action_id)
-        if entry and entry["approved"] is not None:
-            del _pending_approvals[action_id]
-            return "human" if entry["approved"] else "denied"
-        await asyncio.sleep(10)
+    if msg_id:
+        # Poll Telegram pour la reponse (bouton ou texte)
+        result = await _poll_telegram_approval(action_id, timeout)
+        _pending_approvals.pop(action_id, None)
+
+        if result == "approved":
+            return "human"
+        elif result == "denied":
+            return "denied"
+        # timeout → continue ci-dessous
+    else:
+        # Telegram failed, notify desktop + Discord
+        await notify_desktop(f"Approbation {priority.upper()}", f"{action_desc} — {agent}")
+        await notify_discord(f"Approbation requise", f"{action_desc} par {agent}", priority)
+        # Wait with basic poll
+        start = time.time()
+        while time.time() - start < timeout:
+            entry = _pending_approvals.get(action_id)
+            if entry and entry["approved"] is not None:
+                _pending_approvals.pop(action_id, None)
+                return "human" if entry["approved"] else "denied"
+            await asyncio.sleep(10)
 
     # Timeout
     _pending_approvals.pop(action_id, None)

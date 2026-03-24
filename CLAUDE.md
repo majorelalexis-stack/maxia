@@ -93,3 +93,14 @@ Anchor (Solana) escrow program in Rust. Handles USDC locking in PDAs for trades.
 - **Database**: SQLite with async access, schema auto-created, no migrations system
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
 - **Deployment**: Railway/Render via `Procfile`, or Docker via `docker-compose.yml`
+
+## User Preferences (Alexis)
+
+- **"no code"** = NE PAS modifier de fichiers. Donner uniquement des conseils, recommandations, ou explications. Attendre un "oui", "fais-le", ou demande explicite avant de toucher au code.
+- **Langue** : Alexis parle français. Répondre en français.
+- **Jamais hardcoder** de valeurs fausses — toujours calculer depuis la source réelle.
+- **Pas de lazy imports** inutiles, pas de port 8000 (toujours 8001), pas de `float('inf')`.
+- **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM). Modèle = Qwen 2.5 14B via Ollama (100% GPU, 9.7GB). Le 32B déborde sur la RAM, le 14B est le bon choix.
+- **GPU local** ajouté comme tier `local_7900xt` ($0.35/h, pure marge) dans config.py, runpod_client.py, finetune_service.py.
+- **Telegram** : approbations ORANGE/ROUGE via boutons Go/No sur @MAXIA_AI_bot (chat privé). Le channel @MAXIA_alerts est pour les rapports VPS.
+- **CEO Twitter** : commentaires avec lien maxiaworld.app, max 25 commentaires/jour, 7 quote tweets/jour, analyse profil avant commentaire, A/B test local sur les réponses.

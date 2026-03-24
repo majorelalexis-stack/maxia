@@ -19,6 +19,7 @@ BASE_URL = "https://api.runpod.io/graphql"
 
 # Mapping tier -> RunPod GPU ID (base_price_per_hour = fallback when RunPod returns 0)
 GPU_MAP = {
+    "local_7900xt": {"runpod_id": None, "cloud_type": "LOCAL", "base_price_per_hour": 0.35, "local": True, "vram_gb": 20},
     "rtx3090":   {"runpod_id": "NVIDIA GeForce RTX 3090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.44},
     "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "SECURE", "base_price_per_hour": 0.69},
     "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE", "base_price_per_hour": 0.99},
@@ -54,13 +55,39 @@ class RunPodClient:
             return {"errors": [{"message": str(e)}]}
 
     async def rent_gpu(self, gpu_tier_id: str, duration_hours: float) -> dict:
-        """Cree un pod GPU sur RunPod et retourne les credentials."""
-        if not self.api_key:
-            return {"success": False, "error": "RUNPOD_API_KEY non configuree"}
-
+        """Cree un pod GPU sur RunPod (ou local 7900XT) et retourne les credentials."""
         gpu_config = GPU_MAP.get(gpu_tier_id)
         if not gpu_config:
             return {"success": False, "error": f"GPU tier inconnu: {gpu_tier_id}"}
+
+        # ── Local GPU (7900XT) — no RunPod needed ──
+        if gpu_config.get("local"):
+            pod_id = f"local-{int(time.time())}"
+            _active_pods[pod_id] = {
+                "pod_id": pod_id,
+                "gpu_tier": gpu_tier_id,
+                "gpu_name": "AMD RX 7900XT 20GB",
+                "host_id": "localhost",
+                "start_time": int(time.time()),
+                "duration_hours": duration_hours,
+                "end_time": int(time.time() + duration_hours * 3600),
+                "cost_per_hr": gpu_config["base_price_per_hour"],
+                "status": "running",
+                "local": True,
+            }
+            return {
+                "success": True,
+                "instanceId": pod_id,
+                "gpu": "AMD RX 7900XT 20GB (local)",
+                "ssh": "localhost",
+                "api_endpoint": "http://localhost:11434",
+                "cost_per_hr": gpu_config["base_price_per_hour"],
+                "duration_hours": duration_hours,
+                "local": True,
+            }
+
+        if not self.api_key:
+            return {"success": False, "error": "RUNPOD_API_KEY non configuree"}
 
         gpu_id = gpu_config["runpod_id"]
         cloud_type = gpu_config.get("cloud_type", "SECURE")

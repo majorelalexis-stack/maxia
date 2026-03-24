@@ -341,20 +341,21 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
 
 
 async def generate_smart_reply(mention_text: str, username: str) -> str:
-    """Genere une reponse pertinente a une mention via Groq."""
+    """Genere une reponse pertinente a une mention via Groq, avec lien MAXIA."""
     system = (
         "You are Alexis, solo founder of MAXIA. Talk like a real person, not a brand. "
         "Casual, friendly, technical when needed. English only. "
-        "MAXIA: AI marketplace, 14 chains, 50 tokens, GPU $0.69/h. maxiaworld.app"
+        "MAXIA: AI-to-AI marketplace on 14 chains, swap 50 tokens, GPU rental, LLM fine-tuning. maxiaworld.app. "
+        "NEVER mention revenue numbers, client count, or business stats."
     )
     prompt = (
         f"@{username} said:\n\"{mention_text[:200]}\"\n\n"
-        f"Write a unique reply as Alexis (<200 chars). IMPORTANT:\n"
+        f"Write a unique reply as Alexis (<250 chars). IMPORTANT:\n"
         f"- MUST reference something SPECIFIC from their message\n"
-        f"- If they mention a technology, ask about their stack or share your experience with it\n"
-        f"- If they compliment, thank them AND ask a follow-up question\n"
+        f"- If they mention a technology, relate it to what you're building at MAXIA\n"
+        f"- If they compliment, thank them AND invite them to check maxiaworld.app\n"
         f"- If it's a bug, ask for specifics so you can fix it\n"
-        f"- NEVER just say 'thanks' or 'appreciate it' — always add substance\n"
+        f"- Include maxiaworld.app naturally when relevant\n"
         f"- Each reply must be DIFFERENT from others\n"
         f"ENGLISH ONLY. Reply text ONLY, no quotes."
     )
@@ -417,8 +418,13 @@ async def call_groq_local(prompt: str, system: str = "", max_tokens: int = 500) 
         return ""
 
 
+async def call_ollama_fast(prompt: str, system: str = "", max_tokens: int = 500) -> str:
+    """Appel Ollama 7B — rapide, pour analyse interne, scoring, résumés. GPU local gratuit."""
+    return await call_ollama(prompt, system, max_tokens, model="qwen2.5:7b")
+
+
 async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, model: str = None) -> str:
-    """Appel Ollama local (0 cout). Fallback si Groq est rate-limited."""
+    """Appel Ollama local (0 cout). 14B pour contenu public, 7B via call_ollama_fast pour interne."""
     _model = model or "maxia-ceo"
     full = f"{system}\n\n{prompt}" if system else prompt
     try:
@@ -694,7 +700,9 @@ REGLES MARKETING :
 - Messages centres sur GAGNER de l argent, pas acheter des services
 - Ton technique, pas commercial — parler comme un dev
 - Ne JAMAIS envoyer le meme message 2x au meme wallet
-- Canaux prioritaires : Twitter, Reddit r/solanadev, Discord
+- Canaux prioritaires : Twitter, Reddit, Discord, Telegram groups, GitHub
+- JAMAIS mentionner le nombre de clients, le revenue, les stats, ou les chiffres business dans du contenu public
+- Si on te demande les stats, repondre "growing fast" ou "early stage" sans chiffres
 
 REGLES DE DECISION :
 - Pragmatique, patient (7j avant juger), frugal
@@ -917,6 +925,39 @@ class CEOLocal:
                                 self._running = False
                     except Exception as e:
                         _log(f"[UPDATE] Error: {e}")
+
+                # 10b. CONVERSATION MEMORY — resume intelligent des interactions (toutes les 6 cycles = ~30min)
+                if self._cycle % 6 == 0:
+                    try:
+                        convos = self.memory.get("conversations", [])
+                        recent_convos = [c for c in convos[-15:] if not c.get("summarized")]
+                        if len(recent_convos) >= 3:
+                            convos_str = json.dumps(recent_convos, default=str)[:1000]
+                            summary = await call_ollama(
+                                f"Recent interactions:\n{convos_str}\n\n"
+                                f"Summarize in 2-3 bullet points:\n"
+                                f"1. Who are the hottest prospects and why?\n"
+                                f"2. What topics got the best engagement?\n"
+                                f"3. What should we do differently next?\n"
+                                f"Be specific. Names, topics, actions.",
+                                system="Brief CRM analyst. Bullet points only.",
+                                max_tokens=150,
+                            )
+                            if summary and len(summary) > 20:
+                                self.memory.setdefault("conversation_summaries", []).append({
+                                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "summary": summary.strip()[:500],
+                                    "count": len(recent_convos),
+                                })
+                                # Garder max 20 summaries
+                                if len(self.memory["conversation_summaries"]) > 20:
+                                    self.memory["conversation_summaries"] = self.memory["conversation_summaries"][-20:]
+                                # Marquer les convos comme resumees
+                                for c in recent_convos:
+                                    c["summarized"] = True
+                                _log(f"[MEMORY] Resume {len(recent_convos)} conversations")
+                    except Exception as e:
+                        _log(f"[MEMORY] Error: {e}")
 
                 # 11. SYNC — envoyer les actions au VPS (eviter double-post)
                 recent = self.memory.get("actions_done", [])[-10:]
@@ -1195,28 +1236,85 @@ class CEOLocal:
 
         cycle = self._cycle
 
-        # Queries ciblees (devs frustres = nos clients)
+        # Queries ciblees — tous les profils MAXIA
         prospect_queries = [
+            # AI agents (devs frustres)
             '"my bot" "no users" OR "no revenue"',
             '"AI agent" can\'t monetize OR "0 clients"',
             '"built a bot" no one uses',
             "AI agent solana developer",
-            "AI agent polygon DeFi",
-            "AI bot BNB chain BSC",
-            "TON bot telegram developer",
             "AI agent ethereum web3",
-            "AI agent arbitrum OR avalanche",
-            "AI agent NEAR OR Aptos OR SEI OR SUI",
+            # Swap / bridge (traders frustres par les fees)
+            '"bridge fees" too high OR expensive',
+            '"swap failed" OR "lost in gas fees"',
+            "cross-chain swap annoying OR painful",
+            "best way to swap USDC between chains",
+            # GPU (devs ML qui cherchent pas cher)
+            '"GPU too expensive" OR "need cheap GPU"',
+            "runpod pricing OR alternative",
+            "rent GPU for training OR inference",
+            # LLM API (devs qui cherchent moins cher)
+            '"openai too expensive" OR "API costs"',
+            "cheap LLM API OR alternative to openai",
+            "self-host LLM OR local inference",
+            # Fine-tuning (devs sans GPU)
+            "fine-tune model no GPU",
+            "unsloth tutorial OR LoRA training",
+            "fine-tune llama OR qwen cheap",
+            # DeFi yields (yield farmers)
+            '"best DeFi yields" OR "where to stake"',
+            "yield farming 2026 OR best APY",
+            # Tokenized stocks / RWA
+            "tokenized stocks crypto OR RWA trading",
+            # Multi-chain (devs frustres)
+            '"too many chains" OR "which chain to deploy"',
+            "multi-chain headache OR fragmentation",
         ]
         subreddits = ["solanadev", "artificial", "LocalLLaMA", "LangChain",
-                      "cryptocurrency", "defi", "ethereum", "solana"]
+                      "cryptocurrency", "defi", "ethereum", "solana",
+                      "MachineLearning", "GPUdeals", "algotrading"]
 
-        # 8 routines — chaque cycle dure 10 min → 8 cycles = ~80 min de rotation
-        # Mentions/DMs/emails checkes dans 5 cycles sur 8 (62%)
+        # Discord servers (invite links)
+        discord_servers = [
+            "https://discord.gg/elizaos",          # ElizaOS — AI agents
+            "https://discord.gg/langchain",         # LangChain
+            "https://discord.gg/solana",            # Solana devs
+            "https://discord.gg/autogpt",           # AutoGPT
+            "https://discord.gg/ollama",            # Ollama community
+            "https://discord.gg/runpod",            # RunPod GPU
+        ]
+
+        # Telegram groups
+        telegram_groups = [
+            "https://t.me/solana_devs",             # Solana developers
+            "https://t.me/DeFi_Discussions",        # DeFi
+            "https://t.me/aiagents",                # AI agents
+            "https://t.me/cryptodevs",              # Crypto devs
+            "https://t.me/langaboratory",           # LangChain
+        ]
+
+        # GitHub repos to engage with (issues/discussions)
+        github_repos = [
+            "elizaOS/eliza",
+            "langchain-ai/langchain",
+            "ollama/ollama",
+            "run-llama/llama_index",
+            "VRSEN/agency-swarm",
+            "goat-sdk/goat",
+            "microsoft/autogen",
+        ]
+
+        # Enrichir les listes avec les communautes decouvertes automatiquement
+        discovered = self.memory.get("discovered_communities", {})
+        all_discord = discord_servers + [d for d in discovered.get("discord", []) if d not in discord_servers]
+        all_telegram = telegram_groups + [t for t in discovered.get("telegram", []) if t not in telegram_groups]
+        all_github = github_repos + [g for g in discovered.get("github", []) if g not in github_repos]
+
+        # 13 routines — chaque cycle dure 5 min → 13 cycles = ~65 min de rotation
+        # Couvre : Twitter, Reddit, Discord, Telegram groups, GitHub, DMs, emails, decouverte
         routines = [
 
             # Mentions gerees automatiquement en PRIORITY (avant les routines)
-            # Les routines ne font PAS reply_mentions — evite les doublons
 
             # ── Cycle 0 : TWEET + DMs ──
             [
@@ -1224,45 +1322,77 @@ class CEOLocal:
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 1 : ENGAGER — trouver des devs frustres ──
+            # ── Cycle 1 : ENGAGER — trouver des devs frustres + DM prospects ──
             [
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
                 {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "orange"},
             ],
 
-            # ── Cycle 2 : PROSPECTION ciblee ──
+            # ── Cycle 2 : DISCORD — rejoindre et commenter ──
             [
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "join_discord", "agent": "SCOUT", "params": {"invite_link": all_discord[cycle % len(all_discord)]}, "priority": "vert"},
+                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[cycle % len(all_discord)], "text": ""}, "priority": "vert"},
             ],
 
             # ── Cycle 3 : REDDIT — commenter des posts existants ──
             [
                 {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
-            ],
-
-            # ── Cycle 4 : EMAILS + DMs ──
-            [
-                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 5 : 2EME TWEET + PROSPECTION ──
+            # ── Cycle 4 : TELEGRAM GROUPS — rejoindre et engager ──
+            [
+                {"action": "join_telegram", "agent": "SCOUT", "params": {"group_link": all_telegram[cycle % len(all_telegram)]}, "priority": "vert"},
+                {"action": "send_telegram", "agent": "GHOST-WRITER", "params": {"target": all_telegram[cycle % len(all_telegram)], "text": ""}, "priority": "orange"},
+            ],
+
+            # ── Cycle 5 : PROSPECTION TWITTER ciblee ──
+            [
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 6 : GITHUB — commenter issues/discussions AI ──
+            [
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[cycle % len(all_github)]}, "priority": "vert"},
+                {"action": "star_github", "agent": "SCOUT", "params": {"repo_url": f"https://github.com/{all_github[cycle % len(all_github)]}"}, "priority": "vert"},
+            ],
+
+            # ── Cycle 7 : EMAILS + DMs + CRM follow-up ──
+            [
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "crm_followup", "agent": "CLOSER", "params": {}, "priority": "orange"},
+            ],
+
+            # ── Cycle 8 : 2EME TWEET + PROSPECTION ──
             [
                 {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "detect_opportunities", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 6 : PRIX + GITHUB ──
+            # ── Cycle 9 : DISCORD #2 — autre serveur ──
             [
-                {"action": "watch_prices", "agent": "RADAR", "params": {}, "priority": "vert"},
-                {"action": "comment_github_ai", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[(cycle + 3) % len(all_discord)], "text": ""}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 5) % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 7 : DMs + PROSPECTION ──
+            # ── Cycle 10 : PRIX + GITHUB #2 ──
+            [
+                {"action": "watch_prices", "agent": "RADAR", "params": {}, "priority": "vert"},
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[(cycle + 3) % len(all_github)]}, "priority": "vert"},
+            ],
+
+            # ── Cycle 11 : DMs + PROSPECTION LARGE ──
             [
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 3) % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 7) % len(prospect_queries)]}, "priority": "vert"},
+            ],
+
+            # ── Cycle 12 : DECOUVERTE — trouver nouveaux groupes/serveurs/repos ──
+            [
+                {"action": "discover_communities", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
         ]
 
@@ -1688,6 +1818,15 @@ class CEOLocal:
         elif action == "competitive_scan":
             results = await browser.competitive_scan(params.get("urls", []))
             return {"success": bool(results), "detail": f"{len(results)} pages scannees", "data": results}
+        # Discover communities (cherche nouveaux Discord, Telegram, GitHub)
+        elif action == "discover_communities":
+            return await self._discover_communities()
+        # DM prospect (ORANGE — envoie un premier DM a un prospect chaud)
+        elif action == "dm_prospect":
+            return await self._dm_prospect()
+        # CRM follow-up (ORANGE — relance DM un prospect 24-48h apres interaction)
+        elif action == "crm_followup":
+            return await self._crm_followup()
         # VPS
         else:
             return await self.vps.execute(action, agent, params, priority)
@@ -1910,11 +2049,21 @@ class CEOLocal:
         - Follow seulement les profils de qualite (score >= 50)
         """
         queries = [
+            # AI agents
             "AI agent solana", "built a bot", "AI marketplace",
             "AI agent monetize", "LLM agent USDC",
-            "AI agent polygon", "AI agent arbitrum",
-            "AI bot BNB chain", "TON bot developer",
             "AI agent ethereum", "AI agent multi-chain",
+            # Swap / trading
+            "crypto swap multi-chain", "bridge USDC between chains",
+            "best DEX aggregator", "swap solana to base",
+            # GPU / ML
+            "rent GPU cheap", "GPU for AI training",
+            "local LLM inference", "ollama production",
+            # DeFi
+            "DeFi yields best", "yield farming strategy",
+            "staking rewards crypto",
+            # Fine-tuning
+            "fine-tune LLM", "LoRA training tips",
         ]
         query = queries[self._cycle % len(queries)]
 
@@ -1937,14 +2086,13 @@ class CEOLocal:
                 if result.get("success"):
                     liked += 1
 
-            # Commenter 1 tweet tous les 3 cycles, max 5 commentaires/jour
+            # Commenter a chaque cycle, max 20 commentaires/jour (GPU local = gratuit)
             today = time.strftime("%Y-%m-%d")
             comments_today = sum(1 for c in self.memory.get("conversations", [])
                                  if c.get("type") == "comment" and c.get("ts", "").startswith(today))
             can_comment = (
                 commented == 0
-                and self._cycle % 3 == 0
-                and comments_today < 5
+                and comments_today < 25
                 and text and len(text) > 30
                 and not browser._is_duplicate("reply", url)
             )
@@ -1955,7 +2103,11 @@ class CEOLocal:
                                if c.get("type") == "comment"}
                 if username and username in recent_users:
                     continue
-                comment = await self._generate_smart_comment(text)
+                # Point 1: Analyser le profil avant de commenter
+                analysis = await self._analyze_before_comment(t)
+                if not analysis.get("worth_it", True):
+                    continue
+                comment = await self._generate_smart_comment(text, analysis.get("context", ""))
                 if comment:
                     result = await browser.reply_tweet(url, comment)
                     if result.get("success"):
@@ -1972,10 +2124,10 @@ class CEOLocal:
         if liked or commented:
             _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
 
-        # Quote tweet max 2/jour, tous les 6 cycles (~1h)
+        # Quote tweet max 5/jour, tous les 3 cycles (~30min)
         qt_today = sum(1 for a in self.memory.get("actions_done", [])
                        if a.get("action") == "quote_tweet" and a.get("ts", "").startswith(time.strftime("%Y-%m-%d")))
-        if self._cycle % 6 == 0 and qt_today < 2 and tweets:
+        if self._cycle % 3 == 0 and qt_today < 7 and tweets:
             best_tweet = None
             for t in tweets:
                 if t.get("url") and t.get("text") and len(t.get("text", "")) > 50:
@@ -2020,23 +2172,95 @@ class CEOLocal:
                             {"username": username, "ts": time.strftime("%Y-%m-%d")}
                         )
 
-    async def _generate_smart_comment(self, tweet_text: str) -> str:
-        """Genere un commentaire positif et utile."""
+    async def _analyze_before_comment(self, tweet: dict) -> dict:
+        """Point 1: Analyse le profil et les tweets recents avant de commenter.
+        Retourne {'worth_it': bool, 'context': str} pour personnaliser le commentaire."""
+        username = tweet.get("username", "")
+        if not username:
+            return {"worth_it": True, "context": ""}
+
+        # Verifier si on a deja interagi avec cette personne (CRM)
+        past_convos = [c for c in self.memory.get("conversations", []) if c.get("user") == username]
+        history = ""
+        if past_convos:
+            history = f"Previous interaction: {past_convos[-1].get('reply', '')[:100]}"
+
+        # Scorer le profil (followers, bio, activite)
+        try:
+            score = await browser.score_twitter_profile(username)
+            profile_score = score.get("score", 50)
+            bio = score.get("bio", "")
+        except Exception:
+            profile_score = 50
+            bio = ""
+
+        # Si profil trop petit ou spam, pas la peine
+        if profile_score < 20:
+            _log(f"  [ANALYZE] @{username} score={profile_score} — skip (trop faible)")
+            return {"worth_it": False, "context": ""}
+
+        # Analyser le contexte via LLM local (gratuit)
+        context = ""
+        if bio or history:
+            analysis = await call_ollama(
+                f"Twitter bio: \"{bio[:150]}\"\nTweet: \"{tweet.get('text', '')[:150]}\"\n"
+                f"{history}\n\n"
+                f"In 1 sentence: what does this person need? Which MAXIA service fits them? "
+                f"(swap, GPU rental, LLM API, fine-tuning, DeFi yields, AI marketplace, multi-chain)\n"
+                f"If we already talked to them, reference our history.\n"
+                f"Answer:",
+                system="Brief analyst. One sentence only.",
+                max_tokens=50,
+            )
+            context = analysis.strip() if analysis else ""
+
+        return {"worth_it": True, "context": context, "score": profile_score, "bio": bio[:100]}
+
+    async def _generate_smart_comment(self, tweet_text: str, profile_context: str = "") -> str:
+        """Point 2: Commentaire personnalise avec A/B test local (GPU gratuit)."""
+        context_line = f"\nProfile insight: {profile_context}\n" if profile_context else "\n"
         prompt = (
-            f"Tweet: \"{tweet_text[:200]}\"\n\n"
-            f"Write a supportive reply IN ENGLISH (<200 chars) as Alexis, a senior dev:\n"
-            f"- Be POSITIVE — compliment their work, share enthusiasm, or ask a curious question\n"
-            f"- Add value: share a useful tip, your own experience, or genuine interest\n"
+            f"Tweet: \"{tweet_text[:200]}\"\n"
+            f"{context_line}"
+            f"Write a helpful reply IN ENGLISH (<250 chars) as Alexis, founder of MAXIA:\n"
+            f"- First: be genuinely helpful — answer their problem, share a tip, or relate to their experience\n"
+            f"- Then: naturally mention MAXIA as a solution IF relevant (AI agents, crypto, swaps, GPU, multi-chain, DeFi)\n"
+            f"- Always end with the link: maxiaworld.app\n"
+            f"- Tone: dev-to-dev, NOT salesy. Example: 'we actually built something for this — maxiaworld.app'\n"
             f"- NEVER criticize, disagree, or be negative. If you can't be positive, say nothing.\n"
-            f"- Do NOT mention MAXIA or any product\n"
+            f"- NEVER mention revenue numbers, client count, or business stats.\n"
             f"- MUST be in English regardless of tweet language\n"
             f"Reply text ONLY. No quotes."
         )
-        # Groq pour les commentaires publics (qualite critique)
-        comment = await call_groq_local(prompt, system="Supportive senior developer. Always positive and helpful. English only.", max_tokens=60)
-        if not comment:
-            comment = await call_ollama(prompt, system="Supportive senior developer. Always positive and helpful. English only.", max_tokens=60)
-        comment = comment.strip().strip('"').strip("'")
+        system = "Supportive senior developer and founder. Always positive and helpful. Never mention revenue or client numbers. English only."
+
+        # A/B test : generer 2 variantes et garder la meilleure (GPU local = gratuit)
+        variant_a = await call_ollama(prompt, system=system, max_tokens=150)
+        variant_b = await call_ollama(
+            prompt + "\n\nWrite a DIFFERENT version, more personal and conversational.",
+            system=system, max_tokens=150,
+        )
+
+        # Choisir la meilleure via 7B rapide (analyse interne)
+        best = variant_a
+        if variant_a and variant_b:
+            pick = await call_ollama(
+                f"Which reply is better for Twitter engagement? Reply A or B only.\n\n"
+                f"A: \"{variant_a.strip()[:250]}\"\n"
+                f"B: \"{variant_b.strip()[:250]}\"\n\nBetter:",
+                system="Pick the more engaging, natural reply. Answer A or B only.",
+                max_tokens=5,
+            )
+            if pick and "b" in pick.strip().lower()[:3]:
+                best = variant_b
+        elif variant_b:
+            best = variant_b
+
+        if not best:
+            # Fallback Groq
+            best = await call_groq_local(prompt, system=system, max_tokens=150)
+
+        comment = (best or "").strip().strip('"').strip("'")
         if len(comment) > 250:
             comment = comment[:247] + "..."
         if not comment or len(comment) < 10:
@@ -2048,15 +2272,17 @@ class CEOLocal:
         return comment
 
     async def _generate_quote_tweet_text(self, original_text: str) -> str:
-        """Generate a quote tweet comment — positive and supportive."""
+        """Generate a quote tweet comment — positive, supportive, with MAXIA mention."""
         prompt = (
             f"Someone tweeted: \"{original_text[:200]}\"\n\n"
-            f"Write a short supportive quote tweet as Alexis, a solo dev (<200 chars).\n"
+            f"Write a short supportive quote tweet as Alexis, founder of MAXIA (<220 chars).\n"
             f"- Be POSITIVE and SUPPORTIVE — celebrate what they built or shared\n"
             f"- Add value: share your experience, a useful tip, or genuine excitement\n"
-            f"- Examples: 'this is exactly what the space needs', 'love this approach', 'been waiting for someone to build this'\n"
-            f"- NEVER disagree, criticize, or be negative. If you don't like it, don't quote it.\n"
-            f"- Do NOT mention MAXIA unless directly relevant\n"
+            f"- Naturally connect to MAXIA if relevant (AI agents, crypto, multi-chain, swaps, GPU)\n"
+            f"- End with: maxiaworld.app\n"
+            f"- Tone: 'love this — we're solving something similar at maxiaworld.app'\n"
+            f"- NEVER disagree, criticize, or be negative.\n"
+            f"- NEVER mention revenue numbers, client count, or business stats.\n"
             f"- ENGLISH ONLY\n"
             f"Text ONLY:"
         )
@@ -2107,12 +2333,12 @@ class CEOLocal:
             # Generer un commentaire utile via LLM
             prompt = (
                 f"Post on r/{subreddit}: \"{title[:150]}\"\n\n"
-                f"Write a Reddit comment as Alexis, a solo dev. IN ENGLISH. Max 300 chars.\n"
-                f"- Share your own experience: 'I ran into this too, what worked for me was...'\n"
-                f"- Or ask a follow-up question that shows you actually read the post\n"
-                f"- Sound like a regular Reddit user, NOT a company account\n"
-                f"- Do NOT mention MAXIA unless the post is specifically asking for AI marketplace/GPU recommendations\n"
-                f"- If MAXIA is relevant: 'been building something for this at maxiaworld.app, happy to share'\n"
+                f"Write a Reddit comment as Alexis, founder of MAXIA. IN ENGLISH. Max 300 chars.\n"
+                f"- First: be genuinely helpful — share your experience or answer the question\n"
+                f"- Then: naturally mention MAXIA if the topic relates to AI agents, crypto, swaps, GPU, multi-chain\n"
+                f"- Sound like a regular dev, NOT a company account\n"
+                f"- End with: 'been building this at maxiaworld.app' or 'check it out: maxiaworld.app'\n"
+                f"- NEVER mention revenue, client count, or business stats\n"
                 f"Comment ONLY:"
             )
             # Ollama 14B pour Reddit (gratuit, qualite suffisante)
@@ -2134,6 +2360,96 @@ class CEOLocal:
                 return {"success": True, "detail": f"Commented on r/{subreddit}"}
 
         return {"success": False, "detail": "No commentable posts"}
+
+    async def _discover_communities(self):
+        """Decouvre automatiquement de nouveaux Discord, Telegram groups et GitHub repos
+        en cherchant sur Twitter et GitHub trending. Ajoute les bons a la memoire."""
+        discovered = self.memory.setdefault("discovered_communities", {
+            "discord": [], "telegram": [], "github": [],
+        })
+
+        # Limite : max 20 de chaque type en memoire
+        for key in ("discord", "telegram", "github"):
+            if len(discovered[key]) > 20:
+                discovered[key] = discovered[key][-20:]
+
+        # 1. Chercher des liens discord.gg et t.me dans les tweets AI/crypto
+        search_queries = [
+            "AI agent discord.gg invite",
+            "crypto dev telegram group t.me",
+            "solana developer discord",
+            "LLM community discord invite",
+            "DeFi telegram group",
+            "AI agent github repo",
+        ]
+        query = search_queries[self._cycle % len(search_queries)]
+        tweets = await browser.search_twitter(query, 5)
+
+        for t in (tweets or []):
+            text = t.get("text", "")
+            # Extraire les liens Discord
+            import re
+            discord_links = re.findall(r"https?://discord\.gg/[\w-]+", text)
+            for link in discord_links:
+                if link not in discovered["discord"] and len(discovered["discord"]) < 20:
+                    discovered["discord"].append(link)
+                    _log(f"[DISCOVER] New Discord: {link}")
+
+            # Extraire les liens Telegram
+            tg_links = re.findall(r"https?://t\.me/[\w-]+", text)
+            for link in tg_links:
+                if link not in discovered["telegram"] and len(discovered["telegram"]) < 20:
+                    # Filtrer les liens de bots et channels perso
+                    if not any(skip in link.lower() for skip in ["bot", "joinchat", "addstickers"]):
+                        discovered["telegram"].append(link)
+                        _log(f"[DISCOVER] New Telegram: {link}")
+
+            # Extraire les liens GitHub
+            gh_links = re.findall(r"https?://github\.com/([\w-]+/[\w-]+)", text)
+            for repo in gh_links:
+                if repo not in discovered["github"] and len(discovered["github"]) < 20:
+                    discovered["github"].append(repo)
+                    _log(f"[DISCOVER] New GitHub: {repo}")
+
+        # 2. Chercher repos GitHub trending via browser
+        if self._cycle % 12 == 0:
+            try:
+                trending = await browser.search_twitter("github trending AI agent", 3)
+                for t in (trending or []):
+                    gh_links = re.findall(r"github\.com/([\w-]+/[\w-]+)", t.get("text", ""))
+                    for repo in gh_links:
+                        if repo not in discovered["github"] and len(discovered["github"]) < 20:
+                            discovered["github"].append(repo)
+                            _log(f"[DISCOVER] Trending GitHub: {repo}")
+            except Exception:
+                pass
+
+        total = len(discovered["discord"]) + len(discovered["telegram"]) + len(discovered["github"])
+        if total > 0:
+            _log(f"[DISCOVER] Total: {len(discovered['discord'])} Discord, {len(discovered['telegram'])} Telegram, {len(discovered['github'])} GitHub")
+
+        # 3. Rejoindre 1 nouveau par cycle (pas spam)
+        try:
+            if discovered["discord"]:
+                new_server = discovered["discord"][self._cycle % len(discovered["discord"])]
+                already_joined = self.memory.get("groups_joined", [])
+                if new_server not in already_joined:
+                    result = await browser.join_discord_server(new_server)
+                    if result.get("success"):
+                        self.memory.setdefault("groups_joined", []).append(new_server)
+                        _log(f"[DISCOVER] Joined Discord: {new_server}")
+            if discovered["telegram"] and self._cycle % 2 == 0:
+                new_group = discovered["telegram"][self._cycle % len(discovered["telegram"])]
+                already_joined = self.memory.get("groups_joined", [])
+                if new_group not in already_joined:
+                    result = await browser.join_telegram_group(new_group)
+                    if result.get("success"):
+                        self.memory.setdefault("groups_joined", []).append(new_group)
+                        _log(f"[DISCOVER] Joined Telegram: {new_group}")
+        except Exception as e:
+            _log(f"[DISCOVER] Join error: {e}")
+
+        return {"success": True, "detail": f"Discovered {total} communities"}
 
     async def _check_engagement_feedback(self):
         """Verifie l'engagement des derniers tweets et commentaires.
@@ -2244,6 +2560,58 @@ class CEOLocal:
                         "last_message": followup[:50],
                     })
                     break  # Max 1 follow-up DM per cycle
+
+    async def _dm_prospect(self):
+        """Identifie les prospects chauds (qui ont interagi avec nos tweets/comments)
+        et envoie un premier DM personnalise. Max 3 DMs/jour."""
+        today = time.strftime("%Y-%m-%d")
+        dms_today = sum(1 for c in self.memory.get("contacts", [])
+                        if c.get("canal", "").startswith("twitter_dm") and c.get("ts", "").startswith(today))
+        if dms_today >= 3:
+            return {"success": True, "detail": f"Limite 3 DMs/jour atteinte ({dms_today})"}
+
+        contacted = {c.get("target", "") for c in self.memory.get("contacts", [])}
+        convos = self.memory.get("conversations", [])
+
+        # Trouver un prospect : quelqu'un avec qui on a eu une conversation mais jamais DM
+        prospect = None
+        for c in reversed(convos[-30:]):
+            user = c.get("user", "")
+            if user and user not in contacted and c.get("type") in ("comment", "mention_reply"):
+                prospect = {"user": user, "context": c.get("message", "")[:150]}
+                break
+
+        if not prospect:
+            return {"success": True, "detail": "Aucun prospect chaud detecte"}
+
+        user = prospect["user"]
+        context = prospect["context"]
+
+        # Generer le DM
+        prompt = (
+            f"You had a public conversation with @{user} about: \"{context}\"\n\n"
+            f"Write a short friendly DM (<200 chars) to continue the conversation privately.\n"
+            f"- Reference the topic you discussed\n"
+            f"- Invite them to check maxiaworld.app if relevant\n"
+            f"- Casual, dev-to-dev tone, NOT salesy\n"
+            f"DM text ONLY:"
+        )
+        dm_text = await call_ollama(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
+        if not dm_text:
+            dm_text = await call_groq_local(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
+        dm_text = dm_text.strip().strip('"').strip("'")
+        if not dm_text or len(dm_text) < 10:
+            return {"success": False, "detail": "Echec generation DM"}
+
+        _log(f"[DM PROSPECT] @{user}: {dm_text[:80]}")
+        result = await self._do_browser("dm_twitter", {"username": user, "text": dm_text})
+        if result.get("success"):
+            self.memory.setdefault("contacts", []).append({
+                "target": user, "canal": "twitter_dm_prospect",
+                "ts": today, "status": "dm_sent",
+                "last_message": dm_text[:50],
+            })
+        return result
 
     async def _weekly_retrospective(self):
         """Retrospective hebdo : analyser la semaine et ajuster la strategie."""

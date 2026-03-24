@@ -118,12 +118,94 @@ class BrowserAgent:
         import hashlib
         return hashlib.md5(f"{action_type}:{content}".encode()).hexdigest()[:12]
 
+    def _clean_session_restore_files(self):
+        """Supprime les fichiers de session Chrome ET force les prefs a 'page vierge'.
+        Empeche Chrome de restaurer les onglets de la session precedente
+        (fix: Chrome ouvrait toujours maxiaworld.app au demarrage).
+        """
+        import shutil, glob, json
+
+        # ETAPE A: Forcer les prefs Chrome a NE PAS restaurer de session
+        # restore_on_startup: 1 = new tab page, 4 = continue, 5 = specific URLs
+        for prefs_path in [
+            os.path.join(self._profile_dir, "Default", "Preferences"),
+            os.path.join(self._profile_dir, "Preferences"),
+        ]:
+            try:
+                if os.path.exists(prefs_path):
+                    with open(prefs_path, "r", encoding="utf-8") as f:
+                        prefs = json.load(f)
+                    changed = False
+                    # Force "Open the New Tab page" instead of restoring session
+                    if prefs.get("browser", {}).get("restore_on_startup") != 1:
+                        prefs.setdefault("browser", {})["restore_on_startup"] = 1
+                        changed = True
+                    # Clear any startup URLs
+                    if prefs.get("browser", {}).get("startup_urls"):
+                        prefs["browser"]["startup_urls"] = []
+                        changed = True
+                    # Disable session restore flag
+                    if prefs.get("session", {}).get("restore_on_startup") != 1:
+                        prefs.setdefault("session", {})["restore_on_startup"] = 1
+                        changed = True
+                    # Disable crash recovery bubble ("Restaurer les pages?")
+                    prefs.setdefault("profile", {})["exit_type"] = "Normal"
+                    prefs["profile"]["exited_cleanly"] = True
+                    changed = True
+                    if changed:
+                        with open(prefs_path, "w", encoding="utf-8") as f:
+                            json.dump(prefs, f, separators=(",", ":"))
+                        print(f"[BrowserAgent] Prefs patched: restore_on_startup=1 (new tab)")
+            except Exception as e:
+                print(f"[BrowserAgent] Prefs patch warning: {e}")
+
+        # ETAPE B: Supprimer les fichiers de session
+        session_paths = [
+            os.path.join(self._profile_dir, "Default", "Sessions"),
+            os.path.join(self._profile_dir, "Default", "Session Storage"),
+            os.path.join(self._profile_dir, "Default", "Current Session"),
+            os.path.join(self._profile_dir, "Default", "Current Tabs"),
+            os.path.join(self._profile_dir, "Default", "Last Session"),
+            os.path.join(self._profile_dir, "Default", "Last Tabs"),
+            # Profil sans sous-dossier Default (Playwright persistent context)
+            os.path.join(self._profile_dir, "Sessions"),
+            os.path.join(self._profile_dir, "Session Storage"),
+            os.path.join(self._profile_dir, "Current Session"),
+            os.path.join(self._profile_dir, "Current Tabs"),
+            os.path.join(self._profile_dir, "Last Session"),
+            os.path.join(self._profile_dir, "Last Tabs"),
+        ]
+        cleaned = 0
+        for p in session_paths:
+            try:
+                if os.path.isdir(p):
+                    shutil.rmtree(p, ignore_errors=True)
+                    cleaned += 1
+                elif os.path.isfile(p):
+                    os.remove(p)
+                    cleaned += 1
+            except Exception:
+                pass
+        # Aussi nettoyer les fichiers Singleton lock
+        for lock in glob.glob(os.path.join(self._profile_dir, "Singleton*")):
+            try:
+                os.remove(lock)
+            except Exception:
+                pass
+        if cleaned:
+            print(f"[BrowserAgent] Session restore files cleaned: {cleaned}")
+
     async def setup(self):
-        """Lance Chromium avec profil persistant."""
+        """Lance Chromium avec profil persistant (cookies gardes, session PAS restauree)."""
         if self._initialized:
             return
         try:
             from playwright.async_api import async_playwright
+
+            # ETAPE 1: Nettoyer les fichiers de session AVANT le lancement
+            # Ca garde les cookies (login X, Reddit, etc.) mais empeche la restauration d'onglets
+            self._clean_session_restore_files()
+
             self._pw = await async_playwright().start()
             os.makedirs(self._profile_dir, exist_ok=True)
             # Utiliser le Chrome systeme (pas le Chromium Playwright) pour garder le profil
@@ -141,25 +223,36 @@ class BrowserAgent:
                 headless=False,
                 viewport={"width": 1280, "height": 900},
                 executable_path=chrome_path,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--no-restore-session-state", "--disable-session-crashed-bubble"],
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--no-restore-session-state",
+                    "--disable-session-crashed-bubble",
+                    "--homepage=about:blank",
+                    "--no-first-run",
+                    "--disable-features=SessionRestore",
+                ],
                 ignore_default_args=["--enable-automation"],
             )
-            # Fermer tous les onglets restaures sauf un
+            # ETAPE 2: Reutiliser la premiere page, fermer les autres
             pages = self._context.pages
-            if len(pages) > 1:
+            if pages:
+                self._page = pages[0]
+                try:
+                    await self._page.goto("about:blank", timeout=5000)
+                except Exception:
+                    pass
+                # Fermer toutes les pages sauf la premiere
                 for p in pages[1:]:
                     try:
-                        await p.close()
+                        if not p.is_closed():
+                            await p.close()
                     except Exception:
                         pass
-            self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
-            # Page vierge au demarrage
-            try:
-                await self._page.goto("about:blank", timeout=5000)
-            except Exception:
-                pass
+            else:
+                self._page = await self._context.new_page()
             self._initialized = True
-            print("[BrowserAgent] Chrome lance avec profil persistant")
+            print("[BrowserAgent] Chrome lance — page vierge (session restore desactivee)")
         except Exception as e:
             print(f"[BrowserAgent] Setup failed: {str(e)[:200]}")
             raise
@@ -172,10 +265,27 @@ class BrowserAgent:
             await self._pw.stop()
         self._initialized = False
 
+    async def _cleanup_tabs(self):
+        """Ferme tous les onglets sauf self._page. Empeche l'accumulation d'about:blank."""
+        if not self._context:
+            return
+        try:
+            pages = self._context.pages
+            for p in pages:
+                if p != self._page and not p.is_closed():
+                    try:
+                        await p.close()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     async def _ensure_ready(self):
         if not self._initialized:
             await self.setup()
             return
+        # Nettoyer les onglets accumules
+        await self._cleanup_tabs()
         # Verifier que le browser est toujours vivant
         try:
             if self._page is None or self._page.is_closed():
@@ -207,13 +317,8 @@ class BrowserAgent:
                 )
             except Exception:
                 pass
-            # Clean lock files that prevent relaunch
-            import glob
-            for lock in glob.glob(os.path.join(self._profile_dir, "Singleton*")):
-                try:
-                    os.remove(lock)
-                except Exception:
-                    pass
+            # Clean lock + session files that prevent relaunch / cause session restore
+            self._clean_session_restore_files()
             await asyncio.sleep(3)
             # Retry setup with a fresh playwright instance
             try:

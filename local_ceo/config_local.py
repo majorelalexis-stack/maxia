@@ -18,7 +18,7 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-2503")
 
 # Boucle OODA
-OODA_INTERVAL_S = int(os.getenv("OODA_INTERVAL_S", "600"))  # 10 min
+OODA_INTERVAL_S = int(os.getenv("OODA_INTERVAL_S", "300"))  # 5 min (GPU local = rapide)
 
 # Gates d'approbation
 APPROVAL_TIMEOUT_ORANGE_S = int(os.getenv("APPROVAL_TIMEOUT_ORANGE_S", "1800"))  # 30 min
@@ -36,7 +36,7 @@ BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.ma
 # Limites quotidiennes
 MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "2"))  # Qualite > quantite : max 2/jour
 MAX_REDDIT_POSTS_DAY = int(os.getenv("MAX_REDDIT_POSTS_DAY", "5"))
-MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "150"))
+MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "300"))
 
 # Audit DB
 AUDIT_DB_PATH = os.getenv("AUDIT_DB_PATH", "ceo_audit.db")
