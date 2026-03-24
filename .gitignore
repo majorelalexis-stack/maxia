@@ -11,3 +11,7 @@ ab_tests.json
 local_ceo/finetune/training_data.jsonl
 *.png
 temp-repos/
+.claude/settings.local.json
+.claude/worktrees/
+local_ceo/.env
+ceo_memory.json.bak

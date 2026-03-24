@@ -461,7 +461,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MAXIA API V12", version="12.0.0", lifespan=lifespan)
 
 # ── CORS restrictif (pas de wildcard en prod) ──
-_ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app,http://localhost:8001,http://localhost:3000").split(",")
+_ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
@@ -1025,8 +1025,8 @@ async def google_verification():
 
 @app.head("/health", include_in_schema=False)
 @app.get("/health")
-async def health():
-    """Health check structure — verifie DB, Redis, services critiques."""
+async def health(request: Request):
+    """Health check. Public: status only. Admin: detailed checks."""
     checks = {}
     overall = "ok"
 
@@ -1073,14 +1073,21 @@ async def health():
     # Groq API (just check key exists)
     checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "missing"
 
-    return {
-        "status": overall,
-        "version": "12.0.0",
-        "timestamp": int(time.time()),
-        "checks": checks,
-        "networks": ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"],
-        "protocols": ["x402-v2", "ap2", "kite-air"],
-    }
+    # V-09: Public health returns minimal info. Detailed checks behind admin auth.
+    admin_key = request.headers.get("X-Admin-Key", "") if hasattr(request, 'headers') else ""
+    is_admin = False
+    try:
+        import hmac as _h
+        _ak = os.getenv("ADMIN_KEY", "")
+        is_admin = bool(admin_key and _ak and _h.compare_digest(admin_key, _ak))
+    except Exception:
+        pass
+
+    result = {"status": overall, "version": "12.0.0", "timestamp": int(time.time())}
+    if is_admin:
+        result["checks"] = checks
+        result["networks"] = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"]
+    return result
 
 
 @app.get("/api/events/stream")
@@ -3119,7 +3126,10 @@ async def start_scout(request: Request):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/pricing/status")
-async def pricing_status():
+async def pricing_status(request: Request):
+    """Pricing strategy status. Admin only."""
+    from security import require_admin
+    require_admin(request)
     return get_pricing_status()
 
 @app.post("/api/pricing/adjust")
