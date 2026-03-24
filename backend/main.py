@@ -165,6 +165,63 @@ NATIVE_SERVICES = [
         "type": "defi",
         "price_usdc": 0,
     },
+    # ═══ Machine-only AI services (visible via API/MCP only, not on /app) ═══
+    {
+        "id": "maxia-transcription",
+        "name": "Audio Transcription (Whisper)",
+        "description": "Transcribe audio to text. Supports MP3, WAV, M4A. 50+ languages. Powered by local GPU.",
+        "type": "ai",
+        "price_usdc": 0.01,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-embedding",
+        "name": "Text Embedding",
+        "description": "Convert text to vector embeddings for RAG, semantic search, clustering. 768-dim vectors.",
+        "type": "ai",
+        "price_usdc": 0.001,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-sentiment",
+        "name": "Sentiment Analysis",
+        "description": "Analyze sentiment of text, tweets, or crypto discussions. Returns score (-1 to 1) + confidence.",
+        "type": "ai",
+        "price_usdc": 0.005,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-wallet-score",
+        "name": "Wallet Risk Score",
+        "description": "Score any wallet across 14 chains: activity, age, balance, DeFi exposure, risk level (0-100).",
+        "type": "data",
+        "price_usdc": 0.10,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-airdrop-scan",
+        "name": "Airdrop Eligibility Scanner",
+        "description": "Scan a wallet for potential airdrop eligibility across 50+ protocols on Solana, ETH, Base, Arbitrum.",
+        "type": "data",
+        "price_usdc": 0.50,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-smart-money",
+        "name": "Smart Money Tracker",
+        "description": "Track whale wallets and smart money movements on Solana and EVM chains. Real-time alerts.",
+        "type": "data",
+        "price_usdc": 0.25,
+        "machine_only": True,
+    },
+    {
+        "id": "maxia-nft-rarity",
+        "name": "NFT Rarity Checker",
+        "description": "Calculate rarity score for any Solana or EVM NFT based on trait distribution.",
+        "type": "data",
+        "price_usdc": 0.05,
+        "machine_only": True,
+    },
 ]
 
 
