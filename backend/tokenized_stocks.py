@@ -113,6 +113,79 @@ TOKENIZED_STOCKS = {
         "mint_dinari_arb": "",
         "logo": "https://logo.clearbit.com/coinbase.com",
     },
+    # ═══ Stocks supplémentaires (Yahoo Finance pricing) ═══
+    "AMD": {
+        "name": "Advanced Micro Devices", "symbol": "AMD", "sector": "Semiconductors", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x8dBb77A0e488Dc51c59e65CdD9564e053FD3B22b",
+        "logo": "https://logo.clearbit.com/amd.com",
+    },
+    "NFLX": {
+        "name": "Netflix Inc.", "symbol": "NFLX", "sector": "Streaming", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x6BD955De04482042F7647212C4E5a1F20Bc89C14",
+        "logo": "https://logo.clearbit.com/netflix.com",
+    },
+    "PLTR": {
+        "name": "Palantir Technologies", "symbol": "PLTR", "sector": "AI/Data", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x7a4F5073C8D9e4E7B4fE56f944e78D781BDe68b9",
+        "logo": "https://logo.clearbit.com/palantir.com",
+    },
+    "PYPL": {
+        "name": "PayPal Holdings", "symbol": "PYPL", "sector": "Fintech", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x8F3dA6108E871C2136F39F8E2E975B1a6a0C8E9A",
+        "logo": "https://logo.clearbit.com/paypal.com",
+    },
+    "INTC": {
+        "name": "Intel Corp.", "symbol": "INTC", "sector": "Semiconductors", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x9d3E8F5a7C1B2D4E6F8A0B3C5D7E9F1A2B4C6D8E",
+        "logo": "https://logo.clearbit.com/intel.com",
+    },
+    "DIS": {
+        "name": "Walt Disney Co.", "symbol": "DIS", "sector": "Entertainment", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/disney.com",
+    },
+    "V": {
+        "name": "Visa Inc.", "symbol": "V", "sector": "Payments", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/visa.com",
+    },
+    "MA": {
+        "name": "Mastercard Inc.", "symbol": "MA", "sector": "Payments", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/mastercard.com",
+    },
+    "UBER": {
+        "name": "Uber Technologies", "symbol": "UBER", "sector": "Transport", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/uber.com",
+    },
+    "CRM": {
+        "name": "Salesforce Inc.", "symbol": "CRM", "sector": "Cloud/SaaS", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/salesforce.com",
+    },
+    "SQ": {
+        "name": "Block Inc. (Square)", "symbol": "SQ", "sector": "Fintech/Crypto", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/block.xyz",
+    },
+    "SHOP": {
+        "name": "Shopify Inc.", "symbol": "SHOP", "sector": "E-commerce", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/shopify.com",
+    },
     # ═══ Ondo Treasuries (multi-chain) ═══
     "OUSG": {
         "name": "Ondo US Government Bond Fund", "symbol": "OUSG", "sector": "Treasury/Bond", "provider": "ondo", "fallback_price": 107.0,

@@ -227,6 +227,81 @@ SUPPORTED_TOKENS = {
         "mint": "CiKu4eHsVrc1eueVQeHn7qhXTcVu95gSQoBBpX5SQzUt",
         "name": "Shiba Inu (Wormhole)", "decimals": 8, "logo": "",
     },
+    # ═══ AI Tokens ═══
+    "TAO": {
+        "mint": "2Kc38rfQ49DFaKHQaWbijkE7fcymUMLY5guUiUsDmFfn",
+        "name": "Bittensor", "decimals": 9, "logo": "",
+    },
+    "AKT": {
+        "mint": "AKTkJHCSc2Y1YqgFAbJ9FkycV3TKFVrnBCYjMf4sPJ5R",
+        "name": "Akash Network", "decimals": 6, "logo": "",
+    },
+    "AIOZ": {
+        "mint": "AioZftRTKQbBCKEYFggg9kK3Z3EQHWM8oYvfEE5Lqii",
+        "name": "AIOZ Network", "decimals": 8, "logo": "",
+    },
+    # ═══ L2 / Infrastructure Tokens ═══
+    "ARB": {
+        "mint": "GQtMXZxPmXws4nMPFhSE5QbFYJkDzUVR8c2FhVXKmsJB",
+        "name": "Arbitrum (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "OP": {
+        "mint": "2jVjrBKhRHGFoe6aQCnqNBGiEEn5cLAuxryWw2BLjdES",
+        "name": "Optimism (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "TIA": {
+        "mint": "2Xf4kHFMgXMDhMnbibmEVqEx1sBoGktpEPHHJFcUBqwm",
+        "name": "Celestia (Wormhole)", "decimals": 6, "logo": "",
+    },
+    "INJ": {
+        "mint": "6McPRfPV6bY1e9hLxWyG54W9i9Epq75QBvXg2oetBVTB",
+        "name": "Injective (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "STX": {
+        "mint": "StkLBYp4ANKA7DZfoJUgMm2DVJKQG2prXENNjSDipump",
+        "name": "Stacks (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "SUI": {
+        "mint": "SuiG1B5vEcBFJPwrqXe96bNYhoWaiCYFaTFcZb9SJCEv",
+        "name": "SUI (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "APT": {
+        "mint": "6LNeTYMqtNm1pBFN8PfhQaoLyegAH8GD32WmHU9erXKN",
+        "name": "Aptos (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "SEI": {
+        "mint": "5z94Tz1qCPReeVAiP6TxmpCNHS2miGHVnBhmjyE6fGkP",
+        "name": "SEI (Wormhole)", "decimals": 6, "logo": "",
+    },
+    "NEAR": {
+        "mint": "BYPsjxa3YuZESQz1dKuBw1QSFCSpecsm8nCQhY5xbU1Z",
+        "name": "NEAR Protocol (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "FIL": {
+        "mint": "HY1hEVTkPAksJbosW3JLme7Xf5ZHsFThRva2VpfJCo8E",
+        "name": "Filecoin (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "AR": {
+        "mint": "4Dm7kGHJBCEn5vNLM3EF2dMqiEJQQzc6ikfz38VZbLP9",
+        "name": "Arweave (Wormhole)", "decimals": 8, "logo": "",
+    },
+    "ONDO": {
+        "mint": "FKMKctiJnbZKL16pCmR7ig6DbhbZ4EarBHL4QLpPNTa1",
+        "name": "Ondo Finance", "decimals": 8, "logo": "",
+    },
+    # ═══ Memecoins supplémentaires ═══
+    "FARTCOIN": {
+        "mint": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+        "name": "Fartcoin", "decimals": 6, "logo": "",
+    },
+    "PENGU": {
+        "mint": "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+        "name": "Pudgy Penguins", "decimals": 6, "logo": "",
+    },
+    "AI16Z": {
+        "mint": "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
+        "name": "ai16z", "decimals": 9, "logo": "",
+    },
 }
 
 # Commission concurrence (mis a jour dynamiquement)
