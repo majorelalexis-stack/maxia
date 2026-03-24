@@ -115,7 +115,7 @@ TOKENIZED_STOCKS = {
     },
     # ═══ Ondo Treasuries (multi-chain) ═══
     "OUSG": {
-        "name": "Ondo US Government Bond Fund", "symbol": "OUSG", "sector": "Treasury/Bond", "provider": "ondo",
+        "name": "Ondo US Government Bond Fund", "symbol": "OUSG", "sector": "Treasury/Bond", "provider": "ondo", "fallback_price": 107.0,
         "decimals": 18,
         "mint_xstock": "",
         "mint_eth": "0x1B19C19393e2d034D8Ff31ff34c81252FcBbee92",
@@ -125,7 +125,7 @@ TOKENIZED_STOCKS = {
         "logo": "https://logo.clearbit.com/ondo.finance",
     },
     "USDY": {
-        "name": "Ondo US Dollar Yield", "symbol": "USDY", "sector": "Yield/Stablecoin", "provider": "ondo",
+        "name": "Ondo US Dollar Yield", "symbol": "USDY", "sector": "Yield/Stablecoin", "provider": "ondo", "fallback_price": 1.05,
         "decimals": 18,
         "mint_xstock": "",
         "mint_eth": "0x96F6eF951840721AdBF46Ac996b59E0235CB985C",
@@ -466,10 +466,10 @@ class TokenizedStockExchange:
                 "provider": info.get("provider", "xstocks"),
                 "chains": [c for c in ["solana", "ethereum", "arbitrum", "polygon"]
                            if info.get("mint_xstock") or info.get("mint_eth") or info.get("mint_dinari_arb") or info.get("mint_polygon")],
-                "price_usd": price_data.get("price", 0),
+                "price_usd": price_data.get("price", 0) or info.get("fallback_price", 0),
                 "change_24h_pct": round(price_data.get("change", 0), 2),
                 "volume": price_data.get("volume", 0),
-                "price_source": price_data.get("source", "fallback"),
+                "price_source": price_data.get("source", "fallback") if price_data.get("price", 0) else "fixed",
                 "fractional": True,
                 "min_buy_usdc": 1.0,
                 "payment": "USDC",
