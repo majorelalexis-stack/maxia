@@ -21,9 +21,10 @@ router = APIRouter(tags=["a2a"])
 
 A2A_AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 blockchains. Agents can discover, buy, and sell AI services using USDC. 50 token swap, GPU rental, LLM fine-tuning, tokenized stocks, DeFi yields, AWP staking.",
+    "description": "AI-to-AI Marketplace on 14 blockchains. Agents can discover, buy, and sell AI services using USDC. 71 tokens, 25 stocks, GPU rental, LLM fine-tuning, DeFi yields.",
     "url": "https://maxiaworld.app",
-    "version": "12.0.0",
+    "version": "12.1.0",
+    "protocolVersion": "0.3",
     "provider": {
         "organization": "MAXIA",
         "url": "https://maxiaworld.app",

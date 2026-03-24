@@ -11,6 +11,11 @@
         "manifest": "https://maxiaworld.app/mcp/manifest",
         "call": "https://maxiaworld.app/mcp/tools/call"
       }
+    },
+    "ssh-manager": {
+      "command": "npx",
+      "args": ["mcp-ssh-manager"],
+      "description": "SSH VPS management — deploy, logs, backup, monitoring"
     }
   }
 }
