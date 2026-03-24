@@ -1417,13 +1417,13 @@ class CEOLocal:
             # ── Cycle 6 : REDDIT #2 + DM prospect ──
             [
                 {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[(cycle + 5) % len(subreddits)]}, "priority": "vert"},
-                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "orange"},
+                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "vert"},
             ],
 
             # ── Cycle 7 : TELEGRAM #2 + CRM ──
             [
                 {"action": "send_telegram_group", "agent": "GHOST-WRITER", "params": {"target": all_telegram[(cycle + 2) % len(all_telegram)], "text": ""}, "priority": "vert"},
-                {"action": "crm_followup", "agent": "CLOSER", "params": {}, "priority": "orange"},
+                {"action": "crm_followup", "agent": "CLOSER", "params": {}, "priority": "vert"},
             ],
 
             # ── Cycle 8 : GITHUB #2 + TWITTER search ──

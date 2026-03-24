@@ -21,7 +21,7 @@ MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-2503")
 OODA_INTERVAL_S = int(os.getenv("OODA_INTERVAL_S", "300"))  # 5 min (GPU local = rapide)
 
 # Gates d'approbation
-APPROVAL_TIMEOUT_ORANGE_S = int(os.getenv("APPROVAL_TIMEOUT_ORANGE_S", "1800"))  # 30 min
+APPROVAL_TIMEOUT_ORANGE_S = int(os.getenv("APPROVAL_TIMEOUT_ORANGE_S", "120"))  # 2 min (rapide)
 APPROVAL_TIMEOUT_ROUGE_S = int(os.getenv("APPROVAL_TIMEOUT_ROUGE_S", "7200"))    # 2h
 AUTO_EXECUTE_MAX_USD = float(os.getenv("AUTO_EXECUTE_MAX_USD", "5.0"))  # Seuil orange auto
 
