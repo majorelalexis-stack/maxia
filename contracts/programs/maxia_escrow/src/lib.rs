@@ -468,7 +468,7 @@ pub mod maxia_escrow {
         ))?;
 
         ctx.accounts.escrow.status = if release_to_seller { EscrowStatus::Released } else { EscrowStatus::Refunded };
-        emit!(DisputeResolved { escrow: escrow_key, released_to_seller, amount: escrow_amount });
+        emit!(DisputeResolved { escrow: escrow_key, released_to_seller: release_to_seller, amount: escrow_amount });
         Ok(())
     }
 
@@ -476,8 +476,8 @@ pub mod maxia_escrow {
     /// Transfers full vault balance (amount + any dispute bond) to buyer if possible
     /// If USDC frozen, vault stays orphaned (acceptable last resort)
     pub fn emergency_close(ctx: Context<EmergencyClose>) -> Result<()> {
-        let escrow_amount = ctx.accounts.escrow.amount;
-        let escrow_bond = ctx.accounts.escrow.dispute_bond;
+        let _escrow_amount = ctx.accounts.escrow.amount;
+        let _escrow_bond = ctx.accounts.escrow.dispute_bond;
         let escrow_bump = ctx.accounts.escrow.bump;
         let escrow_key = ctx.accounts.escrow.key();
 
@@ -661,13 +661,13 @@ pub struct OpenDispute<'info> {
 #[derive(Accounts)]
 pub struct ResolveDispute<'info> {
     #[account(mut, has_one = buyer, close = buyer)]
-    pub escrow: Account<'info, Escrow>,
+    pub escrow: Box<Account<'info, Escrow>>,
 
     #[account(mut, seeds = [b"vault", escrow.key().as_ref()], bump = escrow.bump)]
-    pub escrow_vault: Account<'info, TokenAccount>,
+    pub escrow_vault: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [b"config"], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(constraint = admin.key() == config.admin @ EscrowError::Unauthorized)]
     pub admin: Signer<'info>,
@@ -679,17 +679,17 @@ pub struct ResolveDispute<'info> {
     #[account(mut,
         constraint = buyer_token.mint == escrow.usdc_mint @ EscrowError::InvalidMint,
         constraint = buyer_token.owner == escrow.buyer @ EscrowError::InvalidBuyer)]
-    pub buyer_token: Account<'info, TokenAccount>,
+    pub buyer_token: Box<Account<'info, TokenAccount>>,
 
     #[account(mut,
         constraint = seller_token.mint == escrow.usdc_mint @ EscrowError::InvalidMint,
         constraint = seller_token.owner == escrow.seller @ EscrowError::InvalidSellerToken)]
-    pub seller_token: Account<'info, TokenAccount>,
+    pub seller_token: Box<Account<'info, TokenAccount>>,
 
     #[account(mut,
         constraint = treasury_token.mint == escrow.usdc_mint @ EscrowError::InvalidMint,
         constraint = treasury_token.owner == config.treasury @ EscrowError::InvalidTreasury)]
-    pub treasury_token: Account<'info, TokenAccount>,
+    pub treasury_token: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
 }
