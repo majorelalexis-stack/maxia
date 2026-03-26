@@ -15,3 +15,4 @@ temp-repos/
 .claude/worktrees/
 local_ceo/.env
 ceo_memory.json.bak
+.claude/skills/trailofbits
