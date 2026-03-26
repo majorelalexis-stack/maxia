@@ -2573,8 +2573,10 @@ async def admin_reddit_post(request: Request):
 
 
 @app.get("/api/watchdog/health")
-async def watchdog_health():
-    """Run health check on all endpoints."""
+async def watchdog_health(request: Request):
+    """Run health check on all endpoints. Admin only."""
+    from security import require_admin
+    require_admin(request)
     try:
         from ceo_maxia import watchdog_health_check
         return await watchdog_health_check()

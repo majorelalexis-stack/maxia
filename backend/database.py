@@ -3,7 +3,7 @@
 SQLite pour dev/low-traffic. PostgreSQL pour prod >10 concurrent writers.
 Usage : DATABASE_URL=postgresql://user:pass@host:5432/maxia dans .env
 """
-import json, time, os, aiosqlite
+import json, time, os, re, aiosqlite
 from pathlib import Path
 
 # ── Column whitelists for safe dynamic UPDATE (S-03) ──
@@ -278,7 +278,58 @@ class Database:
         await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.executescript(DB_SCHEMA)
         await self._db.commit()
+        await self._run_migrations()
         print(f"[DB] SQLite connectee: {DB_PATH}")
+
+    # ── Schema migration system ──
+
+    MIGRATIONS: dict[int, tuple[str, str]] = {
+        # version: (description, SQL)
+        1: ("Initial schema — baseline V12", ""),  # Schema actuel = version 1
+    }
+
+    async def _run_migrations(self):
+        """Applique les migrations manquantes dans l'ordre."""
+        # Creer la table de tracking si elle n'existe pas
+        await self._db.execute(
+            "CREATE TABLE IF NOT EXISTS schema_version ("
+            "version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, description TEXT)")
+        await self._db.commit()
+
+        # Lire la version actuelle
+        rows = await self._db.execute_fetchall(
+            "SELECT MAX(version) as v FROM schema_version")
+        current = rows[0]["v"] if rows and rows[0]["v"] is not None else 0
+
+        # Appliquer les migrations manquantes
+        applied = 0
+        for version in sorted(self.MIGRATIONS.keys()):
+            if version <= current:
+                continue
+            desc, sql = self.MIGRATIONS[version]
+            if sql:
+                try:
+                    await self._db.executescript(sql)
+                except Exception as e:
+                    print(f"[DB] MIGRATION {version} ECHOUEE: {e}")
+                    break
+            from datetime import datetime, timezone
+            await self._db.execute(
+                "INSERT INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
+                (version, datetime.now(timezone.utc).isoformat(), desc))
+            await self._db.commit()
+            applied += 1
+            print(f"[DB] Migration {version} appliquee: {desc}")
+
+        if applied == 0 and current > 0:
+            pass  # Deja a jour
+        elif current == 0:
+            # Premier demarrage — enregistrer version 1
+            from datetime import datetime, timezone
+            await self._db.execute(
+                "INSERT OR IGNORE INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
+                (1, datetime.now(timezone.utc).isoformat(), "Initial schema — baseline V12"))
+            await self._db.commit()
 
     async def disconnect(self):
         if self._db:
@@ -487,7 +538,8 @@ class Database:
         return [dict(r) for r in rows]
 
     async def update_agent(self, api_key: str, updates: dict):
-        safe = {k: v for k, v in updates.items() if k in ALLOWED_AGENT_COLUMNS}
+        safe = {k: v for k, v in updates.items()
+                if k in ALLOWED_AGENT_COLUMNS and re.match(r'^[a-z_]+$', k)}
         if not safe:
             return
         sets = ", ".join(f"{k}=?" for k in safe.keys())
@@ -526,7 +578,8 @@ class Database:
         return dict(rows[0]) if rows else None
 
     async def update_service(self, service_id: str, updates: dict):
-        safe = {k: v for k, v in updates.items() if k in ALLOWED_SERVICE_COLUMNS}
+        safe = {k: v for k, v in updates.items()
+                if k in ALLOWED_SERVICE_COLUMNS and re.match(r'^[a-z_]+$', k)}
         if not safe:
             return
         sets = ", ".join(f"{k}=?" for k in safe.keys())

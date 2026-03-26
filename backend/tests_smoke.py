@@ -4,7 +4,7 @@ Usage: python tests_smoke.py [base_url]
 import httpx, sys, time, os
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8001"
-ADMIN_KEY = os.getenv("ADMIN_KEY", "MaxEli20152022*+")
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 PASSED = 0
 FAILED = 0
 ERRORS = []

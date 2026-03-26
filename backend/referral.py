@@ -1,7 +1,7 @@
 """MAXIA Referral & Badges V12 — Systeme de parrainage + badges de succes
 
 Chaque agent recoit un code unique a l'inscription. Le parrain touche 10% de la
-commission MAXIA sur chaque transaction du filleul (plafonné $100/mois).
+commission MAXIA sur chaque transaction du filleul (plafonné $1000/mois).
 Les badges sont recalcules toutes les heures par le scheduler.
 """
 
@@ -18,7 +18,7 @@ badges_router = APIRouter(prefix="/api/badges", tags=["badges"])
 # ── Config ──
 
 REFERRAL_COMMISSION_PCT = int(os.getenv("REFERRAL_COMMISSION_PCT", "10"))
-MONTHLY_CAP_USD = 100.0
+MONTHLY_CAP_USD = 1000.0
 
 # ── Badge definitions ──
 

@@ -75,7 +75,16 @@ class EscrowClient:
     def __init__(self):
         self._db = None
         self._escrows: dict = {}  # cache local, synchronise avec DB
-        print(f"[EscrowClient] Initialise (wallet: {ESCROW_ADDRESS[:16]}...)" if ESCROW_ADDRESS else "[EscrowClient] ATTENTION: ESCROW_ADDRESS non configure")
+        self._disabled = bool(_escrow_errors)
+        if self._disabled:
+            print(f"[EscrowClient] DESACTIVE — {len(_escrow_errors)} erreur(s) de config. Aucune operation escrow possible.")
+        else:
+            print(f"[EscrowClient] Initialise (wallet: {ESCROW_ADDRESS[:16]}...)" if ESCROW_ADDRESS else "[EscrowClient] ATTENTION: ESCROW_ADDRESS non configure")
+
+    def _check_enabled(self) -> dict | None:
+        """Retourne une erreur si l'escrow est desactive, None sinon."""
+        if self._disabled:
+            return {"success": False, "error": "Escrow desactive: config invalide. Verifiez ESCROW_ADDRESS et ESCROW_PRIVKEY_B58 dans .env."}
 
     def set_db(self, db):
         self._db = db
@@ -127,6 +136,9 @@ class EscrowClient:
         """
         Cree un escrow — verifie que les USDC ont ete envoyes au wallet escrow.
         """
+        err = self._check_enabled()
+        if err:
+            return err
         if not ESCROW_ADDRESS:
             return {"success": False, "error": "ESCROW_ADDRESS non configure"}
 
@@ -204,6 +216,9 @@ class EscrowClient:
 
     async def confirm_delivery(self, escrow_id: str, buyer_wallet: str) -> dict:
         """Buyer confirme la livraison -> USDC liberes au seller."""
+        err = self._check_enabled()
+        if err:
+            return err
         # #2: Lock to prevent race condition / double-spend
         async with _escrow_lock:
             # #10: Reload from DB (source of truth) before acting
@@ -258,6 +273,9 @@ class EscrowClient:
 
     async def reclaim_timeout(self, escrow_id: str, buyer_wallet: str) -> dict:
         """Buyer reclame ses fonds apres timeout."""
+        err = self._check_enabled()
+        if err:
+            return err
         # #2: Lock to prevent race condition / double-spend
         async with _escrow_lock:
             # #10: Reload from DB (source of truth) before acting
@@ -315,6 +333,9 @@ class EscrowClient:
 
     async def resolve_dispute(self, escrow_id: str, release_to_seller: bool) -> dict:
         """Admin resout un litige."""
+        err = self._check_enabled()
+        if err:
+            return err
         # #2: Lock to prevent race condition / double-spend
         async with _escrow_lock:
             # #10: Reload from DB (source of truth)

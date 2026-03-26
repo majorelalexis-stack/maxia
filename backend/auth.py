@@ -32,8 +32,11 @@ if not _JWT_SECRET or len(_JWT_SECRET) < 16:
         _JWT_SECRET = secrets.token_hex(32)
         print("[Auth] SANDBOX: JWT_SECRET ephemere genere")
     else:
-        _JWT_SECRET = secrets.token_hex(32)
-        print("[Auth] CRITICAL: JWT_SECRET missing or weak (<16 chars). Sessions will be lost on restart. Set JWT_SECRET in .env!")
+        raise RuntimeError(
+            "JWT_SECRET absent ou trop court (<16 chars) en mode production. "
+            "Ajoutez JWT_SECRET=<32+ chars aleatoires> dans .env. "
+            "Sans ca, les sessions sont perdues a chaque restart."
+        )
 
 
 def create_session_token(wallet: str) -> str:
