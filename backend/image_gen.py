@@ -1,8 +1,8 @@
 """MAXIA Art.26 — Generation d'Images IA
 
 Les IA ne peuvent pas generer d'images elles-memes.
-Ce service utilise Together AI (gratuit tier) ou Stability AI
-pour generer des images a partir d'un prompt texte.
+Ce service utilise Together AI (si cle configuree) ou Pollinations.ai
+(gratuit, sans cle, illimite) pour generer des images a partir d'un prompt.
 """
 import asyncio, time, uuid, base64, os
 import httpx
@@ -48,7 +48,7 @@ BLOCKED_WORDS = [
 _gen_stats = {"total": 0, "success": 0, "blocked": 0, "errors": 0}
 _gen_history: list = []
 
-print(f"[ImageGen] Service initialise — Together AI {'connecte' if TOGETHER_API_KEY else 'sans cle (mode demo)'}")
+print(f"[ImageGen] Service initialise — {'Together AI' if TOGETHER_API_KEY else 'Pollinations.ai (gratuit, sans cle)'}")
 
 
 def _check_prompt_safety(prompt: str) -> bool:
@@ -87,12 +87,12 @@ async def generate_image(prompt: str, model: str = "flux-schnell",
     width = max(256, min(width, 2048))
     height = max(256, min(height, 2048))
 
-    # Generer via Together AI
+    # Generer via Together AI (si cle configuree) ou Pollinations.ai (gratuit)
     if TOGETHER_API_KEY:
         result = await _generate_together(prompt, model_config["id"], width, height, steps, seed)
     else:
-        # Mode demo sans cle API — retourne un placeholder
-        result = _generate_placeholder(prompt, width, height)
+        # Pollinations.ai — gratuit, sans cle, images reelles (pas un placeholder)
+        result = await _generate_pollinations(prompt, width, height, seed)
 
     if result.get("success"):
         _gen_stats["success"] += 1
@@ -178,28 +178,39 @@ async def _generate_together(prompt: str, model_id: str,
         return {"success": False, "error": str(e)[:200]}
 
 
-def _generate_placeholder(prompt: str, width: int, height: int) -> dict:
-    """Mode demo sans cle API — retourne un SVG placeholder."""
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}">'
-        f'<rect width="100%" height="100%" fill="#1a1a2e"/>'
-        f'<text x="50%" y="45%" text-anchor="middle" fill="#e94560" font-size="24" font-family="Arial">MAXIA Image Gen</text>'
-        f'<text x="50%" y="55%" text-anchor="middle" fill="#8B5CF6" font-size="14" font-family="Arial">{prompt[:60]}</text>'
-        f'<text x="50%" y="70%" text-anchor="middle" fill="#666" font-size="12" font-family="Arial">Set TOGETHER_API_KEY for real images</text>'
-        f'</svg>'
-    )
-    b64 = base64.b64encode(svg.encode()).decode()
-    # Reponse honnete — c'est un placeholder, pas une vraie image IA
-    return {
-        "success": True,
-        "mode": "placeholder",
-        "image_base64": b64,
-        "format": "svg",
-        "width": width, "height": height,
-        "model": "placeholder",
-        "prompt": prompt,
-        "note": "Configure TOGETHER_API_KEY for real AI image generation",
-    }
+async def _generate_pollinations(prompt: str, width: int, height: int, seed: int = 0) -> dict:
+    """Genere via Pollinations.ai — 100% gratuit, sans cle API, images reelles."""
+    try:
+        import urllib.parse
+        encoded = urllib.parse.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width={width}&height={height}&nologo=true"
+        if seed > 0:
+            url += f"&seed={seed}"
+
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(url)
+
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            b64 = base64.b64encode(resp.content).decode()
+            return {
+                "success": True,
+                "image_base64": b64,
+                "format": "png",
+                "width": width,
+                "height": height,
+                "model": "pollinations-flux",
+                "prompt": prompt,
+                "source": "pollinations.ai",
+                "size_bytes": len(resp.content),
+            }
+        return {"success": False, "error": f"Pollinations returned {resp.status_code} ({len(resp.content)} bytes)"}
+
+    except httpx.TimeoutException:
+        _gen_stats["errors"] += 1
+        return {"success": False, "error": "Pollinations timeout (30s)"}
+    except Exception as e:
+        _gen_stats["errors"] += 1
+        return {"success": False, "error": f"Pollinations error: {str(e)[:100]}"}
 
 
 def list_models() -> dict:
