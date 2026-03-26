@@ -994,7 +994,8 @@ async function runDemoSwap(){
     var rate=amount>0?(output/amount):0;
     document.getElementById('sw-send').textContent=amount+' '+from;
     document.getElementById('sw-rate').textContent='1 '+from+' = '+rate.toLocaleString('en-US',{maximumFractionDigits:6})+' '+to;
-    document.getElementById('sw-fee-val').textContent=(data.commission_pct||'0.10%')+' ('+(data.tier||'BRONZE')+')';
+    var feeUsd=data.commission_usd||data.commission_usdc||(data.output_value_usd*(data.commission_bps||10)/10000);
+    document.getElementById('sw-fee-val').textContent='$'+feeUsd.toFixed(2)+' — '+(data.commission_pct||'0.10%')+' ('+(data.tier||'BRONZE')+')';
     document.getElementById('sw-receive').textContent=output.toLocaleString('en-US',{maximumFractionDigits:6})+' '+to;
     loading.style.display='none';
     result.style.display='block';
