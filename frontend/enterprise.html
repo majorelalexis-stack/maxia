@@ -186,7 +186,6 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
         <li><span class="check">&#10003;</span> Auto-pricing optimization</li>
         <li><span class="check">&#10003;</span> Dispute management</li>
       </ul>
-      <button onclick="stripeCheckout('fleet')" class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:14px">Subscribe — $49/mo</button>
     </div>
 
     <!-- Card 2: Managed Agent Infrastructure ($99) -->
@@ -201,7 +200,6 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
         <li><span class="check">&#10003;</span> OFAC/AML compliance included</li>
         <li><span class="check">&#10003;</span> 46 MCP tools + A2A protocol</li>
       </ul>
-      <button onclick="stripeCheckout('pro')" class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:14px">Subscribe — $99/mo</button>
     </div>
 
     <!-- Card 3: Compliance Package ($199) -->
@@ -216,7 +214,6 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
         <li><span class="check">&#10003;</span> KYC-light for agent wallets</li>
         <li><span class="check">&#10003;</span> Regulatory documentation</li>
       </ul>
-      <button onclick="stripeCheckout('compliance')" class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:14px">Subscribe — $199/mo</button>
     </div>
 
     <!-- Card 4: Enterprise API ($299) -->
@@ -231,7 +228,6 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
         <li><span class="check">&#10003;</span> No shared rate limits</li>
         <li><span class="check">&#10003;</span> Analytics dashboard</li>
       </ul>
-      <button onclick="stripeCheckout('enterprise')" class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:14px">Subscribe — $299/mo</button>
     </div>
 
   </div>
@@ -519,32 +515,6 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
 </section>
 
 <script>
-async function stripeCheckout(plan) {
-  var btn = event.target;
-  var origText = btn.textContent;
-  btn.textContent = 'Redirecting...';
-  btn.disabled = true;
-  try {
-    var email = prompt('Enter your email for billing:');
-    if (!email) { btn.textContent = origText; btn.disabled = false; return; }
-    var r = await fetch('/api/enterprise/stripe/checkout', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({plan: plan, tenant_id: email.split('@')[0], email: email})
-    });
-    var data = await r.json();
-    if (data.checkout_url) {
-      window.location.href = data.checkout_url;
-    } else {
-      alert(data.error || data.detail || 'Error creating checkout session');
-      btn.textContent = origText; btn.disabled = false;
-    }
-  } catch (err) {
-    alert('Error: ' + err.message);
-    btn.textContent = origText; btn.disabled = false;
-  }
-}
-
 async function submitEnterpriseForm(e) {
   e.preventDefault();
   var form = document.getElementById('enterprise-form');
