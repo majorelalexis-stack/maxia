@@ -4114,9 +4114,9 @@ async def swarm_stop(clone_id: str, request: Request):
 #  V11: ESCROW ON-CHAIN (Art.21)
 # ══════════════════════════════════════════════════════════
 
-@app.get("/api/public/escrow/info")
+@app.get("/api/escrow/info")
 async def escrow_public_info():
-    """Escrow public info — program ID et stats sans wallets."""
+    """Escrow public info — program ID et stats sans wallets. No auth."""
     from config import ESCROW_PROGRAM_ID
     stats = escrow_client.get_stats()
     return {
