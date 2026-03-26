@@ -8,6 +8,41 @@ Commission dynamique la plus basse du marche.
 import asyncio, time, uuid, json
 import httpx
 from config import TREASURY_ADDRESS, get_rpc_url
+from security import require_ofac_clear
+
+# ── Oracle Safety Guards ──
+# Protection contre les prix stale, les jumps de prix, et le slippage excessif.
+MAX_PRICE_JUMP_PCT = 5.0        # Rejeter si le prix a bouge de >5% depuis le dernier check
+MAX_SLIPPAGE_PCT = 2.0          # Slippage max entre quote et execution
+PRICE_JUMP_WINDOW_S = 300       # Fenetre pour detecter les jumps (5 min)
+_price_history: dict[str, list[tuple[float, float]]] = {}  # {symbol: [(timestamp, price), ...]}
+_PRICE_HISTORY_MAX = 20  # Garder les 20 derniers prix par symbole
+
+
+def _record_price(symbol: str, price: float):
+    """Enregistre un prix pour la detection de jumps."""
+    if symbol not in _price_history:
+        _price_history[symbol] = []
+    _price_history[symbol].append((time.time(), price))
+    if len(_price_history[symbol]) > _PRICE_HISTORY_MAX:
+        _price_history[symbol].pop(0)
+
+
+def _check_price_jump(symbol: str, current_price: float) -> tuple[bool, float]:
+    """Detecte un jump de prix anormal. Retourne (is_jump, jump_pct)."""
+    history = _price_history.get(symbol, [])
+    if not history:
+        return False, 0.0
+    now = time.time()
+    # Trouver le prix le plus recent dans la fenetre
+    recent = [p for t, p in history if now - t < PRICE_JUMP_WINDOW_S and p > 0]
+    if not recent:
+        return False, 0.0
+    prev_price = recent[-1]
+    if prev_price <= 0:
+        return False, 0.0
+    jump_pct = abs(current_price - prev_price) / prev_price * 100
+    return jump_pct > MAX_PRICE_JUMP_PCT, round(jump_pct, 2)
 
 # ── Catalogue des actions tokenisees multi-chain ──
 # 3 providers: xStocks/Backed (Solana+ETH), Ondo GM (ETH), Dinari dShares (Arbitrum)
@@ -211,10 +246,10 @@ TOKENIZED_STOCKS = {
 
 # ── Commission dynamique pour les actions (plus basse que les services) ──
 STOCK_COMMISSION_TIERS = {
-    "BRONZE": {"min_volume": 0, "max_volume": 1000, "bps": 50},       # 0.5%
-    "SILVER": {"min_volume": 1000, "max_volume": 5000, "bps": 20},    # 0.2%
-    "GOLD": {"min_volume": 5000, "max_volume": 25000, "bps": 10},     # 0.1%
-    "WHALE": {"min_volume": 25000, "max_volume": 999999999, "bps": 5}, # 0.05%
+    "BRONZE": {"min_amount": 0, "max_amount": 1000, "bps": 50},       # 0.5%
+    "SILVER": {"min_amount": 1000, "max_amount": 5000, "bps": 20},    # 0.2%
+    "GOLD": {"min_amount": 5000, "max_amount": 25000, "bps": 10},     # 0.1%
+    "WHALE": {"min_amount": 25000, "max_amount": 999999999, "bps": 5}, # 0.05%
 }
 
 # Commissions concurrents (pour comparaison et ajustement)
@@ -254,6 +289,7 @@ async def _swap_evm_1inch(chain_id: int, token_address: str, amount_usdc: float,
                     "src": usdc,
                     "dst": token_address,
                     "amount": amount_raw,
+                    "fee": "0.05",  # 0.05% referral fee to MAXIA
                 },
                 headers={"Accept": "application/json"},
             )
@@ -450,17 +486,17 @@ async def _persist_trade(trade: dict):
     await db.save_stock_trade(trade)
 
 
-def get_stock_commission_bps(volume_30d: float) -> int:
-    """Retourne la commission en BPS selon le volume 30j."""
+def get_stock_commission_bps(amount_usdc: float) -> int:
+    """Commission en BPS selon le montant de la transaction."""
     for tier_name, tier in STOCK_COMMISSION_TIERS.items():
-        if tier["min_volume"] <= volume_30d < tier["max_volume"]:
+        if tier["min_amount"] <= amount_usdc < tier["max_amount"]:
             return tier["bps"]
-    return 50  # defaut Bronze
+    return 50
 
 
-def get_stock_tier_name(volume_30d: float) -> str:
+def get_stock_tier_name(amount_usdc: float) -> str:
     for tier_name, tier in STOCK_COMMISSION_TIERS.items():
-        if tier["min_volume"] <= volume_30d < tier["max_volume"]:
+        if tier["min_amount"] <= amount_usdc < tier["max_amount"]:
             return tier_name
     return "BRONZE"
 
@@ -484,9 +520,9 @@ async def fetch_stock_prices() -> dict:
             source = data.get("source", "fallback")
             prices[sym] = {
                 "price": price,
-                "change": 0,
-                "volume": 0,
-                "market_cap": 0,
+                "change": data.get("change", 0),
+                "volume": data.get("volume", 0),
+                "market_cap": data.get("market_cap", 0),
                 "name": TOKENIZED_STOCKS[sym]["name"],
                 "source": source,
             }
@@ -603,6 +639,9 @@ class TokenizedStockExchange:
         if amount_usdc > 100000:
             return {"success": False, "error": "Maximum 100 000 USDC par trade"}
 
+        # Screening OFAC — bloquer les wallets sanctionnes avant toute transaction
+        require_ofac_clear(buyer_wallet, field="buyer_wallet")
+
         # ── Fix #1: Verify USDC payment BEFORE executing trade ──
         if not payment_tx:
             return {"success": False, "error": "payment_tx required"}
@@ -633,12 +672,47 @@ class TokenizedStockExchange:
         if price <= 0:
             return {"success": False, "error": f"Prix indisponible pour {symbol}"}
 
+        # ── Oracle Safety Guard 1: Reject fallback-only prices for large trades ──
+        if price_source == "fallback" and amount_usdc > 100:
+            return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible. Reessayer plus tard."}
+
+        # ── Oracle Safety Guard 2: Check Pyth staleness ──
+        try:
+            from pyth_oracle import get_stock_price as pyth_get_stock
+            pyth_data = await pyth_get_stock(symbol)
+            if pyth_data.get("stale"):
+                age = pyth_data.get("age_s", 0)
+                return {
+                    "success": False,
+                    "error": f"Prix oracle stale ({age}s) — risque d'arbitrage. Attendre un prix frais.",
+                    "price_age_s": age,
+                }
+            if pyth_data.get("wide_confidence"):
+                conf_pct = pyth_data.get("confidence_pct", 0)
+                if conf_pct > 5.0:
+                    return {
+                        "success": False,
+                        "error": f"Oracle confidence trop large ({conf_pct}%) — prix peu fiable.",
+                    }
+        except Exception:
+            pass  # Si Pyth n'est pas dispo, on continue avec le prix existant
+
+        # ── Oracle Safety Guard 3: Price jump detection ──
+        is_jump, jump_pct = _check_price_jump(symbol, price)
+        if is_jump:
+            return {
+                "success": False,
+                "error": f"Prix {symbol} a bouge de {jump_pct}% en {PRICE_JUMP_WINDOW_S}s — circuit breaker actif.",
+                "jump_pct": jump_pct,
+            }
+        _record_price(symbol, price)
+
         # Calculer la commission
-        commission_bps = get_stock_commission_bps(buyer_volume_30d)
+        commission_bps = get_stock_commission_bps(amount_usdc)
         commission = round(amount_usdc * commission_bps / 10000, 4)
         net_amount = amount_usdc - commission
         shares = round(net_amount / price, 6)
-        tier = get_stock_tier_name(buyer_volume_30d)
+        tier = get_stock_tier_name(amount_usdc)
 
         # ── Route swap: Solana (Jupiter) ou EVM (1inch) selon le stock ──
         stock_info = TOKENIZED_STOCKS[symbol]
@@ -749,6 +823,9 @@ class TokenizedStockExchange:
         if shares <= 0:
             return {"success": False, "error": "Shares must be > 0"}
 
+        # Screening OFAC — bloquer les wallets sanctionnes avant toute transaction
+        require_ofac_clear(seller_wallet, field="seller_wallet")
+
         # ── Fix #8: Verify seller actually holds the shares ──
         portfolio = _portfolios.get(seller_api_key, {})
         held = portfolio.get(symbol, 0)
@@ -764,11 +841,27 @@ class TokenizedStockExchange:
         if price <= 0:
             return {"success": False, "error": f"Prix indisponible pour {symbol}"}
 
+        # ── Oracle Safety Guards (memes que buy_stock) ──
+        gross_usdc_est = round(shares * price, 4)
+        if price_source == "fallback" and gross_usdc_est > 100:
+            return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible."}
+        try:
+            from pyth_oracle import get_stock_price as pyth_get_stock
+            pyth_data = await pyth_get_stock(symbol)
+            if pyth_data.get("stale"):
+                return {"success": False, "error": f"Prix oracle stale ({pyth_data.get('age_s', 0)}s) — risque d'arbitrage."}
+        except Exception:
+            pass
+        is_jump, jump_pct = _check_price_jump(symbol, price)
+        if is_jump:
+            return {"success": False, "error": f"Prix {symbol} a bouge de {jump_pct}% — circuit breaker actif."}
+        _record_price(symbol, price)
+
         gross_usdc = round(shares * price, 4)
-        commission_bps = get_stock_commission_bps(seller_volume_30d)
+        commission_bps = get_stock_commission_bps(gross_usdc)
         commission = round(gross_usdc * commission_bps / 10000, 4)
         net_usdc = gross_usdc - commission
-        tier = get_stock_tier_name(seller_volume_30d)
+        tier = get_stock_tier_name(gross_usdc)
 
         # ── Fix #3 (sell): Only record trade AFTER Jupiter swap succeeds ──
         mint = TOKENIZED_STOCKS[symbol].get("mint_xstock") or TOKENIZED_STOCKS[symbol].get("mint_ondo", "")
