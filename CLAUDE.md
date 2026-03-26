@@ -23,10 +23,11 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 docker-compose up --build   # serves on port 8000
 ```
 
-### Solana Contract
+### Solana Contract (deployed on mainnet)
 ```bash
 cd contracts/programs/maxia_escrow
 anchor build && anchor deploy
+# Program ID: 8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY
 ```
 
 There are no tests, no linter, and no CI/CD configured.
@@ -81,7 +82,10 @@ Python 3.12 FastAPI monolith (~91 modules). All modules are flat in `backend/` â
 Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.js + WebSocket for live updates). `landing.html` is the public landing page. Served directly by FastAPI.
 
 ### Smart Contract (`contracts/programs/maxia_escrow/`)
-Anchor (Solana) escrow program in Rust. Handles USDC locking in PDAs for trades.
+Anchor (Solana) escrow program in Rust. Deployed on Solana **mainnet** (2026-03-26).
+- **Program ID**: `8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY`
+- **Deploy tx**: `4b4RpsdVx6FM2g4JWueTLVAfvaUbXJ7B52CCbqsV24acXix9nPowafMgrtSKnge2fcePK5LpFt5RhuMptP11MgVE`
+- Handles USDC locking in PDAs for trades, buyer confirmation, dispute resolution, and 48h auto-refund.
 
 ## Key Patterns
 

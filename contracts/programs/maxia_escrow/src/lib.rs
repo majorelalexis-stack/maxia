@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, CloseAccount, Mint};
 
-// #1: Program ID — replaced after `anchor build` on VPS
-declare_id!("MAXiAEscrowProgram1111111111111111111111111");
+// #1: Program ID — deployed on Solana mainnet 2026-03-26
+declare_id!("8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY");
 
 // Mainnet USDC mint (Circle)
 const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");

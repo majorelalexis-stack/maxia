@@ -327,6 +327,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <div class="sidebar-section">Trade</div>
   <button class="nav-link" onclick="showPage('swap',this)"><span class="icon">&#128260;</span> Swap</button>
   <button class="nav-link" onclick="showPage('stocks',this)"><span class="icon">&#128200;</span> Stocks</button>
+  <button class="nav-link" onclick="showPage('escrow',this)"><span class="icon">&#128274;</span> Escrow</button>
   <button class="nav-link" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</button>
   <button class="nav-link" onclick="showPage('portfolio',this)"><span class="icon">&#128176;</span> Portfolio</button>
 
@@ -993,6 +994,70 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   </div><!-- /ent-content -->
 </div>
 
+<!-- ─── PAGE: ESCROW ─── -->
+<div class="page" id="page-escrow">
+  <h2 class="page-title">Escrow</h2>
+  <p class="page-sub">On-chain USDC escrow on Solana — trustless payments for AI-to-AI services</p>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+    <span class="badge badge-green">Live on Solana Mainnet</span>
+    <span class="badge">USDC Settlement</span>
+    <span class="badge badge-purple">Anchor Smart Contract</span>
+  </div>
+
+  <!-- Program ID -->
+  <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace">PROGRAM ID</span>
+    <a href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" rel="noopener" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--cyan);word-break:break-all">8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY</a>
+    <span style="font-size:18px;cursor:pointer" title="View on Solscan" onclick="window.open('https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY','_blank')">&#128279;</span>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="escrow-stats">
+    <div class="stat-card"><div class="val" id="esc-active">0</div><div class="lbl">Active Escrows</div></div>
+    <div class="stat-card"><div class="val" id="esc-total-vol">$0</div><div class="lbl">Total Volume</div></div>
+    <div class="stat-card"><div class="val" id="esc-released">0</div><div class="lbl">Released</div></div>
+    <div class="stat-card"><div class="val" id="esc-disputed">0</div><div class="lbl">Disputed</div></div>
+  </div>
+
+  <!-- Create Escrow Form -->
+  <div class="card" style="max-width:520px;margin-bottom:32px">
+    <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Create Escrow</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Lock USDC in a smart contract PDA. Funds are released when you confirm delivery or reclaimed after timeout.</p>
+    <div class="input-group">
+      <label>Seller Wallet (Solana)</label>
+      <input class="input-field" type="text" id="esc-seller" placeholder="Seller's Solana wallet address..." style="width:100%;box-sizing:border-box;font-size:13px">
+    </div>
+    <div class="input-group">
+      <label>Amount (USDC)</label>
+      <input class="input-field" type="number" id="esc-amount" placeholder="100.00" min="0.01" step="any" style="width:100%;box-sizing:border-box">
+    </div>
+    <div class="input-group">
+      <label>Service Description</label>
+      <input class="input-field" type="text" id="esc-service" placeholder="e.g. LLM fine-tuning, data analysis..." style="width:100%;box-sizing:border-box">
+    </div>
+    <div class="input-group">
+      <label>Timeout (hours) — 1 to 168h (7 days)</label>
+      <input class="input-field" type="number" id="esc-timeout" placeholder="24" min="1" max="168" value="24" style="width:100%;box-sizing:border-box">
+    </div>
+    <button class="btn btn-primary" id="btn-create-escrow" onclick="createEscrow()">Create Escrow</button>
+    <div id="esc-create-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Active Escrows Table -->
+  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Your Escrows</h3>
+  <div class="tw">
+    <table class="ct" id="escrow-table">
+      <thead>
+        <tr><th>ID</th><th>Seller</th><th>Amount</th><th>Status</th><th>Timeout</th><th>Created</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="escrow-body">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Connect your wallet to view escrows</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 </div><!-- /main -->
 
 <!-- Toast container (legacy single) -->
@@ -1524,6 +1589,7 @@ function showPage(name, btn) {
   if (name === 'nfts') loadNFTs();
   if (name === 'agentid') { loadAgentList(); loadCreditScore(); }
   if (name === 'trading') { loadAppWhales(); loadAppCopy(); loadChart(); loadAppAlerts(); _startAutoRefresh('trading', function(){ loadAppWhales(); loadChart(); loadAppAlerts(); }, 60000); }
+  if (name === 'escrow') loadEscrows();
 }
 
 // ══════════════════════════════════════
@@ -4779,7 +4845,7 @@ async function switchAndRefresh(chainId) {
 // ══════════════════════════════════════
 function initFromHash() {
   var hash = window.location.hash.replace('#', '').toLowerCase();
-  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'nfts', 'agentid', 'trading'];
+  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'escrow', 'nfts', 'agentid', 'trading'];
   if (hash && validPages.indexOf(hash) !== -1) {
     showPage(hash);
   } else {
@@ -4789,7 +4855,7 @@ function initFromHash() {
 
 window.addEventListener('hashchange', function() {
   var hash = window.location.hash.replace('#', '').toLowerCase();
-  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'nfts', 'agentid', 'trading'];
+  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'escrow', 'nfts', 'agentid', 'trading'];
   if (hash && validPages.indexOf(hash) !== -1) {
     showPage(hash);
   }
@@ -5214,6 +5280,183 @@ showPage = function(name, btn) {
     loadEnterprise();
   }
 };
+
+// ══════════════════════════════════════
+// ESCROW
+// ══════════════════════════════════════
+
+var _escrowsCache = [];
+
+function escrowStatusBadge(status) {
+  var s = (status || '').toLowerCase();
+  if (s === 'locked')   return '<span class="badge badge-orange">Locked</span>';
+  if (s === 'released') return '<span class="badge badge-green">Released</span>';
+  if (s === 'disputed') return '<span class="badge badge-red">Disputed</span>';
+  if (s === 'timeout' || s === 'reclaimed') return '<span class="badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:var(--orange)">Timeout</span>';
+  return '<span class="badge">' + esc(status || 'unknown') + '</span>';
+}
+
+async function loadEscrows() {
+  if (!wallet) {
+    document.getElementById('escrow-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Connect your wallet to view escrows</td></tr>';
+    // Reset stats
+    document.getElementById('esc-active').textContent = '0';
+    document.getElementById('esc-total-vol').textContent = '$0';
+    document.getElementById('esc-released').textContent = '0';
+    document.getElementById('esc-disputed').textContent = '0';
+    return;
+  }
+
+  var body = document.getElementById('escrow-body');
+  body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading escrows...</td></tr>';
+
+  var data = await api('/api/escrow/list');
+  if (!data) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Could not load escrows</td></tr>';
+    return;
+  }
+
+  var escrows = data.escrows || data || [];
+  _escrowsCache = escrows;
+
+  // Update stats
+  var active = 0, totalVol = 0, released = 0, disputed = 0;
+  escrows.forEach(function(e) {
+    var s = (e.status || '').toLowerCase();
+    var amt = parseFloat(e.amount_usdc || e.amount || 0);
+    totalVol += amt;
+    if (s === 'locked') active++;
+    if (s === 'released') released++;
+    if (s === 'disputed') disputed++;
+  });
+  document.getElementById('esc-active').textContent = active;
+  document.getElementById('esc-total-vol').textContent = '$' + totalVol.toFixed(2);
+  document.getElementById('esc-released').textContent = released;
+  document.getElementById('esc-disputed').textContent = disputed;
+
+  if (!Array.isArray(escrows) || escrows.length === 0) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No escrows found</td></tr>';
+    return;
+  }
+
+  body.innerHTML = escrows.map(function(e) {
+    var id = e.escrow_id || e.id || '—';
+    var shortId = String(id).length > 12 ? String(id).slice(0, 8) + '...' : id;
+    var seller = e.seller_wallet || e.seller || '—';
+    var shortSeller = seller.length > 12 ? seller.slice(0, 6) + '..' + seller.slice(-4) : seller;
+    var amount = parseFloat(e.amount_usdc || e.amount || 0).toFixed(2);
+    var status = (e.status || 'unknown').toLowerCase();
+    var timeout = e.timeout_hours || e.timeout || '—';
+    var created = e.created_at || e.created || '—';
+    if (created !== '—') {
+      try { created = new Date(created).toLocaleDateString(); } catch(ex) {}
+    }
+
+    var actions = '';
+    if (status === 'locked') {
+      actions = '<button class="btn-green btn-sm" onclick="confirmDelivery(\'' + esc(id) + '\')" style="margin-right:4px">Confirm</button>' +
+                '<button class="btn-outline" onclick="reclaimTimeout(\'' + esc(id) + '\')" style="font-size:12px;padding:6px 12px">Reclaim</button>';
+    }
+
+    return '<tr>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:13px" title="' + esc(id) + '">' + esc(shortId) + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:13px" title="' + esc(seller) + '">' + esc(shortSeller) + '</td>' +
+      '<td style="font-family:\'JetBrains Mono\',monospace;color:var(--green)">$' + amount + '</td>' +
+      '<td>' + escrowStatusBadge(status) + '</td>' +
+      '<td>' + esc(timeout) + 'h</td>' +
+      '<td style="font-size:13px;color:var(--muted)">' + esc(created) + '</td>' +
+      '<td>' + actions + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function createEscrow() {
+  if (!wallet) { toast('Connect your Solana wallet first', 'error'); return; }
+
+  var seller = document.getElementById('esc-seller').value.trim();
+  var amount = parseFloat(document.getElementById('esc-amount').value);
+  var service = document.getElementById('esc-service').value.trim();
+  var timeout = parseInt(document.getElementById('esc-timeout').value, 10);
+
+  if (!seller || seller.length < 32) { toast('Enter a valid seller wallet address', 'error'); return; }
+  if (!amount || amount <= 0) { toast('Enter a valid USDC amount', 'error'); return; }
+  if (!service) { toast('Enter a service description', 'error'); return; }
+  if (!timeout || timeout < 1 || timeout > 168) { toast('Timeout must be 1-168 hours', 'error'); return; }
+
+  var btn = document.getElementById('btn-create-escrow');
+  var result = document.getElementById('esc-create-result');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  result.innerHTML = '<div class="swap-status pending"><span class="swap-spinner"></span> Creating escrow on Solana...</div>';
+
+  var data = await api('/api/escrow/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      seller_wallet: seller,
+      amount_usdc: amount,
+      service_id: service,
+      timeout_hours: timeout
+    })
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Create Escrow';
+
+  if (data && (data.escrow_id || data.id)) {
+    var eid = data.escrow_id || data.id;
+    result.innerHTML = '<div class="swap-status success">Escrow created! ID: <span style="font-family:\'JetBrains Mono\',monospace">' + esc(eid) + '</span></div>';
+    toast('Escrow created: $' + amount.toFixed(2) + ' USDC locked', 'success');
+    // Clear form
+    document.getElementById('esc-seller').value = '';
+    document.getElementById('esc-amount').value = '';
+    document.getElementById('esc-service').value = '';
+    document.getElementById('esc-timeout').value = '24';
+    // Refresh table
+    loadEscrows();
+  } else {
+    var errMsg = (data && data.detail) || (data && data.error) || 'Failed to create escrow';
+    result.innerHTML = '<div class="swap-status error">' + esc(errMsg) + '</div>';
+    toast(errMsg, 'error');
+  }
+}
+
+async function confirmDelivery(escrowId) {
+  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!confirm('Confirm delivery? This will release USDC to the seller.')) return;
+
+  toast('Confirming delivery...', 'info');
+  var data = await api('/api/escrow/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ escrow_id: escrowId })
+  });
+
+  if (data && !data.error) {
+    toast('Delivery confirmed — USDC released to seller', 'success');
+    loadEscrows();
+  } else {
+    var errMsg = (data && data.detail) || (data && data.error) || 'Failed to confirm delivery';
+    toast(errMsg, 'error');
+  }
+}
+
+async function reclaimTimeout(escrowId) {
+  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!confirm('Reclaim funds? This is only possible after the timeout has expired.')) return;
+
+  toast('Reclaiming escrow...', 'info');
+  var data = await api('/api/escrow/reclaim', {
+    method: 'POST',
+    body: JSON.stringify({ escrow_id: escrowId })
+  });
+
+  if (data && !data.error) {
+    toast('Escrow reclaimed — USDC returned to your wallet', 'success');
+    loadEscrows();
+  } else {
+    var errMsg = (data && data.detail) || (data && data.error) || 'Failed to reclaim escrow';
+    toast(errMsg, 'error');
+  }
+}
 
 // Init
 initFromHash();

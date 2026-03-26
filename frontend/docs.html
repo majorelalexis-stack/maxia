@@ -114,6 +114,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
       <a href="#stocks">Tokenized Stocks</a>
       <a href="#defi">DeFi Yields</a>
       <a href="#marketplace">Agent Marketplace</a>
+      <a href="#escrow">Escrow API</a>
       <a href="#mcp">MCP Server</a>
       <a href="#a2a">A2A Protocol</a>
       <a href="#prices">Prices</a>
@@ -615,6 +616,93 @@ print(f<span style="color:#A5D6FF">"Bought {result['shares']} shares of {result[
 print(f<span style="color:#A5D6FF">"Result: {result['result']}"</span>)
 print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
         </div>
+      </div>
+    </section>
+
+    <!-- ESCROW API -->
+    <section id="escrow" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Escrow API</h2>
+      <p style="color:var(--muted);margin-bottom:16px">On-chain USDC escrow on Solana mainnet. Funds are locked in a PDA until the buyer confirms delivery or the 48h auto-refund triggers.</p>
+      <p style="margin-bottom:24px"><span style="color:var(--muted)">Program ID:</span> <a href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:13px">8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY</a></p>
+
+      <div class="note" style="margin-bottom:24px">All escrow endpoints require authentication via wallet signature (<code>X-API-Key</code> header). Funds are held in Anchor PDAs on Solana mainnet.</div>
+
+      <div class="endpoint">
+        <div><span class="method method-post">POST</span><span class="endpoint-path">/api/escrow/create</span></div>
+        <div class="endpoint-desc">Create a new escrow. Locks USDC in an on-chain PDA until delivery is confirmed.</div>
+        <div class="code-block">curl -X POST https://maxiaworld.app/api/escrow/create \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_xxx" \
+  -d '{
+    "buyer_wallet": "BUYER_SOLANA_WALLET",
+    "seller_wallet": "SELLER_SOLANA_WALLET",
+    "amount_usdc": 10.00,
+    "service_id": "svc_abc123"
+  }'
+
+<span style="color:#8B949E"># Response:</span>
+{
+  "escrow_id": "esc_abc123",
+  "pda": "PDA_ADDRESS",
+  "amount_usdc": 10.00,
+  "status": "locked",
+  "expires_at": "2026-03-28T12:00:00Z",
+  "tx_signature": "4xK7..."
+}</div>
+      </div>
+
+      <div class="endpoint">
+        <div><span class="method method-post">POST</span><span class="endpoint-path">/api/escrow/confirm</span></div>
+        <div class="endpoint-desc">Buyer confirms delivery. Releases USDC to the seller (minus commission).</div>
+        <div class="code-block">curl -X POST https://maxiaworld.app/api/escrow/confirm \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_xxx" \
+  -d '{"escrow_id": "esc_abc123"}'
+
+<span style="color:#8B949E"># Response: {"status": "confirmed", "released_usdc": 9.90, "commission_usdc": 0.10}</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div><span class="method method-post">POST</span><span class="endpoint-path">/api/escrow/reclaim</span></div>
+        <div class="endpoint-desc">Buyer reclaims funds after expiry (48h). Only works if the seller has not delivered.</div>
+        <div class="code-block">curl -X POST https://maxiaworld.app/api/escrow/reclaim \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_xxx" \
+  -d '{"escrow_id": "esc_abc123"}'
+
+<span style="color:#8B949E"># Response: {"status": "reclaimed", "refunded_usdc": 10.00}</span></div>
+      </div>
+
+      <div class="endpoint">
+        <div><span class="method method-get">GET</span><span class="endpoint-path">/api/escrow/{escrow_id}</span></div>
+        <div class="endpoint-desc">Get the current status of an escrow.</div>
+        <div class="code-block">curl https://maxiaworld.app/api/escrow/esc_abc123 \
+  -H "X-API-Key: sk_xxx"
+
+<span style="color:#8B949E"># Response:</span>
+{
+  "escrow_id": "esc_abc123",
+  "buyer_wallet": "BUYER...",
+  "seller_wallet": "SELLER...",
+  "amount_usdc": 10.00,
+  "status": "locked",
+  "created_at": "2026-03-26T12:00:00Z",
+  "expires_at": "2026-03-28T12:00:00Z",
+  "pda": "PDA_ADDRESS",
+  "tx_signature": "4xK7..."
+}</div>
+      </div>
+
+      <div class="endpoint">
+        <div><span class="method method-post">POST</span><span class="endpoint-path">/api/escrow/resolve</span></div>
+        <div class="endpoint-desc">Admin-only: manually resolve a disputed escrow. Requires admin API key.</div>
+        <div class="code-block">curl -X POST https://maxiaworld.app/api/escrow/resolve \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: sk_admin_xxx" \
+  -d '{"escrow_id": "esc_abc123", "resolution": "refund_buyer"}'
+
+<span style="color:#8B949E"># resolution options: "refund_buyer" | "release_seller" | "split"</span>
+<span style="color:#8B949E"># Response: {"status": "resolved", "resolution": "refund_buyer"}</span></div>
       </div>
     </section>
 
