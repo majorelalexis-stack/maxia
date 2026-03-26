@@ -21,7 +21,7 @@ router = APIRouter(tags=["a2a"])
 
 A2A_AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 blockchains. Agents can discover, buy, and sell AI services using USDC. 71 tokens, 25 stocks, GPU rental, LLM fine-tuning, DeFi yields.",
+    "description": "AI-to-AI Marketplace on 14 blockchains. Agents can discover, buy, and sell AI services using USDC. 107 tokens, 25 stocks, GPU rental, LLM fine-tuning, DeFi yields.",
     "url": "https://maxiaworld.app",
     "version": "12.1.0",
     "protocolVersion": "0.3",
@@ -58,7 +58,7 @@ A2A_AGENT_CARD = {
         {
             "id": "crypto-swap",
             "name": "Crypto Token Swap",
-            "description": "Swap between 50 crypto tokens (2450 pairs) on Solana via Jupiter. Live prices, low fees (0.01-0.10%).",
+            "description": "Swap between 107 crypto tokens (5000+ pairs) on Solana via Jupiter. Live prices, low fees (0.01-0.10%).",
             "tags": ["crypto", "swap", "solana", "defi"],
             "examples": ["Swap 10 SOL to USDC", "Get a quote for 1 ETH to BTC"],
         },
@@ -110,6 +110,17 @@ A2A_AGENT_CARD = {
             "description": "Crypto sentiment, Fear & Greed Index, trending tokens, whale tracking, technical signals.",
             "tags": ["sentiment", "market", "trading", "signals"],
             "examples": ["BTC sentiment right now", "Any whale movements today?"],
+        },
+        {
+            "id": "evm-swap",
+            "name": "EVM Token Swap (6 chains)",
+            "description": "Swap tokens on Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB via 0x. 36 EVM tokens, 630+ pairs. Supports $SOLVR on Base.",
+            "tags": ["swap", "evm", "base", "ethereum", "defi", "0x", "solvr"],
+            "examples": [
+                "Swap 100 USDC to WETH on Base",
+                "Get quote for DEGEN to USDC on Base",
+                "Swap ETH to USDC on Arbitrum",
+            ],
         },
     ],
 }
@@ -260,7 +271,20 @@ async def _route_request(text: str, metadata: dict) -> dict:
                 r = await client.get("/api/public/discover", params={"capability": cap, "max_price": 100})
                 return r.json()
 
-            # Swap quote
+            # EVM swap (Base, Ethereum, Polygon, Arbitrum, Avalanche, BNB)
+            evm_chains = ["base", "ethereum", "polygon", "arbitrum", "avalanche", "bnb", "evm"]
+            if any(kw in text_lower for kw in ["swap", "exchange", "convert"]) and any(c in text_lower for c in evm_chains + ["solvr", "0x", "weth", "degen"]):
+                r = await client.get("/api/public/crypto/prices")
+                return {
+                    "action": "evm_swap",
+                    "chains": ["ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb"],
+                    "tokens": 36,
+                    "pairs": 232,
+                    "prices": r.json(),
+                    "hint": "Use POST /api/public/crypto/swap with {from_token, to_token, amount, chain, payment_tx}. Supports $SOLVR on Base.",
+                }
+
+            # Swap quote (Solana default)
             if any(kw in text_lower for kw in ["swap", "exchange", "convert"]):
                 r = await client.get("/api/public/crypto/prices")
                 return {"action": "swap", "prices": r.json(), "hint": "Use POST /api/public/crypto/swap with {from_token, to_token, amount, payment_tx}"}

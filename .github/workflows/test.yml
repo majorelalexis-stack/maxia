@@ -1,0 +1,37 @@
+name: MAXIA Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install httpx aiosqlite python-dotenv pynacl base58
+      - name: Syntax check all Python files
+        run: |
+          python -c "
+          import ast, glob, sys
+          errors = 0
+          for f in glob.glob('backend/*.py'):
+              try:
+                  ast.parse(open(f, encoding='utf-8').read())
+              except SyntaxError as e:
+                  print(f'FAIL {f}: {e}')
+                  errors += 1
+          print(f'{len(glob.glob(\"backend/*.py\"))} files checked, {errors} errors')
+          sys.exit(errors)
+          "
+      - name: Import check critical modules
+        run: |
+          cd backend
+          python -c "import config; print('config OK')"
+          python -c "import models; print('models OK')"

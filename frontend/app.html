@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAXIA — App</title>
+<meta name="description" content="MAXIA Web3 Hub — Swap 71 tokens, buy 25 stocks, rent 13 GPU tiers, earn DeFi yields on 14 blockchains. Pay in USDC.">
+<meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta property="og:description" content="107 tokens, 25 stocks, 13 GPU tiers at cost, 46 MCP tools. Swap, trade, rent GPUs — all in USDC.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/app">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta name="twitter:description" content="107 tokens, 25 stocks, 13 GPU tiers at cost. Your AI agent earns USDC while you sleep.">
+<meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#3B82F6">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -46,7 +57,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 }
 
 /* ── Main ── */
-.main{margin-left:220px;padding-top:24px;max-width:1000px;padding-left:32px;padding-right:32px;padding-bottom:60px;min-height:100vh}
+.main{margin-left:220px;padding-top:24px;max-width:1000px;padding-left:32px;padding-right:32px;padding-bottom:60px;min-height:100vh;overflow-x:hidden}
 
 /* ── Home cards ── */
 .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px}
@@ -72,7 +83,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 .card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
 
 /* ── Badge ── */
-.badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--cyan)}
+.badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--cyan);white-space:nowrap}
 .badge-green{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.2);color:var(--green)}
 .badge-orange{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:var(--orange)}
 .badge-red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2);color:var(--red)}
@@ -88,7 +99,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 /* ── Grid ── */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
 .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}
 
 /* ── Stat cards row ── */
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
@@ -106,8 +117,8 @@ select.input-field{cursor:pointer;appearance:none;background-image:url("data:ima
 select.input-field option{background:var(--bg2);color:var(--text)}
 
 /* ── Buttons ── */
-.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'Outfit',sans-serif;display:inline-block}
-.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;width:100%;text-align:center}
+.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'Outfit',sans-serif;display:inline-block;box-sizing:border-box;max-width:100%}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;width:100%;text-align:center;box-sizing:border-box}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-sm{padding:10px 20px;font-size:14px;border-radius:10px}
@@ -196,12 +207,25 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .nft-card .nft-name{font-size:16px;font-weight:600;margin-bottom:4px}
 .nft-card .nft-desc{font-size:13px;color:var(--muted);line-height:1.5}
 
-/* ── Toast ── */
+/* ── Toast (legacy single) ── */
 .toast{position:fixed;bottom:24px;right:24px;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:500;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:400px}
 .toast.show{transform:translateY(0);opacity:1}
 .toast.success{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
 .toast.error{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
 .toast.info{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3)}
+
+/* ── Notification Toast Stack ── */
+#toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#toast-container .notif-toast{background:var(--card);border:1px solid var(--border, rgba(255,255,255,.1));border-radius:8px;padding:12px 16px;min-width:280px;max-width:360px;animation:toastSlideIn .3s ease;pointer-events:auto;cursor:pointer;transition:opacity .3s}
+#toast-container .notif-toast:hover{opacity:.85}
+#toast-container .notif-toast.toast-success{border-left:3px solid var(--green)}
+#toast-container .notif-toast.toast-warning{border-left:3px solid var(--orange)}
+#toast-container .notif-toast.toast-info{border-left:3px solid var(--cyan)}
+#toast-container .notif-toast.toast-error{border-left:3px solid var(--red)}
+#toast-container .notif-toast .toast-title{font-weight:600;font-size:13px;color:var(--text)}
+#toast-container .notif-toast .toast-msg{color:var(--muted);font-size:12px;margin-top:4px;line-height:1.4}
+@keyframes toastSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastFadeOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(100%)}}
 
 /* ── Empty state ── */
 .empty-state{text-align:center;padding:60px 24px;color:var(--muted)}
@@ -235,6 +259,12 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   .home-grid{grid-template-columns:1fr 1fr}
   .home-stats{flex-direction:column}
 }
+@media(max-width:480px){
+  .main{padding-left:10px;padding-right:10px}
+  .home-grid{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:1fr}
+  .card{padding:16px}
+}
 /* ── Swap status ── */
 .swap-status{margin-top:16px;padding:16px;border-radius:12px;font-size:14px;animation:fadeUp .3s ease}
 .swap-status.pending{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--blue)}
@@ -245,6 +275,22 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .swap-status .tx-sig{font-family:'JetBrains Mono',monospace;font-size:12px;word-break:break-all;margin-top:8px;opacity:.8}
 .swap-spinner{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.badge-card{display:inline-flex;flex-direction:column;align-items:center;gap:4px;padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:var(--card);min-width:90px;text-align:center;transition:all .2s}
+.badge-card.earned{border-color:rgba(6,182,212,.3);background:rgba(6,182,212,.06)}
+.badge-card.locked{opacity:.4;filter:grayscale(1)}
+.badge-card .badge-icon{font-size:24px}
+.badge-card .badge-name{font-size:11px;font-weight:600;color:var(--text)}
+.badge-card .badge-desc{font-size:10px;color:var(--muted)}
+.ticker-chip{flex-shrink:0;padding:6px 12px;background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:8px;font-size:12px;font-family:'JetBrains Mono',monospace;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.ticker-chip .sym{font-weight:600;color:var(--text)}
+.ticker-chip .price{color:var(--cyan)}
+.activity-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
+.activity-row:last-child{border-bottom:none}
+.activity-purpose{padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.activity-purpose.swap{background:rgba(59,130,246,.1);color:var(--blue)}
+.activity-purpose.service{background:rgba(139,92,246,.1);color:var(--purple)}
+.activity-purpose.other{background:rgba(255,255,255,.06);color:var(--muted)}
 </style>
 <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
 </head>
@@ -267,6 +313,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <button class="nav-link" onclick="showPage('swap',this)"><span class="icon">&#128260;</span> Swap</button>
   <button class="nav-link" onclick="showPage('stocks',this)"><span class="icon">&#128200;</span> Stocks</button>
   <button class="nav-link" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</button>
+  <button class="nav-link" onclick="showPage('portfolio',this)"><span class="icon">&#128176;</span> Portfolio</button>
 
   <div class="sidebar-section">Earn</div>
   <button class="nav-link" onclick="showPage('yields',this)"><span class="icon">&#127793;</span> DeFi Yields</button>
@@ -276,9 +323,19 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <button class="nav-link" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT</button>
   <button class="nav-link" onclick="showPage('agentid',this)"><span class="icon">&#129302;</span> Agent ID</button>
   <button class="nav-link" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</button>
-  <button class="nav-link" onclick="showPage('portfolio',this)"><span class="icon">&#128188;</span> Portfolio</button>
 
   <div class="sidebar-bottom">
+    <!-- Multi-wallet display -->
+    <div id="wallet-display" style="margin-bottom:8px">
+      <div id="sol-wallet" style="display:none;padding:6px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('solana')">
+        <div><span style="color:var(--purple);font-weight:600">SOL</span> <span id="sol-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
+        <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
+      </div>
+      <div id="evm-wallet" style="display:none;padding:6px 10px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('evm')">
+        <div><span style="color:var(--cyan);font-weight:600">EVM</span> <span id="evm-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
+        <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
+      </div>
+    </div>
     <div style="position:relative">
       <button class="btn-connect" id="btn-wallet" onclick="toggleWalletMenu()">Connect Wallet</button>
       <div id="wallet-menu" style="display:none;position:absolute;left:0;bottom:50px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:200px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.5)">
@@ -301,6 +358,28 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ══════════ MAIN ══════════ -->
 <div class="main">
+
+<!-- Notification bell (top-right) -->
+<div id="notif-bell" style="position:fixed;top:16px;right:20px;z-index:1500;cursor:pointer" onclick="toggleNotifPanel()">
+  <div style="width:40px;height:40px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background='var(--card)'">&#128276;</div>
+</div>
+<div id="notif-panel" style="display:none;position:fixed;top:64px;right:20px;z-index:1500;width:320px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="font-size:16px;font-weight:700;margin:0">Notifications</h3>
+    <span style="cursor:pointer;color:var(--muted);font-size:18px" onclick="toggleNotifPanel()">&times;</span>
+  </div>
+  <div style="background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.15);border-radius:12px;padding:16px;margin-bottom:12px">
+    <div style="font-size:20px;margin-bottom:8px">&#128241;</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px">Get alerts via Telegram</div>
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 12px">Receive alerts for price movements, yield changes, and transaction confirmations.</p>
+    <a href="https://t.me/MAXIA_AI_bot?start=alerts" target="_blank" rel="noopener" style="display:inline-block;padding:8px 16px;background:linear-gradient(135deg,#0088cc,#00b4d8);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;transition:opacity .2s" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Message @MAXIA_AI_bot</a>
+  </div>
+  <div style="font-size:12px;color:var(--muted2);text-align:center;margin-bottom:12px">Click to message @MAXIA_AI_bot with /start</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px">
+    <div style="font-size:13px;color:var(--muted)">Notification sound</div>
+    <button onclick="toggleNotifSound()" id="notif-sound-btn" style="background:none;border:1px solid var(--muted2);border-radius:6px;color:var(--text);font-size:12px;padding:4px 10px;cursor:pointer;font-family:'Outfit',sans-serif">ON</button>
+  </div>
+</div>
 
 <!-- ─── PAGE: HOME ─── -->
 <div class="page active" id="page-home">
@@ -336,7 +415,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="home-card" onclick="showPage('gpu')">
       <div class="hc-icon">&#9889;</div>
       <div class="hc-title">GPU Rental</div>
-      <div class="hc-desc">RTX 4090 to H200. From $0.35/h. Fine-tune LLMs.</div>
+      <div class="hc-desc" id="gpu-home-desc">RTX 3090 to B200. Loading prices... Fine-tune LLMs.</div>
     </div>
     <div class="home-card" onclick="showPage('bridge')">
       <div class="hc-icon">&#128279;</div>
@@ -419,16 +498,25 @@ select.input-field option{background:var(--bg2);color:var(--text)}
           <span class="value" id="swap-rate">—</span>
         </div>
         <div class="swap-info-row">
-          <span class="label">Fee</span>
-          <span class="value" id="swap-fee">—</span>
+          <span class="label">MAXIA Fee</span>
+          <span class="value" id="swap-fee" style="color:var(--cyan)">—</span>
         </div>
         <div class="swap-info-row">
-          <span class="label">Tier</span>
-          <span class="value green" id="swap-tier-info">BRONZE</span>
+          <span class="label">Network Fee</span>
+          <span class="value" id="swap-network-fee" style="color:var(--muted)">~$0.001 (Solana)</span>
+        </div>
+        <div class="swap-info-row">
+          <span class="label">You receive</span>
+          <span class="value green" id="swap-receive">—</span>
         </div>
         <div class="swap-info-row" id="swap-route-row" style="display:none">
           <span class="label">Route</span>
           <span class="value" id="swap-route" style="color:var(--cyan)">Jupiter Aggregator</span>
+        </div>
+        <div class="swap-info-row" id="swap-tier-progress" style="display:none;flex-direction:column;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border, rgba(255,255,255,.1))">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Your Swap Tier (by transaction size)</div>
+          <div style="display:flex;gap:4px;width:100%" id="swap-tier-bars"></div>
+          <div style="font-size:11px;color:var(--muted)" id="swap-tier-next"></div>
         </div>
       </div>
 
@@ -437,20 +525,32 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <div id="swap-status" style="display:none"></div>
     </div>
   </div>
+
+  <!-- Live Price Ticker -->
+  <div id="swap-live-ticker" style="margin-top:16px;max-width:480px;margin-left:auto;margin-right:auto">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Live Prices</span>
+      <span id="ticker-dot" style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite"></span>
+    </div>
+    <div id="price-ticker-row" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin"></div>
+  </div>
 </div>
 
 <!-- ─── PAGE: PORTFOLIO ─── -->
 <div class="page" id="page-portfolio">
-  <h2 class="page-title">Portfolio</h2>
-  <p class="page-sub">Your holdings across all connected chains</p>
+  <h2 class="page-title">My Portfolio</h2>
+  <p class="page-sub" style="color:var(--muted)">Your activity across all MAXIA services</p>
 
-  <div class="stats-row" id="portfolio-stats">
-    <div class="stat-card"><div class="val" id="pf-total">$0.00</div><div class="lbl">Total Value</div></div>
-    <div class="stat-card"><div class="val" id="pf-tokens">0</div><div class="lbl">Tokens</div></div>
-    <div class="stat-card"><div class="val" id="pf-chains">0</div><div class="lbl">Chains</div></div>
-    <div class="stat-card"><div class="val" id="pf-change" style="color:var(--green)">0%</div><div class="lbl">24h Change</div></div>
+  <!-- Stats cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0">
+    <div class="stat-card"><div class="val" id="pf-swap-count">0</div><div class="lbl">Swaps</div></div>
+    <div class="stat-card"><div class="val" id="pf-volume">$0</div><div class="lbl">30d Volume</div></div>
+    <div class="stat-card"><div class="val" id="pf-tier">BRONZE</div><div class="lbl">Current Tier</div></div>
+    <div class="stat-card"><div class="val" id="pf-fees-saved">$0</div><div class="lbl">Fees Saved</div></div>
   </div>
 
+  <!-- On-chain holdings (existing) -->
+  <h3 style="margin-top:24px">On-Chain Holdings</h3>
   <div id="portfolio-content">
     <div class="empty-state">
       <div class="icon">&#128176;</div>
@@ -458,6 +558,14 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet supported</div>
     </div>
   </div>
+
+  <!-- Activity history -->
+  <h3 style="margin-top:24px">Recent Activity</h3>
+  <div id="pf-activity" style="color:var(--muted)">Connect wallet to see your activity</div>
+
+  <!-- Badges -->
+  <h3 style="margin-top:24px">Badges</h3>
+  <div id="pf-badges" style="display:flex;gap:8px;flex-wrap:wrap"></div>
 </div>
 
 <!-- ─── PAGE: GPU ─── -->
@@ -473,13 +581,22 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- ─── PAGE: YIELDS ─── -->
 <div class="page" id="page-yields">
   <h2 class="page-title">DeFi Yields</h2>
-  <p class="page-sub">Best yields across 14 chains — Aave, Marinade, Jito, Compound, Ref Finance</p>
+  <p class="page-sub">Best yields across 14 chains — Aave, Marinade, Jito, Lido, Compound, Kamino + 500 protocols</p>
 
+  <div class="filter-row" style="margin-bottom:8px">
+    <span style="color:var(--muted);font-size:13px;margin-right:8px">Asset:</span>
+    <button class="btn-outline yield-asset active" onclick="setYieldAsset('USDC',this)">USDC</button>
+    <button class="btn-outline yield-asset" onclick="setYieldAsset('SOL',this)">SOL</button>
+    <button class="btn-outline yield-asset" onclick="setYieldAsset('ETH',this)">ETH</button>
+    <button class="btn-outline yield-asset" onclick="setYieldAsset('ALL',this)">All</button>
+  </div>
   <div class="filter-row">
-    <button class="btn-outline active" onclick="loadYields('USDC',this)">USDC</button>
-    <button class="btn-outline" onclick="loadYields('SOL',this)">SOL</button>
-    <button class="btn-outline" onclick="loadYields('ETH',this)">ETH</button>
-    <button class="btn-outline" onclick="loadYields('',this)">All</button>
+    <span style="color:var(--muted);font-size:13px;margin-right:8px">Type:</span>
+    <button class="btn-outline yield-type active" onclick="setYieldType('',this)">All</button>
+    <button class="btn-outline yield-type" onclick="setYieldType('staking',this)">Staking</button>
+    <button class="btn-outline yield-type" onclick="setYieldType('lending',this)">Lending</button>
+    <button class="btn-outline yield-type" onclick="setYieldType('lp',this)">LP</button>
+    <button class="btn-outline yield-type" onclick="setYieldType('farming',this)">Farming</button>
   </div>
 
   <div class="tw">
@@ -568,7 +685,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <p class="page-sub">Trade US equities 24/7 on Solana via <a href="https://backed.fi" target="_blank">Backed Finance</a> xStocks &amp; <a href="https://ondo.finance" target="_blank">Ondo Finance</a></p>
 
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
-    <span class="badge badge-green">0.05% - 0.5% commission</span>
+    <span class="badge badge-green" id="stocks-commission-badge">Loading commission...</span>
     <span class="badge badge-purple">Fractional from $1</span>
     <span class="badge">10 US Stocks &amp; ETFs</span>
     <span class="badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:var(--orange)">USDC on Solana</span>
@@ -621,53 +738,103 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <p class="page-sub">On-chain trust scores and verifiable identity for AI agents on 14 chains</p>
 
   <div class="stats-row" id="agentid-stats">
-    <div class="stat-card"><div class="val" id="aid-total">—</div><div class="lbl">Total Agents</div></div>
-    <div class="stat-card"><div class="val" id="aid-avg-trust">—</div><div class="lbl">Avg Trust Score</div></div>
-    <div class="stat-card"><div class="val" id="aid-badges">—</div><div class="lbl">Badges Earned</div></div>
-    <div class="stat-card"><div class="val" id="aid-nfts">—</div><div class="lbl">NFTs Minted</div></div>
+    <div class="stat-card"><div class="val" id="aid-total">0</div><div class="lbl">Total Agents</div></div>
+    <div class="stat-card"><div class="val" id="aid-avg-trust">0</div><div class="lbl">Avg Trust Score</div></div>
+    <div class="stat-card"><div class="val" id="aid-badges">0</div><div class="lbl">Badges Earned</div></div>
+    <div class="stat-card"><div class="val" id="aid-nfts">0</div><div class="lbl">NFTs Minted</div></div>
+  </div>
+
+  <div id="aid-wallet-warning" style="display:none;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:10px;padding:16px;margin-bottom:20px;max-width:900px;text-align:center">
+    <span style="color:#f5a623;font-weight:600">Connect your wallet to create or lookup Agent IDs</span>
+    <p style="color:var(--muted);font-size:13px;margin:8px 0 0">Click the wallet button in the sidebar to connect Phantom, MetaMask, or another wallet.</p>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:32px;max-width:900px">
     <div class="card">
       <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Create Agent ID</h3>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Mint an on-chain identity NFT for your AI agent via Solana memo transaction.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Mint an on-chain identity NFT for your AI agent.</p>
       <div class="input-group" style="margin-bottom:16px">
         <label>Agent Name</label>
         <input class="input-field" type="text" id="aid-name" placeholder="My AI Agent" style="width:100%;box-sizing:border-box">
       </div>
-      <button class="btn btn-primary" onclick="createAgentID()" style="width:100%;box-sizing:border-box">Create Agent ID (on-chain)</button>
+      <button class="btn btn-primary" onclick="createAgentID()" style="width:100%;box-sizing:border-box;font-size:14px">Create Agent ID</button>
       <div id="aid-create-result" style="margin-top:12px"></div>
     </div>
     <div class="card">
       <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Lookup Agent</h3>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Check any agent's trust score, badges, and on-chain history.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Check any agent's trust score, badges, and history.</p>
       <div class="input-group" style="margin-bottom:16px">
         <label>Wallet Address or Agent ID</label>
         <input class="input-field" type="text" id="agent-address" placeholder="Enter wallet address..." style="width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis">
       </div>
-      <button class="btn btn-primary" onclick="lookupAgent()" style="width:100%;box-sizing:border-box">Lookup</button>
+      <button class="btn btn-primary" onclick="lookupAgent()" style="width:100%;box-sizing:border-box;font-size:14px">Lookup Agent</button>
     </div>
   </div>
 
   <div id="agent-result"></div>
 
+  <!-- Portable Credit Score -->
+  <div style="margin-top:24px;max-width:900px">
+    <h3 style="font-size:18px;font-weight:600;margin-bottom:4px">Portable Credit Score</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Your verifiable reputation — portable to any platform</p>
+    <div id="credit-score-card" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;display:none">
+      <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div style="text-align:center;min-width:80px">
+          <div id="cs-grade" style="font-size:48px;font-weight:800;color:var(--gold)">—</div>
+          <div style="color:var(--muted);font-size:12px">Grade</div>
+        </div>
+        <div style="text-align:center;min-width:80px">
+          <div id="cs-score" style="font-size:36px;font-weight:700;color:var(--green)">—</div>
+          <div style="color:var(--muted);font-size:12px">Score /100</div>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <div id="cs-components"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn-outline" onclick="copyCreditScore()" style="font-size:12px;padding:6px 14px">Copy Verifiable Score</button>
+        <div style="color:var(--muted);font-size:11px">Share this JSON with any platform to prove your reputation</div>
+      </div>
+    </div>
+    <div id="credit-score-empty" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:13px">
+      Connect your wallet to view your credit score
+    </div>
+  </div>
+
   <h3 style="font-size:18px;font-weight:600;margin:32px 0 16px">All Registered Agents</h3>
   <div class="tw" style="overflow-x:auto">
-    <table class="ct" id="agents-table" style="min-width:700px">
+    <table class="ct" id="agents-table" style="width:100%;table-layout:fixed">
       <thead>
-        <tr><th>Name</th><th>Wallet</th><th>Chain</th><th>Trust</th><th>Tier</th><th>Badges</th><th style="width:70px"></th></tr>
+        <tr><th style="width:20%">Name</th><th style="width:18%">Wallet</th><th style="width:10%">Chain</th><th style="width:8%">Trust</th><th style="width:10%">Tier</th><th style="width:20%">Badges</th><th style="width:14%"></th></tr>
       </thead>
       <tbody id="agents-body">
-        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading agents...</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No agents registered yet</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
 <!-- ─── PAGE: TRADING ─── -->
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <div class="page" id="page-trading">
   <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Trading Tools</h2>
-  <p style="color:var(--muted);margin-bottom:24px">Whale tracker, technical signals, copy trading, price alerts — free tools, lowest swap fees (0.01%-0.10%).</p>
+  <p style="color:var(--muted);margin-bottom:24px">Live charts, whale tracker, technical signals, copy trading, price alerts, token risk — all free.</p>
+
+  <!-- Chart + Signals -->
+  <div class="card" style="margin-bottom:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:16px;font-weight:600">Price Chart</h3>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="chart-token" class="form-input" placeholder="SOL" value="SOL" style="width:70px;padding:6px 10px;font-size:13px">
+        <button class="btn-outline chart-tf active" onclick="setChartTF('1h',this)" style="padding:4px 10px;font-size:11px">1H</button>
+        <button class="btn-outline chart-tf" onclick="setChartTF('6h',this)" style="padding:4px 10px;font-size:11px">6H</button>
+        <button class="btn-outline chart-tf" onclick="setChartTF('1d',this)" style="padding:4px 10px;font-size:11px">1D</button>
+        <button class="btn-connect" onclick="loadChart()" style="font-size:12px;padding:6px 14px">Load</button>
+      </div>
+    </div>
+    <div id="chart-container" style="width:100%;height:350px;border-radius:8px;overflow:hidden"></div>
+    <div id="chart-signal" style="margin-top:12px;font-size:13px;color:var(--muted)"></div>
+  </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
     <!-- Whale Tracker -->
@@ -679,14 +846,14 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <div id="app-whales" style="font-size:13px;color:var(--muted)">Loading...</div>
     </div>
 
-    <!-- Technical Signals -->
+    <!-- Token Risk -->
     <div class="card">
-      <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">Technical Signals</h3>
+      <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">Token Risk Check</h3>
       <div style="display:flex;gap:8px;margin-bottom:16px">
-        <input type="text" id="app-signal-token" class="form-input" placeholder="Token (SOL, ETH...)" value="SOL" style="flex:1">
-        <button class="btn-primary" onclick="loadAppSignal()" style="padding:10px 20px">Analyze</button>
+        <input type="text" id="risk-mint" class="form-input" placeholder="Solana token mint address..." style="flex:1;font-size:12px">
+        <button class="btn-primary" onclick="checkTokenRisk()" style="padding:10px 16px;font-size:13px">Check</button>
       </div>
-      <div id="app-signal-result" style="font-size:13px;color:var(--muted)">Enter a token and click Analyze</div>
+      <div id="risk-result" style="font-size:13px;color:var(--muted)">Paste a token mint to check rug pull risk</div>
     </div>
   </div>
 
@@ -697,8 +864,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <button class="btn-connect" onclick="loadAppCopy()" style="font-size:12px;padding:6px 14px">Refresh</button>
     </div>
     <div class="tw">
-      <table class="ct" style="width:100%">
-        <thead><tr><th>Wallet</th><th>PnL 7d</th><th>PnL 30d</th><th>Win Rate</th><th>Trades</th><th></th></tr></thead>
+      <table class="ct" style="width:100%;table-layout:fixed">
+        <thead><tr><th style="width:25%">Wallet</th><th style="width:15%">PnL 7d</th><th style="width:15%">PnL 30d</th><th style="width:15%">Win Rate</th><th style="width:12%">Trades</th><th style="width:18%"></th></tr></thead>
         <tbody id="app-copy"><tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody>
       </table>
     </div>
@@ -707,11 +874,13 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <!-- Price Alerts -->
   <div class="card">
     <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">Price Alerts</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <input type="text" id="alert-token" class="form-input" placeholder="Token" value="SOL" style="width:100px">
-      <select id="alert-condition" class="form-input" style="width:120px"><option value="above">Above</option><option value="below">Below</option></select>
-      <input type="number" id="alert-price" class="form-input" placeholder="Target $" style="width:120px">
-      <button class="btn-primary" onclick="createAppAlert()" style="padding:10px 20px">Create Alert</button>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Get notified via Telegram or webhook when a price target is hit.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <input type="text" id="alert-token" class="form-input" placeholder="Token" value="SOL" style="width:80px">
+      <select id="alert-condition" class="form-input" style="width:100px"><option value="above">Above</option><option value="below">Below</option></select>
+      <input type="number" id="alert-price" class="form-input" placeholder="Target $" style="width:100px">
+      <input type="text" id="alert-telegram" class="form-input" placeholder="Telegram Chat ID (optional)" style="width:180px;font-size:12px">
+      <button class="btn-primary" onclick="createAppAlert()" style="padding:10px 16px;font-size:13px">Create</button>
     </div>
     <div id="app-alerts" style="font-size:13px;color:var(--muted)">No alerts yet</div>
   </div>
@@ -719,8 +888,10 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 </div><!-- /main -->
 
-<!-- Toast container -->
+<!-- Toast container (legacy single) -->
 <div class="toast" id="toast"></div>
+<!-- Notification toast stack -->
+<div id="toast-container"></div>
 
 <script>
 /* ══════════════════════════════════════
@@ -733,6 +904,93 @@ let walletType = null; // 'phantom' | 'backpack' | 'solflare' | 'metamask' | 'ra
 let swapTokens = [];
 let quoteTimer = null;
 let lastJupiterQuote = null; // Store the last Jupiter quote for execute
+let cachedSwapTiers = null; // Cached from /api/public/prices → swap_commission_tiers
+
+// ── Multi-wallet manager ──
+var connectedWallets = {
+  solana: null,  // {address, provider: 'phantom'|'backpack'|'solflare'}
+  evm: null,     // {address, provider: 'metamask'|'rabby'|'coinbase'|'walletconnect', chainId}
+};
+
+function getActiveWallet() {
+  // Return the wallet for the current operation context
+  // Solana operations use solana wallet, EVM operations use evm wallet
+  return connectedWallets;
+}
+
+function updateWalletDisplay() {
+  var solEl = document.getElementById('sol-wallet');
+  var evmEl = document.getElementById('evm-wallet');
+  var addrSol = document.getElementById('sol-addr');
+  var addrEvm = document.getElementById('evm-addr');
+  var btn = document.getElementById('btn-wallet');
+
+  if (connectedWallets.solana) {
+    var sa = connectedWallets.solana.address;
+    solEl.style.display = 'flex';
+    addrSol.textContent = sa.slice(0, 4) + '..' + sa.slice(-4);
+  } else {
+    solEl.style.display = 'none';
+  }
+
+  if (connectedWallets.evm) {
+    var ea = connectedWallets.evm.address;
+    var chainLabel = '';
+    if (connectedWallets.evm.chainId && EVM_CHAINS[connectedWallets.evm.chainId]) {
+      chainLabel = ' (' + EVM_CHAINS[connectedWallets.evm.chainId].name + ')';
+    }
+    evmEl.style.display = 'flex';
+    addrEvm.textContent = ea.slice(0, 4) + '..' + ea.slice(-4) + chainLabel;
+  } else {
+    evmEl.style.display = 'none';
+  }
+
+  // Update main button text
+  if (connectedWallets.solana && connectedWallets.evm) {
+    btn.textContent = '2 Wallets Connected';
+    btn.classList.add('connected');
+  } else if (connectedWallets.solana || connectedWallets.evm) {
+    var active = connectedWallets.solana || connectedWallets.evm;
+    var d = active.address.length > 20 ? active.address.slice(0, 6) + '...' + active.address.slice(-4) : active.address;
+    btn.textContent = d;
+    btn.classList.add('connected');
+  } else {
+    btn.textContent = 'Connect Wallet';
+    btn.classList.remove('connected');
+  }
+}
+
+function disconnectWallet(type) {
+  if (type === 'solana') {
+    connectedWallets.solana = null;
+    // If active wallet was solana, switch to evm or null
+    if (isSolanaWallet()) {
+      if (connectedWallets.evm) {
+        wallet = connectedWallets.evm.address;
+        walletType = connectedWallets.evm.provider;
+      } else {
+        wallet = null; walletType = null;
+      }
+    }
+    toast('Solana wallet disconnected', 'info');
+  } else if (type === 'evm') {
+    connectedWallets.evm = null;
+    // If active wallet was evm, switch to solana or null
+    if (isEvmWallet()) {
+      if (connectedWallets.solana) {
+        wallet = connectedWallets.solana.address;
+        walletType = connectedWallets.solana.provider;
+      } else {
+        wallet = null; walletType = null;
+      }
+    }
+    toast('EVM wallet disconnected', 'info');
+    var bar = document.getElementById('evm-chain-bar');
+    if (bar) bar.style.display = 'none';
+  }
+  updateWalletDisplay();
+  updateEvmChainBar();
+}
 
 // ── Solana token mint addresses (mainnet, curated from backend) ──
 var TOKEN_MINTS = {
@@ -1023,6 +1281,53 @@ function toast(msg, type) {
   setTimeout(function() { el.classList.remove('show'); }, 3500);
 }
 
+// ── Notification toast stack (rich notifications from WebSocket) ──
+var _notifSoundEnabled = localStorage.getItem('maxia_notif_sound') !== '0';
+
+function showToast(title, message, type) {
+  // type: 'success', 'warning', 'info', 'error'
+  type = type || 'info';
+  var container = document.getElementById('toast-container');
+  if (!container) return;
+  var t = document.createElement('div');
+  t.className = 'notif-toast toast-' + type;
+  t.innerHTML = '<div class="toast-title">' + esc(title) + '</div><div class="toast-msg">' + esc(message) + '</div>';
+  t.onclick = function() { t.style.animation = 'toastFadeOut .3s ease forwards'; setTimeout(function() { t.remove(); }, 300); };
+  container.appendChild(t);
+  // Play notification sound if enabled
+  if (_notifSoundEnabled) { playNotifBeep(); }
+  // Auto-remove after 5s
+  setTimeout(function() {
+    if (t.parentNode) { t.style.animation = 'toastFadeOut .3s ease forwards'; setTimeout(function() { if (t.parentNode) t.remove(); }, 300); }
+  }, 5000);
+  // Limit stack to 5 visible toasts
+  while (container.children.length > 5) { container.removeChild(container.firstChild); }
+}
+
+function playNotifBeep() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 800;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } catch(e) { /* Audio not supported */ }
+}
+
+function toggleNotifSound() {
+  _notifSoundEnabled = !_notifSoundEnabled;
+  localStorage.setItem('maxia_notif_sound', _notifSoundEnabled ? '1' : '0');
+  var btn = document.getElementById('notif-sound-btn');
+  if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';
+  toast('Notification sound ' + (_notifSoundEnabled ? 'enabled' : 'disabled'), 'info');
+}
+
 function fmtUSD(n) {
   if (n == null) return '$0.00';
   if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
@@ -1047,6 +1352,18 @@ function fmtRate(n) {
 }
 
 // ══════════════════════════════════════
+// AUTO-REFRESH
+var _autoRefreshTimers = {};
+function _startAutoRefresh(page, fn, intervalMs) {
+  // Clear previous timer for this page
+  if (_autoRefreshTimers[page]) clearInterval(_autoRefreshTimers[page]);
+  // Clear all other page timers (only refresh active page)
+  for (var k in _autoRefreshTimers) {
+    if (k !== page) { clearInterval(_autoRefreshTimers[k]); delete _autoRefreshTimers[k]; }
+  }
+  _autoRefreshTimers[page] = setInterval(fn, intervalMs);
+}
+
 // NAVIGATION
 // ══════════════════════════════════════
 function showPage(name, btn) {
@@ -1093,13 +1410,13 @@ function showPage(name, btn) {
 
   // Lazy load data
   if (name === 'swap' && swapTokens.length === 0) loadSwapTokens();
-  if (name === 'portfolio') loadPortfolio();
+  if (name === 'portfolio') { loadPortfolio(); loadPortfolioStats(); }
   if (name === 'gpu') loadGPU();
-  if (name === 'yields') loadYields('USDC');
+  if (name === 'yields') { loadYields(); _startAutoRefresh('yields', loadYields, 60000); }
   if (name === 'stocks') loadStocks();
   if (name === 'nfts') loadNFTs();
-  if (name === 'agentid') loadAgentList();
-  if (name === 'trading') { loadAppWhales(); loadAppCopy(); }
+  if (name === 'agentid') { loadAgentList(); loadCreditScore(); }
+  if (name === 'trading') { loadAppWhales(); loadAppCopy(); loadChart(); loadAppAlerts(); _startAutoRefresh('trading', function(){ loadAppWhales(); loadChart(); loadAppAlerts(); }, 60000); }
 }
 
 // ══════════════════════════════════════
@@ -1173,11 +1490,123 @@ async function createAppAlert() {
   var token = document.getElementById('alert-token').value.trim().toUpperCase();
   var condition = document.getElementById('alert-condition').value;
   var price = parseFloat(document.getElementById('alert-price').value);
-  if (!token || !price) { toast('Fill all fields', 'err'); return; }
+  var telegramChatId = (document.getElementById('alert-telegram')||{}).value||'';
+  if (!token || !price) { toast('Fill token and price', 'error'); return; }
   try {
-    var r = await api('/api/trading/alerts', { method: 'POST', body: JSON.stringify({ token: token, condition: condition, target_price: price, wallet: wallet || 'anonymous' }) });
-    if (r && r.alert_id) { toast('Alert created for ' + token, 'success'); } else { toast('Alert created', 'success'); }
+    var body = { token: token, condition: condition, target_price: price, wallet: wallet || 'anonymous' };
+    if (telegramChatId) body.telegram_chat_id = telegramChatId.trim();
+    var r = await api('/api/trading/alerts', { method: 'POST', body: JSON.stringify(body) });
+    if (r && r.alert_id) {
+      toast('Alert created: ' + token + ' ' + condition + ' $' + price, 'success');
+      loadAppAlerts();
+    }
   } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// Load and display active alerts
+async function loadAppAlerts() {
+  var el = document.getElementById('app-alerts');
+  try {
+    var r = await api('/api/trading/alerts?wallet=' + encodeURIComponent(wallet || 'anonymous'));
+    var alerts = (r && r.alerts) || [];
+    if (alerts.length > 0) {
+      el.innerHTML = alerts.map(function(a) {
+        var statusColor = a.triggered ? 'var(--green)' : 'var(--muted)';
+        var statusText = a.triggered ? 'TRIGGERED' : 'ACTIVE';
+        var notified = a.notified ? ' (notified)' : '';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)">'
+          + '<span><strong>' + esc(a.token) + '</strong> ' + esc(a.condition) + ' $' + a.target_price.toLocaleString('en-US') + '</span>'
+          + '<span style="color:' + statusColor + ';font-size:12px;font-weight:600">' + statusText + notified + '</span>'
+          + '<span style="color:var(--muted);font-size:12px">$' + (a.current_price||0).toFixed(2) + '</span>'
+          + '<button onclick="deleteAlert(\'' + a.alert_id + '\')" style="padding:2px 8px;background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:4px;font-size:11px;cursor:pointer">X</button>'
+          + '</div>';
+      }).join('');
+    } else { el.textContent = 'No alerts — create one above'; }
+  } catch(e) { el.textContent = 'No alerts yet'; }
+}
+
+async function deleteAlert(id) {
+  try { await api('/api/trading/alerts/' + id, { method: 'DELETE' }); loadAppAlerts(); toast('Alert deleted', 'success'); } catch(e) {}
+}
+
+// Lightweight Charts — price chart with candlesticks
+var _chart = null;
+var _candleSeries = null;
+var _chartTF = '1h';
+var _chartLimits = {'1h': 48, '6h': 48, '1d': 90};
+
+function setChartTF(tf, btn) {
+  _chartTF = tf;
+  document.querySelectorAll('.chart-tf').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  loadChart();
+}
+
+async function loadChart() {
+  var token = (document.getElementById('chart-token').value||'SOL').trim().toUpperCase();
+  var container = document.getElementById('chart-container');
+  var signalEl = document.getElementById('chart-signal');
+
+  // Create chart if not exists
+  if (!_chart && typeof LightweightCharts !== 'undefined') {
+    _chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth, height: 350,
+      layout: { background: { color: '#0a0e17' }, textColor: '#94a3b8' },
+      grid: { vertLines: { color: 'rgba(255,255,255,.03)' }, horzLines: { color: 'rgba(255,255,255,.03)' } },
+      crosshair: { mode: 0 },
+      timeScale: { timeVisible: true, borderColor: 'rgba(255,255,255,.06)' },
+      rightPriceScale: { borderColor: 'rgba(255,255,255,.06)' },
+    });
+    _candleSeries = _chart.addCandlestickSeries({
+      upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444',
+      wickUpColor: '#10b981', wickDownColor: '#ef4444',
+    });
+    window.addEventListener('resize', function() { if (_chart) _chart.applyOptions({ width: container.clientWidth }); });
+  }
+
+  // Fetch candle data
+  signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + ' chart...</span>';
+  try {
+    var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
+    var candles = (r && r.candles) || [];
+    if (candles.length > 0 && _candleSeries) {
+      var data = candles.map(function(c) {
+        return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close };
+      });
+      _candleSeries.setData(data);
+      _chart.timeScale().fitContent();
+      var srcBadge = r.source === 'dexpaprika' ? '<span style="color:var(--green);font-size:11px;margin-left:8px">DEX Live Data</span>' : '<span style="color:var(--muted);font-size:11px;margin-left:8px">CoinGecko fallback</span>';
+      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + _chartTF + ')' + srcBadge + '</span>';
+    }
+
+    // Also load signal
+    var sig = await api('/api/trading/signals/' + token);
+    if (sig && sig.signal) {
+      var sigColor = (sig.signal||'').indexOf('BUY') >= 0 ? '#10b981' : (sig.signal||'').indexOf('SELL') >= 0 ? '#ef4444' : '#f59e0b';
+      signalEl.innerHTML = '<span style="font-weight:700;color:' + sigColor + '">' + esc(sig.signal) + '</span>'
+        + ' <span style="color:var(--muted)">| RSI ' + (sig.rsi||0).toFixed(1) + ' | MACD ' + (typeof sig.macd==='object'?(sig.macd.histogram||0):(sig.macd||0)).toFixed(4) + ' | ' + (sig.data_points||0) + ' data points (' + (sig.source||'') + ')</span>'
+        + ' <button onclick="goSwap(\'' + esc(token) + '\')" style="margin-left:12px;padding:4px 14px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">Swap ' + esc(token) + '</button>';
+    }
+  } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error loading chart: ' + esc(e.message) + '</span>'; }
+}
+
+// Token Risk Check
+async function checkTokenRisk() {
+  var mint = document.getElementById('risk-mint').value.trim();
+  var el = document.getElementById('risk-result');
+  if (!mint || mint.length < 20) { el.innerHTML = '<span style="color:var(--red)">Paste a valid Solana mint address</span>'; return; }
+  el.innerHTML = '<span style="color:var(--cyan)">Analyzing token risk...</span>';
+  try {
+    var r = await api('/api/trading/token-risk/' + encodeURIComponent(mint));
+    if (!r) { el.innerHTML = '<span style="color:var(--red)">Error analyzing token</span>'; return; }
+    var riskColor = r.risk_level === 'LOW' ? 'var(--green)' : r.risk_level === 'MEDIUM' ? 'var(--orange)' : 'var(--red)';
+    var flagsHtml = (r.flags||[]).map(function(f) { return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">- ' + esc(f) + '</div>'; }).join('');
+    el.innerHTML = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+      + '<div style="font-size:32px;font-weight:700;color:' + riskColor + '">' + r.risk_score + '</div>'
+      + '<div><div style="font-weight:600;color:' + riskColor + '">' + esc(r.risk_level) + ' RISK</div>'
+      + '<div style="font-size:12px;color:var(--muted)">' + esc(r.recommendation) + '</div></div></div>'
+      + flagsHtml;
+  } catch(e) { el.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
 }
 
 async function copyTrade(address) {
@@ -1249,17 +1678,19 @@ function goSwap(token) {
 function toggleWalletMenu() {
   var btn = document.getElementById('btn-wallet');
   var menu = document.getElementById('wallet-menu');
-  if (wallet) {
+  // If both wallets connected, clicking the button disconnects all
+  if (connectedWallets.solana && connectedWallets.evm) {
+    connectedWallets.solana = null;
+    connectedWallets.evm = null;
     wallet = null; walletType = null;
-    btn.textContent = 'Connect Wallet';
-    btn.classList.remove('connected');
+    updateWalletDisplay();
     menu.style.display = 'none';
-    // Hide EVM chain bar
     var bar = document.getElementById('evm-chain-bar');
     if (bar) bar.style.display = 'none';
-    toast('Wallet disconnected', 'info');
+    toast('All wallets disconnected', 'info');
     return;
   }
+  // If only one wallet connected, show menu to connect the other
   menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
@@ -1326,52 +1757,54 @@ async function connectSpecific(type) {
     }
 
     if (wallet) {
-      var display = wallet.length > 20 ? wallet.slice(0, 6) + '...' + wallet.slice(-4) : wallet;
-      btn.classList.add('connected');
-
-      // For EVM wallets, show the chain name in the button
-      if (isEvmWallet()) {
-        getEvmChainId().then(function(cid) {
-          var ci = EVM_CHAINS[cid];
-          var chainLabel = ci ? ci.name : 'EVM';
-          btn.textContent = display + ' (' + chainLabel + ')';
-        });
-        // Listen for chain changes
+      // ── Multi-wallet: store in the right slot ──
+      if (isSolanaWallet()) {
+        connectedWallets.solana = { address: wallet, provider: walletType };
+      } else if (isEvmWallet()) {
+        var cid = await getEvmChainId();
+        connectedWallets.evm = { address: wallet, provider: walletType, chainId: cid };
+        // Listen for chain changes (once)
         if (window.ethereum && !window.ethereum._maxiaChainListener) {
           window.ethereum._maxiaChainListener = true;
           window.ethereum.on('chainChanged', function(newChainHex) {
             var newCid = parseInt(newChainHex, 16);
+            if (connectedWallets.evm) connectedWallets.evm.chainId = newCid;
             var ci = EVM_CHAINS[newCid];
             var chainLabel = ci ? ci.name : 'Chain ' + newCid;
-            var d = wallet.length > 20 ? wallet.slice(0, 6) + '...' + wallet.slice(-4) : wallet;
-            document.getElementById('btn-wallet').textContent = d + ' (' + chainLabel + ')';
             toast('Switched to ' + chainLabel, 'info');
-            // Re-fetch quote if on swap page
+            updateWalletDisplay();
             if (document.getElementById('page-swap').classList.contains('active')) {
               getSwapQuoteDebounced();
             }
           });
           window.ethereum.on('accountsChanged', function(accounts) {
             if (accounts.length === 0) {
-              wallet = null; walletType = null;
-              document.getElementById('btn-wallet').textContent = 'Connect Wallet';
-              document.getElementById('btn-wallet').classList.remove('connected');
-              toast('Wallet disconnected', 'info');
+              connectedWallets.evm = null;
+              if (connectedWallets.solana) {
+                wallet = connectedWallets.solana.address;
+                walletType = connectedWallets.solana.provider;
+              } else {
+                wallet = null; walletType = null;
+              }
+              toast('EVM wallet disconnected', 'info');
             } else {
               wallet = accounts[0];
-              var d = wallet.slice(0, 6) + '...' + wallet.slice(-4);
-              getEvmChainId().then(function(cid) {
-                var ci = EVM_CHAINS[cid];
-                document.getElementById('btn-wallet').textContent = d + ' (' + (ci ? ci.name : 'EVM') + ')';
-              });
+              walletType = connectedWallets.evm ? connectedWallets.evm.provider : 'metamask';
+              connectedWallets.evm = { address: accounts[0], provider: walletType, chainId: connectedWallets.evm ? connectedWallets.evm.chainId : null };
+              getEvmChainId().then(function(cid2) { if (connectedWallets.evm) connectedWallets.evm.chainId = cid2; updateWalletDisplay(); });
             }
+            updateWalletDisplay();
           });
         }
-      } else {
-        btn.textContent = display;
       }
 
+      // Update multi-wallet display
+      updateWalletDisplay();
+
       toast(type.charAt(0).toUpperCase() + type.slice(1) + ' connected', 'success');
+
+      // Show onboarding overlay for first-time users
+      showOnboarding();
 
       // Update EVM chain bar visibility and active chain highlight
       updateEvmChainBar();
@@ -1393,10 +1826,6 @@ async function loadPortfolio() {
   var content = document.getElementById('portfolio-content');
   if (!wallet) {
     content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet supported</div></div>';
-    document.getElementById('pf-total').textContent = '$0.00';
-    document.getElementById('pf-tokens').textContent = '0';
-    document.getElementById('pf-chains').textContent = '0';
-    document.getElementById('pf-change').textContent = '0%';
     return;
   }
 
@@ -1562,10 +1991,8 @@ async function loadPortfolio() {
     var totalValue = holdings.reduce(function(sum, h) { return sum + h.value; }, 0);
 
     // Update stat cards
-    document.getElementById('pf-total').textContent = '$' + totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    document.getElementById('pf-tokens').textContent = holdings.length;
-    document.getElementById('pf-chains').textContent = Object.keys(chainSet).length;
-    document.getElementById('pf-change').textContent = '--'; // No 24h change from on-chain data
+    // Holdings summary (logged for debugging, stat cards handled by loadPortfolioStats)
+    console.log('[Portfolio] Holdings:', holdings.length, 'tokens across', Object.keys(chainSet).length, 'chains, total $' + totalValue.toFixed(2));
 
     // Render table
     if (holdings.length > 0) {
@@ -1591,8 +2018,363 @@ async function loadPortfolio() {
 }
 
 // ══════════════════════════════════════
+// PORTFOLIO STATS, BADGES & ACTIVITY
+// ══════════════════════════════════════
+
+// Badge definitions (must match backend referral.py + 7 gamification badges from spec)
+var ALL_BADGES = [
+  { name: 'first_trade',    icon: '&#128293;', label: 'First Trade',    desc: 'Complete your first swap' },
+  { name: 'volume_1k',      icon: '&#128176;', label: '$1K Volume',     desc: 'Reach $1,000 in 30-day volume' },
+  { name: 'whale',          icon: '&#128011;', label: 'Whale Trader',   desc: 'Reach WHALE tier ($5,000+ volume)' },
+  { name: 'referee',        icon: '&#129309;', label: 'Referral Master',desc: 'Refer 5 users' },
+  { name: 'early_adopter',  icon: '&#127749;', label: 'Early Adopter',  desc: 'One of the first 100 users' },
+  { name: 'trader',         icon: '&#128202;', label: 'Volume King',    desc: 'Reach $10,000 in volume' },
+  { name: 'top_referrer',   icon: '&#127942;', label: 'Top Referrer',   desc: 'Most referrals this month' }
+];
+
+async function loadPortfolioStats() {
+  var activityEl = document.getElementById('pf-activity');
+  var badgesEl = document.getElementById('pf-badges');
+  if (!wallet) {
+    document.getElementById('pf-swap-count').textContent = '0';
+    document.getElementById('pf-volume').textContent = '$0';
+    document.getElementById('pf-tier').textContent = 'BRONZE';
+    document.getElementById('pf-fees-saved').textContent = '$0';
+    activityEl.innerHTML = '<span style="color:var(--muted)">Connect wallet to see your activity</span>';
+    renderBadges([], badgesEl);
+    return;
+  }
+
+  // Fetch portfolio stats from backend
+  var data = await api('/api/agents/' + encodeURIComponent(wallet) + '/portfolio-stats');
+  if (!data) {
+    activityEl.innerHTML = '<span style="color:var(--muted)">Could not load activity</span>';
+    renderBadges([], badgesEl);
+    return;
+  }
+
+  // Update stat cards
+  document.getElementById('pf-swap-count').textContent = (data.swap_count || 0).toLocaleString();
+  document.getElementById('pf-volume').textContent = '$' + (data.volume30d || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  document.getElementById('pf-tier').textContent = data.tier || 'BRONZE';
+  document.getElementById('pf-fees-saved').textContent = '$' + (data.fees_saved || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Color the tier
+  var tierEl = document.getElementById('pf-tier');
+  var tierColors = { 'WHALE': 'var(--cyan)', 'GOLD': '#fbbf24', 'SILVER': '#9ca3af', 'BRONZE': '#cd7f32' };
+  tierEl.style.color = tierColors[data.tier] || 'var(--cyan)';
+
+  // Render activity
+  var activity = data.activity || [];
+  if (activity.length === 0) {
+    activityEl.innerHTML = '<span style="color:var(--muted)">No activity yet. Make your first swap to get started!</span>';
+  } else {
+    var html = '';
+    activity.forEach(function(a) {
+      var purpose = a.purpose || 'other';
+      var purposeClass = purpose.indexOf('swap') >= 0 ? 'swap' : (purpose.indexOf('service') >= 0 ? 'service' : 'other');
+      var purposeLabel = purpose.replace(/_/g, ' ').replace('crypto ', '');
+      var amount = (a.amount || 0);
+      var dateStr = '';
+      if (a.date) {
+        var ts = typeof a.date === 'number' ? a.date : parseInt(a.date);
+        if (ts > 1e12) ts = Math.floor(ts / 1000); // ms to s
+        if (ts > 1e9) {
+          var d = new Date(ts * 1000);
+          dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      var txShort = a.tx ? (a.tx.slice(0, 8) + '...' + a.tx.slice(-4)) : '';
+      html += '<div class="activity-row">';
+      html += '<div style="display:flex;align-items:center;gap:8px"><span class="activity-purpose ' + purposeClass + '">' + esc(purposeLabel) + '</span>';
+      if (txShort) html += '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--muted2)">' + txShort + '</span>';
+      html += '</div>';
+      html += '<div style="display:flex;align-items:center;gap:12px">';
+      html += '<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">$' + amount.toFixed(2) + '</span>';
+      if (dateStr) html += '<span style="font-size:11px;color:var(--muted2)">' + dateStr + '</span>';
+      html += '</div></div>';
+    });
+    activityEl.innerHTML = html;
+  }
+
+  // Render badges
+  var earnedNames = (data.badges || []).map(function(b) { return b.name; });
+  renderBadges(earnedNames, badgesEl);
+}
+
+function renderBadges(earnedNames, container) {
+  var html = '';
+  ALL_BADGES.forEach(function(b) {
+    var earned = earnedNames.indexOf(b.name) >= 0;
+    html += '<div class="badge-card ' + (earned ? 'earned' : 'locked') + '">';
+    html += '<span class="badge-icon">' + b.icon + '</span>';
+    html += '<span class="badge-name">' + b.label + '</span>';
+    html += '<span class="badge-desc">' + b.desc + '</span>';
+    if (earned) html += '<span style="font-size:10px;color:var(--green);margin-top:2px">&#10003; Earned</span>';
+    else html += '<span style="font-size:10px;color:var(--muted2);margin-top:2px">&#128274; Locked</span>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+// ══════════════════════════════════════
+// NOTIFICATION PANEL
+// ══════════════════════════════════════
+
+function toggleNotifPanel() {
+  var panel = document.getElementById('notif-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('click', _closeNotifOnOutside);
+    }, 10);
+  } else {
+    panel.style.display = 'none';
+    document.removeEventListener('click', _closeNotifOnOutside);
+  }
+}
+
+function _closeNotifOnOutside(e) {
+  var panel = document.getElementById('notif-panel');
+  var bell = document.getElementById('notif-bell');
+  if (panel && !panel.contains(e.target) && !bell.contains(e.target)) {
+    panel.style.display = 'none';
+    document.removeEventListener('click', _closeNotifOnOutside);
+  }
+}
+
+// ══════════════════════════════════════
+// WEBSOCKET LIVE PRICE TICKER
+// ══════════════════════════════════════
+
+var _priceWs = null;
+var _priceWsRetries = 0;
+
+function connectPriceWs() {
+  if (_priceWs && _priceWs.readyState <= 1) return; // Already connected or connecting
+  var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var wsUrl = protocol + '//' + location.host + '/ws/prices';
+  try {
+    _priceWs = new WebSocket(wsUrl);
+  } catch (e) {
+    console.warn('[WS/prices] Could not connect:', e);
+    return;
+  }
+
+  _priceWs.onopen = function() {
+    _priceWsRetries = 0;
+    var dot = document.getElementById('ticker-dot');
+    if (dot) dot.style.background = 'var(--green)';
+  };
+
+  _priceWs.onmessage = function(evt) {
+    try {
+      var msg = JSON.parse(evt.data);
+      if (msg.type === 'prices' && msg.data) {
+        updatePriceTicker(msg.data);
+        // If on swap page, update the rate display if tokens match
+        updateSwapLiveRate(msg.data);
+      }
+      // ── Notification toasts for events ──
+      if (msg.type === 'swap_completed') {
+        showToast('Swap Complete', msg.data && msg.data.detail ? msg.data.detail : 'Your swap has been confirmed on-chain', 'success');
+      }
+      if (msg.type === 'escrow_created') {
+        showToast('Escrow Created', msg.data && msg.data.detail ? msg.data.detail : 'Funds locked in escrow', 'info');
+      }
+      if (msg.type === 'escrow_released') {
+        showToast('Escrow Released', msg.data && msg.data.detail ? msg.data.detail : 'Funds released from escrow', 'success');
+      }
+      if (msg.type === 'price_alert') {
+        showToast('Price Alert', msg.data && msg.data.detail ? msg.data.detail : 'Price target reached', 'warning');
+      }
+      if (msg.type === 'service_completed') {
+        showToast('Service Completed', msg.data && msg.data.detail ? msg.data.detail : 'AI service execution finished', 'success');
+      }
+      if (msg.type === 'gpu_ready') {
+        showToast('GPU Ready', msg.data && msg.data.detail ? msg.data.detail : 'Your GPU instance is ready', 'info');
+      }
+      if (msg.type === 'dispute_resolved') {
+        showToast('Dispute Resolved', msg.data && msg.data.detail ? msg.data.detail : 'Dispute has been resolved', 'warning');
+      }
+      if (msg.type === 'error') {
+        showToast('Error', msg.data && msg.data.detail ? msg.data.detail : 'An error occurred', 'error');
+      }
+    } catch (e) { /* ignore parse errors */ }
+  };
+
+  _priceWs.onclose = function() {
+    var dot = document.getElementById('ticker-dot');
+    if (dot) dot.style.background = 'var(--muted2)';
+    // Reconnect with backoff (max 30s)
+    _priceWsRetries++;
+    var delay = Math.min(5000 * _priceWsRetries, 30000);
+    setTimeout(connectPriceWs, delay);
+  };
+
+  _priceWs.onerror = function() {
+    // onclose will fire after this, triggering reconnect
+  };
+}
+
+function updatePriceTicker(prices) {
+  var container = document.getElementById('price-ticker-row');
+  if (!container) return;
+  // Top 8 tokens by relevance
+  var topSymbols = ['SOL', 'ETH', 'BTC', 'BNB', 'AVAX', 'MATIC', 'ARB', 'USDC'];
+  var html = '';
+  topSymbols.forEach(function(sym) {
+    var p = prices[sym];
+    if (!p) return;
+    var price = p.price || p;
+    var change = p.change_24h || 0;
+    var changeColor = change >= 0 ? 'var(--green)' : 'var(--red, #ef4444)';
+    var changeSign = change >= 0 ? '+' : '';
+    html += '<div class="ticker-chip">';
+    html += '<span class="sym">' + sym + '</span>';
+    html += '<span class="price">$' + (typeof price === 'number' ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: price > 100 ? 0 : 2 }) : price) + '</span>';
+    if (change !== 0) html += '<span style="font-size:10px;color:' + changeColor + '">' + changeSign + change.toFixed(1) + '%</span>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function updateSwapLiveRate(prices) {
+  var swapPage = document.getElementById('page-swap');
+  if (!swapPage || !swapPage.classList.contains('active')) return;
+  var fromSel = document.getElementById('swap-from-token');
+  var toSel = document.getElementById('swap-to-token');
+  if (!fromSel || !toSel) return;
+  var from = fromSel.value;
+  var to = toSel.value;
+  // Only update if both tokens have price data and there is no active quote being fetched
+  var fromPrice = prices[from];
+  var toPrice = prices[to];
+  if (!fromPrice || !toPrice) return;
+  var fp = fromPrice.price || fromPrice;
+  var tp = toPrice.price || toPrice;
+  if (typeof fp !== 'number' || typeof tp !== 'number' || tp === 0) return;
+  // Update the rate label as a hint (non-intrusive — does not override quote result)
+  var rateEl = document.getElementById('swap-rate');
+  if (rateEl && rateEl.textContent === '\u2014') {
+    // Only update if rate is still showing the default dash
+    rateEl.textContent = '1 ' + from + ' \u2248 ' + (fp / tp).toFixed(6) + ' ' + to + ' (live)';
+  }
+}
+
+// Start price WS on page load
+connectPriceWs();
+
+// ══════════════════════════════════════
 // SWAP
 // ══════════════════════════════════════
+
+/**
+ * Render the swap tier progression bar showing all tiers.
+ * Uses tier_info from the quote API if available, otherwise falls back
+ * to cachedSwapTiers from /api/public/prices.
+ * @param {object|null} tierInfo - tier_info from quote response
+ * @param {string|null} currentTier - tier name from quote (e.g. "BRONZE")
+ * @param {number} valueUsd - transaction value in USD
+ */
+function renderSwapTierProgress(tierInfo, currentTier, valueUsd) {
+  var tierProgress = document.getElementById('swap-tier-progress');
+  if (!tierProgress) return;
+
+  // Build tier list from API data (tier_info.all_tiers) or cached /api/public/prices
+  var tierColors = {BRONZE: '#cd7f32', SILVER: '#c0c0c0', GOLD: '#ffd700', WHALE: '#00e5ff'};
+  var tiers = [];
+
+  if (tierInfo && tierInfo.all_tiers) {
+    // Use all_tiers from quote response (dynamic, from backend)
+    Object.keys(tierInfo.all_tiers).forEach(function(name) {
+      var t = tierInfo.all_tiers[name];
+      tiers.push({name: name, pct: t.pct, bps: t.bps, min: t.min_amount, max: t.max_amount});
+    });
+  } else if (cachedSwapTiers) {
+    // Fallback: use tiers cached from /api/public/prices
+    Object.keys(cachedSwapTiers).forEach(function(name) {
+      var t = cachedSwapTiers[name];
+      tiers.push({name: name, pct: (t.bps / 100).toFixed(2) + '%', bps: t.bps, min: t.min_amount, max: t.max_amount});
+    });
+  } else {
+    // Hardcoded last resort (matches config.py SWAP_COMMISSION_TIERS)
+    tiers = [
+      {name: 'BRONZE', pct: '0.10%', bps: 10, min: 0, max: 1000},
+      {name: 'SILVER', pct: '0.05%', bps: 5, min: 1000, max: 5000},
+      {name: 'GOLD', pct: '0.03%', bps: 3, min: 5000, max: 25000},
+      {name: 'WHALE', pct: '0.01%', bps: 1, min: 25000, max: 999999999}
+    ];
+  }
+
+  if (tiers.length === 0) { tierProgress.style.display = 'none'; return; }
+
+  // Determine current tier from tierInfo or by matching valueUsd
+  var activeTier = (tierInfo && tierInfo.current_tier) ? tierInfo.current_tier : (currentTier || null);
+  if (!activeTier && valueUsd > 0) {
+    for (var i = 0; i < tiers.length; i++) {
+      if (valueUsd >= tiers[i].min && valueUsd < tiers[i].max) { activeTier = tiers[i].name; break; }
+    }
+  }
+  if (!activeTier) activeTier = 'BRONZE';
+
+  tierProgress.style.display = 'flex';
+  var bars = document.getElementById('swap-tier-bars');
+  bars.innerHTML = '';
+
+  tiers.forEach(function(t) {
+    var active = t.name === activeTier;
+    var color = tierColors[t.name] || 'var(--cyan)';
+    var fmtK = function(v) { return v >= 1000 ? '$' + (v / 1000) + 'K' : '$' + v; };
+    var rangeLabel;
+    if (t.max >= 999999999) { rangeLabel = fmtK(t.min) + '+'; }
+    else if (t.min === 0) { rangeLabel = '$0-' + fmtK(t.max); }
+    else { rangeLabel = fmtK(t.min) + '-' + fmtK(t.max); }
+    var div = document.createElement('div');
+    div.style.cssText = 'flex:1;text-align:center;padding:6px 4px;border-radius:6px;' +
+      'background:' + (active ? 'rgba(255,255,255,0.08)' : 'transparent') + ';' +
+      'border:1px solid ' + (active ? color : 'rgba(255,255,255,.1)') + ';transition:all .2s';
+    div.innerHTML = '<div style="font-size:10px;color:' + color + ';font-weight:600">' + t.name + '</div>' +
+      '<div style="font-size:14px;color:' + (active ? color : 'var(--muted)') + ';font-weight:700">' + t.pct + '</div>' +
+      '<div style="font-size:9px;color:var(--muted)">' + rangeLabel + '</div>';
+    bars.appendChild(div);
+  });
+
+  // Next tier message
+  var nextEl = document.getElementById('swap-tier-next');
+  if (tierInfo && tierInfo.next_tier && tierInfo.remaining_to_next > 0) {
+    nextEl.textContent = 'Swap $' + Math.round(tierInfo.remaining_to_next).toLocaleString() + ' more to reach ' + tierInfo.next_tier + ' tier';
+    nextEl.style.color = 'var(--muted)';
+    nextEl.style.display = 'block';
+  } else if (tierInfo && !tierInfo.next_tier) {
+    nextEl.textContent = 'You have the best tier!';
+    nextEl.style.color = 'var(--cyan)';
+    nextEl.style.display = 'block';
+  } else {
+    // Compute next tier from tiers array for fallback
+    var activeIdx = -1;
+    for (var j = 0; j < tiers.length; j++) { if (tiers[j].name === activeTier) { activeIdx = j; break; } }
+    if (activeIdx >= 0 && activeIdx + 1 < tiers.length) {
+      var nextT = tiers[activeIdx + 1];
+      var rem = Math.max(0, nextT.min - (valueUsd || 0));
+      if (rem > 0) {
+        nextEl.textContent = 'Swap $' + Math.round(rem).toLocaleString() + ' more to reach ' + nextT.name + ' tier';
+        nextEl.style.color = 'var(--muted)';
+        nextEl.style.display = 'block';
+      } else {
+        nextEl.style.display = 'none';
+      }
+    } else if (activeIdx === tiers.length - 1) {
+      nextEl.textContent = 'You have the best tier!';
+      nextEl.style.color = 'var(--cyan)';
+      nextEl.style.display = 'block';
+    } else {
+      nextEl.style.display = 'none';
+    }
+  }
+}
+
 async function loadSwapTokens() {
   try {
     var data = await api('/api/public/crypto/prices');
@@ -1668,9 +2450,22 @@ async function getSwapQuote() {
       var outAmount = data.output_amount || data.estimated_output || 0;
       document.getElementById('swap-to-amount').value = fmtAmount(outAmount);
       document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + fmtRate(data.rate || (outAmount / amount)) + ' ' + to;
-      document.getElementById('swap-fee').textContent = fmtUSD(data.commission_usd || 0);
-      document.getElementById('swap-tier-info').textContent = data.tier || 'BRONZE';
-      document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_pct || '0.10%');
+      document.getElementById('swap-fee').textContent = fmtUSD(data.commission_usd || 0) + ' (' + (data.commission_pct || '0.10%') + ' ' + (data.tier || 'BRONZE') + ')';
+      // Frais reseau estimes selon la chain
+      var netFeeEl = document.getElementById('swap-network-fee');
+      if (netFeeEl) {
+        var isEvm = isEvmWallet();
+        if (isEvm) {
+          getEvmChainId().then(function(cid) {
+            var fees = {1:'~$2-5 (Ethereum)',8453:'~$0.01 (Base)',137:'~$0.01 (Polygon)',42161:'~$0.01 (Arbitrum)',43114:'~$0.03 (Avalanche)',56:'~$0.05 (BNB)'};
+            netFeeEl.textContent = fees[cid] || '~$0.01 (L2)';
+          });
+        } else {
+          netFeeEl.textContent = '~$0.001 (Solana)';
+        }
+      }
+      document.getElementById('swap-receive').textContent = fmtAmount(outAmount) + ' ' + to;
+      document.getElementById('swap-tier').textContent = (data.tier || 'BRONZE') + ' ' + (data.commission_bps ? (data.commission_bps/100).toFixed(2) + '%' : (data.commission_pct || '0.10%'));
       info.style.display = 'flex';
       // Show route info based on wallet type
       var isSolWallet = isSolanaWallet();
@@ -1689,6 +2484,9 @@ async function getSwapQuote() {
           });
         }
       }
+      // Render swap tier progression bars
+      renderSwapTierProgress(data.tier_info, data.tier, data.input_value_usd);
+
       var routeLabel = isSolWallet ? ' (Jupiter)' : (isEvm ? ' (ParaSwap)' : '');
       btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel : 'Connect wallet to swap';
       btn.disabled = !wallet;
@@ -1703,8 +2501,9 @@ async function getSwapQuote() {
       var out = amount * rate * 0.95;
       document.getElementById('swap-to-amount').value = fmtAmount(out);
       document.getElementById('swap-rate').textContent = '1 ' + from + ' = ' + fmtRate(rate) + ' ' + to;
-      document.getElementById('swap-fee').textContent = '~0.10%';
-      document.getElementById('swap-tier-info').textContent = 'BRONZE';
+      var estFee = amount * fromToken.price * 0.001;
+      document.getElementById('swap-fee').textContent = fmtUSD(estFee) + ' (~0.10% BRONZE)';
+      document.getElementById('swap-receive').textContent = fmtAmount(out) + ' ' + to;
       info.style.display = 'flex';
       var isSolWallet2 = isSolanaWallet();
       var isEvm2 = isEvmWallet();
@@ -1718,6 +2517,10 @@ async function getSwapQuote() {
           });
         }
       }
+      // Render swap tier bars using fallback (cached tiers from /api/public/prices)
+      var fallbackValueUsd = amount * fromToken.price;
+      renderSwapTierProgress(null, null, fallbackValueUsd);
+
       var routeLabel2 = isSolWallet2 ? ' (Jupiter)' : (isEvm2 ? ' (ParaSwap)' : '');
       btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel2 : 'Connect wallet to swap';
       btn.disabled = !wallet;
@@ -1747,17 +2550,33 @@ function setSwapStatus(msg, type) {
 }
 
 async function executeSwap() {
+  var from = document.getElementById('swap-from-token').value;
+  var to = document.getElementById('swap-to-token').value;
+  var amount = parseFloat(document.getElementById('swap-from-amount').value);
+
+  // ── Multi-wallet: auto-select wallet based on token type ──
+  var isSolToken = !!TOKEN_MINTS[from];
+  var isEvmToken = false;
+  // Check if from token exists in any EVM chain's token list
+  for (var cid in EVM_CHAINS) {
+    if (EVM_CHAINS[cid].tokens && EVM_CHAINS[cid].tokens[from]) { isEvmToken = true; break; }
+  }
+
+  // Auto-switch active wallet based on the from token
+  if (isSolToken && connectedWallets.solana) {
+    wallet = connectedWallets.solana.address;
+    walletType = connectedWallets.solana.provider;
+  } else if (isEvmToken && connectedWallets.evm) {
+    wallet = connectedWallets.evm.address;
+    walletType = connectedWallets.evm.provider;
+  }
+
   if (!wallet) {
-    // Open wallet menu
     var menu = document.getElementById('wallet-menu');
     if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
     toast('Connect your wallet first', 'info');
     return;
   }
-
-  var from = document.getElementById('swap-from-token').value;
-  var to = document.getElementById('swap-to-token').value;
-  var amount = parseFloat(document.getElementById('swap-from-amount').value);
 
   if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
   if (from === to) { toast('Select different tokens', 'error'); return; }
@@ -1928,7 +2747,8 @@ async function executeSolanaSwap(from, to, amount) {
     setSwapStatus(
       'Swap successful! ' + amount + ' ' + from + ' → ' +
       outHuman.toFixed(toInfo.decimals <= 6 ? Math.min(toInfo.decimals, 6) : 4) + ' ' + to +
-      '<div class="tx-sig"><a href="' + solscanUrl + '" target="_blank" rel="noopener">View on Solscan: ' + txSignature.slice(0, 20) + '...' + txSignature.slice(-8) + '</a></div>',
+      '<div class="tx-sig"><a href="' + solscanUrl + '" target="_blank" rel="noopener">View on Solscan: ' + txSignature.slice(0, 20) + '...' + txSignature.slice(-8) + '</a></div>' +
+      '<div style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#00ff88;margin-top:8px"><span>&#10003;</span> OFAC Screened</div>',
       'success'
     );
 
@@ -2165,7 +2985,8 @@ async function executeEvmSwap(from, to, amount) {
     setSwapStatus(
       'Swap successful on ' + chainInfo.name + '! ' + amount + ' ' + from + ' → ' +
       destHuman.toFixed(toEvm.decimals <= 6 ? Math.min(toEvm.decimals, 6) : 4) + ' ' + to +
-      '<div class="tx-sig"><a href="' + explorerUrl + '" target="_blank" rel="noopener">View on ' + chainInfo.name + ' Explorer: ' + txHash.slice(0, 20) + '...' + txHash.slice(-8) + '</a></div>',
+      '<div class="tx-sig"><a href="' + explorerUrl + '" target="_blank" rel="noopener">View on ' + chainInfo.name + ' Explorer: ' + txHash.slice(0, 20) + '...' + txHash.slice(-8) + '</a></div>' +
+      '<div style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#00ff88;margin-top:8px"><span>&#10003;</span> OFAC Screened</div>',
       'success'
     );
 
@@ -2274,24 +3095,11 @@ async function loadGPU() {
 }
 
 function renderFallbackGPU(grid) {
-  var gpus = [
-    { id: 'rtx4090', name: 'RTX 4090', vram: '24 GB', price: 0.69, trial: true },
-    { id: 'a6000', name: 'RTX A6000', vram: '48 GB', price: 0.99, trial: false },
-    { id: 'a100_80', name: 'A100 80GB', vram: '80 GB', price: 1.79, trial: false },
-    { id: 'h100_sxm5', name: 'H100 SXM5', vram: '80 GB', price: 2.69, trial: false },
-    { id: 'h200', name: 'H200 SXM', vram: '141 GB', price: 4.31, trial: false },
-    { id: '4xa100', name: '4x A100 80GB', vram: '320 GB', price: 7.16, trial: false }
-  ];
-  grid.innerHTML = gpus.map(function(g) {
-    return '<div class="card gpu-card">' +
-      '<div class="gpu-name">' + g.name + '</div>' +
-      '<div class="gpu-vram">' + g.vram + ' VRAM</div>' +
-      '<div class="gpu-price">$' + g.price.toFixed(2) + '/hr</div>' +
-      '<div class="gpu-status"><span class="badge badge-green">Available</span></div>' +
-      (g.trial ? '<div style="font-size:12px;color:var(--cyan);margin-bottom:8px">10 min free trial</div>' : '') +
-      '<button class="btn-green btn-sm" onclick="showRentDialog(\'' + g.id + '\', \'' + g.name + '\', ' + g.price + ')">Rent</button>' +
-    '</div>';
-  }).join('');
+  grid.innerHTML = '<div class="card" style="text-align:center;padding:40px;grid-column:1/-1">' +
+    '<div style="font-size:36px;margin-bottom:12px">&#9889;</div>' +
+    '<div style="color:var(--muted);margin-bottom:12px">Could not load GPU prices from the API.</div>' +
+    '<button class="btn-outline" onclick="loadGPU()">Retry</button>' +
+  '</div>';
 }
 
 function showRentDialog(tierId, name, pricePerHr) {
@@ -2311,7 +3119,8 @@ function showRentDialog(tierId, name, pricePerHr) {
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">Duration (hours)</label>' +
       '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
-      '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:16px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
+      '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:4px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
+      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">MAXIA Fee: $0.00 (at cost &mdash; 0% markup)</div>' +
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (send USDC to Treasury first)</label>' +
       '<input type="text" id="gpu-rent-tx" placeholder="Solana USDC tx signature" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +
@@ -2439,19 +3248,45 @@ var DEFI_URLS = {
   'jupiter': 'https://jup.ag/',
 };
 
-function getDefiDepositUrl(protocol, fallbackUrl) {
+function getDefiDepositUrl(protocol, fallbackUrl, poolId) {
+  // 1. Use API-provided URL if available
   if (fallbackUrl && fallbackUrl !== '#' && fallbackUrl.indexOf('http') === 0) {
-    // API-provided URL may be a homepage; try to upgrade to deposit page
-    var key = (protocol || '').toLowerCase().trim();
-    return DEFI_URLS[key] || fallbackUrl;
+    return fallbackUrl;
   }
+  // 2. Try local mapping
   var key = (protocol || '').toLowerCase().trim();
-  return DEFI_URLS[key] || '#';
+  if (DEFI_URLS[key]) return DEFI_URLS[key];
+  // 3. Try partial match
+  for (var k in DEFI_URLS) {
+    if (key.indexOf(k) >= 0 || k.indexOf(key) >= 0) return DEFI_URLS[k];
+  }
+  // 4. Fallback to DeFiLlama
+  if (poolId) return 'https://defillama.com/yields/pool/' + poolId;
+  if (protocol) return 'https://defillama.com/yields?project=' + encodeURIComponent(protocol);
+  return '#';
+}
+
+var _yieldAsset = 'USDC';
+var _yieldType = '';
+
+function setYieldAsset(asset, btn) {
+  _yieldAsset = asset || 'USDC';
+  document.querySelectorAll('.yield-asset').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  loadYields();
+}
+
+function setYieldType(type, btn) {
+  _yieldType = type || '';
+  document.querySelectorAll('.yield-type').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  loadYields();
 }
 
 async function loadYields(asset, btnEl) {
+  if (asset !== undefined) _yieldAsset = asset || 'USDC';
   if (btnEl) {
-    document.querySelectorAll('.filter-row .btn-outline').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.yield-asset').forEach(function(b) { b.classList.remove('active'); });
     btnEl.classList.add('active');
   }
 
@@ -2459,7 +3294,8 @@ async function loadYields(asset, btnEl) {
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>';
 
   try {
-    var url = '/api/public/yield/best?asset=' + encodeURIComponent(asset || 'USDC') + '&limit=30';
+    var url = '/api/public/defi/best-yield?asset=' + encodeURIComponent(_yieldAsset) + '&limit=30';
+    if (_yieldType) url += '&type=' + encodeURIComponent(_yieldType);
     var data = await api(url);
     var pools = data.yields || data.pools || data.results || [];
     if (!Array.isArray(pools)) pools = [pools];
@@ -2470,15 +3306,15 @@ async function loadYields(asset, btnEl) {
         var risk = (p.risk || 'low').toLowerCase();
         var riskClass = risk === 'high' ? 'badge-red' : (risk === 'medium' ? 'badge-orange' : 'badge-green');
         var riskLabel = risk.charAt(0).toUpperCase() + risk.slice(1);
-        // Color APY: green if < 50%, orange if 50-100%, red if > 100%
         var apyColor = apy > 100 ? 'var(--red)' : (apy > 50 ? 'var(--orange)' : 'var(--green)');
         var warningIcon = p.warning ? ' ⚠' : '';
-        var depositUrl = getDefiDepositUrl(p.protocol, p.url);
+        var proto = p.protocol || p.project || '—';
+        var depositUrl = getDefiDepositUrl(proto, p.url, p.pool);
         var depositBtn = depositUrl !== '#'
           ? '<a href="' + esc(depositUrl) + '" target="_blank" rel="noopener" style="padding:4px 12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border-radius:6px;font-size:11px;text-decoration:none;cursor:pointer">Deposit</a>'
           : '<span style="padding:4px 12px;background:var(--surface2);color:var(--muted);border-radius:6px;font-size:11px">No link</span>';
         return '<tr>' +
-          '<td style="font-weight:600">' + esc(p.protocol || '—') + '</td>' +
+          '<td style="font-weight:600">' + esc(proto) + '</td>' +
           '<td><span class="badge badge-purple" style="font-size:11px">' + esc((p.chain || 'solana').charAt(0).toUpperCase() + (p.chain || 'solana').slice(1)) + '</span></td>' +
           '<td style="color:' + apyColor + ';font-weight:700;font-family:JetBrains Mono,monospace">' + Number(apy).toFixed(2) + '%' + warningIcon + '</td>' +
           '<td style="font-family:JetBrains Mono,monospace;font-size:13px">' + fmtUSD(p.tvl_usd || p.tvl || 0) + '</td>' +
@@ -2503,7 +3339,7 @@ async function loadYields(asset, btnEl) {
     ];
     tbody.innerHTML = fallback.map(function(p) {
       var riskClass = p.risk === 'High' ? 'badge-red' : (p.risk === 'Medium' ? 'badge-orange' : 'badge-green');
-      var depositUrl = getDefiDepositUrl(p.protocol, null);
+      var depositUrl = getDefiDepositUrl(p.protocol || p.project, p.url, p.pool);
       var depositBtn = depositUrl !== '#'
         ? '<a href="' + esc(depositUrl) + '" target="_blank" rel="noopener" style="padding:4px 12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border-radius:6px;font-size:11px;text-decoration:none;cursor:pointer">Deposit</a>'
         : '<span style="padding:4px 12px;background:var(--surface2);color:var(--muted);border-radius:6px;font-size:11px">No link</span>';
@@ -2903,6 +3739,7 @@ async function executeBridge() {
           '</a>' +
         '</div>' +
         '<div style="margin-top:12px;font-family:JetBrains Mono,monospace;font-size:11px;word-break:break-all;color:var(--muted2)">' + txHash + '</div>' +
+        '<div style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#00ff88;margin-top:8px"><span>&#10003;</span> OFAC Screened</div>' +
       '</div>',
       'success'
     );
@@ -3001,32 +3838,52 @@ async function loadStocks() {
         '</div>';
       }).join('');
     } else {
-      renderFallbackStocks(grid);
+      await renderFallbackStocks(grid);
     }
   } catch (e) {
-    renderFallbackStocks(grid);
+    await renderFallbackStocks(grid);
   }
 }
 
-function renderFallbackStocks(grid) {
-  var fallback = [
-    { sym: 'AAPL', price: 178.50 }, { sym: 'GOOGL', price: 141.20 },
-    { sym: 'TSLA', price: 245.80 }, { sym: 'AMZN', price: 182.60 },
-    { sym: 'MSFT', price: 415.30 }, { sym: 'NVDA', price: 875.40 },
-    { sym: 'META', price: 505.20 }, { sym: 'MSTR', price: 380.10 },
-    { sym: 'QQQ', price: 498.30 },  { sym: 'SPY', price: 512.30 }
-  ];
+async function renderFallbackStocks(grid) {
+  /* Fallback: tenter de fetcher les prix live depuis l'oracle avant d'afficher */
+  var symbols = ['AAPL', 'GOOGL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'MSTR', 'QQQ', 'SPY'];
+  var fallback = symbols.map(function(sym) { return { sym: sym, price: 0 }; });
+
+  /* Tenter de recuperer les prix live depuis l'API oracle */
+  try {
+    var priceData = await api('/api/oracle/stocks/prices');
+    if (priceData && priceData.prices) {
+      var priceMap = {};
+      priceData.prices.forEach(function(p) {
+        var s = (p.symbol || '').replace(/^x/, '').toUpperCase();
+        priceMap[s] = { price: p.price_usd || p.price || 0, change: p.change_24h_pct || 0 };
+      });
+      fallback = symbols.map(function(sym) {
+        var live = priceMap[sym];
+        return { sym: sym, price: live ? live.price : 0, change: live ? live.change : 0 };
+      });
+    }
+  } catch (e) {
+    /* Si l'oracle echoue aussi, on affiche les symboles sans prix */
+    console.warn('[Stocks] Fallback oracle fetch failed:', e);
+  }
+
   fallback.forEach(function(f) {
-    _stockPriceCache[f.sym] = { price: f.price, change: 0, source: 'fallback' };
+    _stockPriceCache[f.sym] = { price: f.price, change: f.change || 0, source: f.price > 0 ? 'oracle' : 'unavailable' };
   });
   grid.innerHTML = fallback.map(function(f) {
     var cat = STOCK_CATALOG[f.sym] || {};
     var hasMint = cat.mint && cat.mint.length > 20;
+    var priceStr = f.price > 0 ? ('$' + f.price.toFixed(2)) : 'Loading...';
+    var changeVal = f.change || 0;
+    var changeClass = changeVal >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+    var changeStr = f.price > 0 ? ((changeVal >= 0 ? '+' : '') + changeVal.toFixed(2) + '%') : '—';
     return '<div class="card stock-card">' +
       '<div class="stock-symbol">' + (cat.xstock || f.sym + 'X') + '</div>' +
       '<div class="stock-name">' + (cat.name || f.sym) + '</div>' +
-      '<div class="stock-price">$' + f.price.toFixed(2) + '</div>' +
-      '<div class="stock-change" style="color:var(--muted)">—</div>' +
+      '<div class="stock-price">' + priceStr + '</div>' +
+      '<div class="stock-change" style="' + (f.price > 0 ? changeClass : 'color:var(--muted)') + '">' + changeStr + '</div>' +
       '<div class="stock-sector"><span class="badge badge-purple">' + (cat.sector || 'Tech') + '</span></div>' +
       '<div class="stock-actions">' +
         '<button class="btn-green btn-sm" onclick="openStockModal(\'' + f.sym + '\',\'buy\')">Buy</button>' +
@@ -3096,12 +3953,12 @@ function openStockModal(symbol, side) {
         '<input type="number" id="stock-amount-input" placeholder="10.00" min="1" max="100000" step="0.01" value="10" oninput="updateStockSummary(\'' + symbol + '\',' + price + ')">' +
       '</div>' +
 
-      // Order summary
+      // Order summary — default $10 = BRONZE 1%
       '<div class="sm-summary" id="stock-order-summary">' +
         '<div class="sm-row"><span>Investment</span><span>$10.00 USDC</span></div>' +
-        '<div class="sm-row"><span>Est. shares</span><span>' + (price > 0 ? (10 / price).toFixed(4) : '—') + ' ' + esc(xstock) + '</span></div>' +
-        '<div class="sm-row"><span>Commission (Bronze)</span><span>$0.05 (0.5%)</span></div>' +
-        '<div class="sm-row"><span style="font-weight:600">Net investment</span><span style="color:var(--green)">$9.95</span></div>' +
+        '<div class="sm-row"><span>Est. shares</span><span>' + (price > 0 ? (9.90 / price).toFixed(4) : '—') + ' ' + esc(xstock) + '</span></div>' +
+        '<div class="sm-row"><span>Marketplace Fee</span><span style="color:var(--cyan)">$0.10 (1% BRONZE)</span></div>' +
+        '<div class="sm-row"><span style="font-weight:600">Total</span><span style="color:var(--green)">$10.00 USDC</span></div>' +
       '</div>' +
 
       // Provider & availability info
@@ -3132,10 +3989,9 @@ function openStockModal(symbol, side) {
       '<details style="margin-bottom:16px;cursor:pointer">' +
         '<summary style="font-size:13px;color:var(--muted);font-family:JetBrains Mono,monospace">Commission tiers</summary>' +
         '<div style="padding:10px 0;font-size:13px;color:var(--muted);line-height:2">' +
-          'Bronze: 0.5% (under $1K/mo)<br>' +
-          'Silver: 0.2% ($1K - $5K/mo)<br>' +
-          'Gold: 0.1% ($5K - $25K/mo)<br>' +
-          'Whale: 0.05% (over $25K/mo)' +
+          'BRONZE: 1% (under $500)<br>' +
+          'GOLD: 0.5% ($500 - $5,000)<br>' +
+          'WHALE: 0.1% (over $5,000)' +
         '</div>' +
       '</details>' +
 
@@ -3180,6 +4036,12 @@ function openStockModal(symbol, side) {
   }, 100);
 }
 
+function getMarketplaceTier(amount) {
+  if (amount > 5000) return { name: 'WHALE', pct: 0.1 };
+  if (amount >= 500) return { name: 'GOLD', pct: 0.5 };
+  return { name: 'BRONZE', pct: 1.0 };
+}
+
 function updateStockSummary(symbol, price) {
   var inp = document.getElementById('stock-amount-input');
   var summaryEl = document.getElementById('stock-order-summary');
@@ -3189,17 +4051,18 @@ function updateStockSummary(symbol, price) {
   var cat = STOCK_CATALOG[symbol] || {};
   var xstock = cat.xstock || symbol + 'X';
 
-  // Commission: 0.5% Bronze default (we don't know user tier on frontend)
-  var commPct = 0.5;
-  var commission = amount * commPct / 100;
+  // Commission based on marketplace tiers
+  var tier = getMarketplaceTier(amount);
+  var commission = amount * tier.pct / 100;
   var net = amount - commission;
   var shares = price > 0 ? (net / price) : 0;
+  var total = amount;
 
   summaryEl.innerHTML =
     '<div class="sm-row"><span>Investment</span><span>$' + amount.toFixed(2) + ' USDC</span></div>' +
     '<div class="sm-row"><span>Est. shares</span><span>' + shares.toFixed(4) + ' ' + esc(xstock) + '</span></div>' +
-    '<div class="sm-row"><span>Commission (Bronze)</span><span>$' + commission.toFixed(2) + ' (' + commPct + '%)</span></div>' +
-    '<div class="sm-row"><span style="font-weight:600">Net investment</span><span style="color:var(--green)">$' + net.toFixed(2) + '</span></div>';
+    '<div class="sm-row"><span>Marketplace Fee</span><span style="color:var(--cyan)">$' + commission.toFixed(2) + ' (' + tier.pct + '% ' + tier.name + ')</span></div>' +
+    '<div class="sm-row"><span style="font-weight:600">Total</span><span style="color:var(--green)">$' + total.toFixed(2) + ' USDC</span></div>';
 }
 
 function closeStockModal() {
@@ -3445,12 +4308,20 @@ async function mintNFT() {
 // AGENT ID
 // ══════════════════════════════════════
 async function createAgentID() {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  var resultDiv = document.getElementById('aid-create-result');
+  if (!wallet) {
+    document.getElementById('aid-wallet-warning').style.display = 'block';
+    resultDiv.innerHTML = '<div style="padding:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;font-size:13px;color:var(--red)">Connect your wallet first (Phantom, MetaMask, etc.)</div>';
+    return;
+  }
+  document.getElementById('aid-wallet-warning').style.display = 'none';
 
   var name = document.getElementById('aid-name').value.trim();
-  if (!name) { toast('Enter a name for your agent', 'error'); return; }
-
-  var resultDiv = document.getElementById('aid-create-result');
+  if (!name) {
+    resultDiv.innerHTML = '<div style="padding:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;font-size:13px;color:var(--red)">Enter a name for your agent</div>';
+    return;
+  }
+  resultDiv.innerHTML = '<div style="padding:12px;color:var(--cyan);font-size:13px">Creating Agent ID...</div>';
   var txSig = null;
   var chain = isSolanaWallet() ? 'solana' : 'ethereum';
 
@@ -3532,8 +4403,12 @@ async function createAgentID() {
 
 async function loadAgentList() {
   var tbody = document.getElementById('agents-body');
+  // Show wallet warning if not connected
+  var warn = document.getElementById('aid-wallet-warning');
+  if (warn) warn.style.display = wallet ? 'none' : 'block';
   try {
     var data = await api('/api/nft/agents');
+    if (!data) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No agents registered yet</td></tr>'; return; }
     var agents = data.agents || [];
     var nftsMinted = data.nfts_minted || 0;
     var totalAgents = data.total || agents.length;
@@ -3582,7 +4457,10 @@ async function lookupAgent() {
   var addr = document.getElementById('agent-address').value.trim();
   var resultDiv = document.getElementById('agent-result');
 
-  if (!addr) { toast('Enter a wallet address', 'error'); return; }
+  if (!addr) {
+    resultDiv.innerHTML = '<div class="card" style="max-width:520px;text-align:center;padding:24px"><div style="color:var(--red);font-size:14px">Enter a wallet address or Agent ID above</div></div>';
+    return;
+  }
 
   resultDiv.innerHTML = '<div class="card" style="text-align:center;padding:24px;color:var(--muted)">Looking up agent...</div>';
 
@@ -3655,6 +4533,96 @@ async function lookupAgent() {
 }
 
 // ══════════════════════════════════════
+// AGENT CREDIT SCORE
+// ══════════════════════════════════════
+var _lastCreditScore = null;
+
+async function loadCreditScore() {
+  var card = document.getElementById('credit-score-card');
+  var empty = document.getElementById('credit-score-empty');
+  if (!wallet) {
+    if (card) card.style.display = 'none';
+    if (empty) { empty.style.display = 'block'; empty.textContent = 'Connect your wallet to view your credit score'; }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (card) card.style.display = 'block';
+
+  try {
+    var data = await api('/api/public/credit-score/' + encodeURIComponent(wallet));
+    if (data.error) {
+      if (card) card.style.display = 'none';
+      if (empty) { empty.style.display = 'block'; empty.textContent = 'Could not compute credit score: ' + data.error; }
+      return;
+    }
+    _lastCreditScore = data;
+    var score = data.score || 0;
+    var grade = data.grade || 'C';
+
+    // Grade color
+    var gradeColor = 'var(--gold)';
+    if (score < 40) gradeColor = 'var(--red)';
+    else if (score < 60) gradeColor = 'var(--orange)';
+    else if (score >= 80) gradeColor = 'var(--green)';
+
+    // Score color
+    var scoreColor = 'var(--green)';
+    if (score < 40) scoreColor = 'var(--red)';
+    else if (score < 70) scoreColor = 'var(--orange)';
+
+    document.getElementById('cs-grade').style.color = gradeColor;
+    document.getElementById('cs-grade').textContent = grade;
+    document.getElementById('cs-score').style.color = scoreColor;
+    document.getElementById('cs-score').textContent = score;
+
+    // Components
+    var comp = data.components || {};
+    var compEl = document.getElementById('cs-components');
+    var compHTML = '';
+    var compLabels = {volume: 'Volume', activity: 'Activity', disputes: 'Disputes', age: 'Account Age'};
+    Object.keys(compLabels).forEach(function(key) {
+      var val = comp[key] || 0;
+      var pct = Math.min(100, Math.max(0, val));
+      var barColor = pct >= 70 ? 'var(--green)' : (pct >= 40 ? 'var(--orange)' : 'var(--red)');
+      compHTML += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+        '<span style="font-size:12px;color:var(--muted);width:80px">' + compLabels[key] + '</span>' +
+        '<div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">' +
+          '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:3px;transition:width .5s"></div>' +
+        '</div>' +
+        '<span style="font-size:11px;font-family:JetBrains Mono,monospace;color:' + barColor + ';width:32px;text-align:right">' + Math.round(pct) + '</span>' +
+      '</div>';
+    });
+    compEl.innerHTML = compHTML;
+  } catch (e) {
+    if (card) card.style.display = 'none';
+    if (empty) { empty.style.display = 'block'; empty.textContent = 'Error loading credit score'; }
+  }
+}
+
+function copyCreditScore() {
+  if (!_lastCreditScore) {
+    toast('No credit score data to copy', 'error');
+    return;
+  }
+  var exportData = {
+    wallet: _lastCreditScore.wallet,
+    score: _lastCreditScore.score,
+    grade: _lastCreditScore.grade,
+    components: _lastCreditScore.components,
+    computed_at: _lastCreditScore.computed_at,
+    signature: _lastCreditScore.signature,
+    platform: _lastCreditScore.platform,
+    platform_url: _lastCreditScore.platform_url,
+    verify_url: _lastCreditScore.platform_url + '/api/public/credit-score/verify'
+  };
+  navigator.clipboard.writeText(JSON.stringify(exportData, null, 2)).then(function() {
+    toast('Credit score JSON copied to clipboard', 'success');
+  }).catch(function() {
+    toast('Failed to copy — check browser permissions', 'error');
+  });
+}
+
+// ══════════════════════════════════════
 // EVM CHAIN BAR
 // ══════════════════════════════════════
 
@@ -3720,9 +4688,144 @@ window.addEventListener('hashchange', function() {
   }
 });
 
+// ══════════════════════════════════════
+// LIVE PRICES — fetch from API on load
+// ══════════════════════════════════════
+(async function fetchLivePrices() {
+  try {
+    var data = await api('/api/public/prices');
+    if (!data) return;
+
+    // Update GPU home card description with cheapest price from API
+    if (data.gpu_tiers && data.gpu_tiers.length > 0) {
+      var prices = data.gpu_tiers.map(function(g) {
+        return g.base_price_per_hour || g.price_per_hour_usdc || g.price_per_hour || g.price || 999;
+      });
+      var minPrice = Math.min.apply(null, prices);
+      var descEl = document.getElementById('gpu-home-desc');
+      if (descEl) {
+        descEl.textContent = 'RTX 3090 to B200. From $' + minPrice.toFixed(2) + '/h. Fine-tune LLMs.';
+      }
+    }
+
+    // Update stocks commission badge from API
+    if (data.stock_commission_tiers) {
+      var tiers = data.stock_commission_tiers;
+      var tierNames = Object.keys(tiers);
+      if (tierNames.length > 0) {
+        var bpsValues = tierNames.map(function(k) { return tiers[k].bps; });
+        var minBps = Math.min.apply(null, bpsValues);
+        var maxBps = Math.max.apply(null, bpsValues);
+        var badgeEl = document.getElementById('stocks-commission-badge');
+        if (badgeEl) {
+          badgeEl.textContent = (minBps / 100).toFixed(2) + '% - ' + (maxBps / 100).toFixed(2) + '% commission';
+        }
+      }
+    }
+
+    // Cache swap commission tiers for the tier progression bar
+    if (data.swap_commission_tiers) {
+      cachedSwapTiers = data.swap_commission_tiers;
+    }
+  } catch (e) {
+    console.warn('[Prices] Could not fetch live prices:', e);
+    // Leave "Loading..." text as-is — pages will fetch their own data
+  }
+})();
+
+// ══════════════════════════════════════
+// ONBOARDING OVERLAY (first-time users)
+// ══════════════════════════════════════
+function showOnboarding() {
+  if (localStorage.getItem('maxia_onboarded')) return;
+  var overlay = document.createElement('div');
+  overlay.id = 'onboarding-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:20000;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s ease;backdrop-filter:blur(4px)';
+  var steps = [
+    {
+      title: 'Welcome to MAXIA',
+      desc: 'Your AI agent can trade across 14 blockchains. Swap 71 tokens, buy 25 tokenized stocks, rent GPUs, find DeFi yields — all in USDC with the lowest fees.',
+      icon: '&#127758;'
+    },
+    {
+      title: 'Try a Swap',
+      desc: 'Pick any token from our 71 supported tokens and swap instantly. Jupiter for Solana, 1inch for EVM chains. Fees from 0.10% (Bronze) to 0.01% (Whale).',
+      icon: '&#128260;',
+      hint: '&#8592; Use the Swap tab in the sidebar to get started'
+    },
+    {
+      title: 'Explore Everything',
+      desc: 'GPU Rental at cost, DeFi Yield aggregator, Tokenized Stocks, Cross-Chain Bridge, NFT Minting, and 46 MCP tools — all accessible from the sidebar.',
+      icon: '&#128640;',
+      links: [
+        {label:'Swap', hash:'swap'},
+        {label:'GPU Rental', hash:'gpu'},
+        {label:'DeFi Yields', hash:'defi'},
+        {label:'Stocks', hash:'stocks'},
+        {label:'Bridge', hash:'bridge'}
+      ]
+    }
+  ];
+  var currentStep = 0;
+  function renderStep() {
+    var s = steps[currentStep];
+    var isLast = currentStep === steps.length - 1;
+    var html = '<div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:40px;max-width:480px;width:92%;animation:slideUp .3s ease;position:relative">';
+    // Step indicator
+    html += '<div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px">';
+    for (var i = 0; i < steps.length; i++) {
+      html += '<div style="width:' + (i===currentStep?'24':'8') + 'px;height:8px;border-radius:4px;background:' + (i===currentStep?'linear-gradient(135deg,var(--blue),var(--purple))':'rgba(255,255,255,.1)') + ';transition:all .3s"></div>';
+    }
+    html += '</div>';
+    html += '<div style="font-size:48px;text-align:center;margin-bottom:16px">' + s.icon + '</div>';
+    html += '<h2 style="font-size:24px;font-weight:700;text-align:center;margin-bottom:12px">' + s.title + '</h2>';
+    html += '<p style="color:var(--muted);font-size:15px;text-align:center;line-height:1.7;margin-bottom:20px">' + s.desc + '</p>';
+    if (s.hint) {
+      html += '<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:12px;text-align:center;font-size:14px;color:var(--cyan);margin-bottom:20px">' + s.hint + '</div>';
+    }
+    if (s.links) {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:20px">';
+      s.links.forEach(function(l) {
+        html += '<a onclick="dismissOnboarding();navigate(\''+l.hash+'\')" style="padding:8px 16px;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.2);border-radius:8px;color:var(--cyan);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s">' + l.label + '</a>';
+      });
+      html += '</div>';
+    }
+    html += '<div style="display:flex;gap:12px;justify-content:center">';
+    if (currentStep > 0) {
+      html += '<button onclick="onboardPrev()" style="padding:12px 24px;background:transparent;border:1px solid var(--muted2);border-radius:10px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif;transition:all .2s">Back</button>';
+    }
+    if (isLast) {
+      html += '<button onclick="dismissOnboarding()" style="padding:12px 32px;background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif;transition:all .2s">Got it</button>';
+    } else {
+      html += '<button onclick="onboardNext()" style="padding:12px 32px;background:linear-gradient(135deg,var(--blue),var(--purple));border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif;transition:all .2s">Next</button>';
+    }
+    html += '</div>';
+    // Skip link
+    if (!isLast) {
+      html += '<div style="text-align:center;margin-top:12px"><a onclick="dismissOnboarding()" style="color:var(--muted2);font-size:12px;cursor:pointer;transition:color .2s" onmouseover="this.style.color=\'var(--muted)\'" onmouseout="this.style.color=\'var(--muted2)\'">Skip intro</a></div>';
+    }
+    html += '</div>';
+    overlay.innerHTML = html;
+  }
+  window.onboardNext = function() { if (currentStep < steps.length - 1) { currentStep++; renderStep(); } };
+  window.onboardPrev = function() { if (currentStep > 0) { currentStep--; renderStep(); } };
+  window.dismissOnboarding = function() {
+    localStorage.setItem('maxia_onboarded', '1');
+    var el = document.getElementById('onboarding-overlay');
+    if (el) { el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }
+  };
+  renderStep();
+  document.body.appendChild(overlay);
+}
+
 // Init
 initFromHash();
 loadSwapTokens();
+// Init notification sound button state
+(function() {
+  var btn = document.getElementById('notif-sound-btn');
+  if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';
+})();
 </script>
 </body>
 </html>

@@ -89,7 +89,7 @@ That’s it. Your agent is now **earning USDC while you sleep**.
 
 ## Swap 50 Tokens, 2450 Pairs — Automatically
 
-MAXIA aggregates 50 tokens across 11 chains with **<0.05% average slippage** — better than Jupiter on most routes.
+MAXIA aggregates 50 tokens across 14 chains with **<0.05% average slippage** — better than Jupiter on most routes.
 
 But here’s the kicker: **your AI agent can swap tokens autonomously** using the `/swap` endpoint.
 

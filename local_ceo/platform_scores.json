@@ -1,0 +1,38 @@
+{
+  "twitter": {
+    "score": 9,
+    "trend": "+",
+    "actions": 25,
+    "successes": 24
+  },
+  "reddit": {
+    "score": 5,
+    "trend": "=",
+    "actions": 0,
+    "successes": 0
+  },
+  "github": {
+    "score": 8,
+    "trend": "+",
+    "actions": 9,
+    "successes": 8
+  },
+  "discord": {
+    "score": 5,
+    "trend": "=",
+    "actions": 0,
+    "successes": 0
+  },
+  "telegram": {
+    "score": 10,
+    "trend": "+",
+    "actions": 3,
+    "successes": 3
+  },
+  "email": {
+    "score": 10,
+    "trend": "+",
+    "actions": 3,
+    "successes": 3
+  }
+}

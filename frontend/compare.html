@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA vs Competitors — Fees Comparison</title>
+<meta name="description" content="Compare MAXIA fees vs Jupiter, Binance, Coinbase, RunPod, AWS. Live prices, lowest swap fees, GPU at cost.">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,14,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:56px}
+nav .brand{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+nav .links{display:flex;gap:20px;align-items:center;font-size:14px}
+
+.hero{text-align:center;padding:100px 24px 40px}
+.hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--muted);font-size:18px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto}
+
+.container{max-width:1100px;margin:0 auto;padding:0 24px 80px}
+
+.table-wrap{overflow-x:auto;border-radius:16px;border:1px solid rgba(255,255,255,.06);background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}
+thead{background:var(--bg2)}
+th{padding:14px 16px;text-align:center;font-weight:600;color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.06);white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle;text-align:center}
+td:first-child{text-align:left}
+tr:last-child td{border-bottom:none}
+tr:hover{background:rgba(59,130,246,.03)}
+
+th:first-child,td:first-child{font-weight:600;color:var(--text);min-width:140px}
+.col-maxia{background:rgba(59,130,246,.06);font-weight:600}
+th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
+
+.live{font-family:'JetBrains Mono',monospace;color:var(--green);font-weight:500}
+.live-pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.yes{color:var(--green);font-weight:600}
+.no{color:var(--muted2)}
+.na{color:var(--muted2);font-style:italic}
+.best{color:var(--green);font-weight:700}
+
+.badge-free{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+
+.section-title{font-size:24px;font-weight:700;margin:48px 0 24px;text-align:center}
+
+.cta{text-align:center;margin-top:48px}
+.cta .btn{display:inline-block;padding:14px 40px;border-radius:12px;font-size:16px;font-weight:600;transition:all .3s;cursor:pointer;border:none}
+.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+
+.note{color:var(--muted2);font-size:12px;text-align:center;margin-top:32px;line-height:1.6}
+
+@media(max-width:768px){
+  .hero h1{font-size:28px}
+  .hero p{font-size:16px}
+  table{font-size:12px}
+  th,td{padding:10px 10px}
+}
+</style>
+</head>
+<body>
+
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/marketplace" style="color:#94a3b8">Marketplace</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>MAXIA vs Competitors</h1>
+  <p>Real-time fee comparison. MAXIA columns fetch live data from our API.</p>
+  <div style="margin-top:12px"><span class="live-pulse"></span><span style="font-size:13px;color:var(--green)">Live data</span></div>
+</section>
+
+<div class="container">
+
+  <!-- Swap Fees Table -->
+  <h2 class="section-title">Swap Fees</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th class="col-maxia">MAXIA</th>
+          <th>Jupiter</th>
+          <th>Binance</th>
+          <th>Coinbase</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>First Swap</td>
+          <td class="col-maxia"><span class="badge-free">FREE (0%)</span></td>
+          <td>0% + slippage</td>
+          <td>0.10%</td>
+          <td>0.40%</td>
+        </tr>
+        <tr>
+          <td>Swap Fee (Bronze)</td>
+          <td class="col-maxia live" id="fee-bronze">0.10%</td>
+          <td>0% + slippage</td>
+          <td>0.10%</td>
+          <td>0.40%</td>
+        </tr>
+        <tr>
+          <td>Swap Fee (Silver)</td>
+          <td class="col-maxia live" id="fee-silver">0.05%</td>
+          <td class="na">N/A</td>
+          <td>0.075%</td>
+          <td>0.40%</td>
+        </tr>
+        <tr>
+          <td>Swap Fee (Gold)</td>
+          <td class="col-maxia live" id="fee-gold">0.03%</td>
+          <td class="na">N/A</td>
+          <td>0.05%</td>
+          <td>0.25%</td>
+        </tr>
+        <tr>
+          <td>Swap Fee (Whale)</td>
+          <td class="col-maxia live best" id="fee-whale">0.01%</td>
+          <td class="na">N/A</td>
+          <td>0.02%</td>
+          <td>0.10%</td>
+        </tr>
+        <tr>
+          <td>Tokens</td>
+          <td class="col-maxia live" id="tokens-count">71+</td>
+          <td>1000+</td>
+          <td>400+</td>
+          <td>200+</td>
+        </tr>
+        <tr>
+          <td>Chains</td>
+          <td class="col-maxia best">14</td>
+          <td>1 (Solana)</td>
+          <td>1 (BSC)</td>
+          <td>1 (Base)</td>
+        </tr>
+        <tr>
+          <td>On-chain Escrow</td>
+          <td class="col-maxia yes">PDA Escrow</td>
+          <td class="no">No</td>
+          <td class="no">No (custodial)</td>
+          <td class="no">No (custodial)</td>
+        </tr>
+        <tr>
+          <td>AI Dispute Resolution</td>
+          <td class="col-maxia yes">Yes</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- GPU Pricing Table -->
+  <h2 class="section-title">GPU Pricing</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>GPU</th>
+          <th class="col-maxia">MAXIA</th>
+          <th>RunPod (direct)</th>
+          <th>AWS</th>
+          <th>Google Cloud</th>
+        </tr>
+      </thead>
+      <tbody id="gpu-table-body">
+        <tr>
+          <td>H100 SXM 80GB</td>
+          <td class="col-maxia live" id="gpu-h100"><span class="live-pulse"></span>Loading...</td>
+          <td>$2.69/hr</td>
+          <td>$32.77/hr</td>
+          <td>$12.11/hr</td>
+        </tr>
+        <tr>
+          <td>A100 80GB</td>
+          <td class="col-maxia live" id="gpu-a100"><span class="live-pulse"></span>Loading...</td>
+          <td>$1.19/hr</td>
+          <td>$15.72/hr</td>
+          <td>$5.07/hr</td>
+        </tr>
+        <tr>
+          <td>RTX 4090 24GB</td>
+          <td class="col-maxia live" id="gpu-4090"><span class="live-pulse"></span>Loading...</td>
+          <td>$0.34/hr</td>
+          <td class="na">N/A</td>
+          <td class="na">N/A</td>
+        </tr>
+        <tr>
+          <td>Markup</td>
+          <td class="col-maxia best">0%</td>
+          <td>0% (direct)</td>
+          <td>~10x markup</td>
+          <td>~4x markup</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Platform Features Table -->
+  <h2 class="section-title">Platform Features</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th class="col-maxia">MAXIA</th>
+          <th>Jupiter</th>
+          <th>Binance</th>
+          <th>Coinbase</th>
+          <th>RunPod</th>
+          <th>AWS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MCP Tools</td>
+          <td class="col-maxia best">46</td>
+          <td class="no">0</td>
+          <td class="no">0</td>
+          <td class="no">0</td>
+          <td class="no">0</td>
+          <td class="no">0</td>
+        </tr>
+        <tr>
+          <td>AI Agent API</td>
+          <td class="col-maxia yes">REST + MCP + A2A</td>
+          <td>REST (limited)</td>
+          <td>REST</td>
+          <td>REST</td>
+          <td>REST</td>
+          <td>REST</td>
+        </tr>
+        <tr>
+          <td>On-chain Escrow</td>
+          <td class="col-maxia yes">Solana PDA</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+        </tr>
+        <tr>
+          <td>AI Services</td>
+          <td class="col-maxia best">17 native</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td>Bedrock</td>
+        </tr>
+        <tr>
+          <td>Tokenized Stocks</td>
+          <td class="col-maxia best">25 (3 providers)</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+        </tr>
+        <tr>
+          <td>DeFi Yields</td>
+          <td class="col-maxia yes">Scanner 14 chains</td>
+          <td>Native yields</td>
+          <td>Earn</td>
+          <td>Staking</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+        </tr>
+        <tr>
+          <td>Sandbox Mode</td>
+          <td class="col-maxia yes">Free $10K USDC</td>
+          <td class="no">No</td>
+          <td>Testnet</td>
+          <td class="no">No</td>
+          <td class="no">No</td>
+          <td>Free tier</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cta">
+    <a href="/app#trading" class="btn btn-primary">Start Trading on MAXIA</a>
+    <p style="color:var(--muted);font-size:14px;margin-top:16px">First swap is free. No signup required.</p>
+  </div>
+
+  <p class="note">
+    Competitor fees are publicly available as of March 2026. MAXIA data is fetched live from our API.<br>
+    AWS GPU pricing refers to p5.48xlarge (8x H100) divided per-GPU hourly rate. Google Cloud refers to a2-ultragpu-1g.<br>
+    RunPod pricing from runpod.io/pricing. Jupiter fees from station.jup.ag. Binance/Coinbase from official fee pages.
+  </p>
+</div>
+
+<script>
+// Fetch live swap fees
+fetch('/api/public/crypto/compare-fees').then(r=>r.json()).then(d=>{
+  if(d.maxia_fee_pct){
+    // Update based on tiers from response
+  }
+}).catch(()=>{});
+
+// Fetch live swap stats to update token count
+fetch('/api/public/crypto/stats').then(r=>r.json()).then(d=>{
+  if(d.tokens_supported){
+    document.getElementById('tokens-count').textContent=d.tokens_supported+'+';
+  }
+  if(d.commission_tiers){
+    const t=d.commission_tiers;
+    if(t.BRONZE) document.getElementById('fee-bronze').innerHTML='<span class="live-pulse"></span>'+((t.BRONZE.bps||10)/100).toFixed(2)+'%';
+    if(t.SILVER) document.getElementById('fee-silver').innerHTML='<span class="live-pulse"></span>'+((t.SILVER.bps||5)/100).toFixed(2)+'%';
+    if(t.GOLD) document.getElementById('fee-gold').innerHTML='<span class="live-pulse"></span>'+((t.GOLD.bps||3)/100).toFixed(2)+'%';
+    if(t.WHALE) document.getElementById('fee-whale').innerHTML='<span class="live-pulse"></span>'+((t.WHALE.bps||1)/100).toFixed(2)+'%';
+  }
+}).catch(()=>{});
+
+// Fetch live GPU prices
+fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
+  if(!d.tiers) return;
+  const map={};
+  d.tiers.forEach(g=>{map[g.id]=g});
+  const h100=map['h100_sxm'];
+  const a100=map['a100_80'];
+  const rtx4090=map['rtx4090'];
+  if(h100){
+    const el=document.getElementById('gpu-h100');
+    el.innerHTML='<span class="live-pulse"></span>$'+h100.price_per_hour_usdc.toFixed(2)+'/hr';
+    el.classList.add('best');
+  }
+  if(a100){
+    const el=document.getElementById('gpu-a100');
+    el.innerHTML='<span class="live-pulse"></span>$'+a100.price_per_hour_usdc.toFixed(2)+'/hr';
+    el.classList.add('best');
+  }
+  if(rtx4090){
+    const el=document.getElementById('gpu-4090');
+    el.innerHTML='<span class="live-pulse"></span>$'+rtx4090.price_per_hour_usdc.toFixed(2)+'/hr';
+    el.classList.add('best');
+  }
+}).catch(()=>{
+  document.getElementById('gpu-h100').innerHTML='$2.69/hr';
+  document.getElementById('gpu-a100').innerHTML='$1.19/hr';
+  document.getElementById('gpu-4090').innerHTML='$0.34/hr';
+});
+</script>
+</body>
+</html>

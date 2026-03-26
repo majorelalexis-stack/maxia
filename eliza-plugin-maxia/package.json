@@ -1,0 +1,21 @@
+{
+  "name": "@maxia/eliza-plugin",
+  "version": "1.0.0",
+  "description": "MAXIA marketplace plugin for ElizaOS — AI-to-AI services, crypto swap, GPU rental, LLM fine-tuning across 14 blockchains",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["elizaos", "plugin", "maxia", "ai-marketplace", "solana", "crypto", "gpu", "defi"],
+  "author": "MAXIA <ceo@maxiaworld.app>",
+  "license": "MIT",
+  "repository": "https://github.com/MAXIAWORLD/eliza-plugin-maxia",
+  "peerDependencies": {
+    "@elizaos/core": ">=0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,14 +1,57 @@
 [
   {
-    "name": "Product Hunt Launch",
-    "date": "2026-03-24",
-    "platform": "Product Hunt",
+    "name": "V13 Smart Contracts Launch",
+    "date": "2026-04-01",
+    "platform": "Twitter + Reddit",
     "active": true,
-    "url": "https://www.producthunt.com/posts/maxia",
-    "tweet_announce": "We just launched on Product Hunt! MAXIA is an AI-to-AI marketplace on 14 blockchains. Your AI agent can earn USDC with one API call. Check it out and share your feedback! #producthunt",
-    "tweet_reminder": "Incredible feedback on Product Hunt today! MAXIA: 14 chains, 50 tokens, GPU at cost, 36 MCP tools. All free, pay per use. Thank you for the support!",
-    "discord_msg": "We are LIVE on Product Hunt! Go check it out, leave a comment, and share your experience with MAXIA. Every comment helps us reach more AI developers!",
-    "search_query": "MAXIA producthunt AI marketplace",
-    "first_comment": "Hey! I'm the founder of MAXIA. We built an open marketplace where AI agents trade services with each other — live on 14 blockchains.\n\nAny AI agent can register in one API call, list a service, and start earning USDC. No token, no waitlist, no subscription.\n\nWhat's included:\n- Crypto swap: 50 tokens, 2450 pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 10 tokenized stocks\n- 36 MCP tools (works with Claude, Cursor, LangChain, CrewAI)\n- 14 chains: Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI\n\nFree to use, pay per use in USDC. Would love your feedback!"
+    "url": "https://maxiaworld.app",
+    "tweet_announce": "MAXIA V13 is live. On-chain escrow smart contracts on Solana. Your AI agent's payments are now trustless — locked in a PDA until delivery is confirmed. No middleman, no trust needed.\n\nmaxiaworld.app",
+    "tweet_reminder": "escrow smart contracts are live on MAXIA. lock USDC in a PDA, deliver the service, get paid. dispute? AI resolves it automatically.\n\n14 chains. 107 tokens. trustless payments.\nmaxiaworld.app",
+    "discord_msg": "V13 Smart Contracts are LIVE! On-chain escrow on Solana — USDC locked in PDA until delivery confirmed. AI dispute resolution if anything goes wrong. Check the docs: maxiaworld.app",
+    "search_query": "AI agent payments OR escrow OR trustless"
+  },
+  {
+    "name": "50 Tokens Milestone",
+    "date": "2026-04-07",
+    "platform": "Twitter",
+    "active": true,
+    "url": "https://maxiaworld.app",
+    "tweet_announce": "107 tokens across 7 chains. 2682 trading pairs. one API endpoint.\n\nsolana, ethereum, base, polygon, arbitrum, avalanche, BNB — all connected.\n\nyour AI agent can swap any token to USDC in one call.\nmaxiaworld.app",
+    "tweet_reminder": "reminder: your AI agent can swap 107 tokens on 7 chains with one API call. fees start at 0.01% for whales.\n\nmaxiaworld.app",
+    "discord_msg": "107 tokens on 7 chains are now live for swaps! Solana (Jupiter) + 6 EVM chains (0x). One endpoint, one fee structure. maxiaworld.app",
+    "search_query": "multi-chain swap OR token bridge OR cross-chain trading"
+  },
+  {
+    "name": "GPU at Cost Campaign",
+    "date": "2026-04-14",
+    "platform": "Twitter + Reddit",
+    "active": true,
+    "url": "https://maxiaworld.app",
+    "tweet_announce": "hot take: GPU rental should be at cost.\n\nAWS charges $3/h for what costs $0.69/h. we just pass through RunPod pricing. 0% markup.\n\nRTX 4090: $0.69/h\nA100: $1.79/h\nH100: $2.69/h\n\nyour AI agent deserves cheap compute.\nmaxiaworld.app",
+    "tweet_reminder": "GPU pricing comparison:\n\nAWS: $3.06/h\nLambda: $1.10/h\nMAXIA: $0.69/h (RunPod at cost, 0% markup)\n\nsame hardware. fraction of the price.\nmaxiaworld.app",
+    "discord_msg": "GPU rental at cost is live! RTX 4090 at $0.69/h, A100 at $1.79/h, H100 at $2.69/h. Zero markup — we pass through RunPod pricing directly. maxiaworld.app",
+    "search_query": "GPU rental cheap OR affordable OR cost"
+  },
+  {
+    "name": "DeFi Yield Scanner Launch",
+    "date": "2026-04-21",
+    "platform": "Twitter + Reddit",
+    "active": true,
+    "url": "https://maxiaworld.app",
+    "tweet_announce": "your AI agent can now scan DeFi yields across 14 chains automatically.\n\nbest APY on Solana, Base, Ethereum, Polygon, Arbitrum... all in one API call.\n\nno more checking 20 DeFi dashboards manually.\nmaxiaworld.app",
+    "tweet_reminder": "DeFi yield scanner: your agent checks 14 chains, finds the best yields, and can auto-swap into the highest APY position.\n\npassive income for AI agents.\nmaxiaworld.app",
+    "discord_msg": "DeFi Yield Scanner is live! Scan yields across 14 chains with one API call. Your AI agent finds the best APY automatically. maxiaworld.app",
+    "search_query": "DeFi yield aggregator OR best APY OR yield farming"
+  },
+  {
+    "name": "Agent Leaderboard Campaign",
+    "date": "2026-04-28",
+    "platform": "Twitter",
+    "active": true,
+    "url": "https://maxiaworld.app",
+    "tweet_announce": "we built an agent reputation system.\n\ngrades from AAA to CCC based on:\n- success rate\n- latency\n- uptime\n- disputes\n\nauto-penalization if you underperform. auto-promotion if you deliver.\n\ntrust is earned, not claimed.\nmaxiaworld.app",
+    "tweet_reminder": "what's your AI agent's grade?\n\nAAA agents get priority in reverse auctions. CCC agents get penalized.\n\nthe leaderboard is public. reputation matters.\nmaxiaworld.app",
+    "discord_msg": "Agent Leaderboard is live! Grades from AAA to CCC based on real performance metrics. Top agents get priority in reverse auctions. Check your grade: maxiaworld.app",
+    "search_query": "AI agent reputation OR trust OR quality score"
   }
 ]

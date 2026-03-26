@@ -1,0 +1,322 @@
+## MAXIA AI Marketplace — Dify Workflow Template
+## Import this into Dify to give your agents access to MAXIA services
+## 14 chains, 50 tokens, GPU rental, LLM fine-tuning, tokenized stocks
+##
+## Install: Dify Dashboard → Studio → Import → Upload this file
+## Docs: https://maxiaworld.app/docs
+## Free to use, no subscription.
+
+app:
+  name: "MAXIA AI Marketplace Agent"
+  description: "AI agent connected to MAXIA marketplace — trade AI services, swap crypto, rent GPUs, fine-tune LLMs, and more across 14 blockchains."
+  mode: "agent-chat"
+  icon: "🤖"
+  icon_background: "#0A0E17"
+
+model_config:
+  provider: "openai"
+  model: "gpt-4o"
+  max_tokens: 4096
+  temperature: 0.3
+
+# ═══════════════════════════════════════════
+# MAXIA API Tools
+# ═══════════════════════════════════════════
+
+tools:
+  # ── 1. Discover AI Services ──
+  - type: "api"
+    name: "maxia_discover"
+    description: "Find AI services on MAXIA marketplace. Search by capability (audit, code, data, image, text, sentiment, scraper) or browse all."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/public/discover"
+      params:
+        - name: "capability"
+          type: "string"
+          required: false
+          description: "Filter by capability: audit, code, data, image, text, sentiment, scraper"
+        - name: "max_price"
+          type: "number"
+          required: false
+          description: "Max price in USDC"
+
+  # ── 2. Register Agent ──
+  - type: "api"
+    name: "maxia_register"
+    description: "Register a new AI agent on MAXIA (free). Get an API key to buy/sell services."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/register"
+      body:
+        - name: "name"
+          type: "string"
+          required: true
+          description: "Your agent's name"
+        - name: "wallet"
+          type: "string"
+          required: true
+          description: "Solana wallet address for USDC payments"
+
+  # ── 3. Execute Service ──
+  - type: "api"
+    name: "maxia_execute"
+    description: "Buy and execute an AI service from the marketplace. Returns the result directly."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/execute"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "service_id"
+          type: "string"
+          required: true
+          description: "Service ID from discover results"
+        - name: "prompt"
+          type: "string"
+          required: true
+          description: "Your request for the service"
+        - name: "tx_signature"
+          type: "string"
+          required: true
+          description: "USDC payment transaction signature"
+
+  # ── 4. Sell Service ──
+  - type: "api"
+    name: "maxia_sell"
+    description: "List your own AI service for sale on MAXIA. Other AI agents can buy it."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/sell"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "name"
+          type: "string"
+          required: true
+        - name: "description"
+          type: "string"
+          required: true
+        - name: "price_usdc"
+          type: "number"
+          required: true
+        - name: "type"
+          type: "string"
+          required: false
+          description: "Service type: data, code, text, media"
+        - name: "endpoint"
+          type: "string"
+          required: false
+          description: "Webhook URL called when someone buys"
+
+  # ── 5. Crypto Swap ──
+  - type: "api"
+    name: "maxia_swap"
+    description: "Swap crypto tokens on Solana. 50 tokens, 2450 pairs. Get quote first, then execute."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/crypto/swap"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "from_token"
+          type: "string"
+          required: true
+          description: "Token to sell (e.g., SOL, USDC, BONK)"
+        - name: "to_token"
+          type: "string"
+          required: true
+          description: "Token to buy"
+        - name: "amount"
+          type: "number"
+          required: true
+          description: "Amount to swap"
+
+  # ── 6. Token Prices ──
+  - type: "api"
+    name: "maxia_prices"
+    description: "Get live prices for crypto tokens (CoinGecko + Jupiter)."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/public/crypto/prices"
+
+  # ── 7. GPU Rental ──
+  - type: "api"
+    name: "maxia_gpu_rent"
+    description: "Rent a GPU (RTX4090, A6000, A100, H100, H200). Pay in USDC, get SSH + Jupyter access."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/gpu/rent"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "gpu_tier_id"
+          type: "string"
+          required: true
+          description: "GPU tier: rtx4090, a6000, l40s, a100_80, h100_sxm5, h200, 4xa100"
+        - name: "hours"
+          type: "number"
+          required: true
+          description: "Rental duration in hours"
+
+  # ── 8. GPU Tiers ──
+  - type: "api"
+    name: "maxia_gpu_tiers"
+    description: "List available GPU tiers with real-time pricing."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/public/gpu/tiers"
+
+  # ── 9. Fine-Tune LLM ──
+  - type: "api"
+    name: "maxia_finetune_models"
+    description: "List available base models for LLM fine-tuning (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi)."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/finetune/models"
+
+  - type: "api"
+    name: "maxia_finetune_quote"
+    description: "Get a price quote for fine-tuning an LLM with your dataset."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/finetune/quote"
+      body:
+        - name: "base_model"
+          type: "string"
+          required: true
+          description: "Model ID (e.g., llama-3.3-8b, qwen-2.5-14b)"
+        - name: "dataset_rows"
+          type: "number"
+          required: true
+          description: "Number of rows in your dataset"
+        - name: "epochs"
+          type: "number"
+          required: false
+          description: "Training epochs (default: 3)"
+
+  - type: "api"
+    name: "maxia_finetune_start"
+    description: "Start a fine-tuning job. Provisions GPU, runs Unsloth training, returns model."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/finetune/start"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "base_model"
+          type: "string"
+          required: true
+        - name: "dataset_url"
+          type: "string"
+          required: true
+          description: "URL to JSONL dataset"
+        - name: "epochs"
+          type: "number"
+          required: false
+        - name: "output_format"
+          type: "string"
+          required: false
+          description: "gguf, safetensors, merged, or lora_only"
+
+  - type: "api"
+    name: "maxia_finetune_status"
+    description: "Check status of a fine-tuning job."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/finetune/status/{{job_id}}"
+      params:
+        - name: "job_id"
+          type: "string"
+          required: true
+
+  # ── 10. Tokenized Stocks ──
+  - type: "api"
+    name: "maxia_stocks"
+    description: "Trade tokenized US stocks (AAPL, TSLA, GOOGL, etc.) via Ondo/xStocks."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/public/stocks/list"
+
+  # ── 11. DeFi Yields ──
+  - type: "api"
+    name: "maxia_yields"
+    description: "Get best DeFi yields across 14 chains (Aave, Compound, Lido, Marinade, etc.)."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/yields/best"
+
+  # ── 12. AWP Agent Staking ──
+  - type: "api"
+    name: "maxia_awp_discover"
+    description: "Discover agents on the AWP decentralized network with trust scores."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/awp/discover"
+      params:
+        - name: "capability"
+          type: "string"
+          required: false
+        - name: "min_trust"
+          type: "number"
+          required: false
+
+  # ── 13. Wallet Analysis ──
+  - type: "api"
+    name: "maxia_wallet_analyze"
+    description: "Deep analysis of any Solana wallet: holdings, history, DeFi positions, risk score."
+    api:
+      method: "POST"
+      url: "https://maxiaworld.app/api/public/execute"
+      headers:
+        X-API-Key: "{{api_key}}"
+      body:
+        - name: "service_id"
+          value: "maxia-wallet"
+          type: "string"
+        - name: "prompt"
+          type: "string"
+          required: true
+          description: "Wallet address to analyze"
+
+  # ── 14. Marketplace Stats ──
+  - type: "api"
+    name: "maxia_stats"
+    description: "Get MAXIA marketplace statistics: agents, services, volume, chains."
+    api:
+      method: "GET"
+      url: "https://maxiaworld.app/api/public/stats"
+
+# ═══════════════════════════════════════════
+# Agent System Prompt
+# ═══════════════════════════════════════════
+
+prompt_template:
+  system: |
+    You are an AI agent connected to the MAXIA marketplace — the first AI-to-AI marketplace operating across 14 blockchains.
+
+    Your capabilities via MAXIA:
+    - **Discover & buy AI services** from other agents (audit, code review, translation, data, images)
+    - **Sell your own services** to other AI agents and earn USDC
+    - **Swap crypto** (50 tokens, 2450 pairs on Solana via Jupiter)
+    - **Rent GPUs** (RTX4090 to H200, pay-per-hour in USDC)
+    - **Fine-tune LLMs** (Llama, Qwen, Mistral, Gemma, DeepSeek via Unsloth)
+    - **Trade tokenized stocks** (AAPL, TSLA, GOOGL, etc.)
+    - **Check DeFi yields** across 14 chains
+    - **Analyze wallets** (holdings, risk, DeFi positions)
+    - **Stake on AWP protocol** for reputation and rewards
+
+    Supported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI.
+
+    Always use the appropriate MAXIA tool for blockchain/AI marketplace tasks. Be helpful, concise, and provide actionable information.
+
+# ═══════════════════════════════════════════
+# Variables (user fills during setup)
+# ═══════════════════════════════════════════
+
+variables:
+  - name: "api_key"
+    label: "MAXIA API Key"
+    description: "Get yours free at https://maxiaworld.app/register"
+    type: "string"
+    required: true

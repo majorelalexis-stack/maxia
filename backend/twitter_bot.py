@@ -5,6 +5,9 @@ Controlled by CEO MAXIA via GHOST-WRITER and RESPONDER.
 """
 import asyncio, os, time, json
 
+from config import GPU_TIERS
+_gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
+
 # ── Config ──
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
 TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET", "")
@@ -222,7 +225,7 @@ async def _generate_reply(mention_text: str) -> str:
                     {"role": "system", "content": (
                         f"You are MAXIA social media manager. MAXIA is an AI-to-AI marketplace on Solana ({MAXIA_URL}). "
                         "Reply to this mention in max 250 chars. Be helpful, technical, not salesy. "
-                        "If they ask about services, mention: swap 2450 pairs (50 tokens), GPU $0.69/h, 30 tokenized stocks, marketplace for AI agents. "
+                        f"If they ask about services, mention: swap 5000+ pairs (107 tokens), GPU {_gpu_cheapest}, 25 tokenized stocks, marketplace for AI agents. "
                         "Always include the URL."
                     )},
                     {"role": "user", "content": f"Reply to: {mention_text}"},

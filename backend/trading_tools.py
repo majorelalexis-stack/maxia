@@ -635,6 +635,7 @@ class AlertCreate(BaseModel):
     target_price: float
     wallet: str
     webhook_url: Optional[str] = None
+    telegram_chat_id: Optional[str] = None  # Client's own Telegram chat ID for notifications
 
 
 class FollowWallet(BaseModel):
@@ -697,22 +698,133 @@ async def get_whale_movements(
 
 
 # ══════════════════════════════════════════════════
-# ── 2. OHLCV CANDLES ──
+# ── 2. OHLCV CANDLES (DexPaprika — real DEX data) ──
 # ══════════════════════════════════════════════════
+
+# Token symbol → Solana mint address mapping (reuse from crypto_swap)
+_TOKEN_MINTS: dict[str, str] = {
+    "SOL": "So11111111111111111111111111111111111111112",
+    "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "USDT": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "BONK": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "JUP": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    "RAY": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+    "WIF": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+    "RENDER": "rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof",
+    "TRUMP": "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
+    "PYTH": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+    "W": "85VBFQZC9TZkfaptBWjvUw7YbZjy52A6mjtPGjstQAmQ",
+    "ORCA": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+}
+
+# DexPaprika pool cache: token_mint -> pool_address
+_pool_cache: dict[str, dict] = {}  # mint -> {"pool": str, "ts": float}
+_POOL_CACHE_TTL = 3600  # 1 hour
+
+DEXPAPRIKA_BASE = "https://api.dexpaprika.com"
+
+# DexPaprika interval mapping (no 4h, use 6h)
+_INTERVAL_MAP = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "6h", "6h": "6h", "1d": "24h"}
+
+
+async def _resolve_pool(token: str, network: str = "solana") -> str:
+    """Resolve a token symbol to its top DexPaprika pool address."""
+    # Try to get mint address
+    mint = _TOKEN_MINTS.get(token.upper())
+    if not mint:
+        # Try loading from crypto_swap
+        try:
+            from crypto_swap import SUPPORTED_TOKENS
+            for t in SUPPORTED_TOKENS:
+                if t.get("symbol", "").upper() == token.upper():
+                    mint = t.get("mint", "")
+                    break
+        except Exception:
+            pass
+    if not mint:
+        return ""
+
+    # Check cache
+    cached = _pool_cache.get(mint)
+    if cached and time.time() - cached["ts"] < _POOL_CACHE_TTL:
+        return cached["pool"]
+
+    # Fetch top pool from DexPaprika
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{DEXPAPRIKA_BASE}/networks/{network}/tokens/{mint}/pools", params={"limit": 1})
+            if resp.status_code == 200:
+                data = resp.json()
+                pools = data.get("pools", data) if isinstance(data, dict) else data
+                if pools and len(pools) > 0:
+                    pool_id = pools[0].get("id", "")
+                    if pool_id:
+                        _pool_cache[mint] = {"pool": pool_id, "ts": time.time()}
+                        print(f"[DexPaprika] {token} -> pool {pool_id[:20]}...")
+                        return pool_id
+    except Exception as e:
+        print(f"[DexPaprika] Pool resolve error for {token}: {e}")
+    return ""
+
 
 @router.get("/candles/{token}")
 async def get_candles(
     token: str,
-    interval: str = Query("1h", description="Intervalle: 1m, 5m, 15m, 1h, 4h, 1d"),
-    limit: int = Query(24, ge=1, le=500, description="Nombre de candles"),
+    interval: str = Query("1h", description="Intervalle: 1m, 5m, 15m, 1h, 6h, 1d"),
+    limit: int = Query(48, ge=1, le=366, description="Nombre de candles"),
 ):
-    """Retourne les candles OHLCV pour un token."""
+    """Real OHLCV candles from DexPaprika (DEX data). Fallback to CoinGecko synthetic."""
     token = token.upper()
-    valid_intervals = ["1m", "5m", "15m", "1h", "4h", "1d"]
-    if interval not in valid_intervals:
-        raise HTTPException(400, f"Intervalle invalide: {interval}. Valides: {valid_intervals}")
+    dex_interval = _INTERVAL_MAP.get(interval, "1h")
 
-    # Recuperer le prix actuel et stocker un snapshot
+    # Try DexPaprika first (real DEX candles)
+    pool = await _resolve_pool(token)
+    if pool:
+        try:
+            # Calculate start date based on interval and limit
+            interval_seconds = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "6h": 21600, "24h": 86400}
+            secs = interval_seconds.get(dex_interval, 3600) * limit
+            start_ts = int(time.time() - secs)
+            start_date = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(start_ts))
+
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    f"{DEXPAPRIKA_BASE}/networks/solana/pools/{pool}/ohlcv",
+                    params={"start": start_date, "interval": dex_interval, "limit": min(limit, 366)},
+                )
+                if resp.status_code == 200:
+                    raw = resp.json()
+                    if raw and len(raw) > 0:
+                        candles = []
+                        for c in raw:
+                            # Parse ISO timestamp to unix
+                            ts_str = c.get("time_open", "")
+                            try:
+                                from datetime import datetime
+                                ts = int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp())
+                            except Exception:
+                                ts = 0
+                            candles.append({
+                                "timestamp": ts,
+                                "open": c.get("open", 0),
+                                "high": c.get("high", 0),
+                                "low": c.get("low", 0),
+                                "close": c.get("close", 0),
+                                "volume": c.get("volume", 0),
+                            })
+                        # Get current price
+                        current_price = candles[-1]["close"] if candles else 0
+                        return {
+                            "token": token, "interval": interval,
+                            "current_price": current_price,
+                            "candles_count": len(candles),
+                            "source": "dexpaprika",
+                            "candles": candles,
+                        }
+        except Exception as e:
+            print(f"[DexPaprika] OHLCV error for {token}: {e}")
+
+    # Fallback: CoinGecko + synthetic candles
     try:
         prices = await get_prices([token])
         price_data = prices.get(token, {})
@@ -729,10 +841,10 @@ async def get_candles(
 
     candles = _build_candles(token, interval, limit)
     return {
-        "token": token,
-        "interval": interval,
+        "token": token, "interval": interval,
         "current_price": current_price,
         "candles_count": len(candles),
+        "source": "coingecko_synthetic",
         "candles": candles,
     }
 
@@ -852,11 +964,18 @@ async def create_alert(req: AlertCreate):
         "current_price": current_price,
         "wallet": req.wallet,
         "webhook_url": req.webhook_url,
+        "telegram_chat_id": req.telegram_chat_id,
         "triggered": triggered,
+        "notified": False,
         "created_at": int(now),
         "updated_at": int(now),
     }
     _alerts[alert_id] = alert
+
+    # If already triggered at creation, notify immediately
+    if triggered:
+        await _notify_alert(alert)
+
     return alert
 
 
@@ -904,90 +1023,200 @@ async def delete_alert(alert_id: str):
 
 
 # ══════════════════════════════════════════════════
-# ── 5. PORTFOLIO TRACKER ──
+# ── 5. TOKEN RISK ANALYSIS (Rug Pull Detection) ──
 # ══════════════════════════════════════════════════
 
-@router.get("/portfolio/{address}")
-async def get_portfolio(
-    address: str,
-    chains: str = Query("solana", description="Chains separees par virgule"),
-):
-    """Agregation du portfolio multi-chain avec valeurs en USD."""
-    chain_list = [c.strip().lower() for c in chains.split(",")]
-    for c in chain_list:
-        if c not in SUPPORTED_CHAINS:
-            raise HTTPException(400, f"Chain non supportee: {c}. Supportees: {SUPPORTED_CHAINS}")
+@router.get("/token-risk/{mint}")
+async def get_token_risk(mint: str):
+    """Analyze token risk (rug pull score) for a Solana token mint address."""
+    if not mint or len(mint) < 20:
+        raise HTTPException(400, "Valid Solana mint address required")
 
-    # Recuperer les prix
+    risk_score = 0  # 0 = safe, 100 = high risk
+    flags = []
+    info = {}
+
     try:
-        all_prices = await get_prices()
-    except Exception:
-        all_prices = {s: {"price": p, "source": "fallback"} for s, p in FALLBACK_PRICES.items()}
-
-    # Generer des holdings realistes (simules — les vrais soldes
-    # necessitent des appels RPC specifiques par chain)
-    rng = random.Random(f"{address}:{','.join(sorted(chain_list))}")
-    holdings = []
-    total_value = 0.0
-
-    tokens_by_chain = {
-        "solana": ["SOL", "USDC", "BONK", "JUP", "RAY"],
-        "base": ["ETH", "USDC"],
-        "ethereum": ["ETH", "USDC", "USDT"],
-        "xrp": ["USDC"],
-        "polygon": ["USDC", "USDT"],
-        "arbitrum": ["ETH", "USDC"],
-        "avalanche": ["USDC", "USDT"],
-        "bnb": ["USDC", "USDT"],
-        "ton": ["USDT"],
-        "sui": ["USDC"],
-        "tron": ["USDT", "USDC"],
-        "near": ["USDC"],
-        "aptos": ["USDC"],
-        "sei": ["USDC"],
-    }
-
-    for chain in chain_list:
-        chain_tokens = tokens_by_chain.get(chain, ["USDC"])
-        for token in chain_tokens:
-            price_data = all_prices.get(token, {})
-            price = price_data.get("price", FALLBACK_PRICES.get(token, 0))
-            if price <= 0:
-                continue
-            # Balance simulee realiste
-            if token in ("USDC", "USDT"):
-                balance = round(rng.uniform(10, 10_000), 2)
-            elif token in ("SOL", "ETH"):
-                balance = round(rng.uniform(0.1, 50), 4)
-            elif token == "BTC":
-                balance = round(rng.uniform(0.001, 1), 6)
-            else:
-                balance = round(rng.uniform(1, 100_000), 4)
-
-            value_usd = round(balance * price, 2)
-            total_value += value_usd
-            holdings.append({
-                "token": token,
-                "chain": chain,
-                "balance": balance,
-                "price_usd": price,
-                "value_usd": value_usd,
-                "source": price_data.get("source", "fallback"),
+        from config import get_rpc_url
+        rpc_url = get_rpc_url()
+        async with httpx.AsyncClient(timeout=15) as client:
+            # 1. Check token supply and decimals
+            resp = await client.post(rpc_url, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getAccountInfo",
+                "params": [mint, {"encoding": "jsonParsed"}],
             })
+            if resp.status_code == 200:
+                result = resp.json().get("result", {})
+                value = result.get("value")
+                if not value:
+                    return {"mint": mint, "risk_score": 100, "risk_level": "UNKNOWN",
+                            "flags": ["Token account not found"], "info": {}}
+                parsed = value.get("data", {}).get("parsed", {}).get("info", {})
+                supply = int(parsed.get("supply", 0))
+                decimals = parsed.get("decimals", 0)
+                mint_authority = parsed.get("mintAuthority")
+                freeze_authority = parsed.get("freezeAuthority")
 
-    holdings.sort(key=lambda x: x["value_usd"], reverse=True)
+                info["supply"] = supply
+                info["decimals"] = decimals
+                info["mint_authority"] = mint_authority
+                info["freeze_authority"] = freeze_authority
+
+                # Risk checks
+                if mint_authority:
+                    risk_score += 30
+                    flags.append("Mint authority active — creator can mint more tokens")
+                if freeze_authority:
+                    risk_score += 20
+                    flags.append("Freeze authority active — creator can freeze your tokens")
+                if supply == 0:
+                    risk_score += 25
+                    flags.append("Zero supply")
+
+            # 2. Check largest holders (top holder concentration)
+            resp2 = await client.post(rpc_url, json={
+                "jsonrpc": "2.0", "id": 2,
+                "method": "getTokenLargestAccounts",
+                "params": [mint],
+            })
+            if resp2.status_code == 200:
+                holders = resp2.json().get("result", {}).get("value", [])
+                if holders and supply > 0:
+                    top_holder_pct = int(holders[0].get("amount", "0")) / supply * 100
+                    top3_pct = sum(int(h.get("amount", "0")) for h in holders[:3]) / supply * 100
+                    info["top_holder_pct"] = round(top_holder_pct, 2)
+                    info["top3_holders_pct"] = round(top3_pct, 2)
+                    info["total_holders"] = len(holders)
+
+                    if top_holder_pct > 50:
+                        risk_score += 30
+                        flags.append(f"Top holder owns {top_holder_pct:.1f}% — extreme concentration")
+                    elif top_holder_pct > 20:
+                        risk_score += 15
+                        flags.append(f"Top holder owns {top_holder_pct:.1f}% — high concentration")
+                    if top3_pct > 80:
+                        risk_score += 10
+                        flags.append(f"Top 3 hold {top3_pct:.1f}% — whale-dominated")
+                elif not holders:
+                    risk_score += 20
+                    flags.append("No token holders found")
+
+    except Exception as e:
+        flags.append(f"Analysis error: {str(e)[:100]}")
+        risk_score = 50  # Unknown = moderate risk
+
+    risk_score = min(100, risk_score)
+    risk_level = "LOW" if risk_score < 30 else "MEDIUM" if risk_score < 60 else "HIGH"
+    if not flags:
+        flags.append("No risk flags detected")
+
     return {
-        "address": address,
-        "chains": chain_list,
-        "total_value_usd": round(total_value, 2),
-        "holdings_count": len(holdings),
-        "holdings": holdings,
-        "note": "Balances estimees — connecter un wallet pour les soldes reels",
+        "mint": mint,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "flags": flags,
+        "info": info,
+        "recommendation": "SAFE" if risk_score < 30 else "CAUTION" if risk_score < 60 else "AVOID",
     }
 
 
 # ══════════════════════════════════════════════════
-# ── 6. TECHNICAL SIGNALS ──
+# ── 6. ALERT NOTIFICATION SYSTEM ──
+# ══════════════════════════════════════════════════
+
+async def _notify_alert(alert: dict):
+    """Send notification to client via Telegram and/or webhook. NEVER sends to Alexis."""
+    if alert.get("notified"):
+        return
+    token = alert["token"]
+    price = alert["current_price"]
+    condition = alert["condition"]
+    target = alert["target_price"]
+    msg = f"MAXIA Price Alert: {token} is now ${price:,.4f} ({condition} ${target:,.4f})"
+
+    # Telegram notification to CLIENT's chat_id (NOT the founder's)
+    chat_id = alert.get("telegram_chat_id")
+    if chat_id:
+        try:
+            # Use a separate bot token for client notifications if available, else the main one
+            import os
+            bot_token = os.getenv("TELEGRAM_CLIENT_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
+            if bot_token:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.post(
+                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                        json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+                    )
+                    print(f"[Alerts] Telegram sent to {chat_id}: {token} {condition} {target}")
+        except Exception as e:
+            print(f"[Alerts] Telegram error: {e}")
+
+    # Webhook notification
+    webhook = alert.get("webhook_url")
+    if webhook:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(webhook, json={
+                    "alert_id": alert["alert_id"],
+                    "token": token, "price": price,
+                    "condition": condition, "target_price": target,
+                    "message": msg,
+                })
+                print(f"[Alerts] Webhook sent to {webhook[:50]}: {token}")
+        except Exception as e:
+            print(f"[Alerts] Webhook error: {e}")
+
+    alert["notified"] = True
+
+
+async def alert_checker_worker():
+    """Background worker — checks all alerts every 60s and notifies clients.
+    Call this from main.py lifespan: asyncio.create_task(alert_checker_worker())
+    """
+    while True:
+        try:
+            await asyncio.sleep(60)
+            if not _alerts:
+                continue
+
+            # Get prices for all tokens with active alerts
+            active = [a for a in _alerts.values() if not a.get("triggered") or not a.get("notified")]
+            if not active:
+                continue
+
+            tokens = list({a["token"] for a in active})
+            try:
+                prices = await get_prices(tokens)
+            except Exception:
+                continue
+
+            for alert in active:
+                price_data = prices.get(alert["token"], {})
+                current = price_data.get("price", 0)
+                if not current:
+                    continue
+
+                alert["current_price"] = current
+                alert["updated_at"] = int(time.time())
+
+                was_triggered = alert.get("triggered", False)
+                triggered = (
+                    (alert["condition"] == "above" and current >= alert["target_price"]) or
+                    (alert["condition"] == "below" and current <= alert["target_price"])
+                )
+                alert["triggered"] = triggered
+
+                # Notify on new trigger only
+                if triggered and not was_triggered:
+                    await _notify_alert(alert)
+
+        except Exception as e:
+            print(f"[Alerts] Worker error: {e}")
+
+
+# ══════════════════════════════════════════════════
+# ── 7. TECHNICAL SIGNALS ──
 # ══════════════════════════════════════════════════
 
 @router.get("/signals/{token}")

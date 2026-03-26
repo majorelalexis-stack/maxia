@@ -1,6 +1,6 @@
 """MAXIA Auth V12 - Signature Solana ed25519 + anti-replay"""
 import os, time, secrets, hashlib, hmac
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
@@ -144,8 +144,30 @@ async def verify_signature(req: AuthRequest):
     if len(_USED_NONCES) > _USED_NONCES_MAX:
         _cleanup_used_nonces()
 
+    # Detecter premier login (nouveau wallet)
+    first_login = False
+    try:
+        from database import db
+        rows = await db.raw_execute_fetchall(
+            "SELECT 1 FROM agents WHERE wallet=? LIMIT 1", (req.wallet,)
+        )
+        if not rows:
+            first_login = True
+            # Notifier Alexis via Telegram
+            try:
+                from alerts import _send_private
+                await _send_private(
+                    f"\U0001f195 <b>Nouveau wallet connecte</b>\n\n"
+                    f"Wallet : <code>{req.wallet[:8]}...{req.wallet[-4:]}</code>\n"
+                    f"Premier login detecte."
+                )
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     token = create_session_token(req.wallet)
-    return {"ok": True, "wallet": req.wallet, "session_token": token}
+    return {"ok": True, "wallet": req.wallet, "session_token": token, "first_login": first_login}
 
 
 async def require_auth(

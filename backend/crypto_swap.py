@@ -10,6 +10,7 @@ This dict IS the whitelist — no user-submitted mints are accepted.
 import asyncio, math, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
+from security import require_ofac_clear
 
 
 # Fix #8: Standardized logging helper
@@ -316,10 +317,10 @@ COMPETITOR_FEES = {
 
 # Commission MAXIA par palier (toujours <= au concurrent le moins cher + slippage)
 SWAP_COMMISSION_TIERS = {
-    "BRONZE":  {"min_volume": 0,     "max_volume": 1000,   "bps": 10},   # 0.10% = Binance
-    "SILVER":  {"min_volume": 1000,  "max_volume": 5000,   "bps": 5},    # 0.05% < Binance
-    "GOLD":    {"min_volume": 5000,  "max_volume": 25000,  "bps": 3},    # 0.03% < tout le monde
-    "WHALE":   {"min_volume": 25000, "max_volume": 999999999, "bps": 1},  # 0.01% imbattable
+    "BRONZE":  {"min_amount": 0,     "max_amount": 1000,   "bps": 10},   # 0.10% = Binance
+    "SILVER":  {"min_amount": 1000,  "max_amount": 5000,   "bps": 5},    # 0.05% < Binance
+    "GOLD":    {"min_amount": 5000,  "max_amount": 25000,  "bps": 3},    # 0.03% < tout le monde
+    "WHALE":   {"min_amount": 25000, "max_amount": 999999999, "bps": 1},  # 0.01% imbattable
 }
 
 # Cache prix
@@ -336,19 +337,62 @@ _COMPETITOR_TTL = 300  # 5 minutes
 _swap_history: list = []
 
 
-def get_swap_commission_bps(volume_30d: float) -> int:
-    """Commission en BPS selon le volume."""
+def get_swap_commission_bps(amount_usdc: float, volume_30d: float = 0, swap_count: int = -1) -> int:
+    """Commission en BPS. Premier swap gratuit (0%) pour les nouveaux users.
+    Si volume_30d est fourni, utiliser le volume. Sinon, fallback sur le montant."""
+    if swap_count == 0:
+        return 0  # Premier swap gratuit
+    ref = volume_30d if volume_30d > 0 else amount_usdc
     for tier_name, tier in SWAP_COMMISSION_TIERS.items():
-        if tier["min_volume"] <= volume_30d < tier["max_volume"]:
+        if tier["min_amount"] <= ref < tier["max_amount"]:
             return tier["bps"]
     return 10
 
 
-def get_swap_tier_name(volume_30d: float) -> str:
+def get_swap_tier_name(amount_usdc: float, volume_30d: float = 0, swap_count: int = -1) -> str:
+    """Tier name selon le volume 30 jours. FREE pour le premier swap."""
+    if swap_count == 0:
+        return "FREE"
+    ref = volume_30d if volume_30d > 0 else amount_usdc
     for tier_name, tier in SWAP_COMMISSION_TIERS.items():
-        if tier["min_volume"] <= volume_30d < tier["max_volume"]:
+        if tier["min_amount"] <= ref < tier["max_amount"]:
             return tier_name
     return "BRONZE"
+
+
+def get_swap_tier_info(volume_30d: float = 0) -> dict:
+    """Retourne le tier actuel + progression vers le tier suivant."""
+    current_tier = "BRONZE"
+    current_bps = 10
+    next_tier = None
+    next_threshold = 0
+    remaining = 0
+
+    tiers_list = list(SWAP_COMMISSION_TIERS.items())
+    for i, (tier_name, tier) in enumerate(tiers_list):
+        if tier["min_amount"] <= volume_30d < tier["max_amount"]:
+            current_tier = tier_name
+            current_bps = tier["bps"]
+            if i + 1 < len(tiers_list):
+                next_name, next_data = tiers_list[i + 1]
+                next_tier = next_name
+                next_threshold = next_data["min_amount"]
+                remaining = next_threshold - volume_30d
+            break
+
+    return {
+        "current_tier": current_tier,
+        "current_bps": current_bps,
+        "current_pct": f"{current_bps / 100:.2f}%",
+        "volume_30d": round(volume_30d, 2),
+        "next_tier": next_tier,
+        "next_threshold": next_threshold,
+        "remaining_to_next": round(max(0, remaining), 2),
+        "all_tiers": {
+            name: {"bps": t["bps"], "pct": f"{t['bps']/100:.2f}%", "min_amount": t["min_amount"], "max_amount": t["max_amount"]}
+            for name, t in SWAP_COMMISSION_TIERS.items()
+        },
+    }
 
 
 async def fetch_prices(token_ids: list = None) -> dict:
@@ -445,7 +489,7 @@ async def update_competitor_fees():
 
 
 async def get_swap_quote(from_token: str, to_token: str, amount: float,
-                          user_volume_30d: float = 0) -> dict:
+                          user_volume_30d: float = 0, swap_count: int = -1) -> dict:
     """Obtient un devis de swap avec commission MAXIA.
 
     Commission is calculated ONCE here on the input amount (#5).
@@ -479,8 +523,9 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     value_usd = amount * from_price
 
     # Commission MAXIA — calculated ONCE on the input value (#5)
-    commission_bps = get_swap_commission_bps(user_volume_30d)
-    tier = get_swap_tier_name(user_volume_30d)
+    # Utilise le volume 30 jours pour determiner le tier
+    commission_bps = get_swap_commission_bps(value_usd, user_volume_30d, swap_count)
+    tier = get_swap_tier_name(value_usd, user_volume_30d, swap_count)
     commission_usd = value_usd * commission_bps / 10000
     net_value_usd = value_usd - commission_usd
 
@@ -505,6 +550,7 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
             "amount": str(amount_raw),
             "slippageBps": 50,
             "restrictIntermediateTokens": "true",
+            "platformFeeBps": "5",  # 0.05% referral fee to MAXIA treasury
         }
 
         # Single attempt, single URL, 3s timeout — no retry/sleep
@@ -576,6 +622,10 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         "valid_for_seconds": 30,
     }
 
+    # Tier info avec progression vers le tier suivant (based on transaction value)
+    tier_info = get_swap_tier_info(value_usd)
+    result["tier_info"] = tier_info
+
     # #10: Slippage warning if estimated price impact > 1%
     if jupiter_price_impact is not None and jupiter_price_impact > 1:
         result["slippage_warning"] = f"High slippage: {jupiter_price_impact}%"
@@ -585,7 +635,8 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
 
 async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
                         from_token: str, to_token: str, amount: float,
-                        buyer_volume_30d: float = 0, payment_tx: str = "") -> dict:
+                        buyer_volume_30d: float = 0, payment_tx: str = "",
+                        swap_count: int = -1) -> dict:
     """Execute un swap crypto.
 
     #20: Jupiter itself will reject the swap if the escrow wallet has
@@ -599,6 +650,9 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     if amount <= 0:
         return {"success": False, "error": "Montant invalide"}
 
+    # Screening OFAC — bloquer les wallets sanctionnes avant toute transaction
+    require_ofac_clear(buyer_wallet, field="buyer_wallet")
+
     # #1: Payment verification — payment_tx is required
     if not payment_tx:
         return {"success": False, "error": "payment_tx required"}
@@ -609,7 +663,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         return {"success": False, "error": "Payment already used"}
 
     # Obtenir le devis (commission calculated ONCE here — #5)
-    quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d)
+    quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d, swap_count)
     if "error" in quote:
         return {"success": False, "error": quote["error"]}
 
@@ -752,8 +806,8 @@ def get_swap_stats() -> dict:
 
 def compare_fees(volume_30d: float = 0) -> dict:
     """Compare les frais MAXIA vs concurrence pour les swaps."""
-    maxia_bps = get_swap_commission_bps(volume_30d)
-    tier = get_swap_tier_name(volume_30d)
+    maxia_bps = get_swap_commission_bps(0, volume_30d)
+    tier = get_swap_tier_name(0, volume_30d)
 
     return {
         "your_tier": tier,

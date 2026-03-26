@@ -25,6 +25,20 @@ TIER_LIMITS = {
     "enterprise": 0,  # 0 = unlimited
 }
 
+API_TIERS = {
+    "free": {"daily_limit": 100, "rate_per_min": 10, "price_monthly": 0},
+    "pro": {"daily_limit": 10000, "rate_per_min": 100, "price_monthly": 9.99},
+    "enterprise": {"daily_limit": 100000, "rate_per_min": 1000, "price_monthly": 299, "sla": "99.9%", "support": "dedicated", "fleet": True, "compliance": True, "whitelabel": True},
+}
+
+
+def check_api_tier_limit(api_key_data: dict) -> bool:
+    """Check if API key has exceeded its tier limit."""
+    tier = api_key_data.get("tier", "free")
+    limits = API_TIERS.get(tier, API_TIERS["free"])
+    daily_count = api_key_data.get("daily_count", 0)
+    return daily_count < limits["daily_limit"]
+
 # ── SQL Schema ──
 
 API_KEYS_SCHEMA = """

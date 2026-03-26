@@ -17,17 +17,24 @@ log = logging.getLogger("runpod")
 
 BASE_URL = "https://api.runpod.io/graphql"
 
-# Mapping tier -> RunPod GPU ID (base_price_per_hour = fallback when RunPod returns 0)
+# Mapping tier -> RunPod GPU ID
+# Les prix sont fetches en live par gpu_pricing.py (0% markup)
+# base_price_per_hour ici = fallback si RunPod ne retourne pas de cout sur le pod
 GPU_MAP = {
     "local_7900xt": {"runpod_id": None, "cloud_type": "LOCAL", "base_price_per_hour": 0.35, "local": True, "vram_gb": 20},
-    "rtx3090":   {"runpod_id": "NVIDIA GeForce RTX 3090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.44},
-    "rtx4090":   {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "SECURE", "base_price_per_hour": 0.69},
-    "a6000":     {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "SECURE", "base_price_per_hour": 0.99},
-    "l40s":      {"runpod_id": "NVIDIA L40S", "cloud_type": "SECURE", "base_price_per_hour": 1.14},
-    "a100_80":   {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "base_price_per_hour": 1.79},
-    "h100_sxm5": {"runpod_id": "NVIDIA H100 SXM5", "cloud_type": "SECURE", "base_price_per_hour": 2.69},
-    "h200":      {"runpod_id": "NVIDIA H200 SXM", "cloud_type": "SECURE", "base_price_per_hour": 4.31},
-    "4xa100":    {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "SECURE", "gpu_count": 4, "base_price_per_hour": 7.16},
+    "rtx3090":      {"runpod_id": "NVIDIA GeForce RTX 3090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.22},
+    "rtx4090":      {"runpod_id": "NVIDIA GeForce RTX 4090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.34},
+    "rtx5090":      {"runpod_id": "NVIDIA GeForce RTX 5090", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.69},
+    "a6000":        {"runpod_id": "NVIDIA RTX A6000", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.33},
+    "l4":           {"runpod_id": "NVIDIA L4", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.44},
+    "l40s":         {"runpod_id": "NVIDIA L40S", "cloud_type": "COMMUNITY", "base_price_per_hour": 0.79},
+    "rtx_pro6000":  {"runpod_id": "NVIDIA RTX PRO 6000", "cloud_type": "COMMUNITY", "base_price_per_hour": 1.69},
+    "a100_80":      {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "COMMUNITY", "base_price_per_hour": 1.19},
+    "h100_sxm":     {"runpod_id": "NVIDIA H100 SXM5", "cloud_type": "COMMUNITY", "base_price_per_hour": 2.69},
+    "h100_nvl":     {"runpod_id": "NVIDIA H100 NVL", "cloud_type": "COMMUNITY", "base_price_per_hour": 2.59},
+    "h200":         {"runpod_id": "NVIDIA H200 SXM", "cloud_type": "COMMUNITY", "base_price_per_hour": 3.59},
+    "b200":         {"runpod_id": "NVIDIA B200", "cloud_type": "COMMUNITY", "base_price_per_hour": 5.98},
+    "4xa100":       {"runpod_id": "NVIDIA A100 80GB PCIe", "cloud_type": "COMMUNITY", "gpu_count": 4, "base_price_per_hour": 4.76},
 }
 
 # Pods actifs (en memoire)

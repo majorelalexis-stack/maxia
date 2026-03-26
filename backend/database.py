@@ -1,4 +1,8 @@
-"""MAXIA Database V9 - SQLite async"""
+"""MAXIA Database V10 — SQLite (defaut) ou PostgreSQL (si DATABASE_URL defini).
+
+SQLite pour dev/low-traffic. PostgreSQL pour prod >10 concurrent writers.
+Usage : DATABASE_URL=postgresql://user:pass@host:5432/maxia dans .env
+"""
 import json, time, os, aiosqlite
 from pathlib import Path
 
@@ -15,6 +19,7 @@ ALLOWED_SERVICE_COLUMNS = frozenset({
 })
 
 DB_PATH = str(Path(__file__).parent / "maxia.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "")  # postgresql://... pour prod scale
 
 DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS exchange_tokens ("
@@ -167,29 +172,113 @@ class Database:
 
     # ── Public raw DB access helpers (avoids direct _db usage) ──
 
+    def _pg_params(self, sql: str, params: tuple) -> tuple:
+        """Convertit les placeholders ? en $1,$2,... pour PostgreSQL."""
+        if not getattr(self, '_pg', None):
+            return sql, params
+        sql = self._pg_convert(sql)
+        idx = 0
+        out = []
+        for ch in sql:
+            if ch == '?':
+                idx += 1
+                out.append(f'${idx}')
+            else:
+                out.append(ch)
+        return ''.join(out), params
+
     async def raw_execute(self, sql, params=()):
-        """Execute a raw SQL statement (INSERT, UPDATE, CREATE, etc.)."""
+        """Execute a raw SQL statement. Compatible SQLite + PostgreSQL."""
+        if getattr(self, '_pg', None):
+            sql, params = self._pg_params(sql, params)
+            async with self._pg.acquire() as conn:
+                await conn.execute(sql, *params)
+            return
         await self._db.execute(sql, params)
         await self._db.commit()
 
     async def raw_execute_fetchall(self, sql, params=()):
-        """Execute a raw SELECT and return all rows."""
+        """Execute a raw SELECT and return all rows. Compatible SQLite + PostgreSQL."""
+        if getattr(self, '_pg', None):
+            sql, params = self._pg_params(sql, params)
+            async with self._pg.acquire() as conn:
+                rows = await conn.fetch(sql, *params)
+            return [dict(r) for r in rows]
         rows = await self._db.execute_fetchall(sql, params)
         return rows
 
+    def _pg_convert(self, sql: str) -> str:
+        """Convertit le SQL SQLite en PostgreSQL si necessaire."""
+        if not getattr(self, '_pg', None):
+            return sql
+        # Toutes les variantes de strftime SQLite → PostgreSQL
+        import re
+        sql = sql.replace("(strftime('%s','now'))", "EXTRACT(EPOCH FROM NOW())::INTEGER")
+        sql = sql.replace("strftime('%s','now')", "EXTRACT(EPOCH FROM NOW())::INTEGER")
+        sql = re.sub(r"strftime\('[^']*',\s*'now'\)", "NOW()::TEXT", sql)
+        sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        sql = sql.replace("INSERT OR REPLACE", "INSERT")
+        sql = sql.replace("INSERT OR IGNORE", "INSERT")
+        return sql
+
     async def raw_executescript(self, sql):
-        """Execute a raw SQL script (multiple statements)."""
+        """Execute a raw SQL script (multiple statements). Compatible SQLite + PostgreSQL."""
+        if getattr(self, '_pg', None):
+            sql = self._pg_convert(sql)
+            async with self._pg.acquire() as conn:
+                for stmt in sql.split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        try:
+                            await conn.execute(stmt)
+                        except Exception:
+                            pass
+            return
         await self._db.executescript(sql)
         await self._db.commit()
 
     async def connect(self):
+        if DATABASE_URL and DATABASE_URL.startswith("postgres"):
+            # ── PostgreSQL (prod scale, >10 concurrent writers) ──
+            try:
+                import asyncpg
+                self._pg = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=20)
+                # Convertir le schema SQLite en PostgreSQL basique
+                pg_schema = DB_SCHEMA
+                pg_schema = pg_schema.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+                # Remplacer TOUTES les variantes de strftime SQLite
+                pg_schema = pg_schema.replace("(strftime('%s','now'))", "EXTRACT(EPOCH FROM NOW())::INTEGER")
+                pg_schema = pg_schema.replace("strftime('%s','now')", "EXTRACT(EPOCH FROM NOW())::INTEGER")
+                # ON CONFLICT → PostgreSQL syntax
+                pg_schema = pg_schema.replace("INSERT OR REPLACE", "INSERT")
+                pg_schema = pg_schema.replace("INSERT OR IGNORE", "INSERT")
+                # Tables deja creees manuellement — skip les erreurs silencieusement
+                async with self._pg.acquire() as conn:
+                    for stmt in pg_schema.split(";"):
+                        stmt = stmt.strip()
+                        if not stmt:
+                            continue
+                        try:
+                            await conn.execute(stmt)
+                        except Exception:
+                            pass  # Table/index existe deja
+                self._db = None  # Pas de SQLite
+                print(f"[DB] PostgreSQL connectee: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'}")
+                return
+            except ImportError:
+                print("[DB] asyncpg non installe — fallback SQLite")
+            except Exception as e:
+                print(f"[DB] PostgreSQL error: {e} — fallback SQLite")
+
+        # ── SQLite (defaut, dev/low-traffic) ──
+        self._pg = None
         self._db = await aiosqlite.connect(DB_PATH)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.executescript(DB_SCHEMA)
         await self._db.commit()
-        print(f"[DB] Connectee: {DB_PATH}")
+        print(f"[DB] SQLite connectee: {DB_PATH}")
 
     async def disconnect(self):
         if self._db:
@@ -257,6 +346,43 @@ class Database:
             "SELECT COALESCE(SUM(amount_usdc),0) AS total FROM transactions WHERE wallet=? AND created_at>=?",
             (wallet, cutoff))
         return float(row["total"]) if row else 0.0
+
+    async def get_swap_count(self, wallet: str) -> int:
+        """Count total swaps for a wallet."""
+        try:
+            if getattr(self, '_pg', None):
+                async with self._pg.acquire() as conn:
+                    row = await conn.fetchrow(
+                        "SELECT COUNT(*) as cnt FROM transactions WHERE wallet=$1 AND purpose='crypto_swap'",
+                        wallet)
+                    return int(row['cnt']) if row else 0
+            else:
+                rows = await self._db.execute_fetchall(
+                    "SELECT COUNT(*) as cnt FROM transactions WHERE wallet=? AND purpose='crypto_swap'",
+                    (wallet,))
+                return int(rows[0]['cnt']) if rows else 0
+        except Exception:
+            return -1
+
+    async def get_swap_volume_30d(self, wallet: str) -> float:
+        """Get 30-day rolling swap volume for a wallet."""
+        cutoff = int(time.time()) - 30 * 86400
+        try:
+            if getattr(self, '_pg', None):
+                async with self._pg.acquire() as conn:
+                    row = await conn.fetchrow(
+                        "SELECT COALESCE(SUM(amount_usdc), 0) as vol FROM transactions WHERE wallet=$1 AND purpose='crypto_swap' AND created_at > $2",
+                        wallet, cutoff
+                    )
+                    return float(row['vol']) if row else 0
+            else:
+                rows = await self._db.execute_fetchall(
+                    "SELECT COALESCE(SUM(amount_usdc), 0) as vol FROM transactions WHERE wallet=? AND purpose='crypto_swap' AND created_at > ?",
+                    (wallet, cutoff)
+                )
+                return float(rows[0]['vol']) if rows else 0
+        except Exception:
+            return 0
 
     async def save_auction(self, a):
         await self._db.execute("INSERT OR REPLACE INTO auctions(auction_id,data) VALUES(?,?)", (a["auctionId"], json.dumps(a)))
@@ -449,10 +575,12 @@ class Database:
     # ── Stock Portfolios ──
 
     async def save_stock_holding(self, api_key: str, symbol: str, shares: float):
+        import time as _t
+        now = int(_t.time())
         await self._db.execute(
-            "INSERT INTO stock_portfolios(api_key,symbol,shares,updated_at) VALUES(?,?,?,strftime('%s','now')) "
-            "ON CONFLICT(api_key,symbol) DO UPDATE SET shares=?,updated_at=strftime('%s','now')",
-            (api_key, symbol, shares, shares))
+            "INSERT INTO stock_portfolios(api_key,symbol,shares,updated_at) VALUES(?,?,?,?) "
+            "ON CONFLICT(api_key,symbol) DO UPDATE SET shares=?,updated_at=?",
+            (api_key, symbol, shares, now, shares, now))
         await self._db.commit()
 
     async def get_stock_portfolio(self, api_key: str) -> dict:
@@ -558,12 +686,8 @@ db = Database()
 
 
 async def create_database():
-    """Factory: returns a PostgresDatabase if DATABASE_URL is set, else SQLite Database."""
-    database_url = os.getenv("DATABASE_URL", "")
-    if database_url.startswith("postgres"):
-        from database_pg import PostgresDatabase
-        db_instance = PostgresDatabase(database_url)
-    else:
-        db_instance = Database()
+    """Factory: Database() gere SQLite et PostgreSQL automatiquement.
+    Si DATABASE_URL est defini, PostgreSQL est utilise. Sinon, SQLite."""
+    db_instance = Database()
     await db_instance.connect()
     return db_instance

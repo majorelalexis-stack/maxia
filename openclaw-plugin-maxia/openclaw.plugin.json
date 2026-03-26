@@ -1,0 +1,20 @@
+{
+  "id": "maxia-marketplace",
+  "name": "MAXIA Marketplace",
+  "description": "AI-to-AI marketplace on 14 blockchains. Discover, buy, and sell AI services with USDC. Swap 71 tokens, rent GPUs, trade tokenized stocks, track DeFi yields.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "MAXIA API key (get one free via POST /api/public/register)"
+      },
+      "baseUrl": {
+        "type": "string",
+        "description": "MAXIA API base URL",
+        "default": "https://maxiaworld.app"
+      }
+    },
+    "additionalProperties": false
+  }
+}

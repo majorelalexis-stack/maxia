@@ -72,6 +72,9 @@ class Scheduler:
         if ceo_available:
             tasks.append(asyncio.create_task(ceo.run()))
 
+        # V13: Background tasks (PoD liveness, leaderboard, SLA, auctions)
+        tasks.append(asyncio.create_task(self._v13_background_loop()))
+
         self._tasks = tasks
 
         startup_msg = (
@@ -130,6 +133,73 @@ class Scheduler:
             except Exception as e:
                 print(f"[Scheduler] Health err: {e}")
             await asyncio.sleep(300)
+
+
+    async def _v13_background_loop(self):
+        """Boucle periodique V13 : PoD, leaderboard, SLA, auctions, OFAC."""
+        _cycle = 0
+        while self._running:
+            try:
+                _cycle += 1
+
+                # Toutes les 5 min : check liveness des deliveries (PoD auto-confirm)
+                try:
+                    from proof_of_delivery import check_liveness_expirations
+                    await check_liveness_expirations()
+                except Exception as e:
+                    if "No module" not in str(e):
+                        print(f"[V13] PoD liveness error: {e}")
+
+                # Toutes les 10 min : expirer les encheres inversees
+                if _cycle % 2 == 0:
+                    try:
+                        from reverse_auction import expire_old_requests
+                        await expire_old_requests()
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            print(f"[V13] Auction expire error: {e}")
+
+                # Toutes les heures (12 cycles de 5 min) : recalcul scores + SLA
+                if _cycle % 12 == 0:
+                    try:
+                        from agent_leaderboard import recalculate_all_scores
+                        await recalculate_all_scores()
+                        print("[V13] Leaderboard scores recalcules")
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            print(f"[V13] Leaderboard error: {e}")
+
+                    try:
+                        from sla_enforcer import enforce_sla_all
+                        await enforce_sla_all()
+                        print("[V13] SLA enforcement complete")
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            print(f"[V13] SLA error: {e}")
+
+                    # Recalcul badges (toutes les heures)
+                    try:
+                        from referral import recalculate_badges
+                        await recalculate_badges()
+                        print("[V13+] Badges recalcules")
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            print(f"[V13+] Badges error: {e}")
+
+                # Toutes les 24h (288 cycles) : refresh liste OFAC
+                if _cycle % 288 == 0:
+                    try:
+                        from security import refresh_ofac_list
+                        await refresh_ofac_list()
+                        print("[V13] OFAC list refreshed")
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            print(f"[V13] OFAC refresh error: {e}")
+
+            except Exception as e:
+                print(f"[V13] Background loop error: {e}")
+
+            await asyncio.sleep(300)  # 5 min
 
 
 scheduler = Scheduler()

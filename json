@@ -1,0 +1,6 @@
+Name      Version ID             Fix Versions
+--------- ------- -------------- ------------
+pynacl    1.5.0   CVE-2025-69277 1.6.2
+starlette 0.38.6  CVE-2024-47874 0.40.0
+starlette 0.38.6  CVE-2025-54121 0.47.2
+pygments  2.19.2  CVE-2026-4539

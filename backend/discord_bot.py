@@ -9,7 +9,8 @@ Regles :
 """
 import asyncio, time, re, json
 import httpx
-from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL, PORT
+from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL, PORT, GPU_TIERS
+_gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 
 # Mots-cles surveilles (questions auxquelles le bot peut repondre)
 KEYWORDS = {
@@ -40,9 +41,9 @@ RESPONSE_TEMPLATES = {
     "gpu": (
         "Pour la location de GPU cloud, voici les principaux fournisseurs :\n\n"
         "• **Vast.ai** — A partir de $0.34/h (RTX 4090), communautaire\n"
-        "• **RunPod** — $0.69/h (RTX 4090), fiable\n"
+        f"• **RunPod** — {_gpu_cheapest} (RTX 4090), fiable\n"
         "• **Lambda Labs** — $1.29/h (A100), academique\n"
-        "• **MAXIA** — $0.69/h (RTX 4090), prix coutant RunPod, paiement USDC sur Solana, commission 0.01% pour gros volumes (Whale)\n\n"
+        f"• **MAXIA** — {_gpu_cheapest} (RTX 4090), prix coutant RunPod, paiement USDC sur Solana, commission 0.01% pour gros volumes (Whale)\n\n"
         "MAXIA est interessant si vous voulez payer en crypto sans compte bancaire. "
         "Details : `maxiaworld.app/api/public/gpu/tiers`"
     ),

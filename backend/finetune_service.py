@@ -31,8 +31,9 @@ log = logging.getLogger("finetune")
 router = APIRouter(prefix="/api/finetune", tags=["finetune"])
 
 # ── Constants ──
-SERVICE_FEE_USDC = 2.99
-MAXIA_GPU_MARKUP = 0.10  # 10% markup on GPU cost
+from config import FINETUNE_SERVICE_FEE, FINETUNE_GPU_MARKUP
+SERVICE_FEE_USDC = FINETUNE_SERVICE_FEE
+MAXIA_GPU_MARKUP = FINETUNE_GPU_MARKUP  # 10% markup on GPU cost
 UNSLOTH_DOCKER_IMAGE = "unslothai/unsloth:latest-torch2.4.0-cu124"
 
 # ── Supported models + VRAM requirements ──

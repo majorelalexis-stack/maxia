@@ -13,9 +13,9 @@ import uuid, time, hashlib, secrets, asyncio, json, datetime, re
 from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
-    get_commission_bps, BLOCKED_WORDS, BLOCKED_PATTERNS,
+    get_commission_bps, get_commission_tier_name, BLOCKED_WORDS, BLOCKED_PATTERNS,
 )
-from security import check_content_safety
+from security import check_content_safety, check_ofac_wallet, require_ofac_clear, check_rate_limit_tiered
 
 # Fix #13: Solana address validation helper
 _SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
@@ -36,6 +36,54 @@ _registered_agents: dict = {}   # api_key -> agent info
 _agent_services: list = []      # services listes par des IA externes
 _transactions: list = []        # historique des transactions
 _db_loaded: bool = False
+
+# ── Clone detection: track content hashes to detect duplicate services ──
+_service_content_hashes: dict = {}  # content_hash -> {"original_id": str, "original_agent": str, "listed_at": int}
+
+
+def _compute_service_hash(name: str, description: str, endpoint: str) -> str:
+    """Hash the core content of a service to detect clones."""
+    # Normalize: lowercase, strip whitespace, remove punctuation
+    normalized = f"{name.lower().strip()}|{description.lower().strip()[:500]}|{endpoint.lower().strip()}"
+    return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+
+
+def _check_clone(name: str, description: str, endpoint: str, agent_api_key: str) -> dict:
+    """Check if a service is a clone of an existing one. Returns clone info or None."""
+    content_hash = _compute_service_hash(name, description, endpoint)
+    if content_hash in _service_content_hashes:
+        original = _service_content_hashes[content_hash]
+        # Same agent re-listing = allowed (update)
+        if original.get("original_agent_key") == agent_api_key:
+            return {}
+        return {
+            "is_clone": True,
+            "original_service_id": original["original_id"],
+            "original_agent": original["original_agent"],
+            "similarity": "exact_match",
+        }
+    return {}
+
+
+def _register_service_hash(service_id: str, agent_name: str, agent_key: str,
+                           name: str, description: str, endpoint: str):
+    """Register a service content hash for clone detection."""
+    content_hash = _compute_service_hash(name, description, endpoint)
+    if content_hash not in _service_content_hashes:
+        _service_content_hashes[content_hash] = {
+            "original_id": service_id,
+            "original_agent": agent_name,
+            "original_agent_key": agent_key,
+            "listed_at": int(time.time()),
+        }
+
+
+def _is_original_creator(service_id: str) -> bool:
+    """Check if a service is the original (not a clone)."""
+    for info in _service_content_hashes.values():
+        if info["original_id"] == service_id:
+            return True
+    return False
 
 
 _db_last_sync: float = 0
@@ -256,27 +304,25 @@ async def list_services():
 
 @router.get("/prices")
 async def get_prices():
-    """Prix en temps reel. Pay per use only — no packs, no subscription."""
+    """Tous les prix MAXIA en temps reel — GPU, services, commissions. Mis a jour live."""
+    import time as _t
+    from config import GPU_TIERS, SERVICE_PRICES, COMMISSION_TIERS
+    try:
+        from crypto_swap import SWAP_COMMISSION_TIERS
+    except ImportError:
+        SWAP_COMMISSION_TIERS = {}
+    try:
+        from tokenized_stocks import STOCK_COMMISSION_TIERS
+    except (ImportError, AttributeError):
+        STOCK_COMMISSION_TIERS = {}
     return {
-        "model": "pay_per_use",
-        "note": "MAXIA is a pure marketplace. Prices set by external sellers. Free services available via API.",
-        "free_services": {
-            "sentiment": "/sentiment?token=BTC",
-            "trending": "/trending",
-            "fear_greed": "/fear-greed",
-            "defi_yield": "/defi/best-yield?asset=USDC",
-            "token_risk": "/token-risk?address=X",
-            "wallet_analysis": "/wallet-analysis?address=X",
-            "crypto_prices": "/crypto/prices",
-            "gpu_compare": "/gpu/compare?gpu=h100_sxm5",
-        },
-        "gpu_pricing": "See /gpu/tiers — 0% markup, RunPod at cost",
-        "marketplace_commission": {
-            "bronze": "5% (0-500 USDC/mois)",
-            "or": "1% (500-5000 USDC/mois)",
-            "baleine": "0.1% (5000+ USDC/mois)",
-        },
-        "currency": "USDC on Solana",
+        "gpu_tiers": GPU_TIERS,
+        "service_prices": SERVICE_PRICES,
+        "marketplace_commission_tiers": COMMISSION_TIERS,
+        "swap_commission_tiers": SWAP_COMMISSION_TIERS,
+        "stock_commission_tiers": STOCK_COMMISSION_TIERS,
+        "currency": "USDC",
+        "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }
 
 
@@ -376,6 +422,9 @@ async def register_agent(req: dict):
 
     # Fix #13: Validate Solana address format
     _validate_solana_address(wallet, "wallet")
+
+    # OFAC sanctions check on registration
+    require_ofac_clear(wallet, "registration wallet")
 
     # Art.1 — Filtrage anti-abus sur le nom et la description
     _check_safety(name, "nom")
@@ -554,39 +603,276 @@ async def register_agent(req: dict):
 
 
 # ══════════════════════════════════════════
-#  SANDBOX — test without real USDC
+#  SANDBOX — free testing, always available
 # ══════════════════════════════════════════
+
+# Sandbox balances per agent (fake USDC for testing)
+_sandbox_balances: dict = {}  # api_key -> float
+_sandbox_trades: list = []
+_sandbox_portfolios: dict = {}  # api_key -> {symbol: shares}
+SANDBOX_STARTING_BALANCE = 10000.0  # $10,000 fake USDC
+
+
+def _get_sandbox_balance(api_key: str) -> float:
+    if api_key not in _sandbox_balances:
+        _sandbox_balances[api_key] = SANDBOX_STARTING_BALANCE
+    return _sandbox_balances[api_key]
+
 
 @router.get("/sandbox/status")
 async def sandbox_status():
-    """Check if sandbox mode is enabled."""
-    return {"sandbox_mode": SANDBOX_MODE, "note": "Set SANDBOX_MODE=true in .env to enable test transactions with fake USDC"}
+    """Sandbox is always available for free. No real USDC needed."""
+    return {
+        "sandbox_enabled": True,
+        "starting_balance_usdc": SANDBOX_STARTING_BALANCE,
+        "note": "Sandbox is always free. Use /sandbox/* endpoints to test without real USDC.",
+        "endpoints": [
+            "GET  /sandbox/status — this endpoint",
+            "GET  /sandbox/balance — your sandbox USDC balance",
+            "POST /sandbox/execute — test a service (free)",
+            "POST /sandbox/swap — test a token swap (free)",
+            "POST /sandbox/buy-stock — test stock purchase (free)",
+            "POST /sandbox/reset — reset your sandbox balance to $10,000",
+        ],
+    }
+
+
+@router.get("/sandbox/balance")
+async def sandbox_balance(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Check sandbox USDC balance."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _load_from_db()
+    _get_agent(x_api_key)
+    balance = _get_sandbox_balance(x_api_key)
+    portfolio = _sandbox_portfolios.get(x_api_key, {})
+    return {
+        "sandbox": True,
+        "balance_usdc": round(balance, 4),
+        "portfolio": portfolio,
+        "trades_count": sum(1 for t in _sandbox_trades if t.get("api_key") == x_api_key),
+    }
+
+
+@router.post("/sandbox/reset")
+async def sandbox_reset(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Reset sandbox balance to $10,000."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _load_from_db()
+    _get_agent(x_api_key)
+    _sandbox_balances[x_api_key] = SANDBOX_STARTING_BALANCE
+    _sandbox_portfolios.pop(x_api_key, None)
+    return {"sandbox": True, "balance_usdc": SANDBOX_STARTING_BALANCE, "message": "Sandbox reset to $10,000"}
 
 
 @router.post("/sandbox/execute")
 async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Execute a service in sandbox mode (no real USDC needed)."""
-    if not SANDBOX_MODE:
-        raise HTTPException(400, "Sandbox mode not enabled. Set SANDBOX_MODE=true in .env")
+    """Execute a service in sandbox mode — same prices and fees as production."""
     await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
     buyer = _get_agent(x_api_key)
-    # Fix #7: String length limits
     service_id = req.get("service_id", "").strip()[:100] if isinstance(req.get("service_id"), str) else ""
     prompt = req.get("prompt", "").strip()[:50000] if isinstance(req.get("prompt"), str) else ""
     if not prompt:
         raise HTTPException(400, "prompt required")
     _check_safety(prompt, "prompt")
 
+    # Real service prices (same as production)
+    _native_prices = {
+        "maxia-audit": {"price": 4.99, "name": "Smart Contract Audit"},
+        "maxia-code": {"price": 2.99, "name": "AI Code Review"},
+        "maxia-translate": {"price": 0.05, "name": "AI Translation"},
+        "maxia-summary": {"price": 0.49, "name": "Document Summary"},
+        "maxia-wallet": {"price": 1.99, "name": "Wallet Analyzer"},
+        "maxia-marketing": {"price": 0.99, "name": "Marketing Copy Generator"},
+        "maxia-image": {"price": 0.10, "name": "AI Image Generator"},
+        "maxia-scraper": {"price": 0.02, "name": "Web Scraper"},
+    }
+
+    # Try native service first, then external services
+    price = 0.0
+    service_name = ""
+    if service_id in _native_prices:
+        price = _native_prices[service_id]["price"]
+        service_name = _native_prices[service_id]["name"]
+    else:
+        for s in _agent_services:
+            if s.get("id") == service_id:
+                price = s.get("price_usdc", 0)
+                service_name = s.get("name", "")
+                break
+    if not price:
+        price = 2.99  # default = code review price
+        service_name = "AI Code Review (default)"
+
+    # Real marketplace commission (based on transaction amount)
+    commission_bps = get_commission_bps(price)
+    tier = get_commission_tier_name(price)
+    commission = round(price * commission_bps / 10000, 4)
+    seller_gets = round(price - commission, 4)
+
+    balance = _get_sandbox_balance(x_api_key)
+    if balance < price:
+        return {
+            "sandbox": True, "tx_id": None,
+            "message": f"Insufficient balance: ${balance:,.2f} < ${price:,.2f}. Reset your sandbox.",
+            "balance_usdc": balance, "cost_usdc": price,
+        }
+
+    _sandbox_balances[x_api_key] = balance - price
+    tx_id = f"sandbox_{uuid.uuid4()}"
+    _sandbox_trades.append({
+        "api_key": x_api_key, "tx_id": tx_id, "type": "execute",
+        "service": service_id, "service_name": service_name,
+        "price_usdc": price, "commission": commission, "ts": int(time.time()),
+    })
+
     return {
-        "success": True,
-        "sandbox": True,
-        "tx_id": f"sandbox_{uuid.uuid4()}",
-        "service": service_id,
-        "price_usdc": 0,
-        "result": f"[SANDBOX] This is a test response for: {prompt[:100]}",
-        "note": "No real USDC was charged. Enable production mode by removing SANDBOX_MODE.",
+        "success": True, "sandbox": True, "tx_id": tx_id,
+        "service": service_id, "service_name": service_name,
+        "price_usdc": price,
+        "commission_usdc": commission, "seller_gets_usdc": seller_gets,
+        "tier": tier, "commission_pct": f"{commission_bps/100}%",
+        "balance_after": round(_sandbox_balances[x_api_key], 4),
+        "result": f"[SANDBOX] {service_name} — ${price} (fee: ${commission} {tier}). Prompt: {prompt[:100]}",
+    }
+
+
+@router.post("/sandbox/swap")
+async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Test a token swap — live prices from CoinGecko, real swap commission tiers."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _load_from_db()
+    agent = _get_agent(x_api_key)
+
+    from_token = req.get("from_token", "USDC").upper()
+    to_token = req.get("to_token", "SOL").upper()
+    amount = float(req.get("amount", 0))
+    if amount <= 0:
+        raise HTTPException(400, "amount must be > 0")
+
+    balance = _get_sandbox_balance(x_api_key)
+
+    # Live prices from CoinGecko
+    try:
+        from price_oracle import get_price
+        from_price = await get_price(from_token) if from_token not in ("USDC", "USDT") else 1.0
+        to_price = await get_price(to_token) if to_token not in ("USDC", "USDT") else 1.0
+    except Exception:
+        _fallback = {"SOL": 140, "ETH": 3500, "BTC": 65000, "USDC": 1, "USDT": 1}
+        from_price = _fallback.get(from_token, 1)
+        to_price = _fallback.get(to_token, 1)
+    if not from_price: from_price = 1
+    if not to_price: to_price = 1
+
+    cost_usdc = round(amount * from_price, 4)
+    output = round(amount * from_price / to_price, 6)
+
+    # Real swap commission tiers (based on 30-day volume if wallet available)
+    try:
+        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        swap_bps = get_swap_commission_bps(cost_usdc)
+        swap_tier = get_swap_tier_name(cost_usdc)
+    except Exception:
+        swap_bps = 10  # 0.10% Bronze default
+        swap_tier = "BRONZE"
+    fee = round(cost_usdc * swap_bps / 10000, 4)
+
+    if balance < cost_usdc:
+        return {
+            "sandbox": True, "tx_id": None,
+            "message": f"Insufficient balance: ${balance:,.2f} < ${cost_usdc:,.2f} ({amount} {from_token} @ ${from_price:,.2f}). Reset your sandbox.",
+            "balance_usdc": balance, "cost_usdc": cost_usdc,
+            "from_token": from_token, "from_price_usd": from_price,
+        }
+
+    _sandbox_balances[x_api_key] = balance - cost_usdc
+    tx_id = f"sandbox_swap_{uuid.uuid4()}"
+    _sandbox_trades.append({
+        "api_key": x_api_key, "tx_id": tx_id, "type": "swap",
+        "from": from_token, "to": to_token, "amount_in": amount,
+        "amount_out": output, "fee": fee, "ts": int(time.time()),
+    })
+
+    return {
+        "sandbox": True, "tx_id": tx_id,
+        "from_token": from_token, "to_token": to_token,
+        "amount_in": amount, "amount_out": output,
+        "cost_usdc": cost_usdc, "fee_usdc": fee,
+        "tier": swap_tier, "commission_pct": f"{swap_bps/100}%",
+        "rate": f"1 {from_token} = ${from_price:,.2f}",
+        "from_price_usd": from_price, "to_price_usd": to_price,
+        "balance_after": round(_sandbox_balances[x_api_key], 4),
+    }
+
+
+@router.post("/sandbox/buy-stock")
+async def sandbox_buy_stock(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Test stock purchase — live prices, real stock commission tiers."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _load_from_db()
+    agent = _get_agent(x_api_key)
+
+    symbol = req.get("symbol", "").upper()
+    amount_usdc = float(req.get("amount_usdc", 0))
+    if amount_usdc <= 0:
+        raise HTTPException(400, "amount_usdc must be > 0")
+    if not symbol:
+        raise HTTPException(400, "symbol required (e.g. AAPL, TSLA)")
+
+    balance = _get_sandbox_balance(x_api_key)
+
+    # Live stock prices from Yahoo Finance via price_oracle
+    try:
+        from tokenized_stocks import stock_exchange, TOKENIZED_STOCKS, get_stock_commission_bps, get_stock_tier_name
+        if symbol not in TOKENIZED_STOCKS:
+            raise HTTPException(400, f"Stock '{symbol}' not available. Available: {', '.join(sorted(TOKENIZED_STOCKS.keys()))}")
+        price_data = await stock_exchange.get_price(symbol)
+        if isinstance(price_data, dict):
+            price = price_data.get("price_usd", 0) or price_data.get("price", 0)
+        else:
+            price = float(price_data or 0)
+        if not price:
+            price = TOKENIZED_STOCKS[symbol].get("fallback_price", 100)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[Sandbox] Stock price error for {symbol}: {e}")
+        price = 100  # last resort fallback
+
+    shares = round(amount_usdc / price, 6)
+
+    # Real stock commission tiers (based on transaction amount)
+    try:
+        stock_bps = get_stock_commission_bps(amount_usdc)
+        stock_tier = get_stock_tier_name(amount_usdc)
+    except Exception:
+        stock_bps = 50  # 0.5% Bronze default
+        stock_tier = "BRONZE"
+    fee = round(amount_usdc * stock_bps / 10000, 4)
+
+    if balance < amount_usdc:
+        return {
+            "sandbox": True, "tx_id": None,
+            "message": f"Insufficient balance: ${balance:,.2f} < ${amount_usdc:,.2f}. Reset your sandbox.",
+            "balance_usdc": balance, "cost_usdc": amount_usdc,
+        }
+
+    _sandbox_balances[x_api_key] = balance - amount_usdc
+    if x_api_key not in _sandbox_portfolios:
+        _sandbox_portfolios[x_api_key] = {}
+    _sandbox_portfolios[x_api_key][symbol] = _sandbox_portfolios[x_api_key].get(symbol, 0) + shares
+
+    return {
+        "sandbox": True, "symbol": symbol, "shares": shares,
+        "price_per_share": price, "total_usdc": amount_usdc,
+        "fee_usdc": fee, "tier": stock_tier, "commission_pct": f"{stock_bps/100}%",
+        "balance_after": round(_sandbox_balances[x_api_key], 4),
+        "portfolio": _sandbox_portfolios[x_api_key],
     }
 
 
@@ -675,6 +961,121 @@ async def get_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-AP
     raise HTTPException(404, "Dispute not found")
 
 
+@router.post("/dispute/{dispute_id}/evidence")
+async def submit_dispute_evidence(dispute_id: str, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Submit evidence for a dispute. Both buyer and seller can submit."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+    evidence = req.get("evidence", "").strip()[:2000]
+    if not evidence:
+        raise HTTPException(400, "evidence required (text describing the issue, max 2000 chars)")
+    _check_safety(evidence, "evidence")
+
+    try:
+        from database import db as _db
+        rows = await _db.raw_execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
+        if not rows:
+            raise HTTPException(404, "Dispute not found")
+        dispute = json.loads(rows[0]["data"])
+
+        if dispute.get("status") not in ("open", "escalated"):
+            raise HTTPException(400, f"Dispute is {dispute['status']} — cannot submit evidence")
+
+        # Check if agent is buyer or seller in this dispute
+        agent_name = agent["name"]
+        if agent_name != dispute.get("buyer") and agent_name != dispute.get("seller"):
+            raise HTTPException(403, "You are not a party in this dispute")
+
+        role = "buyer" if agent_name == dispute.get("buyer") else "seller"
+        if "evidence" not in dispute:
+            dispute["evidence"] = []
+        dispute["evidence"].append({
+            "role": role,
+            "agent": agent_name,
+            "text": evidence,
+            "submitted_at": int(time.time()),
+        })
+
+        await _db.raw_execute(
+            "UPDATE disputes SET data=? WHERE id=?",
+            (json.dumps(dispute), dispute_id))
+
+        return {"success": True, "dispute_id": dispute_id, "evidence_count": len(dispute["evidence"])}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error submitting evidence: {str(e)[:100]}")
+
+
+@router.post("/dispute/{dispute_id}/escalate")
+async def escalate_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Escalate a dispute for manual review (requires evidence from both parties)."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+
+    try:
+        from database import db as _db
+        rows = await _db.raw_execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
+        if not rows:
+            raise HTTPException(404, "Dispute not found")
+        dispute = json.loads(rows[0]["data"])
+
+        if dispute.get("status") != "open":
+            raise HTTPException(400, f"Dispute is {dispute['status']} — cannot escalate")
+
+        agent_name = agent["name"]
+        if agent_name != dispute.get("buyer") and agent_name != dispute.get("seller"):
+            raise HTTPException(403, "You are not a party in this dispute")
+
+        # Require at least one piece of evidence before escalation
+        evidence_list = dispute.get("evidence", [])
+        if not evidence_list:
+            raise HTTPException(400, "Submit evidence before escalating (POST /dispute/{id}/evidence)")
+
+        dispute["status"] = "escalated"
+        dispute["escalated_at"] = int(time.time())
+        dispute["escalated_by"] = agent_name
+
+        await _db.raw_execute(
+            "UPDATE disputes SET data=? WHERE id=?",
+            (json.dumps(dispute), dispute_id))
+
+        return {
+            "success": True,
+            "dispute_id": dispute_id,
+            "status": "escalated",
+            "message": "Dispute escalated for manual review. Resolution within 72h.",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error escalating dispute: {str(e)[:100]}")
+
+
+@router.get("/disputes")
+async def list_my_disputes(x_api_key: str = Header(None, alias="X-API-Key")):
+    """List all disputes for the authenticated agent (as buyer or seller)."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    agent = _get_agent(x_api_key)
+    agent_name = agent["name"]
+
+    try:
+        from database import db as _db
+        rows = await _db.raw_execute_fetchall("SELECT data FROM disputes", ())
+        my_disputes = []
+        for r in rows:
+            d = json.loads(r["data"])
+            if d.get("buyer") == agent_name or d.get("seller") == agent_name:
+                my_disputes.append(d)
+        my_disputes.sort(key=lambda x: x.get("created_at", 0), reverse=True)
+        return {"disputes": my_disputes[:50], "total": len(my_disputes)}
+    except Exception:
+        return {"disputes": [], "total": 0}
+
+
 # ══════════════════════════════════════════
 #  ACHETER UN SERVICE
 # ══════════════════════════════════════════
@@ -747,9 +1148,8 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
 
     print(f"[Marketplace] /buy payment verified: {payment_tx[:16]}... ({price} USDC from {tx_result.get('from', '?')[:12]}...)")
 
-    # Calculer la commission
-    volume = agent.get("volume_30d", 0)
-    commission_bps = get_commission_bps(volume)
+    # Calculer la commission (based on transaction amount)
+    commission_bps = get_commission_bps(price)
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
@@ -1049,8 +1449,23 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     # Fix #13: Validate seller wallet is a valid Solana address
     _validate_solana_address(agent["wallet"], "agent wallet")
 
+    # OFAC compliance check
+    require_ofac_clear(agent["wallet"], "seller wallet")
+
+    # Clone detection: warn if this is a copy of an existing service
+    clone_info = _check_clone(name, description, endpoint, x_api_key)
+    clone_warning = None
+    if clone_info.get("is_clone"):
+        clone_warning = {
+            "warning": "This service appears to be a clone of an existing listing.",
+            "original_service_id": clone_info["original_service_id"],
+            "original_agent": clone_info["original_agent"],
+            "note": "Clones start with 0 reputation. Original creators get discovery priority.",
+        }
+
+    service_id = str(uuid.uuid4())
     service = {
-        "id": str(uuid.uuid4()),
+        "id": service_id,
         "agent_api_key": x_api_key,
         "agent_name": agent["name"],
         "agent_wallet": agent["wallet"],
@@ -1060,12 +1475,16 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         "price_usdc": price_usdc,
         "endpoint": endpoint,
         "status": "active",
-        "rating": 5.0,
+        "rating": 5.0 if not clone_info.get("is_clone") else 3.0,  # Clones start lower
         "sales": 0,
         "listed_at": int(time.time()),
+        "is_original": not clone_info.get("is_clone", False),
     }
     _agent_services.append(service)
     agent["services_listed"] += 1
+
+    # Register content hash for future clone detection
+    _register_service_hash(service_id, agent["name"], x_api_key, name, description, endpoint)
 
     # Persist to SQLite
     try:
@@ -1077,14 +1496,18 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 
     print(f"[PublicAPI] Nouveau service: {name} par {agent['name']} @ {price_usdc} USDC")
 
-    return {
+    response = {
         "success": True,
         "service_id": service["id"],
         "name": name,
         "price_usdc": price_usdc,
+        "is_original": service.get("is_original", True),
         "commission": "Marketplace: 1% Bronze → 0.5% Gold → 0.1% Whale | Swap: 0.10% → 0.01%",
         "message": f"Service liste. Les autres IA peuvent maintenant acheter {name} sur MAXIA.",
     }
+    if clone_warning:
+        response["clone_warning"] = clone_warning
+    return response
 
 
 # ══════════════════════════════════════════
@@ -1239,9 +1662,8 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
         print(f"[PublicAPI] Payment verification error: {e}")
         raise HTTPException(400, "Payment verification failed")
 
-    # Commission MAXIA
-    volume = buyer.get("volume_30d", 0)
-    commission_bps = get_commission_bps(volume)
+    # Commission MAXIA (based on transaction amount)
+    commission_bps = get_commission_bps(price)
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
@@ -1351,15 +1773,20 @@ async def my_stats(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
     agent = _get_agent(x_api_key)
+    volume = agent["volume_30d"]
     return {
         "name": agent["name"],
-        "tier": agent["tier"],
-        "volume_30d": agent["volume_30d"],
+        "volume_30d": volume,
         "total_spent": agent["total_spent"],
         "total_earned": agent["total_earned"],
         "services_listed": agent["services_listed"],
         "registered_at": agent["registered_at"],
-        "commission_rate": f"{get_commission_bps(agent['volume_30d'])} BPS",
+        "commission_note": "Commission is based on transaction amount, not cumulative volume",
+        "tiers": {
+            "BRONZE": {"min_amount": 0, "commission": "1%", "note": "Transactions < $500"},
+            "GOLD": {"min_amount": 500, "commission": "0.5%", "note": "Transactions $500 - $5K"},
+            "WHALE": {"min_amount": 5000, "commission": "0.1%", "note": "Transactions $5K+"},
+        },
     }
 
 
@@ -1629,11 +2056,16 @@ async def discover_services(
             tags.append("cheap")
         if s.get("rating", 0) >= 4.5 and s.get("sales", 0) >= 5:
             tags.append("top-rated")
+        # Original Creator badge
+        is_original = s.get("is_original", True) or _is_original_creator(s["id"])
+        if is_original:
+            tags.append("original-creator")
 
-        # #18 Commission transparent
+        # #18 Commission transparent — show all tiers so buyer sees their actual rate
         price = s.get("price_usdc", 0)
-        commission_bps = get_commission_bps(0)  # default tier
-        commission = round(price * commission_bps / 10000, 4)
+        commission_bronze = round(price * get_commission_bps(0) / 10000, 4)
+        commission_gold = round(price * get_commission_bps(500) / 10000, 4)
+        commission_whale = round(price * get_commission_bps(5000) / 10000, 4)
 
         results.append({
             "service_id": s["id"],
@@ -1641,8 +2073,8 @@ async def discover_services(
             "description": s.get("description", ""),
             "type": s.get("type", ""),
             "price_usdc": price,
-            "commission_usdc": commission,
-            "seller_gets_usdc": round(price - commission, 4),
+            "commission_usdc": {"bronze": commission_bronze, "gold": commission_gold, "whale": commission_whale},
+            "seller_gets_usdc": {"bronze": round(price - commission_bronze, 4), "gold": round(price - commission_gold, 4), "whale": round(price - commission_whale, 4)},
             "seller": s.get("agent_name", ""),
             "rating": s.get("rating", 5),
             "sales": s.get("sales", 0),
@@ -1654,6 +2086,8 @@ async def discover_services(
             "endpoint": s.get("endpoint", ""),
             "listed_at": s.get("listed_at", 0),
             "chains": s.get("chains", ["solana"]),
+            "is_original": is_original,
+            "badges": ["Original Creator"] if is_original else [],
         })
 
     # Also include MAXIA native services (8 AI services powered by Groq/Ollama)
@@ -1675,10 +2109,13 @@ async def discover_services(
             continue
         results.append(ns)
 
-    # #7 Sort by composite score: success_rate * rating * log(sales+1)
+    # #7 Sort by composite score: success_rate * rating * log(sales+1) + original creator boost
     import math
     for r in results:
-        r["_score"] = (r.get("success_rate_pct", 50) / 100) * r.get("rating", 3) * math.log(r.get("sales", 0) + 2)
+        base_score = (r.get("success_rate_pct", 50) / 100) * r.get("rating", 3) * math.log(r.get("sales", 0) + 2)
+        # Original creators get 20% ranking boost
+        original_boost = 1.2 if r.get("is_original", False) else 1.0
+        r["_score"] = base_score * original_boost
     results.sort(key=lambda x: (-x.get("_score", 0), x["price_usdc"]))
     for r in results:
         r.pop("_score", None)
@@ -1856,8 +2293,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         except Exception:
             pass
 
-        volume = buyer.get("volume_30d", 0)
-        commission_bps = get_commission_bps(volume)
+        commission_bps = get_commission_bps(price)
         commission = price * commission_bps / 10000
 
         tx = {
@@ -1899,8 +2335,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         }
 
     # ═══ EXTERNAL AGENT SERVICE — compute commission + pay seller ═══
-    volume = buyer.get("volume_30d", 0)
-    commission_bps = get_commission_bps(volume)
+    commission_bps = get_commission_bps(price)
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
@@ -2174,58 +2609,103 @@ def _get_tier_name(volume: float) -> str:
 # ══════════════════════════════════════════
 
 @router.get("/defi/best-yield")
-async def defi_best_yield(asset: str = "USDC", chain: str = "", min_tvl: float = 100000, limit: int = 10):
+async def defi_best_yield(asset: str = "USDC", chain: str = "", min_tvl: float = 100000,
+                          limit: int = 10, type: str = ""):
     """Find the best DeFi yields for an asset. Free, no auth.
 
     Examples:
       GET /defi/best-yield?asset=USDC
       GET /defi/best-yield?asset=ETH&chain=ethereum&limit=5
-      GET /defi/best-yield?asset=SOL&chain=solana
+      GET /defi/best-yield?asset=SOL&chain=solana&type=staking
+      GET /defi/best-yield?asset=ALL&type=lending
+    Types: staking, lending, lp, farming (empty = all)
     """
     try:
         from defi_scanner import get_best_yields
-        yields = await get_best_yields(asset, chain, min_tvl, limit * 3)
-        # Filtrer les APY aberrants (reward farming temporaire) et les pools a risque
-        sane = [y for y in yields if 0 < y.get("apy", 0) < 1000 and y.get("tvl_usd", 0) >= 10000]
+        yields = await get_best_yields(asset, chain, min_tvl, limit * 3, yield_type=type)
+        # Filter insane APY (>1000%) and tiny pools
+        sane = [y for y in yields if 0 < y.get("apy", 0) < 200 and y.get("tvl_usd", 0) >= 100000]
         if sane:
             return {
                 "asset": asset,
                 "chain": chain or "all",
+                "type": type or "all",
                 "results": len(sane[:limit]),
                 "yields": sane[:limit],
-                "source": "DeFiLlama",
+                "sources": ["DeFiLlama", "Marinade", "Jito", "Lido"],
             }
     except Exception:
         pass
 
-    # Fallback: donnees curees (toujours disponibles)
-    FALLBACK_YIELDS = {
-        "USDC": [
-            {"project": "Aave V3", "chain": "Ethereum", "apy": 4.1, "tvl_usd": 5000000000, "risk": "low", "url": "https://app.aave.com/"},
-            {"project": "Aave V3", "chain": "Polygon", "apy": 3.8, "tvl_usd": 800000000, "risk": "low", "url": "https://app.aave.com/"},
-            {"project": "Aave V3", "chain": "Arbitrum", "apy": 4.5, "tvl_usd": 600000000, "risk": "low", "url": "https://app.aave.com/"},
-            {"project": "Compound V3", "chain": "Ethereum", "apy": 3.5, "tvl_usd": 2000000000, "risk": "low", "url": "https://app.compound.finance/"},
-            {"project": "Kamino", "chain": "Solana", "apy": 8.5, "tvl_usd": 300000000, "risk": "low", "url": "https://app.kamino.finance/"},
-        ],
-        "SOL": [
-            {"project": "Marinade", "chain": "Solana", "apy": 7.2, "tvl_usd": 1200000000, "risk": "low", "url": "https://marinade.finance/app/stake/"},
-            {"project": "Jito", "chain": "Solana", "apy": 7.8, "tvl_usd": 800000000, "risk": "low", "url": "https://www.jito.network/staking/"},
-            {"project": "Sanctum", "chain": "Solana", "apy": 9.2, "tvl_usd": 200000000, "risk": "medium", "url": "https://app.sanctum.so/"},
-            {"project": "Raydium", "chain": "Solana", "apy": 22.5, "tvl_usd": 150000000, "risk": "medium", "url": "https://raydium.io/liquidity/"},
-        ],
-        "ETH": [
-            {"project": "Lido", "chain": "Ethereum", "apy": 3.3, "tvl_usd": 15000000000, "risk": "low", "url": "https://stake.lido.fi/"},
-            {"project": "Rocket Pool", "chain": "Ethereum", "apy": 3.1, "tvl_usd": 3000000000, "risk": "low", "url": "https://stake.rocketpool.net/"},
-            {"project": "Eigenlayer", "chain": "Ethereum", "apy": 5.0, "tvl_usd": 10000000000, "risk": "medium", "url": "https://app.eigenlayer.xyz/"},
-        ],
-    }
-    fb = FALLBACK_YIELDS.get(asset.upper(), FALLBACK_YIELDS.get("USDC", []))
+    # Fallback: fetch live depuis DeFiLlama au lieu de valeurs hardcodees
+    try:
+        import httpx as _hx
+        _LLAMA_FALLBACK_MAP = {
+            "USDC": [
+                ("aave-v3", "usdc", "Aave V3", "Ethereum", "https://app.aave.com/", "low"),
+                ("compound-v3", "usdc", "Compound V3", "Ethereum", "https://app.compound.finance/", "low"),
+                ("kamino-lend", "usdc", "Kamino", "Solana", "https://app.kamino.finance/", "low"),
+            ],
+            "SOL": [
+                ("marinade-finance", "msol", "Marinade", "Solana", "https://marinade.finance/app/stake/", "low"),
+                ("jito", "jitosol", "Jito", "Solana", "https://www.jito.network/staking/", "low"),
+                ("sanctum", "inf", "Sanctum", "Solana", "https://app.sanctum.so/", "medium"),
+                ("raydium", "sol-usdc", "Raydium", "Solana", "https://raydium.io/liquidity/", "medium"),
+            ],
+            "ETH": [
+                ("lido", "steth", "Lido", "Ethereum", "https://stake.lido.fi/", "low"),
+                ("rocket-pool", "reth", "Rocket Pool", "Ethereum", "https://stake.rocketpool.net/", "low"),
+                ("eigenlayer", "eth", "Eigenlayer", "Ethereum", "https://app.eigenlayer.xyz/", "medium"),
+            ],
+        }
+        async with _hx.AsyncClient(timeout=15) as _client:
+            _resp = await _client.get("https://yields.llama.fi/pools")
+            _resp.raise_for_status()
+            _pools = _resp.json().get("data", [])
+            # Index par project_symbol
+            _pool_idx = {}
+            for _p in _pools:
+                _k = f"{_p.get('project', '').lower()}_{_p.get('symbol', '').lower()}"
+                if _k not in _pool_idx or _p.get("apy", 0) > _pool_idx[_k].get("apy", 0):
+                    _pool_idx[_k] = _p
+            # Aussi indexer par project seul pour les chains specifiques
+            for _p in _pools:
+                proj = _p.get("project", "").lower()
+                ch = _p.get("chain", "").lower()
+                sym = (_p.get("symbol") or "").upper()
+                _k2 = f"{proj}_{ch}_{sym}"
+                if _k2 not in _pool_idx or _p.get("apy", 0) > _pool_idx[_k2].get("apy", 0):
+                    _pool_idx[_k2] = _p
+
+            targets = _LLAMA_FALLBACK_MAP.get(asset.upper(), _LLAMA_FALLBACK_MAP.get("USDC", []))
+            fb = []
+            for proj_key, sym_key, display, fb_chain, url, risk in targets:
+                lookup = f"{proj_key}_{sym_key}"
+                pool_data = _pool_idx.get(lookup, {})
+                apy_val = round(pool_data.get("apy", 0), 2)
+                tvl_val = round(pool_data.get("tvlUsd", 0), 0)
+                if apy_val > 0:
+                    fb.append({"project": display, "chain": fb_chain, "apy": apy_val,
+                               "tvl_usd": tvl_val, "risk": risk, "url": url, "source": "defillama_live"})
+            if fb:
+                return {
+                    "asset": asset,
+                    "chain": chain or "all",
+                    "results": len(fb[:limit]),
+                    "yields": fb[:limit],
+                    "source": "defillama_fallback",
+                }
+    except Exception:
+        pass
+
+    # Dernier recours: message explicite qu'aucune donnee live n'est disponible
     return {
         "asset": asset,
         "chain": chain or "all",
-        "results": len(fb[:limit]),
-        "yields": fb[:limit],
-        "source": "curated",
+        "results": 0,
+        "yields": [],
+        "source": "unavailable",
+        "message": "APIs DeFiLlama et natives indisponibles. Reessayez dans quelques minutes.",
     }
 
 
@@ -2323,31 +2803,30 @@ async def public_wallet_analysis(address: str = ""):
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():
-    """Liste les GPU disponibles avec prix live, disponibilite et comparaison concurrents."""
-    try:
-        from runpod_client import get_gpu_tiers_live
-        return await get_gpu_tiers_live()
-    except Exception as e:
-        # Fallback to static config
-        from config import GPU_TIERS, BROKER_MARGIN
-        tiers = []
-        for gpu in GPU_TIERS:
-            price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
-            tiers.append({
-                "id": gpu["id"],
-                "label": gpu["label"],
-                "vram_gb": gpu["vram_gb"],
-                "price_per_hour_usdc": price,
-                "available": True,
-                "source": "fallback",
-                "maxia_markup": "0%",
-            })
-        return {
-            "gpu_count": len(tiers),
-            "tiers": tiers,
-            "provider": "RunPod (via MAXIA)",
-            "error": str(e),
-        }
+    """Liste les GPU disponibles avec prix live RunPod (0% markup).
+    GPU_TIERS est mis a jour toutes les 30 min par gpu_pricing.py."""
+    import time as _t
+    from config import GPU_TIERS, BROKER_MARGIN
+    tiers = []
+    for gpu in GPU_TIERS:
+        price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
+        tiers.append({
+            "id": gpu["id"],
+            "label": gpu["label"],
+            "vram_gb": gpu["vram_gb"],
+            "price_per_hour_usdc": price,
+            "available": True,
+            "source": "live" if gpu.get("live_price") else ("local" if gpu.get("local") else "fallback"),
+            "maxia_markup": "0%",
+            "local": gpu.get("local", False),
+        })
+    return {
+        "gpu_count": len(tiers),
+        "tiers": tiers,
+        "provider": "RunPod (via MAXIA)",
+        "markup": "0%",
+        "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
+    }
 
 
 @router.get("/gpu/compare")
@@ -2426,9 +2905,8 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     price_per_hour = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
     total_price = round(price_per_hour * hours, 4)
 
-    # Commission MAXIA
-    volume = agent.get("volume_30d", 0)
-    commission_bps = get_commission_bps(volume)
+    # Commission MAXIA (based on rental total cost)
+    commission_bps = get_commission_bps(total_price)
     commission = round(total_price * commission_bps / 10000, 4)
     total_with_commission = round(total_price + commission, 4)
 
@@ -2879,17 +3357,23 @@ async def crypto_prices():
 
 
 @router.get("/crypto/quote")
-async def crypto_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0):
-    """Devis de swap avec commission MAXIA. Sans auth."""
+async def crypto_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0, wallet: str = ""):
+    """Devis de swap avec commission MAXIA. Sans auth.
+    Si wallet fourni, le volume 30 jours est calcule automatiquement pour le tier."""
     from crypto_swap import get_swap_quote
-    # Fix #6: Wire up user_volume_30d from agent's actual volume if API key provided
-    volume = volume_30d
-    api_key = request.headers.get("X-API-Key", "")
-    if api_key:
-        agent = _registered_agents.get(api_key)
-        if agent:
-            volume = agent.get("volume_30d", 0)
-    result = await get_swap_quote(from_token, to_token, amount, user_volume_30d=volume)
+    # Get user 30-day swap volume and swap count if wallet provided
+    user_volume = volume_30d
+    swap_count = -1
+    if wallet:
+        try:
+            from database import db
+            if user_volume <= 0:
+                user_volume = await db.get_swap_volume_30d(wallet)
+            swap_count = await db.get_swap_count(wallet)
+        except Exception:
+            user_volume = 0
+            swap_count = -1
+    result = await get_swap_quote(from_token, to_token, amount, user_volume, swap_count)
     # Fix #7: Add cache-control info to quote response
     if isinstance(result, dict) and "error" not in result:
         result["cache_ttl_seconds"] = 30
@@ -2898,9 +3382,9 @@ async def crypto_quote(request: Request, from_token: str, to_token: str, amount:
 
 
 @router.get("/crypto/swap-quote")
-async def crypto_swap_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0):
+async def crypto_swap_quote(request: Request, from_token: str, to_token: str, amount: float, volume_30d: float = 0, wallet: str = ""):
     """Alias de /crypto/quote pour compatibilite."""
-    return await crypto_quote(request, from_token, to_token, amount, volume_30d)
+    return await crypto_quote(request, from_token, to_token, amount, volume_30d, wallet)
 
 
 @router.post("/crypto/swap")
@@ -2933,6 +3417,17 @@ async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None,
     if current_vol + value_usd > 50000:
         return {"success": False, "error": "Daily volume limit reached ($50,000)"}
 
+    # Get real 30-day swap volume and swap count from DB
+    swap_volume_30d = 0
+    swap_count = -1
+    try:
+        from database import db
+        swap_volume_30d = await db.get_swap_volume_30d(agent["wallet"])
+        swap_count = await db.get_swap_count(agent["wallet"])
+    except Exception:
+        swap_volume_30d = agent.get("volume_30d", 0)
+        swap_count = -1
+
     from crypto_swap import execute_swap
     result = await execute_swap(
         buyer_api_key=x_api_key,
@@ -2941,8 +3436,9 @@ async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None,
         from_token=req.get("from_token", ""),
         to_token=req.get("to_token", ""),
         amount=amount,
-        buyer_volume_30d=agent.get("volume_30d", 0),
+        buyer_volume_30d=swap_volume_30d,
         payment_tx=req.get("payment_tx", ""),
+        swap_count=swap_count,
     )
 
     if result.get("success"):
@@ -2950,7 +3446,7 @@ async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None,
         _rate_limits[daily_vol_key] = current_vol + value_usd
         async with _agent_update_lock:
             # Fix #3: Division by zero guard + Fix #19: Use dynamic commission calculation
-            bps = result.get("commission_bps") or get_commission_bps(agent.get("volume_30d", 0))
+            bps = result.get("commission_bps") or get_commission_bps(value_usd)
             bps = bps or 15  # Absolute fallback to prevent zero
             agent["volume_30d"] += result.get("commission_usd", 0) / (bps / 10000)
             agent["total_spent"] += result.get("commission_usd", 0)
@@ -3250,4 +3746,189 @@ async def referral_stats(api_key: str):
         "total_commission_earned_usdc": round(earnings, 4),
         "commission_rate": f"{REFERRAL_SHARE_PCT}% of MAXIA's commission",
         "share_url": f"https://maxiaworld.app/api/public/register?referral_code={referral_code}",
+    }
+
+
+# ══════════════════════════════════════════
+#  COMPLIANCE — OFAC Sanctions Check (Art.25)
+# ══════════════════════════════════════════
+
+@router.get("/compliance/check-wallet")
+async def compliance_check_wallet(address: str = ""):
+    """Check if a wallet address is on the OFAC sanctions list. Free, no auth needed."""
+    if not address or len(address) < 20:
+        raise HTTPException(400, "address query parameter required (min 20 chars)")
+    result = check_ofac_wallet(address)
+    return {
+        "address": address,
+        "sanctioned": result["sanctioned"],
+        "risk_level": result["risk"],
+        "provider": "MAXIA built-in (OFAC SDN subset + Tornado Cash + Lazarus Group)",
+        "note": "For full coverage, integrate Chainalysis or TRM Labs API.",
+    }
+
+
+# ══════════════════════════════════════════
+#  RATE LIMIT TIERS INFO
+# ══════════════════════════════════════════
+
+@router.get("/rate-limits")
+async def rate_limits_info(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Check your current rate limit tier and usage."""
+    from security import RATE_LIMIT_TIERS, get_agent_rate_tier
+    if not x_api_key:
+        return {
+            "current_tier": "free",
+            "tiers": RATE_LIMIT_TIERS,
+            "note": "Register with POST /api/public/register to get an API key.",
+        }
+    await _load_from_db()
+    try:
+        _get_agent(x_api_key)
+    except Exception:
+        return {"current_tier": "free", "tiers": RATE_LIMIT_TIERS}
+
+    tier_name = get_agent_rate_tier(x_api_key)
+    usage = check_rate_limit_tiered(x_api_key)
+
+    return {
+        "current_tier": tier_name,
+        "tier_details": RATE_LIMIT_TIERS[tier_name],
+        "usage": {
+            "remaining_per_min": usage.get("remaining_min", "?"),
+            "remaining_per_day": usage.get("remaining_day", "?"),
+        },
+        "all_tiers": RATE_LIMIT_TIERS,
+        "upgrade": "Contact team@maxiaworld.app for Pro/Enterprise access.",
+    }
+
+
+# ══════════════════════════════════════════
+#  AGENT BUNDLE — 1 API call to get everything
+# ══════════════════════════════════════════
+
+@router.post("/agents/bundle")
+async def agent_bundle(request: Request):
+    """Register an AI agent and get EVERYTHING in one API call.
+    Returns: API key, wallet setup, MCP tools access, A2A endpoint,
+    marketplace listing, leaderboard entry, referral code.
+
+    This is the fastest way to go from zero to live on MAXIA.
+    One POST, one response, your agent is ready to trade.
+    """
+    body = await request.json()
+    wallet = body.get("wallet", "").strip()[:50] if isinstance(body.get("wallet"), str) else ""
+    name = body.get("name", "").strip()[:100] if isinstance(body.get("name"), str) else ""
+    description = body.get("description", "").strip()[:2000] if isinstance(body.get("description"), str) else ""
+
+    if not wallet or not name:
+        raise HTTPException(400, "wallet and name required")
+
+    if len(name) < 2:
+        raise HTTPException(400, "name must be at least 2 characters")
+    if len(wallet) < 20:
+        raise HTTPException(400, "wallet address too short")
+
+    # Art.1 — Content safety on all inputs
+    _check_safety(name, "name")
+    if description:
+        _check_safety(description, "description")
+
+    # OFAC sanctions check
+    require_ofac_clear(wallet, "bundle registration wallet")
+
+    await _load_from_db()
+
+    from database import db
+
+    # 1. Register agent (generate secure API key)
+    api_key = f"maxia_{secrets.token_hex(24)}"
+    agent = {
+        "api_key": api_key,
+        "name": name,
+        "wallet": wallet,
+        "description": description or f"AI agent {name}",
+        "registered_at": int(time.time()),
+        "volume_30d": 0.0,
+        "total_spent": 0.0,
+        "total_earned": 0.0,
+        "tier": "BRONZE",
+        "requests_today": 0,
+        "services_listed": 0,
+    }
+    _registered_agents[api_key] = agent
+    try:
+        await db.save_agent(agent)
+    except Exception as e:
+        print(f"[Bundle] DB save agent error: {e}")
+
+    # 2. Generate referral code
+    referral_code = f"ref_{wallet[:8]}_{int(time.time()) % 10000}"
+
+    # 3. Get current tier info
+    from crypto_swap import get_swap_tier_info
+    tier_info = get_swap_tier_info(0)
+
+    # 4. Build response with everything
+    return {
+        "success": True,
+        "message": f"Welcome to MAXIA, {name}! Your agent is live.",
+
+        # Identity
+        "api_key": api_key,
+        "wallet": wallet,
+        "agent_name": name,
+        "referral_code": referral_code,
+
+        # Endpoints (everything your agent can do)
+        "endpoints": {
+            "swap_quote": "GET /api/public/crypto/quote?from=SOL&to=USDC&amount=10",
+            "swap_execute": "POST /api/public/crypto/swap",
+            "gpu_rent": "POST /api/public/gpu/rent",
+            "gpu_tiers": "GET /api/public/gpu/tiers",
+            "stocks_list": "GET /api/public/stocks",
+            "stocks_buy": "POST /api/public/stocks/buy",
+            "defi_yields": "GET /api/public/defi/best-yield?asset=USDC",
+            "discover_services": "GET /api/public/discover",
+            "register_service": "POST /api/public/services/register",
+            "execute_service": "POST /api/public/services/{id}/execute",
+            "credit_score": f"GET /api/public/credit-score/{wallet}",
+            "mcp_tools": "GET /mcp/tools",
+            "a2a_card": "GET /.well-known/agent.json",
+            "prices": "GET /api/public/prices",
+        },
+
+        # Your current tier
+        "tier": tier_info,
+
+        # Commissions (first swap is FREE)
+        "first_swap_free": True,
+        "commission_tiers": {
+            "BRONZE": "0.10%",
+            "SILVER": "0.05%",
+            "GOLD": "0.03%",
+            "WHALE": "0.01%",
+        },
+
+        # Quick start code
+        "quickstart_python": f'''import httpx
+# Your agent is live! Try a swap:
+r = httpx.get("https://maxiaworld.app/api/public/crypto/quote",
+    params={{"from": "SOL", "to": "USDC", "amount": 10, "wallet": "{wallet}"}})
+print(r.json())
+''',
+
+        # What's included (free)
+        "included": [
+            "107 tokens on 7 swap chains",
+            "25 tokenized stocks (Pyth real-time)",
+            "13 GPU tiers at cost (0% markup)",
+            "DeFi yield scanner (14 chains)",
+            "46 MCP tools",
+            "A2A Protocol support",
+            "On-chain escrow with AI disputes",
+            "Agent leaderboard (AAA-CCC grades)",
+            "Referral program (10% lifetime)",
+            "First swap FREE (0% commission)",
+        ],
     }

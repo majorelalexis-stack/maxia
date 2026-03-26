@@ -36,6 +36,9 @@ MECANISMES INTERNES :
 import asyncio, json, time, os
 from datetime import datetime, date
 
+from config import GPU_TIERS
+_gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
+
 # LLM Router — route vers le bon tier (LOCAL/FAST/MID/STRATEGIC)
 try:
     from llm_router import router as llm_router, Tier
@@ -189,7 +192,7 @@ OPUS_MODEL = "claude-opus-4-20250514"
 
 FOUNDER_NAME = "Alexis"
 COMPANY = "MAXIA"
-PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 71 tokens, 25 stocks (xStocks/Ondo/Dinari), 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, 46 MCP tools, 17 AI services, 91 modules"
+PRODUCT = "AI Web3 Hub on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) — swap 107 tokens, 25 stocks (xStocks/Ondo/Dinari), 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID, trust score, oracle, data marketplace, RPC service, 46 MCP tools, 17 AI services, 91 modules"
 PHASE = "Pre-seed"
 VISION = "Devenir le hub Web3 de reference pour les agents IA autonomes"
 URL = "maxiaworld.app"
@@ -1021,7 +1024,7 @@ async def watchdog_health_check() -> dict:
 
     from config import PORT
     admin_key = os.getenv("ADMIN_KEY", "")
-    async with httpx.AsyncClient(timeout=20, verify=False) as client:
+    async with httpx.AsyncClient(timeout=20) as client:  # SSL verify ON (fix B501)
         for name, endpoint in HEALTH_ENDPOINTS.items():
             try:
                 headers = {}
@@ -1538,7 +1541,7 @@ async def respond(canal: str, user: str, msg: str, memory: Memory) -> dict:
     ctx = (
         f"CANAL: {canal}\nUSER: {user}\nMESSAGE: {msg}\n"
         f"HISTORIQUE:\n{json.dumps(prev, indent=1, default=str) if prev else '(Premier contact)'}\n"
-        f"MAXIA: 71 tokens, 2450 paires, GPU $0.69/h, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
+        f"MAXIA: 107 tokens, 5000+ paires, GPU {_gpu_cheapest}, audit $9.99, AI-to-AI marketplace\nURL: {URL}\n"
         f"TESTIMONIALS: {len(memory._data.get('testimonials', []))} recus"
     )
     # Router: FAST pour les reponses (besoin de qualite, mais pas strategique)
@@ -1795,7 +1798,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
             "badges": [
                 f"{len(d.get('langues', ['en']))} Languages",
                 "14 Chains",
-                "50 Tokens", "5000+ Pairs", "13 Stocks", "7 GPU", "46 MCP Tools",
+                "107 Tokens", "5000+ Pairs", "25 Stocks", "7 GPU", "46 MCP Tools",
             ],
         },
         "stats": {
@@ -1812,7 +1815,7 @@ async def web_designer_update_config(memory: Memory) -> dict:
         },
         "pricing_highlight": {
             "swap_fee": "0.01%",
-            "gpu_price": "$0.69/h",
+            "gpu_price": _gpu_cheapest,
             "audit_price": "$4.99",
             "label": "Lowest fees in DeFi",
         },
@@ -1860,7 +1863,7 @@ DEPLOYABLE_PAGES = {
     },
     "status": {
         "trigger": "toujours",
-        "description": "Uptime, prix live 71 tokens, volume, agents actifs",
+        "description": "Uptime, prix live 107 tokens, volume, agents actifs",
     },
     "testimonials": {
         "trigger": "3_feedbacks_positifs",
@@ -1896,7 +1899,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"- Ajoute un bouton 'Try it' qui fait un fetch() vers l'API et affiche le resultat\n"
             f"- Affiche les prix en temps reel via fetch('/api/public/crypto/prices')\n\n"
             f"Header: MAXIA API Documentation\n"
-            f"Footer: 71 tokens, 5000+ pairs, 25 stocks, 7 GPU, 46 MCP tools — Live on 14 chains\n"
+            f"Footer: 107 tokens, 5000+ pairs, 25 stocks, 7 GPU, 46 MCP tools — Live on 14 chains\n"
             f"Style: dark (#0A0E17), blue accents (#3B82F6), JetBrains Mono pour le code\n"
             f"Retourne UNIQUEMENT le HTML complet, rien d'autre."
         ),
@@ -1937,9 +1940,9 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"| Service | MAXIA | Jupiter | Binance | Coinbase |\n"
             f"| Swap fee | 0.01-0.10% | 0% + slippage | 0.10% | 0.60% |\n"
             f"| Stocks | 0.05% | N/A | N/A | N/A |\n"
-            f"| GPU RTX4090 | $0.69/h | N/A | N/A | N/A |\n"
+            f"| GPU RTX4090 | {_gpu_cheapest} | N/A | N/A | N/A |\n"
             f"| API | Gratuite | Gratuite | Payante | Payante |\n"
-            f"| Prix live | 71 tokens | Oui | Oui | Oui |\n"
+            f"| Prix live | 107 tokens | Oui | Oui | Oui |\n"
             f"| AI Services | 9 services | Non | Non | Non |\n\n"
             f"Mets en evidence les avantages MAXIA (vert)\n"
             f"Ajoute un calculateur : 'Combien economisez-vous avec MAXIA ?'\n"
@@ -1953,7 +1956,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
             f"Sections :\n"
             f"- Resume executif (2 phrases)\n"
             f"- KPI (revenus, clients, volume, swaps)\n"
-            f"- Prix des 71 tokens (tableau)\n"
+            f"- Prix des 107 tokens (tableau)\n"
             f"- Top 5 swaps de la semaine\n"
             f"- Decisions du CEO cette semaine\n"
             f"- Perspectives semaine prochaine\n\n"
@@ -2676,7 +2679,419 @@ async def crisis_respond(crisis: dict, memory: Memory) -> dict:
 
 
 # ══════════════════════════════════════════
-# CEO MAXIA
+# SCOUT — Scan agents on-chain + premier contact A2A
+# Le scout collecte et remonte au CEO local. Il ne decide PAS.
+# ══════════════════════════════════════════
+
+async def scout_scan_onchain_agents(memory) -> list:
+    """Scan reel des registres d'agents IA connus + detection de patterns on-chain.
+    Interroge les APIs publiques de : Olas (Valory), Fetch.ai, ElizaOS, Virtuals Protocol, GOAT SDK.
+    Detecte aussi les wallets avec comportement d'agent (transactions repetitives, interactions smart contract).
+    Retourne une liste de {address, chain, behavior, registry, detected_at}."""
+    import httpx
+
+    detected = []
+    now = datetime.utcnow().isoformat()
+    # Set de deduplication par adresse
+    seen_addresses = set()
+
+    # ── 1. RADAR — donnees on-chain deja collectees ──
+    try:
+        radar_data = memory._data.get("radar_alerts", [])
+        for alert in radar_data[-30:]:
+            if alert.get("type") in ("new_agent", "repetitive_wallet", "ai_pattern"):
+                addr = alert.get("address", "")
+                if addr and addr not in seen_addresses:
+                    seen_addresses.add(addr)
+                    detected.append({
+                        "address": addr,
+                        "chain": alert.get("chain", "unknown"),
+                        "behavior": alert.get("description", "automated transactions"),
+                        "registry": "radar",
+                        "detected_at": alert.get("ts", now),
+                    })
+    except Exception as e:
+        print(f"[SCOUT] Radar scan error: {e}")
+
+    # ── 2. REGISTRES D'AGENTS — APIs publiques ──
+    # Chaque registre a un endpoint different, on les interroge en parallele
+    registry_configs = [
+        {
+            # Olas / Valory — registre d'agents autonomes sur Ethereum/Gnosis
+            "name": "olas",
+            "url": "https://registry.olas.network/api/agents?limit=20&offset=0",
+            "chain": "ethereum",
+            "parse": lambda data: [
+                {
+                    "address": a.get("instance", a.get("address", a.get("id", ""))),
+                    "behavior": f"olas agent #{a.get('id', '?')}: {a.get('name', 'unnamed')[:60]}",
+                }
+                for a in (data if isinstance(data, list) else data.get("results", data.get("agents", [])))
+                if a.get("instance") or a.get("address") or a.get("id")
+            ],
+        },
+        {
+            # Fetch.ai — Agentverse / Almanac registre
+            "name": "fetch.ai",
+            "url": "https://agentverse.ai/api/v1/agents?limit=20",
+            "chain": "fetchai",
+            "parse": lambda data: [
+                {
+                    "address": a.get("address", a.get("agent_address", "")),
+                    "behavior": f"fetch agent: {a.get('name', a.get('title', 'unnamed'))[:60]}",
+                }
+                for a in (data if isinstance(data, list) else data.get("agents", data.get("results", [])))
+                if a.get("address") or a.get("agent_address")
+            ],
+        },
+        {
+            # Virtuals Protocol — agents sur Base
+            "name": "virtuals",
+            "url": "https://api.virtuals.io/api/agents?limit=20",
+            "chain": "base",
+            "parse": lambda data: [
+                {
+                    "address": a.get("wallet", a.get("address", a.get("virtualId", ""))),
+                    "behavior": f"virtuals agent: {a.get('name', 'unnamed')[:60]}",
+                }
+                for a in (data if isinstance(data, list) else data.get("data", data.get("agents", [])))
+                if a.get("wallet") or a.get("address") or a.get("virtualId")
+            ],
+        },
+        {
+            # GOAT SDK — registre d'agents sur GitHub (API repos)
+            "name": "goat-sdk",
+            "url": "https://api.github.com/orgs/goat-sdk/repos?per_page=10&sort=updated",
+            "chain": "multi",
+            "parse": lambda data: [
+                {
+                    "address": f"github:goat-sdk/{r.get('name', '')}",
+                    "behavior": f"goat plugin: {r.get('name', '')} ({r.get('stargazers_count', 0)} stars)",
+                }
+                for r in (data if isinstance(data, list) else [])
+                if r.get("name") and not r.get("archived", False)
+            ],
+        },
+        {
+            # ElizaOS — registre de plugins/agents (GitHub)
+            "name": "elizaos",
+            "url": "https://api.github.com/orgs/elizaOS/repos?per_page=10&sort=updated",
+            "chain": "multi",
+            "parse": lambda data: [
+                {
+                    "address": f"github:elizaOS/{r.get('name', '')}",
+                    "behavior": f"eliza plugin: {r.get('name', '')} ({r.get('stargazers_count', 0)} stars)",
+                }
+                for r in (data if isinstance(data, list) else [])
+                if r.get("name") and not r.get("archived", False)
+            ],
+        },
+    ]
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        # Lancer toutes les requetes en parallele
+        tasks = []
+        for reg in registry_configs:
+            tasks.append(_scout_fetch_registry(client, reg, seen_addresses, now))
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for res in results:
+            if isinstance(res, list):
+                detected.extend(res)
+
+    # ── 3. HELIUS — detection de wallets agents sur Solana ──
+    # Chercher les wallets avec des patterns d'agent (>20 tx/jour, interactions avec programmes connus)
+    helius_key = _cfg("HELIUS_API_KEY")
+    if helius_key:
+        try:
+            # Programmes connus d'agents IA sur Solana
+            agent_programs = [
+                "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",  # Orca (DEX — agents l'utilisent)
+                "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",  # Jupiter (swaps automatises)
+                "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",  # Marinade (staking auto)
+            ]
+            async with httpx.AsyncClient(timeout=15) as client:
+                for program_id in agent_programs[:2]:  # Limiter a 2 pour ne pas spam Helius
+                    try:
+                        resp = await client.post(
+                            f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
+                            json={
+                                "jsonrpc": "2.0", "id": 1,
+                                "method": "getSignaturesForAddress",
+                                "params": [program_id, {"limit": 10}],
+                            },
+                        )
+                        if resp.status_code == 200:
+                            sigs = resp.json().get("result", [])
+                            # Compter les signataires recurrents (wallets qui interagissent souvent)
+                            wallet_counts = {}
+                            for sig in sigs:
+                                memo = sig.get("memo", "")
+                                # Les agents mettent souvent un memo ou signent des tx repetitives
+                                if memo and ("agent" in memo.lower() or "bot" in memo.lower() or "ai" in memo.lower()):
+                                    addr = sig.get("signature", "")[:44]
+                                    wallet_counts[addr] = wallet_counts.get(addr, 0) + 1
+                            # Wallets avec >3 tx repetitives = probablement un agent
+                            for addr, count in wallet_counts.items():
+                                if count >= 3 and addr not in seen_addresses:
+                                    seen_addresses.add(addr)
+                                    detected.append({
+                                        "address": addr,
+                                        "chain": "solana",
+                                        "behavior": f"repetitive tx pattern ({count} interactions with {program_id[:8]}...)",
+                                        "registry": "helius-onchain",
+                                        "detected_at": now,
+                                    })
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[SCOUT] Helius scan error: {e}")
+
+    # ── 4. MEMOIRE — registres connus deja stockes ──
+    try:
+        registries = memory._data.get("known_agent_registries", [])
+        for reg in registries:
+            addr = reg.get("address", "")
+            if addr and addr not in seen_addresses:
+                seen_addresses.add(addr)
+                detected.append({
+                    "address": addr,
+                    "chain": reg.get("chain", "unknown"),
+                    "behavior": f"registered on {reg.get('registry', 'unknown')}",
+                    "registry": reg.get("registry", "memory"),
+                    "detected_at": reg.get("detected_at", now),
+                })
+    except Exception as e:
+        print(f"[SCOUT] Memory scan error: {e}")
+
+    print(f"[SCOUT] Scan termine: {len(detected)} agents detectes")
+    return detected
+
+
+async def _scout_fetch_registry(client, reg_config: dict, seen: set, now: str) -> list:
+    """Interroge un registre d'agents et retourne les agents detectes.
+    Fonction helper pour paralleliser les requetes."""
+    results = []
+    name = reg_config["name"]
+    try:
+        headers = {"Accept": "application/json", "User-Agent": "MAXIA-Scout/1.0"}
+        # GitHub a un rate limit strict — ajouter le token si disponible
+        github_token = _cfg("GITHUB_TOKEN")
+        if "github.com" in reg_config["url"] and github_token:
+            headers["Authorization"] = f"token {github_token}"
+
+        resp = await client.get(reg_config["url"], headers=headers)
+        if resp.status_code == 200:
+            data = resp.json()
+            parsed = reg_config["parse"](data)
+            for agent in parsed[:15]:  # Limiter a 15 par registre
+                addr = str(agent.get("address", ""))
+                if addr and addr not in seen:
+                    seen.add(addr)
+                    results.append({
+                        "address": addr,
+                        "chain": reg_config["chain"],
+                        "behavior": agent.get("behavior", f"registered on {name}"),
+                        "registry": name,
+                        "detected_at": now,
+                    })
+            print(f"[SCOUT] {name}: {len(results)} agents trouves")
+        else:
+            print(f"[SCOUT] {name}: HTTP {resp.status_code}")
+    except Exception as e:
+        print(f"[SCOUT] {name} error: {e}")
+    return results
+
+
+async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
+    """Contact reel d'un agent on-chain via A2A protocol.
+    1. Tente de decouvrir l'agent via /.well-known/agent.json
+    2. Si endpoint A2A trouve, envoie un message avec le manifest MAXIA
+    3. Sinon, fallback sur memo on-chain (micro tx USDC avec message)
+    Retourne {success, contact, method}."""
+    import httpx
+
+    now = datetime.utcnow().isoformat()
+    contact_record = {
+        "address": address,
+        "chain": chain,
+        "pitch": pitch[:500],
+        "method": "pending",
+        "ts": now,
+        "response": "pending",
+    }
+
+    # ── MANIFEST MAXIA pour l'echange A2A ──
+    maxia_manifest = {
+        "name": "MAXIA",
+        "description": "AI-to-AI Marketplace on 14 blockchains — swap, GPU, stocks, DeFi, 46 MCP tools",
+        "url": "https://maxiaworld.app",
+        "protocolVersion": "0.3",
+        "capabilities": ["marketplace", "swap", "gpu", "defi", "mcp"],
+        "contact": "https://maxiaworld.app/a2a",
+    }
+
+    # ── 1. ESSAYER LE CONTACT A2A (si l'adresse ressemble a une URL ou domaine) ──
+    a2a_endpoints = []
+
+    # Si l'adresse est une URL ou un domaine, tenter la decouverte A2A
+    if address.startswith("http") or address.startswith("github:"):
+        base_url = address
+        if address.startswith("github:"):
+            # Construire l'URL depuis le repo GitHub (convention: README contient l'endpoint)
+            parts = address.replace("github:", "").split("/")
+            if len(parts) >= 2:
+                base_url = f"https://{parts[1]}.github.io"
+        a2a_endpoints = [
+            f"{base_url}/.well-known/agent.json",
+            f"{base_url}/a2a",
+            f"{base_url}/api/a2a",
+        ]
+    else:
+        # Essayer les domaines classiques pour les agents connus
+        # Olas, Fetch, Virtuals exposent parfois des endpoints A2A
+        known_domains = {
+            "olas": "https://registry.olas.network",
+            "fetch.ai": "https://agentverse.ai",
+            "virtuals": "https://api.virtuals.io",
+        }
+        for registry_name, domain in known_domains.items():
+            a2a_endpoints.append(f"{domain}/.well-known/agent.json")
+            a2a_endpoints.append(f"{domain}/api/agents/{address}/a2a")
+
+    # Tenter la decouverte et le contact A2A
+    a2a_success = False
+    async with httpx.AsyncClient(timeout=10) as client:
+        for endpoint in a2a_endpoints[:5]:  # Limiter a 5 tentatives
+            try:
+                # 1a. Decouverte — verifier si l'agent expose un agent card
+                if endpoint.endswith("agent.json"):
+                    resp = await client.get(endpoint, headers={"Accept": "application/json"})
+                    if resp.status_code == 200:
+                        agent_card = resp.json()
+                        agent_a2a_url = agent_card.get("url", "")
+                        agent_name = agent_card.get("name", "unknown")
+                        print(f"[SCOUT] A2A agent card trouve: {agent_name} at {agent_a2a_url}")
+
+                        # 1b. Contact — envoyer un message A2A (JSON-RPC tasks/send)
+                        if agent_a2a_url:
+                            task_resp = await client.post(
+                                f"{agent_a2a_url.rstrip('/')}/a2a",
+                                json={
+                                    "jsonrpc": "2.0",
+                                    "id": f"maxia-scout-{int(time.time())}",
+                                    "method": "tasks/send",
+                                    "params": {
+                                        "id": f"contact-{address[:10]}-{int(time.time())}",
+                                        "message": {
+                                            "role": "user",
+                                            "parts": [{
+                                                "type": "text",
+                                                "text": pitch[:500],
+                                            }],
+                                        },
+                                        "metadata": {
+                                            "from": "MAXIA",
+                                            "manifest": maxia_manifest,
+                                        },
+                                    },
+                                },
+                                headers={"Content-Type": "application/json"},
+                            )
+                            if task_resp.status_code in (200, 201, 202):
+                                result = task_resp.json()
+                                contact_record["method"] = "a2a"
+                                contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
+                                contact_record["agent_name"] = agent_name
+                                contact_record["a2a_url"] = agent_a2a_url
+                                a2a_success = True
+                                print(f"[SCOUT] Contact A2A reussi: {agent_name}")
+                                break
+                else:
+                    # Tenter un POST direct sur l'endpoint A2A
+                    resp = await client.post(
+                        endpoint,
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": f"maxia-scout-{int(time.time())}",
+                            "method": "tasks/send",
+                            "params": {
+                                "id": f"contact-{address[:10]}-{int(time.time())}",
+                                "message": {
+                                    "role": "user",
+                                    "parts": [{"type": "text", "text": pitch[:500]}],
+                                },
+                                "metadata": {"from": "MAXIA", "manifest": maxia_manifest},
+                            },
+                        },
+                        headers={"Content-Type": "application/json"},
+                    )
+                    if resp.status_code in (200, 201, 202):
+                        result = resp.json()
+                        contact_record["method"] = "a2a"
+                        contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
+                        contact_record["a2a_url"] = endpoint
+                        a2a_success = True
+                        print(f"[SCOUT] Contact A2A direct reussi: {endpoint}")
+                        break
+            except Exception as e:
+                # Silencieux — on essaie le prochain endpoint
+                continue
+
+    # ── 2. FALLBACK — memo on-chain (micro tx USDC avec message) ──
+    if not a2a_success and chain == "solana":
+        try:
+            # Construire une micro-transaction USDC ($0.001) avec memo contenant le pitch
+            # Le memo sert de "carte de visite" on-chain
+            memo_text = f"MAXIA AI Marketplace — {pitch[:100]} — https://maxiaworld.app/a2a"
+            micro_amount = 0.001  # $0.001 USDC — cout negligeable
+
+            # Verifier que le wallet micro est configure
+            micro_addr = _cfg("MICRO_WALLET_ADDRESS")
+            micro_key = _cfg("MICRO_WALLET_PRIVKEY")
+            if micro_addr and micro_key:
+                # Utiliser solana_tx pour envoyer la micro-tx avec memo
+                try:
+                    from solana_tx import build_usdc_transfer_with_memo
+                    tx_result = await build_usdc_transfer_with_memo(
+                        sender_privkey=micro_key,
+                        recipient=address,
+                        amount_usdc=micro_amount,
+                        memo=memo_text[:256],  # Solana memo limit
+                    )
+                    if tx_result and tx_result.get("signature"):
+                        contact_record["method"] = "onchain_memo"
+                        contact_record["response"] = "memo_sent"
+                        contact_record["tx_signature"] = tx_result["signature"]
+                        contact_record["amount_usdc"] = micro_amount
+                        print(f"[SCOUT] Memo on-chain envoye: {address[:10]}... (tx: {tx_result['signature'][:20]}...)")
+                        return {"success": True, "contact": contact_record, "method": "onchain_memo"}
+                except ImportError:
+                    print("[SCOUT] solana_tx.build_usdc_transfer_with_memo non disponible — memo skip")
+                except Exception as e:
+                    print(f"[SCOUT] Memo on-chain erreur: {e}")
+            else:
+                print("[SCOUT] Micro wallet non configure — memo on-chain skip")
+
+            # Si la tx memo echoue, on enregistre quand meme le contact
+            contact_record["method"] = "onchain_memo_failed"
+            contact_record["response"] = "memo_not_sent"
+        except Exception as e:
+            print(f"[SCOUT] Fallback memo error: {e}")
+            contact_record["method"] = "failed"
+            contact_record["response"] = str(e)[:100]
+
+    # Si aucun contact n'a reussi et ce n'est pas Solana
+    if not a2a_success and contact_record["method"] == "pending":
+        contact_record["method"] = "queued"
+        contact_record["response"] = "no_a2a_endpoint_found"
+
+    print(f"[SCOUT] Contact {contact_record['method']}: {address[:16]}... on {chain}")
+    return {"success": a2a_success, "contact": contact_record, "method": contact_record["method"]}
+
+
+# ══════════════════════════════════════════
+# CEO MAXIA — MODE SCOUT
+# Le VPS collecte, le CEO local (PC) decide.
 # ══════════════════════════════════════════
 
 class CEOMaxia:
@@ -2689,19 +3104,25 @@ class CEOMaxia:
         self._last_crisis_check = ""  # ISO date of last crisis detection run
         # Pre-seed mode: no revenue yet, product just launched — reduce crisis noise
         self._pre_seed_mode = (self.memory._data.get("revenue_usd", 0) == 0)
-        print("[CEO MAXIA] V4 initialise")
+        # Scout: agents on-chain detectes et contacts
+        self._scout_contacts = []
+        self._onchain_agents = []
+        print("[CEO MAXIA] V5 SCOUT MODE initialise")
+        print(f"  Role: Scout (collecte metriques + scan agents + premier contact A2A)")
+        print(f"  Decisions: DELEGUEES au CEO Local (PC + GPU)")
         print(f"  Router: {'actif' if self.router else 'desactive (direct Groq/Claude)'}")
         print(f"  Groq: {'actif' if GROQ_API_KEY else 'MANQUANT'}")
         print(f"  Anthropic: {'actif' if ANTHROPIC_API_KEY else 'fallback Groq'}")
         print(f"  Discord: {'actif' if DISCORD_WEBHOOK_URL else 'absent'}")
         print(f"  Budget: {self.memory.get_budget_vert():.4f} SOL")
-        print(f"  Emergency: {'⛔ STOP' if self.memory.is_stopped() else 'OK'}")
-        print(f"  Agents: GHOST-WRITER, HUNTER, SCOUT, WATCHDOG, SOL-TREASURY, RESPONDER, RADAR, TESTIMONIAL, DEPLOYER, WEB-DESIGNER, ORACLE, MICRO, NEGOTIATOR, COMPLIANCE, PARTNERSHIP, ANALYTICS, CRISIS-MANAGER")
+        print(f"  Emergency: {'STOP' if self.memory.is_stopped() else 'OK'}")
+        print(f"  Agents: SCOUT, WATCHDOG, RADAR, COMPLIANCE, ANALYTICS, CRISIS-MANAGER")
 
     async def run(self):
         self._running = True
-        print("[CEO MAXIA] Demarre — 4 boucles, 17 agents, 5 mecanismes")
-        await alert_info("CEO MAXIA V4 demarre")
+        print("[CEO MAXIA] Demarre — MODE SCOUT (collecte + scan + contact A2A)")
+        print("[CEO MAXIA] Strategie et outreach delegues au CEO Local (PC + GPU)")
+        await alert_info("CEO VPS V5 SCOUT — collecte metriques + scan agents on-chain")
 
         while self._running:
             self._cycle += 1
@@ -2709,16 +3130,21 @@ class CEOMaxia:
             today = date.today().isoformat()
 
             try:
+                # Mode minimal : monitoring, RADAR, CRISIS, ANALYTICS
+                # PAS d'outreach social (delegue au CEO local avec browser-use)
                 await self._tactique()
 
+                # Strategique 1x/jour (20h UTC) — garder pour le pricing et scaling
                 if now.hour == 20 and self._last["strat"] != today:
                     self._last["strat"] = today
                     await self._strategique()
 
+                # Vision hebdo (dimanche 18h) — garder pour la retrospective
                 if now.weekday() == 6 and now.hour == 18 and self._last["vision"] != today:
                     self._last["vision"] = today
                     await self._vision()
 
+                # Expansion mensuelle — garder
                 if now.day == 1 and now.hour == 10 and self._last["expansion"] != today:
                     self._last["expansion"] = today
                     await self._expansion()
@@ -2728,7 +3154,7 @@ class CEOMaxia:
 
             except Exception as e:
                 print(f"[CEO] Error #{self._cycle}: {e}")
-            await asyncio.sleep(10800)  # 3 heures (economie tokens Groq)
+            await asyncio.sleep(10800)  # 3 heures
 
     def stop(self):
         self._running = False
@@ -2834,6 +3260,19 @@ class CEOMaxia:
 
         # RADAR scan (on-chain)
         radar = await radar_scan(self.memory)
+
+        # SCOUT — scan agents on-chain pour le CEO local
+        try:
+            self._onchain_agents = await scout_scan_onchain_agents(self.memory)
+            if self._onchain_agents:
+                print(f"[SCOUT] {len(self._onchain_agents)} agents on-chain detectes")
+                self.memory.update_agent("SCOUT", {
+                    "status": "actif",
+                    "agents_detected": len(self._onchain_agents),
+                    "contacts_sent": len(self._scout_contacts),
+                })
+        except Exception as e:
+            print(f"[SCOUT] Scan error: {e}")
 
         # ORACLE scan (off-chain — social listening)
         oracle_trends = await oracle_scan_trends(self.memory)
@@ -3454,7 +3893,7 @@ if __name__ == "__main__":
 
         # GHOST-WRITER + WATCHDOG
         print("\n--- GHOST-WRITER + WATCHDOG ---")
-        c = await ghost_write("tweet", "MAXIA 71 tokens live", "twitter")
+        c = await ghost_write("tweet", "MAXIA 107 tokens live", "twitter")
         print(f"  Blocked: {c.get('blocked', False)} | {json.dumps(c, default=str)[:100]}")
 
         # TESTIMONIAL
@@ -3499,7 +3938,7 @@ if __name__ == "__main__":
 
         # BLOG
         print("\n--- BLOG ---")
-        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 71 tokens")
+        blog = await ceo.deploy_blog("AI Trading on Solana", "How AI agents use MAXIA API to trade 107 tokens")
         print(f"  Blog: {blog.get('success', False)} | {blog.get('url', blog.get('error', ''))}")
 
         # STATUS

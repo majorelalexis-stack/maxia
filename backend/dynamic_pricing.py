@@ -64,7 +64,7 @@ async def adjust_market_fees(db) -> dict:
 
 def _apply_adjustments():
     """Applique l'ajustement aux COMMISSION_TIERS (in-place)."""
-    base_rates = [500, 100, 10]  # BRONZE, GOLD, WHALE (valeurs de base)
+    base_rates = [100, 50, 10]  # BRONZE 1%, GOLD 0.5%, WHALE 0.1% (from config.py)
     for i, tier in enumerate(COMMISSION_TIERS):
         if i >= len(base_rates):
             break

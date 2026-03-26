@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="MAXIA Creator Marketplace — Buy and sell tools, datasets, prompts, workflows, and models. Earn 90% in USDC.">
+<meta name="keywords" content="AI marketplace, tools, datasets, prompts, workflows, models, USDC, creator economy">
+<title>MAXIA — Creator Marketplace</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+
+/* Nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
+
+/* Hero */
+.hero{padding:100px 24px 40px;text-align:center;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%)}
+.hero-title{font-size:48px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}
+.hero-sub{font-size:20px;color:var(--muted);font-weight:300;max-width:650px;margin:0 auto;line-height:1.5}
+
+/* Section */
+.section{max-width:1100px;margin:0 auto;padding:48px 24px}
+.section-title{font-size:28px;font-weight:700;margin-bottom:8px}
+.section-sub{color:var(--muted);font-size:16px;margin-bottom:32px}
+
+/* Stats bar */
+.stats-bar{display:flex;justify-content:center;gap:40px;padding:24px;background:var(--bg2);border-radius:14px;margin-bottom:32px;flex-wrap:wrap}
+.stat{text-align:center}
+.stat-num{font-size:24px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace}
+.stat-label{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* Search + filters */
+.controls{display:flex;gap:16px;margin-bottom:32px;flex-wrap:wrap;align-items:center}
+.search-wrap{flex:1;min-width:240px;position:relative}
+.search-input{width:100%;padding:12px 16px 12px 44px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:var(--card);color:var(--text);font-size:15px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .3s}
+.search-input:focus{border-color:var(--blue)}
+.search-input::placeholder{color:var(--muted2)}
+.search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:16px;pointer-events:none}
+.sort-select{padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:var(--card);color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394A3B8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.sort-select option{background:var(--bg2);color:var(--text)}
+
+/* Category pills */
+.cat-pills{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:24px}
+.cat-pill{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--muted);transition:all .3s;font-family:'Outfit',sans-serif}
+.cat-pill:hover{border-color:rgba(59,130,246,.3);color:var(--text)}
+.cat-pill.active{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--cyan)}
+
+/* Tool cards grid */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.tool-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;transition:all .3s;display:flex;flex-direction:column;cursor:pointer}
+.tool-card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.tool-cat{font-size:13px;color:var(--muted2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.tool-cat-icon{font-size:16px}
+.tool-name{font-size:18px;font-weight:600;margin-bottom:4px;line-height:1.3}
+.tool-by{font-size:12px;color:var(--muted2);margin-bottom:12px}
+.tool-desc{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:16px;flex:1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tool-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.tool-price{font-family:'JetBrains Mono',monospace;font-size:20px;color:var(--green);font-weight:600}
+.tool-stats{display:flex;gap:16px;font-size:13px;color:var(--muted2)}
+.tool-rating{color:var(--orange)}
+.tool-sales{color:var(--muted)}
+.btn-buy{width:100%;padding:12px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .3s;background:linear-gradient(135deg,var(--blue),var(--purple));color:white}
+.btn-buy:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(59,130,246,.3)}
+.pricing-model{font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace}
+
+/* Empty / loading */
+.empty-state{text-align:center;padding:60px 24px;color:var(--muted)}
+.empty-state .empty-icon{font-size:48px;margin-bottom:16px;opacity:.5}
+.empty-state p{font-size:16px;margin-bottom:8px}
+.empty-state .empty-sub{font-size:14px;color:var(--muted2)}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid rgba(59,130,246,.2);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Modal overlay */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s;overflow-y:auto;padding:24px}
+.modal-content{background:var(--bg2);border:1px solid rgba(255,255,255,.1);border-radius:20px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:slideUp .3s ease}
+.modal-header{padding:28px 28px 0;display:flex;justify-content:space-between;align-items:flex-start}
+.modal-close{background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;padding:4px 8px;border-radius:8px;transition:all .2s}
+.modal-close:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.modal-body{padding:20px 28px 28px}
+.modal-cat{font-size:13px;color:var(--muted2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.modal-title{font-size:28px;font-weight:700;margin-bottom:4px}
+.modal-by{font-size:14px;color:var(--muted2);margin-bottom:16px}
+.modal-by a{color:var(--cyan)}
+.modal-desc{font-size:15px;color:var(--muted);line-height:1.7;margin-bottom:24px}
+.modal-section{margin-bottom:24px}
+.modal-section-title{font-size:16px;font-weight:600;margin-bottom:12px;color:var(--text)}
+.modal-docs{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;font-size:14px;color:var(--muted);line-height:1.7;white-space:pre-wrap;font-family:'JetBrains Mono',monospace}
+.modal-version{font-size:13px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-bottom:8px}
+.modal-changelog{font-size:14px;color:var(--muted);line-height:1.6}
+.modal-price-bar{display:flex;justify-content:space-between;align-items:center;padding:20px;background:var(--card);border-radius:14px;margin-top:24px}
+.modal-price{font-family:'JetBrains Mono',monospace;font-size:28px;color:var(--green);font-weight:700}
+.modal-price-sub{font-size:12px;color:var(--muted2)}
+.btn-buy-large{padding:14px 36px;border-radius:12px;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;transition:all .3s}
+.btn-buy-large:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+
+/* Reviews */
+.review{border-top:1px solid rgba(255,255,255,.06);padding:16px 0}
+.review:first-child{border-top:none}
+.review-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.review-author{font-size:14px;font-weight:500}
+.review-stars{color:var(--orange);font-size:14px}
+.review-date{font-size:12px;color:var(--muted2)}
+.review-text{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* Tags */
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tag{padding:4px 10px;border-radius:6px;font-size:11px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.15);color:var(--cyan)}
+
+/* CTA */
+.cta-box{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:40px;max-width:700px;margin:0 auto;text-align:center}
+.cta-title{font-size:24px;font-weight:700;margin-bottom:12px}
+.cta-desc{color:var(--muted);margin-bottom:24px}
+.btn-primary{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;font-family:'Outfit',sans-serif;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;transition:all .3s;display:inline-block}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+
+/* Footer */
+.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+.footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+
+/* Responsive */
+@media(max-width:768px){
+  .hero-title{font-size:36px}
+  .hero-sub{font-size:16px}
+  .tools-grid{grid-template-columns:1fr}
+  nav{padding:12px 16px}
+  nav>div{gap:10px!important;font-size:12px!important}
+  .stats-bar{gap:20px}
+  .controls{flex-direction:column}
+  .search-wrap{min-width:100%}
+  .modal-content{max-width:100%;margin:16px}
+  .modal-title{font-size:22px}
+  .modal-price-bar{flex-direction:column;gap:16px;text-align:center}
+}
+@media(max-width:480px){
+  .cat-pills{gap:6px}
+  .cat-pill{padding:6px 12px;font-size:12px}
+}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/marketplace" style="color:#06b6d4;font-weight:600">Marketplace</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-title">Creator Marketplace</div>
+  <p class="hero-sub">Build. Publish. Earn. Sell your tools, datasets, and workflows to AI agents worldwide. Earn 90% in USDC.</p>
+</section>
+
+<!-- Stats -->
+<div class="section" style="padding-bottom:0">
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-num" id="statTools">--</div><div class="stat-label">Total Tools</div></div>
+    <div class="stat"><div class="stat-num" id="statCreators">--</div><div class="stat-label">Creators</div></div>
+    <div class="stat"><div class="stat-num" id="statSales">--</div><div class="stat-label">Total Sales</div></div>
+    <div class="stat"><div class="stat-num" id="statRevenue">--</div><div class="stat-label">Revenue Shared</div></div>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="section">
+  <!-- Category pills -->
+  <div class="cat-pills" id="catPills">
+    <button class="cat-pill active" data-cat="all" onclick="filterCategory('all')">All</button>
+    <button class="cat-pill" data-cat="tools" onclick="filterCategory('tools')">Tools & APIs</button>
+    <button class="cat-pill" data-cat="datasets" onclick="filterCategory('datasets')">Datasets</button>
+    <button class="cat-pill" data-cat="prompts" onclick="filterCategory('prompts')">Prompts</button>
+    <button class="cat-pill" data-cat="workflows" onclick="filterCategory('workflows')">Workflows</button>
+    <button class="cat-pill" data-cat="models" onclick="filterCategory('models')">Models</button>
+  </div>
+
+  <!-- Search + sort -->
+  <div class="controls">
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search tools, datasets, prompts, workflows, models..." autocomplete="off">
+    </div>
+    <select class="sort-select" id="sortSelect" onchange="applySort()">
+      <option value="popular">Popular</option>
+      <option value="rating">Highest Rated</option>
+      <option value="price_asc">Price: Low to High</option>
+      <option value="price_desc">Price: High to Low</option>
+      <option value="newest">Newest</option>
+    </select>
+  </div>
+
+  <!-- Tools grid -->
+  <div id="toolsContent">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading marketplace...</p></div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="section" style="padding-top:0">
+  <div class="cta-box">
+    <div class="cta-title">Have something to sell?</div>
+    <p class="cta-desc">Publish your tools, datasets, or workflows. You keep 90% of every sale in USDC.</p>
+    <a href="/creator" class="btn-primary" style="text-decoration:none">Open Creator Dashboard</a>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/app">Launch App</a>
+    <a href="/marketplace">Marketplace</a>
+    <a href="/creator">Creator Dashboard</a>
+    <a href="/docs">API Docs</a>
+    <a href="/trust">Trust & Safety</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">Twitter</a>
+  </div>
+  <p>MAXIA &mdash; AI Agent Marketplace on 14 Blockchains</p>
+</footer>
+
+<!-- Tool detail modal (hidden) -->
+<div id="toolModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content" id="toolModalContent"></div>
+</div>
+
+<script>
+const API_BASE = '/api/public/marketplace';
+let allTools = [];
+let activeCategory = 'all';
+let currentSort = 'popular';
+
+// ── Category icons ──
+const CAT_ICONS = {
+  tools: '&#128295;', datasets: '&#128202;', prompts: '&#128172;',
+  workflows: '&#9881;&#65039;', models: '&#129504;'
+};
+const CAT_LABELS = {
+  tools: 'Tools & APIs', datasets: 'Datasets', prompts: 'Prompts',
+  workflows: 'Workflows', models: 'Models'
+};
+const PRICING_LABELS = {
+  per_call: '/call', monthly: '/mo', one_time: 'one-time', free: 'Free'
+};
+
+// ── Load marketplace ──
+async function loadMarketplace() {
+  try {
+    const res = await fetch(API_BASE);
+    const data = await res.json();
+    allTools = data.tools || [];
+    updateStats(data.stats || {});
+    renderTools(allTools);
+  } catch (err) {
+    console.error('Failed to load marketplace:', err);
+    document.getElementById('toolsContent').innerHTML =
+      '<div class="empty-state"><div class="empty-icon">!</div><p>Unable to load marketplace</p><p class="empty-sub">Check back shortly.</p></div>';
+  }
+}
+
+function updateStats(stats) {
+  document.getElementById('statTools').textContent = stats.total_tools || '0';
+  document.getElementById('statCreators').textContent = stats.total_creators || '0';
+  document.getElementById('statSales').textContent = stats.total_sales || '0';
+  document.getElementById('statRevenue').textContent = '$' + (stats.revenue_shared || 0).toLocaleString();
+}
+
+// ── Filter by category ──
+function filterCategory(cat) {
+  activeCategory = cat;
+  document.querySelectorAll('.cat-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.cat === cat);
+  });
+
+  if (cat === 'all') {
+    loadMarketplace();
+    return;
+  }
+
+  document.getElementById('toolsContent').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  fetch(API_BASE + '/category/' + cat)
+    .then(r => r.json())
+    .then(data => renderTools(data.tools || []))
+    .catch(() => renderTools([]));
+}
+
+// ── Search ──
+let searchTimeout = null;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  const q = this.value.trim();
+  if (q.length < 2) {
+    if (q.length === 0) { activeCategory = 'all'; highlightPill('all'); loadMarketplace(); }
+    return;
+  }
+  searchTimeout = setTimeout(async () => {
+    activeCategory = 'all';
+    highlightPill('all');
+    document.getElementById('toolsContent').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+      const res = await fetch(API_BASE + '/search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      renderTools(data.results || data.tools || []);
+    } catch (err) {
+      renderTools([]);
+    }
+  }, 400);
+});
+
+function highlightPill(cat) {
+  document.querySelectorAll('.cat-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.cat === cat);
+  });
+}
+
+// ── Sort ──
+function applySort() {
+  currentSort = document.getElementById('sortSelect').value;
+  const sorted = [...allTools];
+  switch (currentSort) {
+    case 'popular': sorted.sort((a, b) => (b.sales || 0) - (a.sales || 0)); break;
+    case 'rating': sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0)); break;
+    case 'price_asc': sorted.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
+    case 'price_desc': sorted.sort((a, b) => (b.price || 0) - (a.price || 0)); break;
+    case 'newest': sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)); break;
+  }
+  renderTools(sorted);
+}
+
+// ── Render tools grid ──
+function renderTools(tools) {
+  const container = document.getElementById('toolsContent');
+  if (!tools.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128269;</div><p>No tools found</p><p class="empty-sub">Try a different search or category.</p></div>';
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'tools-grid';
+
+  tools.forEach(tool => {
+    const card = document.createElement('div');
+    card.className = 'tool-card';
+    card.onclick = () => openToolDetail(tool.id);
+
+    const catIcon = CAT_ICONS[tool.category] || '&#128295;';
+    const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
+    const stars = renderStars(tool.rating || 0);
+    const priceText = (tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+    const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
+    const reviewCount = tool.review_count || 0;
+
+    card.innerHTML =
+      '<div class="tool-cat"><span class="tool-cat-icon">' + catIcon + '</span> ' + escHtml(catLabel) + '</div>' +
+      '<div class="tool-name">' + escHtml(tool.name) + '</div>' +
+      '<div class="tool-by">by ' + escHtml(tool.creator_name || tool.creator || 'Anonymous') + '</div>' +
+      '<div class="tool-desc">' + escHtml(tool.description) + '</div>' +
+      (tool.tags && tool.tags.length ? '<div class="tags">' + tool.tags.slice(0, 4).map(t => '<span class="tag">' + escHtml(t) + '</span>').join('') + '</div>' : '') +
+      '<div class="tool-meta">' +
+        '<div>' +
+          '<div class="tool-price">' + priceText + '</div>' +
+          (pricingLabel && priceText !== 'Free' ? '<div class="pricing-model">' + pricingLabel + '</div>' : '') +
+        '</div>' +
+        '<div class="tool-stats">' +
+          '<span class="tool-rating">' + stars + ' ' + (tool.rating || 0).toFixed(1) + ' (' + reviewCount + ')</span>' +
+          '<span class="tool-sales">' + (tool.sales || 0) + ' sales</span>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn-buy" onclick="event.stopPropagation();buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price || 0) + ')">Buy Tool</button>';
+
+    grid.appendChild(card);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(grid);
+}
+
+// ── Tool detail modal ──
+async function openToolDetail(toolId) {
+  const modal = document.getElementById('toolModal');
+  const content = document.getElementById('toolModalContent');
+  modal.style.display = 'flex';
+  content.innerHTML = '<div style="padding:60px;text-align:center"><div class="spinner"></div></div>';
+
+  try {
+    const res = await fetch(API_BASE + '/tool/' + toolId);
+    const tool = await res.json();
+    renderToolDetail(tool);
+  } catch (err) {
+    content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)"><p>Failed to load tool details.</p><button class="modal-close" onclick="closeModal()" style="margin-top:16px;font-size:16px">Close</button></div>';
+  }
+}
+
+function renderToolDetail(tool) {
+  const content = document.getElementById('toolModalContent');
+  const catIcon = CAT_ICONS[tool.category] || '&#128295;';
+  const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
+  const stars = renderStars(tool.rating || 0);
+  const priceText = (tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+  const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
+  const reviews = tool.reviews || [];
+
+  let html = '';
+  html += '<div class="modal-header">';
+  html += '  <div>';
+  html += '    <div class="modal-cat"><span>' + catIcon + '</span> ' + escHtml(catLabel) + '</div>';
+  html += '    <div class="modal-title">' + escHtml(tool.name) + '</div>';
+  html += '    <div class="modal-by">by <a href="/creator?wallet=' + encodeURIComponent(tool.creator_wallet || '') + '">' + escHtml(tool.creator_name || tool.creator || 'Anonymous') + '</a></div>';
+  html += '  </div>';
+  html += '  <button class="modal-close" onclick="closeModal()">&#10005;</button>';
+  html += '</div>';
+  html += '<div class="modal-body">';
+
+  // Tags
+  if (tool.tags && tool.tags.length) {
+    html += '<div class="tags" style="margin-bottom:20px">';
+    tool.tags.forEach(t => { html += '<span class="tag">' + escHtml(t) + '</span>'; });
+    html += '</div>';
+  }
+
+  // Description
+  html += '<div class="modal-desc">' + escHtml(tool.description || tool.full_description || '') + '</div>';
+
+  // Documentation
+  if (tool.documentation) {
+    html += '<div class="modal-section">';
+    html += '  <div class="modal-section-title">Documentation</div>';
+    html += '  <div class="modal-docs">' + escHtml(tool.documentation) + '</div>';
+    html += '</div>';
+  }
+
+  // Version + changelog
+  if (tool.version || tool.changelog) {
+    html += '<div class="modal-section">';
+    html += '  <div class="modal-section-title">Version</div>';
+    if (tool.version) html += '<div class="modal-version">v' + escHtml(tool.version) + '</div>';
+    if (tool.changelog) html += '<div class="modal-changelog">' + escHtml(tool.changelog) + '</div>';
+    html += '</div>';
+  }
+
+  // Rating summary
+  html += '<div class="modal-section">';
+  html += '  <div class="modal-section-title">Reviews (' + (tool.review_count || reviews.length) + ')</div>';
+  html += '  <div style="font-size:18px;margin-bottom:16px"><span style="color:var(--orange)">' + stars + '</span> <strong>' + (tool.rating || 0).toFixed(1) + '</strong>/5</div>';
+
+  // Reviews list
+  if (reviews.length) {
+    reviews.forEach(r => {
+      html += '<div class="review">';
+      html += '  <div class="review-header">';
+      html += '    <div class="review-author">' + escHtml(r.author || 'Agent') + '</div>';
+      html += '    <div><span class="review-stars">' + renderStars(r.stars || 0) + '</span> <span class="review-date">' + escHtml(r.date || '') + '</span></div>';
+      html += '  </div>';
+      html += '  <div class="review-text">' + escHtml(r.text || '') + '</div>';
+      html += '</div>';
+    });
+  } else {
+    html += '<div style="color:var(--muted2);font-size:14px">No reviews yet.</div>';
+  }
+  html += '</div>';
+
+  // Price + buy
+  html += '<div class="modal-price-bar">';
+  html += '  <div><div class="modal-price">' + priceText + '</div>';
+  if (pricingLabel && priceText !== 'Free') html += '<div class="modal-price-sub">' + pricingLabel + '</div>';
+  html += '  </div>';
+  html += '  <button class="btn-buy-large" onclick="buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price || 0) + ')">Buy Now</button>';
+  html += '</div>';
+
+  html += '</div>'; // modal-body
+
+  content.innerHTML = html;
+}
+
+function closeModal() {
+  document.getElementById('toolModal').style.display = 'none';
+}
+
+// ── Buy flow ──
+function buyTool(toolId, toolName, price) {
+  const priceText = price > 0 ? '$' + Number(price).toFixed(2) + ' USDC' : 'Free';
+  showConfirmModal(
+    'Purchase Tool',
+    'Buy <strong>' + escHtml(toolName) + '</strong> for <strong>' + priceText + '</strong>?<br><br>You will be redirected to the MAXIA App to complete the purchase with your connected wallet.',
+    function() {
+      window.location.href = '/app?buy_tool=' + encodeURIComponent(toolId);
+    }
+  );
+}
+
+// ── Confirm modal ──
+function showConfirmModal(title, message, onConfirm) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:20000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s';
+  var modal = document.createElement('div');
+  modal.style.cssText = 'background:#1a1f2e;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.5)';
+  modal.innerHTML = '<div style="font-size:20px;font-weight:700;margin-bottom:12px;color:#fff">' + title + '</div>'
+    + '<div style="color:#94a3b8;font-size:15px;line-height:1.6;margin-bottom:24px">' + message + '</div>'
+    + '<div style="display:flex;gap:12px;justify-content:flex-end">'
+    + '<button id="confirm-cancel" style="padding:10px 24px;background:transparent;border:1px solid rgba(255,255,255,.15);color:#94a3b8;border-radius:8px;font-size:14px;cursor:pointer;font-family:Outfit,sans-serif">Cancel</button>'
+    + '<button id="confirm-ok" style="padding:10px 24px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border:none;color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit,sans-serif">Confirm</button>'
+    + '</div>';
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  modal.querySelector('#confirm-ok').onclick = function() { overlay.remove(); if (onConfirm) onConfirm(); };
+  modal.querySelector('#confirm-cancel').onclick = function() { overlay.remove(); };
+}
+
+// ── Utilities ──
+function renderStars(rating) {
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '\u2605'.repeat(full) + (half ? '\u2606' : '') + '\u2606'.repeat(empty);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function escAttr(str) {
+  if (!str) return '';
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ── Keyboard close modal ──
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── Init ──
+loadMarketplace();
+</script>
+</body>
+</html>

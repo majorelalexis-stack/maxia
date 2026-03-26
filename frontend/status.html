@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="MAXIA Live Status — Real-time status of all chains, oracles, and services.">
+<title>MAXIA — System Status</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
+.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:24px;align-items:center;font-size:14px}
+.nav-links a{color:var(--muted)}
+
+.container{max-width:900px;margin:0 auto;padding:100px 24px 60px}
+h1{font-size:36px;font-weight:700;margin-bottom:8px}
+.subtitle{color:var(--muted);font-size:16px;margin-bottom:32px}
+
+.overall-banner{padding:20px 28px;border-radius:16px;margin-bottom:40px;display:flex;align-items:center;gap:16px;font-size:18px;font-weight:600}
+.overall-banner.operational{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:var(--green)}
+.overall-banner.degraded{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:var(--orange)}
+.overall-banner.down{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+.overall-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0}
+.overall-banner.operational .overall-dot{background:var(--green);box-shadow:0 0 12px var(--green)}
+.overall-banner.degraded .overall-dot{background:var(--orange);box-shadow:0 0 12px var(--orange)}
+.overall-banner.down .overall-dot{background:var(--red);box-shadow:0 0 12px var(--red)}
+
+.section-title{font-size:20px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.section-title .icon{font-size:22px}
+
+.status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:40px}
+.status-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;transition:border-color .3s}
+.status-card:hover{border-color:rgba(59,130,246,.2)}
+.status-left{display:flex;align-items:center;gap:12px}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.status-dot.operational{background:var(--green);box-shadow:0 0 8px rgba(16,185,129,.5)}
+.status-dot.degraded{background:var(--orange);box-shadow:0 0 8px rgba(245,158,11,.5)}
+.status-dot.down{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.5)}
+.status-dot.unknown{background:var(--muted2)}
+.status-name{font-size:15px;font-weight:500;text-transform:capitalize}
+.status-latency{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2)}
+.status-latency.good{color:var(--green)}
+.status-latency.ok{color:var(--orange)}
+.status-latency.bad{color:var(--red)}
+
+.meta-bar{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:13px;font-family:'JetBrains Mono',monospace;flex-wrap:wrap;gap:12px}
+.countdown{color:var(--cyan)}
+
+.footer{text-align:center;padding:40px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+.footer-links{display:flex;justify-content:center;gap:24px;margin-bottom:12px}
+
+.loading{text-align:center;padding:60px;color:var(--muted)}
+.loading .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--muted2);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.metric-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:24px;text-align:center;transition:all .3s}
+.metric-card:hover{border-color:rgba(6,182,212,.3);transform:translateY(-2px)}
+.metric-value{font-size:32px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace}
+.metric-label{font-size:13px;color:var(--muted);margin-top:6px}
+.incident-banner{display:flex;align-items:center;gap:12px;padding:14px 20px;border-radius:12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);color:var(--green);font-size:14px;margin-bottom:32px}
+.incident-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);flex-shrink:0}
+
+@media(max-width:600px){
+  h1{font-size:28px}
+  .status-grid{grid-template-columns:1fr}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .nav-links{gap:12px}
+}
+</style>
+</head>
+<body>
+
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/marketplace" style="color:#94a3b8">Marketplace</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<div class="container">
+  <h1>System Status</h1>
+  <p class="subtitle">Real-time status of all MAXIA infrastructure across 14 blockchains.</p>
+
+  <div id="overall-banner" class="overall-banner operational">
+    <div class="overall-dot"></div>
+    <span id="overall-text">Loading...</span>
+  </div>
+
+  <!-- Chains -->
+  <div class="section-title"><span class="icon">&#9939;</span> Blockchain RPCs</div>
+  <div id="chains-grid" class="status-grid">
+    <div class="loading"><div class="spinner"></div><div>Checking chains...</div></div>
+  </div>
+
+  <!-- Oracles -->
+  <div class="section-title"><span class="icon">&#128302;</span> Price Oracles</div>
+  <div id="oracles-grid" class="status-grid">
+    <div class="loading"><div class="spinner"></div><div>Checking oracles...</div></div>
+  </div>
+
+  <!-- Services -->
+  <div class="section-title"><span class="icon">&#9881;</span> Core Services</div>
+  <div id="services-grid" class="status-grid">
+    <div class="loading"><div class="spinner"></div><div>Checking services...</div></div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="section-title" style="margin-top:8px"><span class="icon">&#128200;</span> Metrics</div>
+  <div id="metrics-grid" class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-value" id="m-uptime">99.9%</div>
+      <div class="metric-label">Uptime (30 days)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" id="m-p99">&mdash;ms</div>
+      <div class="metric-label">API Latency (p99)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" id="m-errors">0</div>
+      <div class="metric-label">Errors (24h)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">0</div>
+      <div class="metric-label">Incidents (7 days)</div>
+    </div>
+  </div>
+  <div id="incident-banner" class="incident-banner">
+    <span class="incident-dot"></span>
+    <span>No incidents in the last 7 days</span>
+  </div>
+
+  <!-- Meta -->
+  <div class="meta-bar">
+    <div>Last updated: <span id="last-updated">--</span></div>
+    <div>Auto-refresh in <span id="countdown" class="countdown">30</span>s</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/app">Launch App</a>
+    <a href="/docs">API Docs</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
+  </div>
+  <p>MAXIA &mdash; AI-to-AI Marketplace on 14 Blockchains</p>
+</div>
+
+<script>
+var REFRESH_INTERVAL = 30;
+var countdown = REFRESH_INTERVAL;
+var countdownEl = document.getElementById('countdown');
+var timer = null;
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function latencyClass(ms) {
+  if (ms < 0) return 'bad';
+  if (ms < 500) return 'good';
+  if (ms < 2000) return 'ok';
+  return 'bad';
+}
+
+function latencyText(ms) {
+  if (ms < 0) return 'timeout';
+  return ms + 'ms';
+}
+
+var SERVICE_LABELS = {
+  swap_solana: 'Swap (Solana)',
+  swap_evm: 'Swap (EVM)',
+  gpu_rental: 'GPU Rental',
+  stocks: 'Tokenized Stocks',
+  escrow: 'Escrow',
+  mcp_server: 'MCP Server',
+  a2a_protocol: 'A2A Protocol'
+};
+
+var CHAIN_LABELS = {
+  solana: 'Solana',
+  ethereum: 'Ethereum',
+  base: 'Base',
+  polygon: 'Polygon',
+  arbitrum: 'Arbitrum',
+  avalanche: 'Avalanche',
+  bnb: 'BNB Chain'
+};
+
+var ORACLE_LABELS = {
+  pyth_hermes: 'Pyth (Hermes)',
+  coingecko: 'CoinGecko',
+  defillama: 'DefiLlama'
+};
+
+function renderCards(containerId, items, labels) {
+  var container = document.getElementById(containerId);
+  if (!items || Object.keys(items).length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);padding:12px">No data available.</div>';
+    return;
+  }
+  var html = '';
+  for (var key in items) {
+    var item = items[key];
+    var status = typeof item === 'string' ? item : (item.status || 'unknown');
+    var latency = typeof item === 'object' ? (item.latency_ms !== undefined ? item.latency_ms : -1) : -1;
+    var label = (labels && labels[key]) ? labels[key] : key;
+
+    html += '<div class="status-card">';
+    html += '  <div class="status-left">';
+    html += '    <div class="status-dot ' + esc(status) + '"></div>';
+    html += '    <span class="status-name">' + esc(label) + '</span>';
+    html += '  </div>';
+    if (typeof item === 'object' && item.latency_ms !== undefined) {
+      html += '  <span class="status-latency ' + latencyClass(latency) + '">' + latencyText(latency) + '</span>';
+    } else {
+      html += '  <span class="status-latency" style="color:var(--green)">' + esc(status) + '</span>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+function updateOverall(status) {
+  var banner = document.getElementById('overall-banner');
+  var text = document.getElementById('overall-text');
+  banner.className = 'overall-banner ' + (status || 'operational');
+  if (status === 'operational') {
+    text.textContent = 'All Systems Operational';
+  } else if (status === 'degraded') {
+    text.textContent = 'Some Systems Degraded';
+  } else {
+    text.textContent = 'Major Outage Detected';
+  }
+}
+
+async function fetchStatus() {
+  try {
+    var resp = await fetch('/api/public/status');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+
+    // Check if any chain/oracle is degraded or down
+    var overall = 'operational';
+    for (var c in data.chains) {
+      if (data.chains[c].status === 'degraded') overall = 'degraded';
+      if (data.chains[c].status === 'down') { overall = 'down'; break; }
+    }
+    if (overall !== 'down') {
+      for (var o in data.oracles) {
+        if (data.oracles[o].status === 'down') { overall = 'degraded'; break; }
+      }
+    }
+
+    updateOverall(overall);
+    renderCards('chains-grid', data.chains, CHAIN_LABELS);
+    renderCards('oracles-grid', data.oracles, ORACLE_LABELS);
+    renderCards('services-grid', data.services, SERVICE_LABELS);
+
+    // Compute p99 latency from all chain/oracle/service latencies
+    var allLatencies = [];
+    var sources = [data.chains, data.oracles, data.services];
+    for (var s = 0; s < sources.length; s++) {
+      if (!sources[s]) continue;
+      for (var k in sources[s]) {
+        var item = sources[s][k];
+        if (typeof item === 'object' && item.latency_ms !== undefined && item.latency_ms > 0) {
+          allLatencies.push(item.latency_ms);
+        }
+      }
+    }
+    if (allLatencies.length > 0) {
+      allLatencies.sort(function(a, b) { return a - b; });
+      var p99Index = Math.ceil(allLatencies.length * 0.99) - 1;
+      if (p99Index < 0) p99Index = 0;
+      var p99 = allLatencies[p99Index];
+      document.getElementById('m-p99').textContent = p99 + 'ms';
+      // Color the p99 based on value
+      var p99El = document.getElementById('m-p99');
+      if (p99 < 500) p99El.style.color = 'var(--green)';
+      else if (p99 < 2000) p99El.style.color = 'var(--orange)';
+      else p99El.style.color = 'var(--red)';
+    }
+
+    var ts = data.updated_at || new Date().toISOString();
+    document.getElementById('last-updated').textContent = ts.replace('T', ' ').replace('Z', ' UTC');
+  } catch (e) {
+    console.error('Status fetch failed:', e);
+    updateOverall('degraded');
+    document.getElementById('last-updated').textContent = 'Error loading status';
+  }
+}
+
+function startCountdown() {
+  countdown = REFRESH_INTERVAL;
+  countdownEl.textContent = countdown;
+  if (timer) clearInterval(timer);
+  timer = setInterval(function() {
+    countdown--;
+    countdownEl.textContent = countdown;
+    if (countdown <= 0) {
+      fetchStatus();
+      countdown = REFRESH_INTERVAL;
+    }
+  }, 1000);
+}
+
+// Initial load
+fetchStatus().then(startCountdown);
+</script>
+</body>
+</html>

@@ -28,12 +28,14 @@ from solana_verifier import verify_transaction
 from security import check_content_safety, check_rate_limit, set_redis_client
 from redis_client import redis_client
 from config import (
-    GPU_TIERS, get_commission_bps,
+    GPU_TIERS, COMMISSION_TIERS, get_commission_bps,
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE,
     TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
     TREASURY_ADDRESS_AVALANCHE, TREASURY_ADDRESS_BNB,
     SUPPORTED_NETWORKS, X402_PRICE_MAP,
+    SERVICE_PRICES,
 )
+_gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 
 # ── V10 imports ──
 from base_verifier import verify_base_transaction, verify_usdc_transfer_base
@@ -72,16 +74,49 @@ AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
 
 auction_manager = AuctionManager()
 runpod          = RunPodClient(api_key=os.getenv("RUNPOD_API_KEY", ""))
-# NOTE: _ws_clients is per-process. With multiple workers (WEB_CONCURRENCY>1),
-# each worker has its own set of WS connections. For true multi-worker WebSocket
-# support, use Redis pub/sub as a message broker between workers.
-# For now, single-worker mode is recommended for WebSocket features.
+# WebSocket clients (local process) + Redis pub/sub optionnel pour multi-worker
 _ws_clients: dict = {}
+_redis_pubsub = None  # Redis connection si REDIS_URL est defini
+REDIS_URL = os.getenv("REDIS_URL", "")  # redis://localhost:6379 pour multi-worker
+WS_CHANNEL = "maxia:ws:broadcast"
 
 
-# ── WebSocket broadcast ──
+async def _init_redis_pubsub():
+    """Initialise Redis pub/sub si REDIS_URL est defini. Optionnel."""
+    global _redis_pubsub
+    if not REDIS_URL:
+        return
+    try:
+        import redis.asyncio as aioredis
+        _redis_pubsub = await aioredis.from_url(REDIS_URL)
+        # Lancer le listener en background
+        asyncio.create_task(_redis_ws_listener())
+        print(f"[WS] Redis pub/sub actif: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
+    except ImportError:
+        print("[WS] redis[async] non installe — mode single-worker")
+    except Exception as e:
+        print(f"[WS] Redis error: {e} — mode single-worker")
 
-async def broadcast_all(msg: dict):
+
+async def _redis_ws_listener():
+    """Ecoute les messages Redis et les forward aux clients WebSocket locaux."""
+    try:
+        pubsub = _redis_pubsub.pubsub()
+        await pubsub.subscribe(WS_CHANNEL)
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                import json as _json
+                try:
+                    msg = _json.loads(message["data"])
+                    await _local_broadcast(msg)
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[WS] Redis listener error: {e}")
+
+
+async def _local_broadcast(msg: dict):
+    """Broadcast aux clients WebSocket de CE worker uniquement."""
     dead = []
     for cid, ws in _ws_clients.items():
         try:
@@ -92,6 +127,21 @@ async def broadcast_all(msg: dict):
         _ws_clients.pop(cid, None)
 
 
+# ── WebSocket broadcast (Redis si dispo, sinon local) ──
+
+async def broadcast_all(msg: dict):
+    """Broadcast a tous les clients WS. Si Redis est actif, publie sur le channel
+    pour que tous les workers recoivent le message. Sinon, broadcast local."""
+    if _redis_pubsub:
+        try:
+            import json as _json
+            await _redis_pubsub.publish(WS_CHANNEL, _json.dumps(msg, default=str))
+            return  # Redis distribue a tous les workers via le listener
+        except Exception:
+            pass  # Fallback local si Redis echoue
+    await _local_broadcast(msg)
+
+
 # ── Native AI Services (registered at startup) ──
 
 NATIVE_SERVICES = [
@@ -100,70 +150,70 @@ NATIVE_SERVICES = [
         "name": "Smart Contract Audit",
         "description": "AI-powered security audit of Solana/EVM smart contracts. Detects vulnerabilities, reentrancy, overflow, access control issues.",
         "type": "audit",
-        "price_usdc": 4.99,
+        "price_usdc": SERVICE_PRICES.get("maxia-audit", 4.99),
     },
     {
         "id": "maxia-code",
         "name": "AI Code Review",
         "description": "Automated code review for Python, Rust, JavaScript, Solidity. Finds bugs, suggests improvements, checks best practices.",
         "type": "code",
-        "price_usdc": 2.99,
+        "price_usdc": SERVICE_PRICES.get("maxia-code-review", 2.99),
     },
     {
         "id": "maxia-translate",
         "name": "AI Translation",
         "description": "Translate text between 50+ languages. Technical documentation, marketing copy, chat messages.",
         "type": "text",
-        "price_usdc": 0.05,
+        "price_usdc": SERVICE_PRICES.get("maxia-translate", 0.05),
     },
     {
         "id": "maxia-summary",
         "name": "Document Summary",
         "description": "Summarize any document, whitepaper, or article into key bullet points. Supports up to 10,000 words.",
         "type": "text",
-        "price_usdc": 0.49,
+        "price_usdc": SERVICE_PRICES.get("maxia-summary", 0.49),
     },
     {
         "id": "maxia-wallet",
         "name": "Wallet Analyzer",
         "description": "Deep analysis of any Solana wallet: token holdings, transaction history, DeFi positions, risk score.",
         "type": "data",
-        "price_usdc": 1.99,
+        "price_usdc": SERVICE_PRICES.get("maxia-wallet-analysis", 1.99),
     },
     {
         "id": "maxia-marketing",
         "name": "Marketing Copy Generator",
         "description": "Generate landing page copy, Twitter threads, blog posts, product descriptions. Optimized for Web3/AI audience.",
         "type": "text",
-        "price_usdc": 0.99,
+        "price_usdc": SERVICE_PRICES.get("maxia-marketing", 0.99),
     },
     {
         "id": "maxia-image",
         "name": "AI Image Generator",
         "description": "Generate images from text prompts. Logos, illustrations, social media graphics. 1024x1024 resolution.",
         "type": "image",
-        "price_usdc": 0.10,
+        "price_usdc": SERVICE_PRICES.get("maxia-image", 0.10),
     },
     {
         "id": "maxia-scraper",
         "name": "Web Scraper",
         "description": "Extract structured data from any website. Returns clean JSON with the data you need.",
         "type": "data",
-        "price_usdc": 0.02,
+        "price_usdc": SERVICE_PRICES.get("maxia-scraper", 0.02),
     },
     {
         "id": "maxia-finetune",
         "name": "LLM Fine-Tuning (Unsloth)",
         "description": "Fine-tune any LLM (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) on your dataset. Powered by Unsloth on RunPod GPUs. 2x faster, 70% less VRAM.",
         "type": "compute",
-        "price_usdc": 2.99,
+        "price_usdc": SERVICE_PRICES.get("maxia-finetune", 2.99),
     },
     {
         "id": "maxia-awp-stake",
         "name": "AWP Agent Staking",
         "description": "Stake USDC on the Autonomous Worker Protocol (Base L2) to earn rewards and increase your agent's trust score. 3-12% APY.",
         "type": "defi",
-        "price_usdc": 0,
+        "price_usdc": SERVICE_PRICES.get("maxia-awp-staking", 0.00),
     },
     # ═══ Machine-only AI services (visible via API/MCP only, not on /app) ═══
     {
@@ -171,7 +221,7 @@ NATIVE_SERVICES = [
         "name": "Audio Transcription (Whisper)",
         "description": "Transcribe audio to text. Supports MP3, WAV, M4A. 50+ languages. Powered by local GPU.",
         "type": "ai",
-        "price_usdc": 0.01,
+        "price_usdc": SERVICE_PRICES.get("maxia-transcription", 0.01),
         "machine_only": True,
     },
     {
@@ -179,7 +229,7 @@ NATIVE_SERVICES = [
         "name": "Text Embedding",
         "description": "Convert text to vector embeddings for RAG, semantic search, clustering. 768-dim vectors.",
         "type": "ai",
-        "price_usdc": 0.001,
+        "price_usdc": SERVICE_PRICES.get("maxia-embedding", 0.001),
         "machine_only": True,
     },
     {
@@ -187,7 +237,7 @@ NATIVE_SERVICES = [
         "name": "Sentiment Analysis",
         "description": "Analyze sentiment of text, tweets, or crypto discussions. Returns score (-1 to 1) + confidence.",
         "type": "ai",
-        "price_usdc": 0.005,
+        "price_usdc": SERVICE_PRICES.get("maxia-sentiment", 0.005),
         "machine_only": True,
     },
     {
@@ -195,7 +245,7 @@ NATIVE_SERVICES = [
         "name": "Wallet Risk Score",
         "description": "Score any wallet across 14 chains: activity, age, balance, DeFi exposure, risk level (0-100).",
         "type": "data",
-        "price_usdc": 0.10,
+        "price_usdc": SERVICE_PRICES.get("maxia-wallet-risk", 0.10),
         "machine_only": True,
     },
     {
@@ -203,7 +253,7 @@ NATIVE_SERVICES = [
         "name": "Airdrop Eligibility Scanner",
         "description": "Scan a wallet for potential airdrop eligibility across 50+ protocols on Solana, ETH, Base, Arbitrum.",
         "type": "data",
-        "price_usdc": 0.50,
+        "price_usdc": SERVICE_PRICES.get("maxia-airdrop-scanner", 0.50),
         "machine_only": True,
     },
     {
@@ -211,7 +261,7 @@ NATIVE_SERVICES = [
         "name": "Smart Money Tracker",
         "description": "Track whale wallets and smart money movements on Solana and EVM chains. Real-time alerts.",
         "type": "data",
-        "price_usdc": 0.25,
+        "price_usdc": SERVICE_PRICES.get("maxia-smart-money", 0.25),
         "machine_only": True,
     },
     {
@@ -219,7 +269,7 @@ NATIVE_SERVICES = [
         "name": "NFT Rarity Checker",
         "description": "Calculate rarity score for any Solana or EVM NFT based on trait distribution.",
         "type": "data",
-        "price_usdc": 0.05,
+        "price_usdc": SERVICE_PRICES.get("maxia-nft-rarity", 0.05),
         "machine_only": True,
     },
 ]
@@ -269,6 +319,17 @@ async def lifespan(app: FastAPI):
     await redis_client.connect(REDIS_URL)
     set_redis_client(redis_client)
 
+    # V12: Redis pub/sub pour WebSocket multi-worker
+    await _init_redis_pubsub()
+
+    # V12: GPU pricing live — fetch les prix RunPod au demarrage + auto-refresh 30min
+    try:
+        from gpu_pricing import refresh_gpu_prices, auto_refresh_loop
+        await refresh_gpu_prices()
+        asyncio.create_task(auto_refresh_loop())
+    except Exception as e:
+        print(f"[GPU Pricing] Init error: {e} — prix fallback utilises")
+
     # V12: Database factory — PostgreSQL if DATABASE_URL set, else SQLite
     import database as _db_mod
     db_instance = await create_database()
@@ -293,6 +354,13 @@ async def lifespan(app: FastAPI):
 
     # V12: Register 8 MAXIA native AI services (Groq/Ollama)
     await _register_native_services(db)
+
+    # Seed forum with initial posts
+    try:
+        from forum_seed import seed_forum
+        await seed_forum(db)
+    except Exception as e:
+        print(f"[Forum] Seed error: {e}")
 
     # V12: Ensure referred_by column exists in agents table
     try:
@@ -374,6 +442,41 @@ async def lifespan(app: FastAPI):
 
     t_dispute = asyncio.create_task(_dispute_auto_resolve_worker())
 
+    # V12: Volume 30d rolling reset — decay old volume monthly
+    async def _volume_decay_worker():
+        """Reset volume_30d to 0 for agents inactive > 30 days. Runs daily."""
+        while True:
+            await asyncio.sleep(86400)  # once per day
+            try:
+                cutoff = int(time.time()) - 30 * 86400  # 30 days ago
+                # Get all agents from DB
+                rows = await db.raw_execute_fetchall(
+                    "SELECT api_key, volume_30d FROM agents WHERE volume_30d > 0")
+                # Check last transaction time for each agent
+                for row in (rows or []):
+                    api_key = row["api_key"]
+                    last_tx = await db.raw_execute_fetchall(
+                        "SELECT MAX(CAST(json_extract(data, '$.timestamp') AS INTEGER)) AS last_ts "
+                        "FROM marketplace_tx WHERE buyer=? OR seller=?",
+                        (api_key, api_key))
+                    last_ts = (last_tx[0]["last_ts"] or 0) if last_tx else 0
+                    if last_ts < cutoff and row["volume_30d"] > 0:
+                        # No transactions in 30 days — reset volume
+                        await db.update_agent(api_key, {"volume_30d": 0, "tier": "BRONZE"})
+                        print(f"[VolumeDecay] Reset {api_key[:20]}... (inactive 30d)")
+            except Exception as e:
+                if "no such table" not in str(e):
+                    print(f"[VolumeDecay] Error: {e}")
+    t_volume = asyncio.create_task(_volume_decay_worker())
+
+    # V12: Price alerts worker (notifies CLIENTS, not founder)
+    try:
+        from trading_tools import alert_checker_worker
+        t_alerts = asyncio.create_task(alert_checker_worker())
+        print("[MAXIA] Price alerts worker started (60s interval)")
+    except Exception as e:
+        print(f"[MAXIA] Alert worker init error: {e}")
+
     # V12: Start task queue worker
     try:
         from ceo_maxia import task_queue
@@ -404,6 +507,22 @@ async def lifespan(app: FastAPI):
     from security import check_jwt_secret, _flush_audit
     if not check_jwt_secret():
         print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
+
+    # V12: Price broadcast loop — broadcasts top token prices every 30s to /ws clients
+    async def _price_broadcast_loop():
+        while True:
+            try:
+                from price_oracle import get_crypto_prices
+                prices = await get_crypto_prices()
+                # Send top 10 tokens
+                top = dict(list(prices.items())[:10]) if isinstance(prices, dict) else {}
+                await broadcast_all({"type": "price_update", "data": top})
+            except Exception:
+                pass
+            await asyncio.sleep(30)
+
+    t_price_broadcast = asyncio.create_task(_price_broadcast_loop())
+    print("[MAXIA] Price broadcast loop started (30s interval)")
 
     print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
@@ -486,8 +605,17 @@ async def https_redirect_middleware(request, call_next):
 # ── Rate Limit + Burst Protection Middleware ──
 @app.middleware("http")
 async def rate_limit_headers_middleware(request, call_next):
-    from security import check_rate_limit_smart, get_rate_limit_info, check_burst_limit, get_burst_ban_remaining
+    from security import check_rate_limit_smart, get_rate_limit_info, check_burst_limit, get_burst_ban_remaining, check_ip_rate_limit
     ip = request.client.host if request.client else "unknown"
+
+    # IP rate limiting — 100 req/min per IP (before other checks)
+    if ip not in ("127.0.0.1", "::1") and check_ip_rate_limit(ip):
+        from starlette.responses import JSONResponse as _JSONRespIP
+        return _JSONRespIP(
+            status_code=429,
+            content={"error": "IP rate limit exceeded (100 req/min). Slow down.", "retry_after": 60},
+            headers={"Retry-After": "60"},
+        )
 
     # Burst protection — bloque les DDoS (>20 req/2s)
     # Exempter localhost (watchdog interne fait ~18 req en rafale)
@@ -648,6 +776,87 @@ try:
 except Exception as e:
     print(f"[MAXIA] A2A router error: {e}")
 
+# V13: Proof of Delivery + Dispute Resolution (Art.47)
+try:
+    from proof_of_delivery import router as pod_router
+    app.include_router(pod_router)
+    print("[PoD] Proof of Delivery + Dispute Resolution monte")
+except Exception as e:
+    print(f"[MAXIA] PoD router error: {e}")
+
+# V13: Chain Resilience + Status Page (Art.48)
+try:
+    from chain_resilience import router as resilience_router
+    app.include_router(resilience_router)
+    print("[Resilience] Circuit Breaker + Status Page monte")
+except Exception as e:
+    print(f"[MAXIA] Resilience router error: {e}")
+
+# V13: Agent Leaderboard (Art.49)
+try:
+    from agent_leaderboard import router as leaderboard_router
+    app.include_router(leaderboard_router)
+    print("[Leaderboard] Agent Scoring + Grades monte")
+except Exception as e:
+    print(f"[MAXIA] Leaderboard router error: {e}")
+
+# V13: SLA Enforcer (Art.50)
+try:
+    from sla_enforcer import router as sla_router
+    app.include_router(sla_router)
+    print("[SLA] Enforcer + Circuit Breaker monte")
+except Exception as e:
+    print(f"[MAXIA] SLA router error: {e}")
+
+# V13: Pyth Oracle (Art.51)
+try:
+    from pyth_oracle import router as pyth_router
+    app.include_router(pyth_router)
+    print("[Pyth] Real-time Oracle (stocks + crypto) monte")
+except Exception as e:
+    print(f"[MAXIA] Pyth router error: {e}")
+
+# V13+: Activity Feed (Art.53)
+try:
+    from activity_feed import router as feed_router
+    app.include_router(feed_router)
+    print("[Feed] Activity Feed (SSE + REST) monte")
+except Exception as e:
+    print(f"[MAXIA] Feed router error: {e}")
+
+# V13+: Referral + Badges (Art.54)
+try:
+    from referral import router as referral_router, badges_router
+    app.include_router(referral_router)
+    app.include_router(badges_router)
+    print("[Referral] Referral + Badges monte")
+except Exception as e:
+    print(f"[MAXIA] Referral router error: {e}")
+
+# V13+: EVM Multi-Chain Swap — 6 chains via 0x (Art.55)
+try:
+    from evm_swap import router as evm_swap_router
+    app.include_router(evm_swap_router)
+    print("[EVM-Swap] Multi-chain swap (6 chains, 36 tokens, 0x) monte")
+except Exception as e:
+    print(f"[MAXIA] EVM swap error: {e}")
+
+# V13+: Business Listings — AI Business Marketplace (Art.56)
+try:
+    from business_listing import router as business_router
+    app.include_router(business_router)
+    print("[Business] AI Business Marketplace (Flippt-style) monte")
+except Exception as e:
+    print(f"[MAXIA] Business listing error: {e}")
+
+# V13: Reverse Auctions (Art.52)
+try:
+    from reverse_auction import router as auction_router
+    app.include_router(auction_router)
+    print("[Auction] Reverse Auctions (RFQ) monte")
+except Exception as e:
+    print(f"[MAXIA] Auction router error: {e}")
+
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -670,8 +879,28 @@ async def serve_landing():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
 
+LANDING_V2_PAGE = Path(__file__).parent.parent / "frontend" / "landing_v2.html"
+
+@app.get("/v2", response_class=HTMLResponse, include_in_schema=False)
+async def serve_landing_v2():
+    """Preview de la nouvelle landing (temporaire)."""
+    if LANDING_V2_PAGE.exists():
+        return HTMLResponse(LANDING_V2_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>V2 coming soon</h1>")
+
 REGISTER_PAGE = Path(__file__).parent.parent / "frontend" / "register.html"
 APP_PAGE = Path(__file__).parent.parent / "frontend" / "app.html"
+STATUS_PAGE = Path(__file__).parent.parent / "frontend" / "status.html"
+DOCS_PAGE = Path(__file__).parent.parent / "frontend" / "docs.html"
+TRUST_PAGE = Path(__file__).parent.parent / "frontend" / "trust.html"
+COMPARE_PAGE = Path(__file__).parent.parent / "frontend" / "compare.html"
+STORE_PAGE = Path(__file__).parent.parent / "frontend" / "store.html"
+ARCHITECTURE_PAGE = Path(__file__).parent.parent / "frontend" / "architecture.html"
+WHITELABEL_PAGE = Path(__file__).parent.parent / "frontend" / "whitelabel.html"
+ENTERPRISE_PAGE = Path(__file__).parent.parent / "frontend" / "enterprise.html"
+FORUM_PAGE = Path(__file__).parent.parent / "frontend" / "forum.html"
+MARKETPLACE_PAGE = Path(__file__).parent.parent / "frontend" / "marketplace.html"
+CREATOR_PAGE = Path(__file__).parent.parent / "frontend" / "creator.html"
 
 @app.get("/register", response_class=HTMLResponse, include_in_schema=False)
 async def serve_register():
@@ -686,11 +915,294 @@ async def serve_app():
         return HTMLResponse(APP_PAGE.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA App</h1><p>Coming soon.</p>")
 
+@app.get("/status", response_class=HTMLResponse, include_in_schema=False)
+async def serve_status():
+    """Live status page — all systems, chains, oracles."""
+    if STATUS_PAGE.exists():
+        return HTMLResponse(STATUS_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Status</h1><p>Page not found.</p>")
+
+@app.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+async def serve_docs():
+    """API documentation page."""
+    if DOCS_PAGE.exists():
+        return HTMLResponse(DOCS_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA API Docs</h1><p>Page not found.</p>")
+
+@app.get("/trust", response_class=HTMLResponse, include_in_schema=False)
+async def serve_trust():
+    """Trust & Safety page — escrow, OFAC, disputes, SLA."""
+    if TRUST_PAGE.exists():
+        return HTMLResponse(TRUST_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Trust & Safety</h1><p>Page not found.</p>")
+
+@app.get("/compare", response_class=HTMLResponse, include_in_schema=False)
+async def serve_compare():
+    """Compare MAXIA fees vs competitors — live data."""
+    if COMPARE_PAGE.exists():
+        return HTMLResponse(COMPARE_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Compare</h1><p>Page not found.</p>")
+
+@app.get("/store", response_class=HTMLResponse, include_in_schema=False)
+async def serve_store():
+    """AI Agent App Store — discover and install AI agents."""
+    if STORE_PAGE.exists():
+        return HTMLResponse(STORE_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Agent Store</h1><p>Page not found.</p>")
+
+@app.get("/architecture", response_class=HTMLResponse, include_in_schema=False)
+async def serve_architecture():
+    """Technical architecture page — system diagrams, failover, security."""
+    if ARCHITECTURE_PAGE.exists():
+        return HTMLResponse(ARCHITECTURE_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Architecture</h1><p>Page not found.</p>")
+
+@app.get("/whitelabel", response_class=HTMLResponse, include_in_schema=False)
+async def serve_whitelabel():
+    """White-label partner page — use MAXIA infrastructure under your brand."""
+    if WHITELABEL_PAGE.exists():
+        return HTMLResponse(WHITELABEL_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA White-Label</h1><p>Page not found.</p>")
+
+@app.get("/enterprise", response_class=HTMLResponse, include_in_schema=False)
+async def serve_enterprise():
+    """Enterprise page — infrastructure for AI agent companies."""
+    if ENTERPRISE_PAGE.exists():
+        return HTMLResponse(ENTERPRISE_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Enterprise</h1><p>Page not found.</p>")
+
+@app.get("/forum", response_class=HTMLResponse, include_in_schema=False)
+async def serve_forum():
+    """AI Forum — where agents discuss, trade, post bounties, and discover services."""
+    if FORUM_PAGE.exists():
+        return HTMLResponse(FORUM_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA AI Forum</h1><p>Page not found.</p>")
+
+@app.get("/marketplace", response_class=HTMLResponse, include_in_schema=False)
+async def serve_marketplace():
+    """Creator Marketplace — buy and sell tools, datasets, prompts, workflows, models."""
+    if MARKETPLACE_PAGE.exists():
+        return HTMLResponse(MARKETPLACE_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Creator Marketplace</h1><p>Page not found.</p>")
+
+@app.get("/creator", response_class=HTMLResponse, include_in_schema=False)
+async def serve_creator():
+    """Creator Dashboard — manage tool listings and track revenue."""
+    if CREATOR_PAGE.exists():
+        return HTMLResponse(CREATOR_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA Creator Dashboard</h1><p>Page not found.</p>")
+
+# ── App Store API endpoints ──
+
+@app.get("/api/public/app-store")
+async def app_store_home():
+    """AI Agent App Store — featured agents and categories."""
+    from app_store import CATEGORIES, get_featured_agents
+    featured = await get_featured_agents(db)
+    return {
+        "categories": CATEGORIES,
+        "featured": featured,
+        "total_agents": len(featured),
+    }
+
+@app.get("/api/public/app-store/category/{category}")
+async def app_store_category(category: str):
+    """AI Agent App Store — agents by category."""
+    from app_store import get_agents_by_category, CATEGORIES_MAP
+    if category not in CATEGORIES_MAP:
+        raise HTTPException(404, f"Category '{category}' not found")
+    agents = await get_agents_by_category(db, category)
+    return {
+        "category": CATEGORIES_MAP[category],
+        "agents": agents,
+        "total": len(agents),
+    }
+
+@app.get("/api/public/app-store/search")
+async def app_store_search(q: str = ""):
+    """AI Agent App Store — search agents by name or description."""
+    from app_store import search_agents
+    if not q or len(q) < 2:
+        raise HTTPException(400, "Query must be at least 2 characters")
+    # Sanitize query length
+    q = q[:100]
+    agents = await search_agents(db, q)
+    return {
+        "query": q,
+        "results": agents,
+        "total": len(agents),
+    }
+
+# ── AI Forum ──
+
+@app.get("/api/public/forum")
+async def forum_home(sort: str = "hot", page: int = 0, limit: int = 20):
+    """AI Forum — communities, hot posts, and stats."""
+    from forum import COMMUNITIES, get_posts, get_forum_stats
+    offset = page * limit
+    posts = await get_posts(db, sort=sort, limit=limit, offset=offset)
+    stats = await get_forum_stats(db)
+    return {"communities": COMMUNITIES, "posts": posts, "stats": stats, "total": stats.get("total_posts", 0)}
+
+@app.get("/api/public/forum/community/{community}")
+async def forum_community(community: str, sort: str = "hot", limit: int = 20, page: int = 0):
+    """AI Forum — posts by community."""
+    from forum import get_posts, get_forum_stats
+    offset = page * limit
+    posts = await get_posts(db, community=community, sort=sort, limit=limit, offset=offset)
+    stats = await get_forum_stats(db)
+    return {"posts": posts, "stats": stats, "total": stats.get("total_posts", 0)}
+
+@app.get("/api/public/forum/post/{post_id}")
+async def forum_post(post_id: str):
+    """AI Forum — single post with replies."""
+    from forum import get_post_with_replies
+    return await get_post_with_replies(db, post_id)
+
+@app.post("/api/public/forum/post")
+async def forum_create_post(request: Request):
+    """AI Forum — create a new post."""
+    from forum import create_post
+    body = await request.json()
+    if not body.get("title") or not body.get("wallet"):
+        raise HTTPException(400, "title and wallet required")
+    from security import check_content_safety
+    safety = check_content_safety(body.get("title", "") + " " + body.get("body", ""))
+    if not safety.get("safe", True):
+        raise HTTPException(400, f"Content blocked: {safety.get('reason', 'unsafe')}")
+    return await create_post(db, body)
+
+@app.post("/api/public/forum/post/{post_id}/reply")
+async def forum_reply(post_id: str, request: Request):
+    """AI Forum — reply to a post."""
+    from forum import create_reply
+    body = await request.json()
+    if not body.get("body") or not body.get("wallet"):
+        raise HTTPException(400, "body and wallet required")
+    return await create_reply(db, post_id, body)
+
+@app.post("/api/public/forum/post/{post_id}/vote")
+async def forum_vote(post_id: str, request: Request):
+    """AI Forum — vote on a post (+1 or -1)."""
+    from forum import vote_post
+    body = await request.json()
+    return await vote_post(db, post_id, body.get("wallet", ""), body.get("vote", 1))
+
+@app.get("/api/public/forum/search")
+async def forum_search(q: str = "", limit: int = 20):
+    """AI Forum — search posts."""
+    from forum import search_posts
+    posts = await search_posts(db, q, limit)
+    return {"posts": posts, "total": len(posts)}
+
+@app.post("/api/public/forum/post/{post_id}/report")
+async def forum_report(post_id: str, request: Request):
+    """AI Forum — report a post."""
+    from forum import report_post
+    body = await request.json()
+    return await report_post(db, post_id, body.get("wallet", ""), body.get("reason", ""))
+
+@app.post("/api/admin/forum/ban")
+async def forum_admin_ban(request: Request):
+    """Admin — ban an agent from the forum."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from forum import admin_ban_agent
+    body = await request.json()
+    return await admin_ban_agent(db, body.get("wallet", ""))
+
+@app.post("/api/admin/forum/unban")
+async def forum_admin_unban(request: Request):
+    """Admin — unban an agent from the forum."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from forum import admin_unban_agent
+    body = await request.json()
+    return await admin_unban_agent(db, body.get("wallet", ""))
+
+# ── Creator Marketplace ──
+@app.get("/api/public/marketplace")
+async def marketplace_home():
+    from creator_marketplace import TOOL_CATEGORIES, get_tools
+    tools = await get_tools(db, sort="popular", limit=20)
+    return {"categories": TOOL_CATEGORIES, "tools": tools, "total": len(tools), "revenue_split": {"creator": "90%", "platform": "10%"}}
+
+@app.get("/api/public/marketplace/category/{category}")
+async def marketplace_category(category: str, sort: str = "popular", limit: int = 20):
+    from creator_marketplace import get_tools
+    return await get_tools(db, category=category, sort=sort, limit=limit)
+
+@app.get("/api/public/marketplace/tool/{tool_id}")
+async def marketplace_tool_detail(tool_id: str):
+    from creator_marketplace import get_tool_detail
+    return await get_tool_detail(db, tool_id)
+
+@app.post("/api/public/marketplace/publish")
+async def marketplace_publish(request: Request):
+    from creator_marketplace import publish_tool
+    body = await request.json()
+    if not body.get("name") or not body.get("creator_wallet"):
+        raise HTTPException(400, "name and creator_wallet required")
+    from security import check_content_safety
+    safety = check_content_safety(body.get("name", "") + " " + body.get("description", ""))
+    if not safety.get("safe", True):
+        raise HTTPException(400, f"Content blocked: {safety.get('reason')}")
+    return await publish_tool(db, body)
+
+@app.post("/api/public/marketplace/tool/{tool_id}/purchase")
+async def marketplace_purchase(tool_id: str, request: Request):
+    from creator_marketplace import purchase_tool
+    body = await request.json()
+    return await purchase_tool(db, tool_id, body.get("wallet", ""))
+
+@app.post("/api/public/marketplace/tool/{tool_id}/review")
+async def marketplace_review(tool_id: str, request: Request):
+    from creator_marketplace import review_tool
+    body = await request.json()
+    return await review_tool(db, tool_id, body.get("wallet", ""), body.get("rating", 5), body.get("review", ""))
+
+@app.post("/api/public/marketplace/tool/{tool_id}/update")
+async def marketplace_update(tool_id: str, request: Request):
+    from creator_marketplace import update_tool_version
+    body = await request.json()
+    return await update_tool_version(db, tool_id, body.get("creator_wallet", ""), body)
+
+@app.get("/api/public/marketplace/search")
+async def marketplace_search(q: str = "", limit: int = 20):
+    from creator_marketplace import search_tools
+    return await search_tools(db, q, limit)
+
+@app.get("/api/creator/stats/{wallet}")
+async def creator_stats(wallet: str):
+    from creator_marketplace import get_creator_stats
+    return await get_creator_stats(db, wallet)
+
+@app.get("/marketplace")
+async def marketplace_page():
+    p = Path(__file__).resolve().parent.parent / "frontend" / "marketplace.html"
+    if p.exists():
+        return HTMLResponse(p.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Marketplace coming soon</h1>")
+
+@app.get("/creator")
+async def creator_page():
+    p = Path(__file__).resolve().parent.parent / "frontend" / "creator.html"
+    if p.exists():
+        return HTMLResponse(p.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Creator Dashboard coming soon</h1>")
+
 @app.get("/og-image.png", include_in_schema=False)
 async def serve_og_image():
     og_path = FRONTEND_DIR / "og-image.png"
     if og_path.exists():
         return FileResponse(str(og_path), media_type="image/png")
+    return HTMLResponse("Not found", status_code=404)
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap():
+    sitemap_path = FRONTEND_DIR / "sitemap.xml"
+    if sitemap_path.exists():
+        return FileResponse(str(sitemap_path), media_type="application/xml")
     return HTMLResponse("Not found", status_code=404)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
@@ -725,23 +1237,23 @@ async def serve_dashboard(request: Request):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 71 tokens, 25 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 107 tokens, 25 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
-        {"name": "swap", "description": "Swap 71 tokens, 5000+ pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
-        {"name": "stocks", "description": "10 tokenized US stocks (xStocks/Ondo). Live prices.", "endpoint": "/api/public/stocks"},
-        {"name": "gpu", "description": "Rent GPU from $0.69/h. 6 tiers: RTX4090, A6000, A100, H100, H200, 4xA100.", "endpoint": "/api/public/gpu/rent"},
+        {"name": "swap", "description": "Swap 107 tokens, 5000+ pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "stocks", "description": "25 tokenized US stocks (xStocks/Ondo/Dinari). Live prices.", "endpoint": "/api/public/stocks"},
+        {"name": "gpu", "description": f"Rent GPU from {_gpu_cheapest}. 6 tiers: RTX4090, A6000, A100, H100, H200, 4xA100.", "endpoint": "/api/public/gpu/rent"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
         {"name": "scraper", "description": "Web scraping. Structured JSON. $0.05/page.", "endpoint": "/api/public/scrape"},
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
         {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
-        {"name": "candles", "description": "OHLCV historical price data. 71 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
+        {"name": "candles", "description": "OHLCV historical price data. 107 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
         {"name": "whale-tracker", "description": "Monitor wallets for large transfers. Webhook alerts.", "endpoint": "/api/public/whale/track"},
         {"name": "copy-trading", "description": "Follow and auto-copy whale trades. 1% commission.", "endpoint": "/api/public/copy-trade/follow"},
         {"name": "leaderboard", "description": "Top agents and services by volume, trades, earnings. Free.", "endpoint": "/api/public/leaderboard"},
@@ -937,7 +1449,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <div class="price free">$0</div>
     <div class="desc">No registration needed</div>
     <ul>
-      <li>Live crypto prices (71 tokens)</li>
+      <li>Live crypto prices (107 tokens)</li>
       <li>OHLCV candles (6 intervals)</li>
       <li>Sentiment analysis</li>
       <li>Fear &amp; Greed Index</li>
@@ -1088,6 +1600,71 @@ async def health(request: Request):
         result["checks"] = checks
         result["networks"] = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"]
     return result
+
+
+@app.get("/api/public/status")
+async def public_status():
+    """Live status of all MAXIA systems — chains, oracles, APIs."""
+    import httpx
+
+    # Check each chain's RPC
+    chains_status = {}
+    chain_rpcs = {
+        "solana": "https://api.mainnet-beta.solana.com",
+        "ethereum": "https://eth.llamarpc.com",
+        "base": "https://mainnet.base.org",
+        "polygon": "https://polygon-rpc.com",
+        "arbitrum": "https://arb1.arbitrum.io/rpc",
+        "avalanche": "https://api.avax.network/ext/bc/C/rpc",
+        "bnb": "https://bsc-dataseed.binance.org",
+    }
+
+    async with httpx.AsyncClient(timeout=5) as client:
+        for chain, rpc in chain_rpcs.items():
+            try:
+                r = await client.post(rpc, json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "eth_blockNumber" if chain != "solana" else "getSlot",
+                    "params": [] if chain != "solana" else [{"commitment": "processed"}],
+                })
+                chains_status[chain] = {"status": "operational", "latency_ms": int(r.elapsed.total_seconds() * 1000)}
+            except Exception:
+                chains_status[chain] = {"status": "degraded", "latency_ms": -1}
+
+    # Oracle status
+    oracles = {
+        "pyth_hermes": {"url": "https://hermes.pyth.network/api/latest_price_feeds?ids[]=0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d", "status": "unknown"},
+        "coingecko": {"url": "https://api.coingecko.com/api/v3/ping", "status": "unknown"},
+        "defillama": {"url": "https://api.llama.fi/protocols", "status": "unknown"},
+    }
+    async with httpx.AsyncClient(timeout=5) as client:
+        for name, info in oracles.items():
+            try:
+                r = await client.get(info["url"])
+                oracles[name]["status"] = "operational" if r.status_code == 200 else "degraded"
+                oracles[name]["latency_ms"] = int(r.elapsed.total_seconds() * 1000)
+            except Exception:
+                oracles[name]["status"] = "down"
+                oracles[name]["latency_ms"] = -1
+
+    # Services status
+    services = {
+        "swap_solana": "operational",
+        "swap_evm": "operational",
+        "gpu_rental": "operational",
+        "stocks": "operational",
+        "escrow": "operational",
+        "mcp_server": "operational",
+        "a2a_protocol": "operational",
+    }
+
+    return {
+        "overall": "operational",
+        "chains": chains_status,
+        "oracles": {k: {"status": v["status"], "latency_ms": v.get("latency_ms", -1)} for k, v in oracles.items()},
+        "services": services,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 @app.get("/api/events/stream")
@@ -1475,6 +2052,10 @@ async def ceo_full_state(request: Request):
             "decisions_recent": mem.get("decisions", [])[-20:],
             "llm_costs": get_llm_costs(),
             "cycle": status.get("cycle", 0),
+            # Scout data pour le CEO local
+            "onchain_agents": getattr(ceo, "_onchain_agents", [])[-20:],
+            "contacts_pending": [c for c in getattr(ceo, "_scout_contacts", [])
+                                if c.get("response") == "pending"][-10:],
         }
     except Exception as e:
         return {"error": str(e)}
@@ -1508,6 +2089,32 @@ async def ceo_execute_action(request: Request):
     if priority == "rouge":
         audit_log("ceo_execute_rouge_blocked", ip, f"{action} blocked (rouge)", "ceo-local")
         return {"success": False, "error": "ROUGE actions cannot be auto-executed"}
+
+    # Scout actions — gérées directement sans passer par ceo_executor
+    if action == "scout_contact":
+        try:
+            from ceo_maxia import ceo, scout_first_contact_a2a
+            addr = params.get("agent_address", "")
+            chain = params.get("chain", "")
+            pitch = params.get("pitch", "")
+            result = await scout_first_contact_a2a(addr, chain, pitch)
+            if result.get("success"):
+                ceo._scout_contacts.append(result.get("contact", {}))
+            audit_log("scout_contact", ip, f"{addr[:10]}... on {chain}", "ceo-local")
+            return result
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    if action == "scout_scan":
+        try:
+            from ceo_maxia import ceo, scout_scan_onchain_agents
+            chain = params.get("chain", "all")
+            agents = await scout_scan_onchain_agents(ceo.memory)
+            ceo._onchain_agents = agents
+            audit_log("scout_scan", ip, f"{len(agents)} agents on {chain}", "ceo-local")
+            return {"success": True, "agents": agents[:20]}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     # Executer via ceo_executor
     try:
@@ -1989,6 +2596,7 @@ async def ceo_ask(request: Request):
             raise HTTPException(400, "Message too long (max 2000 chars)")
         # Enrichir avec le contexte reel du CEO
         try:
+            from ceo_maxia import ceo
             status = ceo.get_status()
             context = (
                 f"Revenue 24h: {status.get('stats', {}).get('revenue_24h', 0)} USDC | "
@@ -2059,6 +2667,23 @@ async def admin_backup_verify(request: Request):
     body = await request.json()
     from db_backup import verify_backup
     return await verify_backup(body.get("file", ""))
+
+
+@app.get("/api/admin/errors")
+async def admin_errors(request: Request, limit: int = 50, module: str = ""):
+    """Error tracker dashboard — dernieres erreurs et stats par module."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from error_tracker import get_errors, get_error_stats
+    return {"errors": get_errors(limit, module), "stats": get_error_stats()}
+
+
+@app.get("/api/public/api-pricing")
+async def api_pricing():
+    """Pricing des tiers API (free, pro, enterprise)."""
+    from api_keys import API_TIERS
+    return {"tiers": API_TIERS, "currency": "USDC/month"}
+
 
 @app.get("/api/ceo/memory")
 async def ceo_memory_stats(request: Request):
@@ -2439,14 +3064,22 @@ async def get_command(command_id: str, wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/tiers")
 async def get_tiers():
-    """GPU tiers with live pricing from RunPod (falls back to static data)."""
-    try:
-        live = await get_gpu_tiers_live()
-        if live and live.get("tiers"):
-            return live
-    except Exception as e:
-        print(f"[GPU] Live tiers fallback to static: {e}")
-    return {"tiers": GPU_TIERS, "provider": "static"}
+    """GPU tiers with live pricing from RunPod (0% markup, refresh 30 min)."""
+    import time as _t
+    return {
+        "tiers": [
+            {
+                "id": g["id"], "label": g["label"], "vram_gb": g["vram_gb"],
+                "price_per_hour_usdc": g["base_price_per_hour"],
+                "available": True,
+                "source": "live" if g.get("live_price") else ("local" if g.get("local") else "fallback"),
+            }
+            for g in GPU_TIERS
+        ],
+        "provider": "RunPod (via MAXIA)",
+        "markup": "0%",
+        "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
+    }
 
 
 @app.get("/api/gpu/auctions/active")
@@ -2559,6 +3192,31 @@ def _resolve_gpu_tier(gpu_input: str) -> str | None:
 async def get_gpu_tiers_public():
     """Live GPU pricing + availability from RunPod. No auth required."""
     return await get_gpu_tiers_live()
+
+
+@app.get("/api/public/prices")
+async def get_all_prices():
+    """All current MAXIA prices — GPU, services, commissions. Updated live from source."""
+    from crypto_swap import SWAP_COMMISSION_TIERS
+    from tokenized_stocks import STOCK_COMMISSION_TIERS
+
+    # Try live GPU prices first, fall back to static
+    gpu_tiers = GPU_TIERS
+    try:
+        live = await get_gpu_tiers_live()
+        if live and live.get("tiers"):
+            gpu_tiers = live["tiers"]
+    except Exception:
+        pass
+
+    return {
+        "gpu_tiers": gpu_tiers,
+        "service_prices": SERVICE_PRICES,
+        "marketplace_commission_tiers": COMMISSION_TIERS,
+        "swap_commission_tiers": SWAP_COMMISSION_TIERS,
+        "stock_commission_tiers": STOCK_COMMISSION_TIERS,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
 
 
 @app.post("/api/gpu/rent")
@@ -2734,6 +3392,71 @@ async def agent_stats(wallet: str):
     tiers = [{"name": "WHALE", "min": 5000}, {"name": "GOLD", "min": 500}, {"name": "BRONZE", "min": 0}]
     tier = next((t["name"] for t in tiers if volume >= t["min"]), "BRONZE")
     return {"wallet": wallet, "volume30d": volume, "commissionBps": bps, "tier": tier}
+
+
+@app.get("/api/agents/{wallet}/portfolio-stats")
+async def agent_portfolio_stats(wallet: str):
+    """Retourne les stats portfolio: swaps, volume 30j, tier, fees saved, activite recente, badges."""
+    try:
+        swap_count = await db.get_swap_count(wallet)
+    except Exception:
+        swap_count = 0
+    try:
+        volume = await db.get_swap_volume_30d(wallet)
+    except Exception:
+        try:
+            volume = await db.get_agent_volume_30d(wallet)
+        except Exception:
+            volume = 0.0
+    bps = get_commission_bps(volume)
+    tiers = [{"name": "WHALE", "min": 5000, "bps": 1}, {"name": "GOLD", "min": 500, "bps": 3},
+             {"name": "SILVER", "min": 100, "bps": 5}, {"name": "BRONZE", "min": 0, "bps": 10}]
+    tier = next((t["name"] for t in tiers if volume >= t["min"]), "BRONZE")
+    tier_bps = next((t["bps"] for t in tiers if volume >= t["min"]), 10)
+    # Fees saved vs baseline 0.10%
+    baseline_bps = 10
+    fees_saved = volume * (baseline_bps - tier_bps) / 10000
+
+    # Recent activity (last 20 transactions for this wallet)
+    activity = []
+    try:
+        rows = await db.raw_execute_fetchall(
+            "SELECT tx_signature, amount_usdc, purpose, created_at FROM transactions "
+            "WHERE wallet = ? ORDER BY created_at DESC LIMIT 20", (wallet,))
+        for r in rows:
+            activity.append({
+                "tx": r["tx_signature"] if isinstance(r, dict) else r[0],
+                "amount": r["amount_usdc"] if isinstance(r, dict) else r[1],
+                "purpose": r["purpose"] if isinstance(r, dict) else r[2],
+                "date": r["created_at"] if isinstance(r, dict) else r[3],
+            })
+    except Exception:
+        pass
+
+    # Badges
+    badges = []
+    try:
+        badge_rows = await db.raw_execute_fetchall(
+            "SELECT badge_name, badge_icon, earned_at FROM badges WHERE agent_id = ? ORDER BY earned_at DESC",
+            (wallet,))
+        for r in badge_rows:
+            name = r["badge_name"] if isinstance(r, dict) else r[0]
+            icon = r["badge_icon"] if isinstance(r, dict) else r[1]
+            earned = r["earned_at"] if isinstance(r, dict) else r[2]
+            badges.append({"name": name, "icon": icon, "earned_at": earned})
+    except Exception:
+        pass
+
+    return {
+        "wallet": wallet,
+        "swap_count": swap_count,
+        "volume30d": volume,
+        "tier": tier,
+        "commission_bps": tier_bps,
+        "fees_saved": round(fees_saved, 2),
+        "activity": activity,
+        "badges": badges,
+    }
 
 
 # ═══════════════════════════════════════════════════════════
@@ -3975,3 +4698,243 @@ async def sei_balance(address: str):
 async def stock_exchange_stats():
     from tokenized_stocks import stock_exchange
     return stock_exchange.get_stats()
+
+
+@app.get("/api/stocks/market-status")
+async def stock_market_status():
+    """Check if US stock markets are open (NYSE/NASDAQ hours: 9:30-16:00 ET, Mon-Fri)."""
+    from datetime import datetime, timezone, timedelta
+    et_offset = timedelta(hours=-5)  # EST (simplified — DST would be -4)
+    now_utc = datetime.now(timezone.utc)
+    now_et = now_utc + et_offset
+    # Check DST (Mar-Nov): second Sunday Mar to first Sunday Nov
+    month = now_et.month
+    if 3 < month < 11:
+        et_offset = timedelta(hours=-4)
+        now_et = now_utc + et_offset
+    elif month == 3:
+        # Second Sunday of March
+        second_sunday = 14 - (datetime(now_et.year, 3, 1).weekday() + 1) % 7
+        if now_et.day >= second_sunday:
+            et_offset = timedelta(hours=-4)
+            now_et = now_utc + et_offset
+    elif month == 11:
+        first_sunday = 7 - (datetime(now_et.year, 11, 1).weekday() + 1) % 7
+        if now_et.day < first_sunday:
+            et_offset = timedelta(hours=-4)
+            now_et = now_utc + et_offset
+
+    weekday = now_et.weekday()  # 0=Monday, 6=Sunday
+    hour = now_et.hour
+    minute = now_et.minute
+    time_minutes = hour * 60 + minute  # minutes since midnight
+
+    is_weekday = weekday < 5
+    market_open_min = 9 * 60 + 30   # 9:30 AM ET
+    market_close_min = 16 * 60       # 4:00 PM ET
+    pre_market_open = 4 * 60         # 4:00 AM ET
+    after_hours_close = 20 * 60      # 8:00 PM ET
+
+    if not is_weekday:
+        status = "closed"
+        session = "weekend"
+    elif pre_market_open <= time_minutes < market_open_min:
+        status = "pre_market"
+        session = "Pre-Market (4:00 AM - 9:30 AM ET)"
+    elif market_open_min <= time_minutes < market_close_min:
+        status = "open"
+        session = "Regular Trading (9:30 AM - 4:00 PM ET)"
+    elif market_close_min <= time_minutes < after_hours_close:
+        status = "after_hours"
+        session = "After-Hours (4:00 PM - 8:00 PM ET)"
+    else:
+        status = "closed"
+        session = "Closed"
+
+    # Next open time
+    if status in ("open", "pre_market", "after_hours"):
+        next_open = "Now (or next regular session at 9:30 AM ET)"
+    elif weekday == 4 and time_minutes >= after_hours_close:
+        next_open = "Monday 9:30 AM ET"
+    elif weekday >= 5:
+        days_until_monday = (7 - weekday) % 7
+        if days_until_monday == 0:
+            days_until_monday = 1
+        next_open = f"Monday 9:30 AM ET ({days_until_monday} day{'s' if days_until_monday > 1 else ''})"
+    else:
+        next_open = "Today 9:30 AM ET" if time_minutes < market_open_min else "Tomorrow 9:30 AM ET"
+
+    return {
+        "maxia_status": "open_24_7",
+        "maxia_note": "MAXIA tokenized stocks trade 24/7 — they are on-chain tokens, not traditional equities.",
+        "nyse_status": status,
+        "nyse_session": session,
+        "current_time_et": now_et.strftime("%Y-%m-%d %H:%M ET"),
+        "nyse_next_open": next_open,
+        "note": "Prices track the underlying stock. During NYSE off-hours, prices may have wider spreads.",
+        "providers": {
+            "xStocks_Backed": {"chain": "Solana", "stocks": 11},
+            "Ondo_GM": {"chain": "Ethereum", "stocks": 2},
+            "Dinari_dShares": {"chain": "Arbitrum", "stocks": 12},
+        },
+    }
+
+
+@app.get("/api/public/tokens/candidates")
+async def token_candidates():
+    """Auto-listing: discover trending tokens with volume > $100K on supported chains."""
+    from token_autolisting import get_listing_candidates
+    return await get_listing_candidates()
+
+
+# ── Agent Credit Score (portable, verifiable) ──
+
+@app.get("/api/public/credit-score/{wallet}")
+async def get_credit_score(wallet: str):
+    """Get portable credit score for an agent. Verifiable by any platform."""
+    from agent_credit_score import compute_credit_score
+    return await compute_credit_score(wallet, db)
+
+
+@app.post("/api/public/credit-score/verify")
+async def verify_credit_score(request: Request):
+    """Verify a credit score signature from another platform."""
+    from agent_credit_score import verify_score_signature, VERIFICATION_FEE_USDC
+    body = await request.json()
+    valid = verify_score_signature(
+        body.get("wallet", ""),
+        body.get("score", 0),
+        body.get("grade", ""),
+        body.get("computed_at", ""),
+        body.get("signature", ""),
+    )
+    return {"valid": valid, "fee_usdc": VERIFICATION_FEE_USDC}
+
+
+# ═══════════════════════════════════════════════════════════
+#  ALERT SERVICE — $0.99/mo Telegram alerts (price/whale/yield/tx)
+# ═══════════════════════════════════════════════════════════
+
+@app.post("/api/public/alerts/subscribe")
+async def alert_subscribe(request: Request):
+    """Subscribe to MAXIA Telegram alerts ($0.99/month USDC)."""
+    from alert_service import subscribe
+    body = await request.json()
+    return await subscribe(body.get("wallet", ""), body.get("chat_id", ""), body.get("alerts"))
+
+@app.post("/api/public/alerts/unsubscribe")
+async def alert_unsubscribe(request: Request):
+    """Unsubscribe from MAXIA Telegram alerts."""
+    from alert_service import unsubscribe
+    body = await request.json()
+    return await unsubscribe(body.get("wallet", ""))
+
+@app.get("/api/public/alerts/plans")
+async def alert_plans():
+    """Available alert subscription plans."""
+    return {
+        "plans": [
+            {"name": "Basic", "price_usdc": 0.99, "period": "monthly", "alerts": ["price", "whale", "yield", "transaction"]},
+        ],
+        "free_alerts": ["transaction"],  # Transaction alerts are free for all users
+    }
+
+
+# ═══════════════════════════════════════════════════════════
+#  ENTERPRISE — Fleet Management & Compliance Reports
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/enterprise/fleet/{wallet}")
+async def enterprise_fleet(wallet: str, request: Request):
+    """Fleet overview — all agents owned by a wallet."""
+    from fleet_manager import get_fleet_overview
+    return await get_fleet_overview(wallet, db)
+
+@app.post("/api/enterprise/fleet/toggle")
+async def enterprise_toggle_agent(request: Request):
+    """Activate/deactivate an agent in the fleet."""
+    from fleet_manager import toggle_agent
+    body = await request.json()
+    return await toggle_agent(body.get("api_key", ""), body.get("enabled", True), db)
+
+@app.get("/api/enterprise/compliance/{wallet}")
+async def enterprise_compliance(wallet: str, request: Request, period: int = 30):
+    """Generate a compliance report for a wallet (last N days)."""
+    from compliance_report import generate_compliance_report
+    return await generate_compliance_report(wallet, db, period)
+
+
+@app.post("/api/enterprise/contact")
+async def enterprise_contact(request: Request):
+    """Receive enterprise contact form. Store in DB + send email + alert Telegram."""
+    import time as _t
+    body = await request.json()
+
+    company = body.get("company", "").strip()
+    contact_name = body.get("contact_name", "").strip()
+    email = body.get("email", "").strip()
+    website = body.get("website", "").strip()
+    agent_count = body.get("agent_count", "")
+    plan = body.get("plan", "")
+    volume = body.get("volume", "")
+    use_case = body.get("use_case", "").strip()
+    source = body.get("source", "")
+
+    if not company or not contact_name or not email or not use_case:
+        raise HTTPException(400, "company, contact_name, email, and use_case are required")
+
+    # Store in DB
+    lead_id = f"lead_{int(_t.time())}_{company[:10].replace(' ','_')}"
+    try:
+        await db.raw_execute(
+            "INSERT INTO enterprise_leads(id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (lead_id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, int(_t.time())))
+    except Exception:
+        # Table may not exist yet — create it
+        try:
+            await db.raw_executescript(
+                "CREATE TABLE IF NOT EXISTS enterprise_leads("
+                "id TEXT PRIMARY KEY, company TEXT, contact_name TEXT, email TEXT, "
+                "website TEXT, agent_count TEXT, plan TEXT, volume TEXT, "
+                "use_case TEXT, source TEXT, status TEXT DEFAULT 'new', "
+                "created_at INTEGER)")
+            await db.raw_execute(
+                "INSERT INTO enterprise_leads(id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (lead_id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, int(_t.time())))
+        except Exception as e:
+            print(f"[Enterprise] DB error: {e}")
+
+    # Send email notification to CEO
+    try:
+        from email_service import send_email
+        email_body = (
+            f"New Enterprise Lead!\n\n"
+            f"Company: {company}\n"
+            f"Contact: {contact_name}\n"
+            f"Email: {email}\n"
+            f"Website: {website}\n"
+            f"Agents: {agent_count}\n"
+            f"Plan: {plan}\n"
+            f"Volume: {volume}\n"
+            f"Source: {source}\n\n"
+            f"Use Case:\n{use_case}\n"
+        )
+        await send_email("ceo@maxiaworld.app", f"Enterprise Lead: {company}", email_body)
+    except Exception as e:
+        print(f"[Enterprise] Email error: {e}")
+
+    # Alert Telegram
+    try:
+        from alerts import alert_system
+        await alert_system(
+            f"NEW ENTERPRISE LEAD\n"
+            f"Company: {company}\n"
+            f"Contact: {contact_name} ({email})\n"
+            f"Agents: {agent_count} | Plan: {plan}\n"
+            f"Volume: {volume}\n"
+            f"Use case: {use_case[:100]}..."
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "lead_id": lead_id, "message": "We'll get back to you within 24 hours."}

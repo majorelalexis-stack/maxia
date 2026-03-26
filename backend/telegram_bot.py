@@ -77,7 +77,7 @@ async def send_daily_report(stats: dict):
     text = (
         f"\U0001f4ca <b>MAXIA — AI-to-AI Marketplace</b>\n\n"
         f"\U0001f310 14 blockchains supportees\n"
-        f"\U0001f4b1 50 tokens, 2450 paires de trading\n"
+        f"\U0001f4b1 107 tokens, 5000+ paires de trading\n"
         f"\U0001f5a5 GPU: RTX 4090 \u2192 4xA100 (prix coutant)\n"
         f"\U0001f916 31 outils MCP pour agents IA\n\n"
         f"\U0001f4b0 Swap: 0.10% \u2192 0.01% | Marketplace: 1% \u2192 0.1% selon volume\n"

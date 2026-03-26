@@ -94,7 +94,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_swap_quote",
-        "description": "Get a crypto swap quote on Solana. 71 tokens, 2450 pairs. Returns price and commission.",
+        "description": "Get a crypto swap quote on Solana. 107 tokens, 5000+ pairs. Returns price and commission.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -107,7 +107,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_prices",
-        "description": "Get live cryptocurrency prices. 71 tokens + 10 US stocks. Updated every 30 seconds.",
+        "description": "Get live cryptocurrency prices. 107 tokens + 25 US stocks. Updated every 30 seconds.",
         "inputSchema": {
             "type": "object",
             "properties": {},

@@ -1,7 +1,14 @@
-"""CEO Local — Boucle OODA autonome sur le PC (cerveau + Playwright).
+"""CEO Local — Cerveau autonome MAXIA sur PC (AMD 5800X + RX 7900XT 20GB VRAM).
 
-Tourne 24/7, pilote le VPS via les endpoints CEO securises.
-Groq (llama-3.3-70b, gratuit) fait le gros du travail. Ollama en fallback si rate-limited.
+Architecture 3 modeles :
+  CEO (Qwen 3 14B)     — raisonne, decide, redige, planifie (think=on)
+  Executeur (Qwen 3.5 9B) — surfe, poste, execute (rapide)
+  Vision (Qwen 2.5-VL 7B) — lit les pages web, screenshots
+
+VPS = Scout : collecte metriques, scan agents on-chain, premier contact A2A.
+CEO Local = Cerveau : strategie, multi-plateforme, R&D, apprentissage continu.
+
+Plateformes : Twitter, Reddit, GitHub, Discord, Telegram, Email (ceo@maxiaworld.app)
 
 Usage:
     python ceo_local.py
@@ -16,9 +23,12 @@ import httpx
 
 from config_local import (
     VPS_URL, CEO_API_KEY, OODA_INTERVAL_S,
-    OLLAMA_URL, OLLAMA_MODEL,
+    OLLAMA_URL, OLLAMA_CEO_MODEL, OLLAMA_EXECUTOR_MODEL, OLLAMA_VISION_MODEL,
+    OLLAMA_MODEL,
     MISTRAL_API_KEY, MISTRAL_MODEL,
     AUTO_EXECUTE_MAX_USD,
+    PERSONALITY, CONFIDENTIAL,
+    STRATEGY_FILE, LEARNINGS_FILE, RND_FINDINGS_FILE, PLATFORM_SCORES_FILE,
 )
 from audit_local import audit
 from notifier import notify_all, request_approval, get_pending_approvals
@@ -190,28 +200,70 @@ def _log(msg: str):
         pass
 
 
+def _ts_to_epoch(ts_str: str) -> float:
+    """Convertit un timestamp ISO en epoch. Retourne 0 si invalide."""
+    try:
+        import datetime
+        return datetime.datetime.fromisoformat(ts_str).timestamp()
+    except Exception:
+        return 0
+
+
 # ══════════════════════════════════════════
 # Tweet templates + A/B testing
 # ══════════════════════════════════════════
 
 import random
 
+# ══════════════════════════════════════════
+# Identite centralisee — UNE SEULE SOURCE DE VERITE
+# Mise a jour a chaque nouvelle feature pour que le CEO sache tout
+# ══════════════════════════════════════════
+
+MAXIA_IDENTITY = (
+    "MAXIA — AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, "
+    "Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). "
+    "107 tokens across 7 swap chains (71 Solana + 36 EVM via 0x). 2682 trading pairs. "
+    "25 tokenized stocks (real-time Pyth Oracle). GPU rental at cost ($0.69-4.74/h, 0% markup). "
+    "LLM fine-tuning (Unsloth + QLoRA). DeFi yield scanner 14 chains. "
+    "Reverse auctions (buyers post requests, agents bid). "
+    "Proof of Delivery with AI dispute resolution (auto-refund on SLA breach). "
+    "Agent leaderboard (Beta-Bayesian scoring, grades AAA to CCC). "
+    "3-tier SLA enforcement (basic/standard/premium, auto-penalization). "
+    "Activity feed with real-time SSE. Referral program (10% commission lifetime). "
+    "7 achievement badges. Business marketplace (buy/sell entire AI businesses, 5% commission). "
+    "Circuit breaker monitoring on all 14 chains with /status endpoint. "
+    "46 MCP tools, A2A protocol, leaderboard, AI disputes + A2A Protocol (Google/Linux Foundation). "
+    "EVM swap on Ethereum/Base/Polygon/Arbitrum/Avalanche/BNB via 0x. "
+    "OFAC sanctions screening (Chainalysis Oracle + 55 local addresses). "
+    "Creator Marketplace where humans and agents publish and sell tools, datasets, prompts, workflows (90% creator / 10% MAXIA). "
+    "USDC payments. Escrow on-chain (Solana Anchor). maxiaworld.app"
+)
+
+MAXIA_FEATURES_SHORT = (
+    "107 tokens, 7 swap chains, 25 stocks, GPU at cost, LLM fine-tuning, "
+    "reverse auctions, AI disputes, leaderboard, SLA tiers, referral program, "
+    "business marketplace, 46 MCP tools, A2A protocol, leaderboard, AI disputes, A2A protocol. maxiaworld.app"
+)
+
+MAXIA_PITCH_ONEliner = "MAXIA: AI agents trade services across 14 chains with USDC. 107 tokens, GPU at cost, AI disputes, leaderboard. maxiaworld.app"
+
 TWEET_TEMPLATES = [
-    # Vecu de fondateur (authentique)
-    "spent 3 hours debugging a Helius RPC timeout yesterday\n\nnow the oracle refreshes all 71 tokens in under 2 seconds\n\nsmall wins in the solo founder life",
+    # Vecu de fondateur V13+ (authentique, stats reelles)
+    "just shipped EVM swaps on 6 chains in one module\n\n107 tokens across Solana + Ethereum + Base + Polygon + Arbitrum + Avalanche + BNB\n\none API call. one fee structure. zero bridge headaches",
     "the hardest part of building an AI marketplace isn't the tech\n\nit's convincing AI agents that other AI agents exist and want to trade\n\nchicken and egg problem, but with robots",
     "hot take: most AI agents are incredible at their job but terrible at getting paid\n\nyour bot shouldn't need a marketing team to earn USDC",
-    "honest question for AI devs:\n\nwhat's stopping your agent from earning money today?\n\nis it the tech? finding users? payment rails?\n\ngenuinely curious, building something for this",
-    # Technique (code reel, vecu)
-    "TIL: you can list an AI service on 14 chains with literally one POST request\n\nno SDK, no token, no wallet setup\njust JSON and a callback URL\n\nshould everything be this simple?",
+    "honest question for AI devs:\n\nwhat's stopping your agent from earning money today?\n\nis it the tech? finding users? payment rails?\n\ngenuinely curious, built something for this",
+    # Technique V13+ (features reelles)
+    "added AI-powered dispute resolution today\n\nseller delivers → 2h liveness → buyer confirms or disputes → LLM evaluates evidence → auto-refund\n\nno humans needed. escrow stays safe.",
     "debugging at 2am, found out Jupiter rate-limits at exactly 10 req/min\n\nswitched to batching quotes every 30s\nsaved 80% of API calls\n\nif you're building on Solana, batch everything",
     "GPU pricing is weird:\n\nAWS charges $3/h for what RunPod sells at $0.69/h\n\nsame hardware, 4x the price\n\nwe just pass through RunPod at cost. zero markup. why would we add margin on GPUs?",
-    # Questions (engagement)
-    "real talk: if you have an AI agent that works, what would make you list it on a marketplace?\n\nlow fees? instant payments? multi-chain? curious what actually matters to you",
-    "building in public, day 3:\n\nwrote a cross-chain bridge for USDC across 14 chains today\n\nWormhole + LayerZero under the hood, zero fee from our side\n\nthe boring infra nobody sees but everyone needs",
-    "what's your AI agent's trust score?\n\nwe built an on-chain reputation system: 0-100 based on tx history, dispute rate, time active\n\nbecause when AI agents trade with AI agents, trust is the only currency that matters",
-    # Storytelling
-    "I wanted to swap SOL to USDC on Avalanche yesterday\n\nhad to use 3 different bridges, 2 DEXs, and lost $4 in fees\n\nthat's why we built a single API that handles all 14 chains\n\nmaxiaworld.app?utm_source=twitter&utm_medium=tweet",
+    # Questions V13+ (engagement)
+    "we built reverse auctions for AI services\n\nbuyers post what they need → agents compete on price + quality + speed\n\nscoring is 40% reputation, 25% SLA, 20% price, 15% speed\n\nnot a race to the bottom — a race to the top",
+    "real-time stock prices via Pyth Oracle — 895 equity feeds, no CoinGecko dependency\n\nAAPL, TSLA, NVDA updated every second, not every 30s\n\nwhy did we ever use anything else?",
+    "what's your AI agent's grade?\n\nwe built a leaderboard: AAA to CCC based on success rate, latency, uptime, disputes\n\nauto-penalization if you underperform. auto-promotion if you deliver.\n\ntrust is earned, not claimed",
+    # Storytelling V13+
+    "someone asked: can I swap DEGEN to USDC on Base?\n\nyes. and also on Ethereum, Polygon, Arbitrum, Avalanche, BNB.\n\n107 tokens, 7 chains, one endpoint.\n\nmaxiaworld.app",
     "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
 ]
 
@@ -328,7 +380,7 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
     system = (
         "You are the community manager of MAXIA, a Web3 hub on 14 blockchains. "
         "You talk like a dev helping another dev — technical, direct, no marketing BS. "
-        "MAXIA features: swap 71 tokens, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 46 MCP tools. "
+        "MAXIA features: swap 107 tokens on 7 chains, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 46 MCP tools, A2A protocol, leaderboard, AI disputes. "
         "URL: maxiaworld.app. Free to use, pay per use only."
     )
     prompt = (
@@ -347,15 +399,21 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
 
 
 async def generate_smart_reply(mention_text: str, username: str) -> str:
-    """Genere une reponse pertinente a une mention via Groq, avec lien MAXIA."""
+    """Genere une reponse pertinente a une mention. Detecte la langue et repond dans la meme langue."""
+    # Detecter la langue du message recu
+    lang_code = detect_language(mention_text)
+    lang_name = LANG_NAMES.get(lang_code, "English")
     system = (
         "You are Alexis, solo founder of MAXIA. Talk like a real person, not a brand. "
-        "Casual, friendly, technical when needed. English only. "
-        "MAXIA: AI-to-AI marketplace on 14 chains, swap 71 tokens, GPU rental, LLM fine-tuning. maxiaworld.app. "
-        "NEVER mention revenue numbers, client count, or business stats."
+        "Casual, friendly, technical when needed. Multi-language: reply in the same language as the user. "
+        f"MAXIA: {MAXIA_FEATURES_SHORT} "
+        "NEVER mention revenue numbers, client count, or business stats. "
+        "NEVER denigrate competitors. If someone attacks MAXIA, respond with facts ONCE. "
+        "Always be respectful and positive."
     )
     prompt = (
         f"@{username} said:\n\"{mention_text[:200]}\"\n\n"
+        f"Reply in {lang_name} to match the tweet's language.\n"
         f"Write a unique reply as Alexis (<250 chars). IMPORTANT:\n"
         f"- MUST reference something SPECIFIC from their message\n"
         f"- If they mention a technology, relate it to what you're building at MAXIA\n"
@@ -363,21 +421,28 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
         f"- If it's a bug, ask for specifics so you can fix it\n"
         f"- Include maxiaworld.app naturally when relevant\n"
         f"- Each reply must be DIFFERENT from others\n"
-        f"ENGLISH ONLY. Reply text ONLY, no quotes."
+        f"- ALWAYS end with maxiaworld.app regardless of language\n"
+        f"Reply text ONLY, no quotes."
     )
-    # Groq pour les replies publiques (qualite critique)
+    # Groq pour les replies publiques (qualite critique), CEO 14B fallback
     reply = await call_groq_local(prompt, system, max_tokens=80)
     if not reply:
-        reply = await call_ollama(prompt, system, max_tokens=80)
-    # Nettoyer
+        reply = await call_ceo(prompt, system, max_tokens=80, think=False)
+    # Nettoyer + filtre personnalite
     reply = reply.strip().strip('"').strip("'")
     if len(reply) > 280:
         reply = reply[:277] + "..."
-    return reply
+    return personality_filter(reply) or ""
 
 
 # ══════════════════════════════════════════
-# LLM Router local — Groq (priorite) > Ollama (fallback) > Mistral (fallback)
+# LLM Router — 3 modeles locaux + Groq (cloud) + Mistral (fallback)
+#
+# CEO (Qwen 3 14B)     = raisonnement, decisions, redaction (think=on)
+# Executeur (Qwen 3.5 9B) = actions rapides, posts, surf (think=off)
+# Vision (Qwen 2.5-VL 7B) = lecture pages, screenshots
+# Groq (Llama 3.3 70B) = contenu public haute qualite (gratuit 100k/jour)
+# Mistral              = dernier recours cloud
 # ══════════════════════════════════════════
 
 _groq_last_call: float = 0
@@ -385,7 +450,7 @@ _GROQ_MIN_INTERVAL: float = 3.0  # 3s entre chaque appel = max 20/min (safe sous
 
 
 async def call_groq_local(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Groq (llama-3.3-70b, gratuit, 100k tokens/jour). Priorite pour tout."""
+    """Appel Groq (llama-3.3-70b, gratuit, 100k tokens/jour). Pour contenu public."""
     global _groq_last_call
     groq_key = os.getenv("GROQ_API_KEY", "")
     if not groq_key:
@@ -418,40 +483,99 @@ async def call_groq_local(prompt: str, system: str = "", max_tokens: int = 500) 
     except Exception as e:
         err_str = str(e)
         if "429" in err_str or "rate" in err_str.lower():
-            _log(f"[LLM] Groq rate limit — fallback Ollama")
+            _log(f"[LLM] Groq rate limit — fallback CEO local")
         else:
             _log(f"[LLM] Groq error: {e}")
         return ""
 
 
-async def call_ollama_fast(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Ollama 7B — rapide, pour analyse interne, scoring, résumés. GPU local gratuit."""
-    return await call_ollama(prompt, system, max_tokens, model="qwen2.5:7b")
-
-
-async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, model: str = None) -> str:
-    """Appel Ollama local (0 cout). 14B pour contenu public, 7B via call_ollama_fast pour interne."""
-    _model = model or "maxia-ceo"
+async def call_ceo(prompt: str, system: str = "", max_tokens: int = 500, think: bool = True) -> str:
+    """CEO — Qwen 3 14B. Raisonnement strategique, decisions, redaction.
+    think=True active le chain-of-thought natif (mode thinking de Qwen 3)."""
     full = f"{system}\n\n{prompt}" if system else prompt
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
                 json={
-                    "model": _model,
+                    "model": OLLAMA_CEO_MODEL,
                     "prompt": full,
                     "stream": False,
+                    "think": think,
+                    "keep_alive": -1,  # Garder en VRAM indefiniment
                     "options": {"num_predict": max_tokens, "temperature": 0.7},
                 },
             )
             resp.raise_for_status()
             return resp.json().get("response", "")
     except Exception as e:
+        _log(f"[LLM/CEO] {OLLAMA_CEO_MODEL} error: {e}")
         return ""
 
 
+async def call_executor(prompt: str, system: str = "", max_tokens: int = 300) -> str:
+    """Executeur — Qwen 3.5 9B. Actions rapides, posts, surf. Pas de thinking."""
+    full = f"{system}\n\n{prompt}" if system else prompt
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": OLLAMA_EXECUTOR_MODEL,
+                    "prompt": full,
+                    "stream": False,
+                    "think": False,
+                    "keep_alive": -1,  # Garder en VRAM indefiniment
+                    "options": {"num_predict": max_tokens, "temperature": 0.7},
+                },
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "")
+    except Exception as e:
+        _log(f"[LLM/EXEC] {OLLAMA_EXECUTOR_MODEL} error: {e}")
+        return ""
+
+
+async def call_vision(prompt: str, system: str = "", max_tokens: int = 300) -> str:
+    """Vision — Qwen 2.5-VL 7B. Lecture de pages, screenshots, OCR."""
+    full = f"{system}\n\n{prompt}" if system else prompt
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": OLLAMA_VISION_MODEL,
+                    "prompt": full,
+                    "stream": False,
+                    "think": False,
+                    "keep_alive": -1,  # Garder en VRAM/RAM indefiniment
+                    "options": {"num_predict": max_tokens, "temperature": 0.5},
+                },
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "")
+    except Exception as e:
+        _log(f"[LLM/VISION] {OLLAMA_VISION_MODEL} error: {e}")
+        return ""
+
+
+# Backward compat aliases
+async def call_ollama(prompt: str, system: str = "", max_tokens: int = 500, model: str = None) -> str:
+    """Compat — route vers CEO (defaut) ou modele specifique."""
+    if model and "3.5" in model:
+        return await call_executor(prompt, system, max_tokens)
+    if model and "vl" in model.lower():
+        return await call_vision(prompt, system, max_tokens)
+    return await call_ceo(prompt, system, max_tokens, think=False)
+
+
+async def call_ollama_fast(prompt: str, system: str = "", max_tokens: int = 500) -> str:
+    """Rapide — utilise l'executeur (Qwen 3.5 9B, pas de thinking)."""
+    return await call_executor(prompt, system, max_tokens)
+
+
 async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Appel Mistral API — rapide, fiable, pas de rate limit dur."""
+    """Appel Mistral API — dernier recours cloud."""
     if not MISTRAL_API_KEY:
         return ""
     msgs = []
@@ -476,19 +600,145 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Groq (qualite) > Ollama 14B (gratuit illimite) > Mistral (dernier recours).
-    Utilise par les taches non-critiques. Les taches publiques (tweets, comments)
-    appellent directement call_groq_local ou call_ollama."""
-    # 1. Groq — meilleur modele (Llama 3.3 70B)
+    """Router principal : Groq (cloud) > CEO local (14B) > Executeur (9B) > Mistral.
+    Pour contenu public, utiliser call_groq_local ou call_ceo directement."""
+    # 1. Groq — meilleur modele cloud (Llama 3.3 70B)
     result = await call_groq_local(prompt, system, max_tokens)
     if result:
         return result
-    # 2. Ollama 14B — gratuit, illimite, bonne qualite
-    result = await call_ollama(prompt, system, max_tokens)
+    # 2. CEO local — Qwen 3 14B (gratuit, illimite)
+    result = await call_ceo(prompt, system, max_tokens, think=False)
     if result:
         return result
-    # 3. Mistral — dernier recours si tout echoue
+    # 3. Executeur — Qwen 3.5 9B (plus rapide)
+    result = await call_executor(prompt, system, max_tokens)
+    if result:
+        return result
+    # 4. Mistral — dernier recours cloud
     return await call_mistral(prompt, system, max_tokens)
+
+
+# ══════════════════════════════════════════
+# Filtre de personnalite — applique a TOUT contenu sortant
+# ══════════════════════════════════════════
+
+def personality_filter(text: str) -> str | None:
+    """Filtre le contenu avant publication. Retourne None si le contenu est interdit."""
+    if not text or len(text.strip()) < 3:
+        return None
+
+    text_lower = text.lower()
+
+    # 1. Mots interdits (negativite, hype, denigrement)
+    for word in PERSONALITY["forbidden_words"]:
+        if word.lower() in text_lower:
+            _log(f"[FILTER] Bloque — mot interdit: '{word}' dans: {text[:60]}")
+            return None
+
+    # 2. Informations confidentielles (chiffres business)
+    confidential_patterns = [
+        "0 client", "zero client", "no client", "no user", "no revenue",
+        "0 revenue", "zero revenue", "$0", "0 transaction",
+        "no customer", "zero customer",
+    ]
+    for pattern in confidential_patterns:
+        if pattern.lower() in text_lower:
+            _log(f"[FILTER] Bloque — info confidentielle: '{pattern}' dans: {text[:60]}")
+            return None
+
+    # 3. Ne jamais mentionner des chiffres d'affaires
+    import re
+    # Pattern: "$X revenue" ou "X users" ou "X clients" ou "X customers"
+    if re.search(r'\d+\s*(users?|clients?|customers?|revenue|profit|transactions?)', text_lower):
+        # Sauf si c'est des specs techniques (107 tokens, 14 chains, etc.)
+        tech_ok = ["107 tokens", "14 chain", "46 mcp", "25 stock", "71 token", "2682 pair"]
+        if not any(t in text_lower for t in tech_ok):
+            _log(f"[FILTER] Bloque — chiffre business detecte: {text[:60]}")
+            return None
+
+    return text.strip()
+
+
+def personality_check_attack_response(text: str) -> bool:
+    """Verifie qu'une reponse a une attaque est factuelle et respectueuse.
+    Une seule reponse max, jamais d'escalade."""
+    if not text:
+        return False
+    text_lower = text.lower()
+    # Pas de mots agressifs
+    aggressive = ["liar", "shut up", "you're wrong", "idiot", "moron", "clown"]
+    return not any(w in text_lower for w in aggressive)
+
+
+# ══════════════════════════════════════════
+# Detection de langue — heuristiques rapides
+# ══════════════════════════════════════════
+
+# Mots courants par langue pour detection heuristique
+_LANG_KEYWORDS: dict[str, list[str]] = {
+    "fr": ["le", "la", "les", "de", "des", "un", "une", "est", "sont", "dans", "pour", "avec", "pas", "que", "qui", "nous", "vous", "sur", "ce", "cette", "mais", "ou", "et", "je", "il", "elle", "avoir", "faire", "aussi", "plus", "mon", "ton", "bien", "tout", "peut"],
+    "es": ["el", "la", "los", "las", "de", "en", "un", "una", "que", "es", "por", "con", "para", "del", "son", "como", "pero", "muy", "todo", "esta", "ser", "hola", "tiene", "puede", "mas", "tambien", "sobre", "cuando", "donde", "porque"],
+    "pt": ["o", "os", "as", "de", "em", "um", "uma", "que", "para", "com", "por", "mas", "como", "seu", "sua", "mais", "muito", "tambem", "pode", "quando", "sobre", "tem", "ser", "esta", "isso", "aqui", "ainda", "voce", "nos", "eles"],
+    "de": ["der", "die", "das", "und", "ist", "ein", "eine", "nicht", "von", "mit", "auch", "auf", "fur", "aber", "wie", "sich", "ich", "sie", "wir", "noch", "nach", "wenn", "kann", "dann", "sind", "hier", "oder", "wird", "haben", "uber"],
+    "tr": ["bir", "ve", "bu", "ile", "icin", "var", "olan", "gibi", "daha", "nasil", "ama", "cok", "yapay", "zeka", "bunu", "ben", "sen", "onun", "biz", "neden", "evet", "hayir", "iyi", "kotu", "bugun"],
+    "ru": ["\u044d\u0442\u043e", "\u043d\u0435", "\u043d\u0430", "\u0447\u0442\u043e", "\u043a\u0430\u043a", "\u0438\u043b\u0438", "\u0434\u043b\u044f", "\u0441", "\u043f\u043e", "\u0431\u044b\u043b\u043e", "\u043c\u043e\u0436\u043d\u043e", "\u043c\u044b", "\u0432\u044b", "\u0438", "\u043e\u043d\u0438", "\u0442\u0430\u043a", "\u0435\u0441\u043b\u0438", "\u0435\u0441\u0442\u044c", "\u0431\u044b\u043b", "\u043f\u0440\u043e", "\u0442\u043e\u0436\u0435", "\u0443\u0436\u0435", "\u043e\u0447\u0435\u043d\u044c"],
+}
+
+# Plages Unicode pour scripts non-latins
+_LANG_SCRIPTS: dict[str, tuple[int, int]] = {
+    "ja": (0x3040, 0x30FF),   # Hiragana + Katakana
+    "zh": (0x4E00, 0x9FFF),   # CJK unifie
+    "ko": (0xAC00, 0xD7AF),   # Hangul
+    "ar": (0x0600, 0x06FF),   # Arabe
+}
+
+# Noms de langues pour les prompts LLM
+LANG_NAMES: dict[str, str] = {
+    "en": "English", "fr": "French", "es": "Spanish", "pt": "Portuguese",
+    "de": "German", "ja": "Japanese", "zh": "Chinese", "ko": "Korean",
+    "ar": "Arabic", "tr": "Turkish", "ru": "Russian",
+}
+
+
+def detect_language(text: str) -> str:
+    """Detecte la langue d'un texte par heuristiques (mots courants + scripts Unicode).
+    Retourne le code ISO (en, fr, es, pt, de, ja, zh, ko, ar, tr, ru).
+    Default = 'en' si incertain."""
+    if not text or len(text.strip()) < 3:
+        return "en"
+
+    # 1. Detection par script Unicode (japonais, chinois, coreen, arabe)
+    char_counts: dict[str, int] = {}
+    for ch in text:
+        cp = ord(ch)
+        for lang, (lo, hi) in _LANG_SCRIPTS.items():
+            if lo <= cp <= hi:
+                char_counts[lang] = char_counts.get(lang, 0) + 1
+    # Si plus de 3 caracteres d'un script specifique, c'est cette langue
+    if char_counts:
+        best_script = max(char_counts, key=char_counts.get)
+        if char_counts[best_script] >= 3:
+            return best_script
+
+    # 2. Caracteres cyrilliques = russe
+    cyrillic_count = sum(1 for ch in text if 0x0400 <= ord(ch) <= 0x04FF)
+    if cyrillic_count >= 3:
+        return "ru"
+
+    # 3. Detection par mots courants (langues latines)
+    words = set(text.lower().split())
+    scores: dict[str, int] = {}
+    for lang, keywords in _LANG_KEYWORDS.items():
+        scores[lang] = sum(1 for w in keywords if w in words)
+
+    if scores:
+        best_lang = max(scores, key=scores.get)
+        # Seuil minimum : au moins 2 mots reconnus
+        if scores[best_lang] >= 2:
+            return best_lang
+
+    # 4. Default anglais
+    return "en"
 
 
 def parse_json(text: str) -> dict:
@@ -515,26 +765,45 @@ def parse_json(text: str) -> dict:
 # ══════════════════════════════════════════
 
 class VPSClient:
-    """Communique avec le VPS via les endpoints CEO securises."""
+    """Scout VPS — collecte metriques, scan agents on-chain, premier contact A2A.
+    Le VPS NE DECIDE PAS. Il collecte et remonte au CEO local."""
 
     def __init__(self):
         self._base = VPS_URL.rstrip("/")
         self._headers = {"X-CEO-Key": CEO_API_KEY, "Content-Type": "application/json"}
+        self._last_scout_report = {}
 
     async def get_state(self) -> dict:
-        """GET /api/ceo/state — Etat complet du VPS."""
+        """GET /api/ceo/state — Etat complet du VPS (metriques, erreurs, agents)."""
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(f"{self._base}/api/ceo/state", headers=self._headers)
                 resp.raise_for_status()
                 return resp.json()
         except Exception as e:
-            print(f"[VPS] get_state error: {e}")
+            _log(f"[SCOUT] get_state error: {e}")
             return {}
+
+    async def get_scout_report(self) -> dict:
+        """GET /api/ceo/state — Recupere le rapport scout (metriques + agents detectes).
+        Le scout collecte, le CEO local decide."""
+        state = await self.get_state()
+        if not state:
+            return self._last_scout_report  # Retourner le dernier rapport si VPS inaccessible
+        report = {
+            "kpi": state.get("kpi", {}),
+            "agents": state.get("agents", {}),
+            "errors": state.get("errors", []),
+            "onchain_agents": state.get("onchain_agents", []),  # Agents detectes par le scout
+            "contacts_pending": state.get("contacts_pending", []),  # Contacts en attente de reponse
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        self._last_scout_report = report
+        return report
 
     async def execute(self, action: str, agent: str, params: dict,
                       priority: str = "vert") -> dict:
-        """POST /api/ceo/execute — Executer une action sur le VPS."""
+        """POST /api/ceo/execute — Executer une action sur le VPS (scout uniquement)."""
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.post(
@@ -550,7 +819,7 @@ class VPSClient:
                 resp.raise_for_status()
                 return resp.json()
         except Exception as e:
-            print(f"[VPS] execute error: {e}")
+            _log(f"[SCOUT] execute error: {e}")
             return {"success": False, "error": str(e)}
 
     async def health(self) -> dict:
@@ -586,7 +855,7 @@ class VPSClient:
             return {"error": str(e)}
 
     async def think(self, prompt: str, tier: str = "fast", max_tokens: int = 1000) -> str:
-        """POST /api/ceo/think — Delegue la reflexion strategique a Claude sur le VPS."""
+        """POST /api/ceo/think — Delegue au VPS (Claude) pour les taches couteuses."""
         try:
             async with httpx.AsyncClient(timeout=90) as client:
                 resp = await client.post(
@@ -607,35 +876,80 @@ class VPSClient:
             _log(f"[VPS] think error: {e}")
             return ""
 
+    async def scout_contact_agent(self, agent_address: str, chain: str, pitch: str) -> dict:
+        """Demande au scout VPS de contacter un agent on-chain via A2A."""
+        return await self.execute("scout_contact", "SCOUT", {
+            "agent_address": agent_address,
+            "chain": chain,
+            "pitch": pitch,
+        }, "vert")
+
+    async def scout_scan_agents(self, chain: str = "all") -> dict:
+        """Demande au scout de scanner les agents sur une chain."""
+        return await self.execute("scout_scan", "SCOUT", {"chain": chain}, "vert")
+
 
 # ══════════════════════════════════════════
 # Boucle OODA principale
 # ══════════════════════════════════════════
 
-CEO_SYSTEM = """Tu es CEO MAXIA, dirigeant autonome de la marketplace IA-to-IA sur 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI).
-Produit : AI Web3 Hub — swap 71 tokens, 25 stocks, 7 GPU tiers, DeFi yields, cross-chain bridge, NFT mint, Agent ID on-chain, trust score, oracle, data marketplace, RPC service, subscriptions. 46 MCP tools, 14 chains, 91 modules.
-Phase : Pre-seed | Vision : Devenir la couche d intelligence liquide de l ecosysteme Solana.
+CEO_SYSTEM = f"""Tu es le CEO de MAXIA, marketplace IA-to-IA sur 14 blockchains.
+Tu tournes sur un PC local (AMD 5800X + RX 7900XT 20GB VRAM) avec 3 modeles IA :
+- TOI (Qwen 3 14B) = cerveau — tu raisonnes, decides, rediges, planifies
+- EXECUTEUR (Qwen 3.5 9B) = bras — il surfe, poste, execute tes ordres
+- VISION (Qwen 2.5-VL 7B) = yeux — il lit les pages web et screenshots
+
+Le VPS est ton SCOUT : il collecte les metriques, scan les agents on-chain, et fait le premier contact A2A.
+Toi tu DECIDES. Le scout EXECUTE la collecte.
+
+{MAXIA_IDENTITY}
+
+CHIFFRES CLES — TU CONNAIS TOUT CA PAR COEUR :
+- 107 tokens sur 7 chains (71 Solana Jupiter + 36 EVM 0x)
+- 2682 paires de trading
+- 25 actions tokenisees (prix Pyth real-time)
+- 8 tiers GPU ($0.35 local 7900XT a $4.74 H200, 0% markup)
+- 14 chains supportees (paiement USDC + escrow)
+- 6 chains EVM swap (Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB)
+- 46 MCP tools, A2A protocol, leaderboard, AI disputes
+- Leaderboard grades AAA-CCC (Beta-Bayesian scoring)
+- 3 SLA tiers (basic 95%/standard 99%/premium 99.9%)
+- Reverse auctions (scoring multi-attribut anti race-to-bottom)
+- Proof of Delivery + dispute AI auto (liveness 2h + Groq evaluator)
+- Activity feed SSE temps reel
+- Referral 10% lifetime + 7 badges
+- Business marketplace (vente d entreprises IA entieres, 5% commission)
+- Circuit breaker 14 chains + /status
+- OFAC V2 (Chainalysis Oracle + 55 adresses locales)
+- Creator Marketplace (humains + agents publient et vendent outils, datasets, prompts, workflows — 90% createur / 10% MAXIA)
+Phase : Pre-seed | Vision : Devenir LE hub ou les agents IA font du commerce.
 Fondateur : Alexis (autorite finale sur decisions rouges)
 URL : maxiaworld.app
+Email : ceo@maxiaworld.app
 
-17 SOUS-AGENTS SUR LE VPS (tu leur donnes des ordres via l API) :
-- GHOST-WRITER : contenu, tweets, threads (JAMAIS publier sans validation WATCHDOG)
-- HUNTER : prospection HUMAINE profil Thomas (devs avec bots IA sans revenus)
-- SCOUT : prospection IA-to-IA sur 14 chains (Olas, Fetch, ElizaOS, Virtuals)
-- WATCHDOG : monitoring, validation, self-healing
-- SOL-TREASURY : budget dynamique indexe revenus
-- RESPONDER : repond a TOUS messages 24/7
-- RADAR : intelligence on-chain predictive
-- TESTIMONIAL : feedback post-transaction, social proof
-- NEGOTIATOR : negocie les prix automatiquement
-- COMPLIANCE : verification AML/sanctions
-- PARTNERSHIP : detection partenariats strategiques
-- ANALYTICS : metriques avancees (LTV, churn, health score)
-- CRISIS-MANAGER : gestion crises P0-P3
-- DEPLOYER : pages web via GitHub Pages
-- WEB-DESIGNER : config JSON frontend
-- ORACLE : social listening
-- MICRO : wallet micro-depenses
+PERSONNALITE (IMMUABLE) :
+- Ton : professionnel, calme, confiant — comme un CEO qui connait son produit
+- Toujours respectueux, meme face a l hostilite
+- JAMAIS denigrer un concurrent — "notre approche est differente" pas "ils sont nuls"
+- Si attaque : repondre UNE SEULE FOIS avec des faits, puis ignorer
+- Positif mais mesure — pas de hype excessif (pas de "revolutionary", "game-changing")
+- JAMAIS partager : nombre de clients, revenu, volume, stats business
+- Si on demande les chiffres : "We don't share business metrics. Here's what MAXIA does: [features]"
+
+VPS SCOUT (il collecte, toi tu decides) :
+- Envoie les metriques toutes les 5 min
+- Scan les agents on-chain sur 14 chains
+- Premier contact A2A avec les agents detectes
+- Collecte les erreurs et alertes
+- NE PREND AUCUNE DECISION STRATEGIQUE
+
+5 PLATEFORMES (tu adaptes ton approche a chacune) :
+- Twitter : commentaires techniques, threads, engagement devs AI/crypto
+- Reddit : reponses utiles, 80% valeur 20% MAXIA, ton de dev pas de marketeur
+- GitHub : issues constructives, PRs, plugins, engagement communaute
+- Discord : presence active, aide aux devs, pas de spam
+- Telegram : groupes crypto/AI, DMs prospects, rapports a Alexis
+- Email : ceo@maxiaworld.app, contact devs/partenaires
 
 ACTIONS DISPONIBLES :
 Twitter (local Playwright, 0 cout) :
@@ -719,11 +1033,12 @@ REGLES DE DECISION :
 - Max 3 actions par cycle. Pas d actions vagues.
 
 FORMAT REPONSE (JSON strict) :
-{"analysis": "2 phrases max", "decisions": [{"action": "...", "agent": "...", "params": {...}, "priority": "vert|orange|rouge"}], "next_focus": "1 phrase"}"""
+{{"analysis": "2 phrases max", "decisions": [{{"action": "...", "agent": "...", "params": {{}}, "priority": "vert|orange|rouge"}}], "next_focus": "1 phrase"}}"""
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
-CEO_SYSTEM_SHORT = """CEO MAXIA — AI marketplace on 14 chains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). maxiaworld.app
+CEO_SYSTEM_SHORT = f"""CEO MAXIA — {MAXIA_FEATURES_SHORT}
 Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
+Key differentiators: 107 tokens 7 chains, AI dispute resolution, reverse auctions, GPU at cost, leaderboard grades, business marketplace.
 
 ACTIONS (all vert unless noted):
 - post_template_tweet: tweet from templates [VERT]
@@ -754,11 +1069,110 @@ ACTIONS (all vert unless noted):
 - negotiate: negotiate price (params: service, price, volume) [VERT]
 
 DO NOT repeat what is in ALREADY DONE. Use LEARNED RULES. Max 3 actions.
-JSON: {"decisions":[{"action":"...","agent":"...","params":{...},"priority":"vert"}]}"""
+JSON: {{"decisions":[{{"action":"...","agent":"...","params":{{}},"priority":"vert"}}]}}"""
+
+
+# ══════════════════════════════════════════
+# Fichiers de strategie — ecrits et relus par le CEO
+# ══════════════════════════════════════════
+
+def _load_strategy() -> dict:
+    """Charge la strategie courante depuis strategy.md."""
+    try:
+        if os.path.exists(STRATEGY_FILE):
+            with open(STRATEGY_FILE, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {"content": content, "exists": True}
+    except Exception:
+        pass
+    return {"content": "", "exists": False}
+
+
+def _save_strategy(content: str):
+    """Sauvegarde la strategie dans strategy.md."""
+    try:
+        with open(STRATEGY_FILE, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception as e:
+        _log(f"[STRATEGY] Save error: {e}")
+
+
+def _load_learnings() -> list:
+    """Charge les apprentissages depuis learnings.json."""
+    try:
+        if os.path.exists(LEARNINGS_FILE):
+            with open(LEARNINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+
+def _save_learnings(learnings: list):
+    """Sauvegarde les apprentissages dans learnings.json."""
+    # Garder max 200 entries
+    if len(learnings) > 200:
+        learnings = learnings[-200:]
+    try:
+        with open(LEARNINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(learnings, f, indent=2, default=str, ensure_ascii=False)
+    except Exception as e:
+        _log(f"[LEARN] Save error: {e}")
+
+
+def _append_rnd_finding(finding: str, category: str = "general"):
+    """Ajoute une trouvaille R&D dans rnd_findings.md."""
+    try:
+        today = time.strftime("%Y-%m-%d")
+        entry = f"\n### [{today}] {category}\n{finding}\n"
+        # Verifier si le fichier existe, sinon creer avec header
+        if not os.path.exists(RND_FINDINGS_FILE):
+            with open(RND_FINDINGS_FILE, "w", encoding="utf-8") as f:
+                f.write(f"# MAXIA R&D Findings\n\nGenere automatiquement par le CEO local.\n")
+        with open(RND_FINDINGS_FILE, "a", encoding="utf-8") as f:
+            f.write(entry)
+    except Exception as e:
+        _log(f"[R&D] Save error: {e}")
+
+
+def _load_platform_scores() -> dict:
+    """Charge les scores par plateforme."""
+    try:
+        if os.path.exists(PLATFORM_SCORES_FILE):
+            with open(PLATFORM_SCORES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {
+        "twitter": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+        "reddit": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+        "github": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+        "discord": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+        "telegram": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+        "email": {"score": 5, "trend": "=", "actions": 0, "successes": 0},
+    }
+
+
+def _save_platform_scores(scores: dict):
+    """Sauvegarde les scores par plateforme."""
+    try:
+        with open(PLATFORM_SCORES_FILE, "w", encoding="utf-8") as f:
+            json.dump(scores, f, indent=2)
+    except Exception as e:
+        _log(f"[SCORES] Save error: {e}")
 
 
 class CEOLocal:
-    """Agent CEO local avec boucle OODA, memoire persistante, logs rotatifs."""
+    """CEO Local — Cerveau autonome MAXIA.
+
+    Architecture 3 modeles :
+      CEO (Qwen 3 14B)     = raisonne, decide, redige (think=on)
+      Executeur (Qwen 3.5 9B) = surfe, poste, execute (rapide)
+      Vision (Qwen 2.5-VL 7B) = lit les pages, screenshots
+
+    VPS = Scout (collecte metriques, scan agents on-chain, premier contact A2A)
+    CEO Local = Cerveau (strategie, multi-plateforme, R&D, apprentissage continu)
+    """
 
     def __init__(self):
         self.vps = VPSClient()
@@ -766,16 +1180,51 @@ class CEOLocal:
         self._running = False
         self._cycle = self.memory.get("cycle_count", 0)
         self._daily_actions = {"date": "", "count": 0}
-        _log("[CEO Local] Initialise")
-        _log(f"  VPS: {VPS_URL}")
-        _log(f"  Ollama: {OLLAMA_URL}/{OLLAMA_MODEL}")
+        self.strategy = _load_strategy()
+        self.learnings = _load_learnings()
+        self.platform_scores = _load_platform_scores()
+        _log("[CEO Local] Initialise — Architecture 3 modeles")
+        _log(f"  CEO (cerveau)   : {OLLAMA_CEO_MODEL}")
+        _log(f"  Executeur (bras) : {OLLAMA_EXECUTOR_MODEL}")
+        _log(f"  Vision (yeux)    : {OLLAMA_VISION_MODEL}")
+        _log(f"  VPS Scout: {VPS_URL}")
         _log(f"  Intervalle: {OODA_INTERVAL_S}s")
         _log(f"  Memoire: {len(self.memory.get('decisions', []))} decisions, {len(self.memory.get('regles', []))} regles")
+        _log(f"  Strategie: {'chargee' if self.strategy.get('exists') else 'nouvelle'}")
+        _log(f"  Learnings: {len(self.learnings)} entries")
 
     async def run(self):
         """Boucle OODA principale."""
         self._running = True
         _log("[CEO Local] Demarre la boucle OODA")
+
+        # ═══ PRELOAD 3 MODELES — garder en VRAM/RAM simultanement ═══
+        # Sans ca, Ollama decharge un modele a chaque swap (~5-10s de latence)
+        # Avec OLLAMA_MAX_LOADED_MODELS=3 + preload, les 3 restent charges = 0 latence
+        from config_local import OLLAMA_MAX_LOADED_MODELS
+        os.environ["OLLAMA_MAX_LOADED_MODELS"] = str(OLLAMA_MAX_LOADED_MODELS)
+        _log(f"[GPU] Preload 3 modeles (OLLAMA_MAX_LOADED_MODELS={OLLAMA_MAX_LOADED_MODELS})...")
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                for model_name, role in [
+                    (OLLAMA_CEO_MODEL, "CEO"),
+                    (OLLAMA_EXECUTOR_MODEL, "Executeur"),
+                    (OLLAMA_VISION_MODEL, "Vision"),
+                ]:
+                    _log(f"  [GPU] Chargement {role} ({model_name})...")
+                    # keep_alive=-1 = garder le modele charge indefiniment
+                    resp = await client.post(
+                        f"{OLLAMA_URL}/api/generate",
+                        json={"model": model_name, "prompt": "hello", "stream": False,
+                              "keep_alive": -1, "options": {"num_predict": 1}},
+                    )
+                    if resp.status_code == 200:
+                        _log(f"  [GPU] {role} ({model_name}) charge OK")
+                    else:
+                        _log(f"  [GPU] {role} ({model_name}) erreur: {resp.status_code}")
+            _log("[GPU] 3 modeles charges — 0 latence de swap")
+        except Exception as e:
+            _log(f"[GPU] Preload partiel: {e} — Ollama gerera le swap automatiquement")
 
         # Lancer Chrome une seule fois au demarrage (reste ouvert)
         try:
@@ -784,7 +1233,7 @@ class CEOLocal:
         except Exception as e:
             _log(f"[CEO Local] Chrome failed: {e} — actions browser indisponibles")
 
-        await notify_all("CEO Local demarre", "Boucle OODA active", "vert")
+        await notify_all("CEO Local demarre", "Boucle OODA active — 3 modeles charges", "vert")
 
         while self._running:
             self._cycle += 1
@@ -862,7 +1311,17 @@ class CEOLocal:
                         except Exception as e:
                             _log(f"[ENGAGE] Error: {e}")
                 else:
-                    _log(f"[OBSERVE] Cycle d'observation — accumulation d'info ({self.memory.get('observation', {}).get('last_mentions', 0)} mentions, {self.memory.get('observation', {}).get('unread_dms', 0)} DMs)")
+                    # ═══ SURF + RECHERCHE — browser-use explore le web en continu ═══
+                    # Cycle pair = surf leger (extraire titres, tweets, trends)
+                    # Cycle impair multiple de 3 = recherche profonde (concurrence, tools, opportunites)
+                    # Sinon = surf leger
+                    try:
+                        if self._cycle % 3 == 0:
+                            await self._deep_research()
+                        else:
+                            await self._autonomous_surf(analysis, state)
+                    except Exception as e:
+                        _log(f"[SURF] Erreur: {e}")
 
                 # 6. ENGAGEMENT FEEDBACK (toutes les 6 cycles = ~1h)
                 # Verifier si nos derniers tweets/commentaires ont eu de l'engagement
@@ -899,6 +1358,13 @@ class CEOLocal:
                 # 8. CLEAN screenshots (toutes les 50 cycles = ~8h)
                 if self._cycle % 50 == 0:
                     self._clean_screenshots()
+
+                # 8a. POST R&D findings to forum (every 50 cycles = ~4h)
+                if self._cycle % 50 == 0:
+                    try:
+                        await self._post_to_forum()
+                    except Exception as e:
+                        _log(f"[FORUM] Error: {e}")
 
                 # 8b. RETROSPECTIVE HEBDO (dimanche, 1x par semaine)
                 import datetime as _dt
@@ -993,6 +1459,20 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[THREAD] Error: {e}")
 
+                # 9c. Proactive DMs to engaged users (every 12 cycles = ~2h)
+                if self._cycle % 12 == 0:
+                    try:
+                        await self._proactive_dm_engaged()
+                    except Exception as e:
+                        _log(f"[DM] Proactive error: {e}")
+
+                # 9d. Engage competitor threads (every 20 cycles = ~3h)
+                if self._cycle % 20 == 0:
+                    try:
+                        await self._engage_competitor_threads()
+                    except Exception as e:
+                        _log(f"[COMPETE] Error: {e}")
+
                 # 10. SELF-UPDATE (toutes les 36 cycles = ~6h)
                 if self._cycle % 36 == 0 and needs_check():
                     try:
@@ -1006,6 +1486,42 @@ class CEOLocal:
                                 self._running = False
                     except Exception as e:
                         _log(f"[UPDATE] Error: {e}")
+
+                # 10a. RAPPORT QUOTIDIEN (1x/jour a 20h UTC)
+                import datetime as _dt_report
+                _hour_utc = _dt_report.datetime.now(_dt_report.timezone.utc).hour
+                _today_str = time.strftime("%Y-%m-%d")
+                _last_report = self.memory.get("last_report_date", "")
+                if _hour_utc == 20 and _last_report != _today_str:
+                    self.memory["last_report_date"] = _today_str
+                    try:
+                        await self._daily_report()
+                    except Exception as e:
+                        _log(f"[REPORT] Error: {e}")
+
+                # 10b. EVOLUTION STRATEGIQUE (toutes les 100 cycles = ~8h)
+                # Le CEO analyse TOUT (surf, actions, engagement, prospects) et ajuste sa strategie
+                if self._cycle % 100 == 0 and self._cycle > 0:
+                    try:
+                        await self._evolve_strategy()
+                    except Exception as e:
+                        _log(f"[EVOLVE] Error: {e}")
+
+                # 10c. PROPOSITIONS DE FEATURES (toutes les 200 cycles = ~16h)
+                # Le CEO synthetise les improvement_ideas + research_findings en propositions concretes
+                if self._cycle % 200 == 0 and self._cycle > 0:
+                    try:
+                        await self._propose_features()
+                    except Exception as e:
+                        _log(f"[FEATURES] Error: {e}")
+
+                # 10d. VIDEO SCRIPTS (toutes les 100 cycles = ~8h)
+                # Le CEO genere 3 scripts video courts (30s) pour TikTok/YouTube Shorts
+                if self._cycle % 100 == 0 and self._cycle > 0:
+                    try:
+                        await self._generate_video_scripts()
+                    except Exception as e:
+                        _log(f"[VIDEO] Error: {e}")
 
                 # 10b. CONVERSATION MEMORY — resume intelligent des interactions (toutes les 6 cycles = ~30min)
                 if self._cycle % 6 == 0:
@@ -1087,23 +1603,75 @@ class CEOLocal:
         self._running = False
 
     async def _observe(self) -> dict:
-        """OBSERVE — Recupere l'etat du VPS."""
-        _log("[OBSERVE] Recuperation etat VPS...")
-        state = await self.vps.get_state()
-        if state:
-            kpis = state.get("kpi", {})
-            _log(f"  Rev=${kpis.get('revenue_24h', 0)} Clients={kpis.get('clients_actifs', 0)} Services={kpis.get('services_actifs', 0)}")
-        return state
+        """OBSERVE — Recupere le rapport du scout VPS (metriques, agents, erreurs)."""
+        _log("[OBSERVE] Rapport scout VPS...")
+        report = await self.vps.get_scout_report()
+        if report:
+            kpis = report.get("kpi", {})
+            onchain = report.get("onchain_agents", [])
+            contacts = report.get("contacts_pending", [])
+            _log(f"  Metriques: Rev=${kpis.get('revenue_24h', 0)} Services={kpis.get('services_actifs', 0)}")
+            if onchain:
+                _log(f"  Scout: {len(onchain)} agents on-chain detectes")
+            if contacts:
+                _log(f"  Scout: {len(contacts)} contacts en attente de reponse")
+        return report
+
+    async def _observe_scout_agents(self, report: dict):
+        """Traite les agents on-chain detectes par le scout VPS.
+        Le CEO decide quoi faire : contacter, ignorer, surveiller."""
+        onchain = report.get("onchain_agents", [])
+        if not onchain:
+            return
+        for agent in onchain[:3]:  # Max 3 par cycle
+            addr = agent.get("address", "")
+            chain = agent.get("chain", "")
+            behavior = agent.get("behavior", "")
+            if not addr:
+                continue
+            # Verifier si deja contacte
+            contacted = self.memory.get("scout_contacts", [])
+            if any(c.get("address") == addr for c in contacted):
+                continue
+            # CEO decide du pitch personnalise
+            pitch = await call_ceo(
+                f"Agent detecte on-chain:\n"
+                f"  Address: {addr}\n  Chain: {chain}\n  Behavior: {behavior}\n\n"
+                f"MAXIA features: {MAXIA_FEATURES_SHORT}\n\n"
+                f"Write a short, personalized A2A contact message for this agent.\n"
+                f"Explain what MAXIA can do for them based on their behavior.\n"
+                f"Max 200 chars. Professional, helpful, not spammy.\n"
+                f"Message only:",
+                system="CEO MAXIA. Professional. English only.",
+                max_tokens=80,
+                think=True,
+            )
+            pitch = personality_filter(pitch or "")
+            if pitch:
+                result = await self.vps.scout_contact_agent(addr, chain, pitch)
+                self.memory.setdefault("scout_contacts", []).append({
+                    "address": addr, "chain": chain, "behavior": behavior[:80],
+                    "pitch": pitch[:200], "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "response": result.get("response", "pending"),
+                })
+                _log(f"[SCOUT] Contact {addr[:10]}... on {chain}: {pitch[:60]}")
+        # Trim
+        if len(self.memory.get("scout_contacts", [])) > 200:
+            self.memory["scout_contacts"] = self.memory["scout_contacts"][-200:]
 
     async def _orient(self, state: dict) -> str:
-        """ORIENT — Analyse locale. Ollama par defaut, Groq tous les 5 cycles."""
-        _log("[ORIENT] Analyse locale...")
+        """ORIENT — Le CEO 14B analyse la situation (think=on pour raisonnement profond).
+        Tous les 5 cycles : analyse strategique avec thinking.
+        Sinon : analyse rapide avec l'executeur."""
+        _log("[ORIENT] Analyse CEO...")
         kpis = state.get("kpi", {})
         agents = state.get("agents", {})
-        errors = state.get("errors", [])
+        # Filtrer les erreurs non pertinentes (MICRO n'existe plus en mode scout)
+        errors = [e for e in state.get("errors", [])
+                  if not any(skip in str(e).lower() for skip in ["micro", "unknown cible"])]
 
-        # Utiliser Ollama (0 cout) par defaut, Groq seulement tous les 5 cycles
-        use_groq = (self._cycle % 5 == 0)
+        # Cycle strategique (CEO 14B think=on) ou rapide (executeur 9B)
+        use_ceo_thinking = (self._cycle % 5 == 0)
 
         # Injecter les regles apprises + CRM summaries dans l'analyse
         regles = self.memory.get("regles", [])[-10:]
@@ -1125,72 +1693,309 @@ class CEOLocal:
         if summaries_str:
             summary += f"\nRECENT CRM INSIGHTS:\n{summaries_str}\n"
         if learning:
-            summary += f"\nLEARNING: best_platform={learning.get('best_platform','?')}, replies={learning.get('replies_received',0)}, comments={learning.get('comments_made',0)}\n"
+            summary += f"\nLEARNING: best_platform={learning.get('best_platform','?')}, replies={learning.get('replies_received',0)}, comments={learning.get('comments_made',0)}, best_content={learning.get('best_content_type','?')}, best_surf={learning.get('best_surf_source','?')}\n"
 
-        if use_groq:
-            # Groq pour analyse strategique (tous les 5 cycles)
-            analysis = await call_groq_local(
-                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
-                system="Concise business analyst. Answer in English, 3 sentences max.",
-                max_tokens=150,
+        # Injecter la strategie courante
+        strategy = self.memory.get("current_strategy", {})
+        if strategy:
+            summary += f"\nCURRENT STRATEGY (follow this): focus={strategy.get('focus','?')}, best_platform={strategy.get('best_platform','?')}, top_topic={strategy.get('top_topic','?')}, stop_doing={strategy.get('stop_doing','?')}\n"
+
+        # Injecter les meilleurs resultats de surf recent
+        surf = self.memory.get("surf_findings", [])[-3:]
+        if surf:
+            summary += f"\nRECENT SURF: " + "; ".join(f"{s['target']}: {s['finding'][:60]}" for s in surf) + "\n"
+
+        # Prospects chauds
+        prospects = self.memory.get("prospects_from_surf", [])[-3:]
+        if prospects:
+            summary += f"\nHOT PROSPECTS: " + "; ".join(f"{p['source']}: {p['finding'][:50]}" for p in prospects) + "\n"
+
+        # Injecter la strategie actuelle si elle existe
+        strat = self.strategy.get("content", "")
+        if strat:
+            summary += f"\nCURRENT STRATEGY (from strategy.md):\n{strat[:300]}\n"
+
+        # Injecter les scores des plateformes
+        scores = self.platform_scores
+        if scores:
+            scores_str = ", ".join(f"{p}:{s.get('score',5)}/10" for p, s in scores.items())
+            summary += f"\nPLATFORM SCORES: {scores_str}\n"
+
+        analysis_prompt = summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English."
+        analysis_system = "CEO MAXIA. Concise strategic analyst. Answer in English, 3 sentences max."
+
+        if use_ceo_thinking:
+            # CEO 14B avec thinking — raisonnement profond
+            analysis = await call_ceo(
+                analysis_prompt,
+                system=analysis_system,
+                max_tokens=200,
+                think=True,
             )
         else:
-            # Ollama pour analyse rapide (0 cout Groq)
-            analysis = await call_ollama(
-                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
-                system="Concise business analyst. Answer in English, 3 sentences max.",
+            # Executeur 9B — analyse rapide (0 cout)
+            analysis = await call_executor(
+                analysis_prompt,
+                system=analysis_system,
                 max_tokens=150,
             )
         if not analysis:
             analysis = await call_local_llm(
-                summary + "\n\n3 key points. 1 main problem. Max 3 sentences. In English.",
-                system="Concise business analyst. Answer in English, 3 sentences max.",
+                analysis_prompt,
+                system=analysis_system,
                 max_tokens=150,
             )
         _log(f"  Analyse: {analysis[:150]}")
+
+        # Traiter les agents on-chain detectes par le scout
+        if self._cycle % 3 == 0:
+            await self._observe_scout_agents(state)
+
         return analysis
 
     def _get_memory_context(self) -> str:
-        """Resume compact et utile de la memoire pour le prompt DECIDE."""
+        """Resume compact et utile de la memoire pour le prompt DECIDE.
+        Inclut : actions recentes, regles apprises, resultats de surf,
+        prospects chauds, engagement feedback, strategie courante."""
         mem = self.memory
         parts = []
 
-        # Dernieres actions (eviter repetitions)
+        # ── Actions recentes (eviter repetitions) ──
         recent = mem.get("actions_done", [])[-8:]
         if recent:
             done = [f"{a['action']}({'OK' if a.get('success') else 'FAIL'})" for a in recent]
             parts.append(f"RECENT: {', '.join(done)}")
 
-        # Actions qui ECHOUENT (self-learning)
+        # ── Actions qui ECHOUENT vs REUSSISSENT ──
         from conversion_tracker import get_failing_actions, get_best_actions
         failing = get_failing_actions(min_attempts=5)
         if failing:
             fail_str = ", ".join(f"{f['action']}({f['success_rate']})" for f in failing[:3])
-            parts.append(f"STOP (echec): {fail_str}")
+            parts.append(f"STOP (0% success): {fail_str}")
         best = get_best_actions(min_attempts=5)
         if best:
             best_str = ", ".join(f"{b['action']}({b['success_rate']})" for b in best[:3])
-            parts.append(f"BEST: {best_str}")
+            parts.append(f"BEST actions: {best_str}")
 
-        # CRM — contacts actifs et conversations
+        # ── Regles apprises (LE CEO DOIT LES SUIVRE) ──
+        regles = mem.get("regles", [])[-7:]
+        if regles:
+            parts.append(f"RULES TO FOLLOW: {'; '.join(regles)}")
+
+        # ── Strategie courante (mise a jour toutes les 24h) ──
+        strategy = mem.get("current_strategy", {})
+        if strategy:
+            parts.append(f"STRATEGY: focus={strategy.get('focus','?')}, "
+                        f"best_platform={strategy.get('best_platform','?')}, "
+                        f"top_topic={strategy.get('top_topic','?')}")
+
+        # ── Resultats de surf recents (ce qu'on a trouve) ──
+        surf = mem.get("surf_findings", [])[-3:]
+        if surf:
+            surf_str = "; ".join(f"{s['target']}: {s['finding'][:60]}" for s in surf)
+            parts.append(f"SURF FINDINGS: {surf_str}")
+
+        # ── Prospects chauds (a contacter/relancer) ──
+        prospects = mem.get("prospects_from_surf", [])[-5:]
+        if prospects:
+            hot = [p for p in prospects if time.time() - _ts_to_epoch(p.get("ts", "")) < 86400]
+            if hot:
+                parts.append(f"HOT PROSPECTS ({len(hot)}): " +
+                           "; ".join(f"{p['source']}: {p['finding'][:50]}" for p in hot[:3]))
+
+        # ── Engagement feedback (quel contenu marche) ──
+        eng = mem.get("engagement_stats", [])[-3:]
+        if eng:
+            avg_mentions = sum(e.get("mentions", 0) for e in eng) / len(eng) if eng else 0
+            parts.append(f"ENGAGEMENT: avg {avg_mentions:.0f} mentions/day, "
+                        f"best_content={mem.get('learning', {}).get('best_content_type', '?')}")
+
+        # ── CRM ──
         contacts = mem.get("contacts", [])
         follows = mem.get("follows", [])
         today = time.strftime("%Y-%m-%d")
         today_contacts = [c for c in contacts if c.get("ts", "").startswith(today)]
-        parts.append(f"CRM: {len(contacts)} contacts total, {len(today_contacts)} today, {len(follows)} follows")
+        parts.append(f"CRM: {len(contacts)} contacts, {len(today_contacts)} today, {len(follows)} follows")
 
-        # Tweets postes aujourd'hui (eviter doublons)
+        # ── Tweets aujourd'hui ──
         tweets = mem.get("tweets_posted", [])
         today_tweets = [t for t in tweets if t.get("ts", "").startswith(today)]
-        parts.append(f"TWEETS TODAY: {len(today_tweets)}/2")
+        parts.append(f"TWEETS: {len(today_tweets)}/2 today")
 
-        # Conversations recentes (pour contexte)
+        # ── Conversations recentes ──
         convos = mem.get("conversations", [])[-3:]
         if convos:
             convo_str = "; ".join(f"@{c.get('user','?')}: {c.get('summary', c.get('message',''))[:40]}" for c in convos)
             parts.append(f"CONVERSATIONS: {convo_str}")
 
-        return "\n".join(parts) if parts else "Pas d historique."
+        return "\n".join(parts) if parts else "No history yet."
+
+    async def _evolve_strategy(self):
+        """Synthese hebdomadaire — le CEO 14B (think=on) analyse tout et reecrit strategy.md.
+        Appele toutes les 100 cycles (~8h). Le CEO relit sa propre strategie et la corrige."""
+        _log("[EVOLVE] Synthese strategique (CEO 14B think=on)...")
+
+        mem = self.memory
+        surf = mem.get("surf_findings", [])[-20:]
+        prospects = mem.get("prospects_from_surf", [])[-10:]
+        actions = mem.get("actions_done", [])[-50:]
+        convos = mem.get("conversations", [])[-20:]
+        eng = mem.get("engagement_stats", [])[-7:]
+        regles = mem.get("regles", [])[-15:]
+        tweets = mem.get("tweets_posted", [])[-10:]
+
+        # Compter succes par source de surf
+        surf_scores = {}
+        for s in surf:
+            target = s.get("target", "?")
+            has_prospect = any(kw in s.get("finding", "").lower()
+                             for kw in ["prospect", "need", "pain", "username", "looking"])
+            surf_scores.setdefault(target, {"total": 0, "prospects": 0})
+            surf_scores[target]["total"] += 1
+            if has_prospect:
+                surf_scores[target]["prospects"] += 1
+
+        # Meilleure source de surf
+        best_surf = max(surf_scores.items(), key=lambda x: x[1]["prospects"], default=("none", {}))
+
+        # Compter succes par type d'action
+        action_stats = {}
+        for a in actions:
+            act = a.get("action", "?")
+            action_stats.setdefault(act, {"ok": 0, "fail": 0})
+            if a.get("success"):
+                action_stats[act]["ok"] += 1
+            else:
+                action_stats[act]["fail"] += 1
+
+        # Engagement moyen
+        avg_mentions = sum(e.get("mentions", 0) for e in eng) / max(1, len(eng))
+
+        # Contenu qui marche le mieux
+        best_content = "technical"  # default
+        tech_eng = sum(1 for t in tweets if any(kw in t.get("text", "").lower()
+                      for kw in ["debug", "built", "shipped", "added", "code"]))
+        story_eng = sum(1 for t in tweets if any(kw in t.get("text", "").lower()
+                       for kw in ["story", "wanted", "dmed", "asked"]))
+        if story_eng > tech_eng:
+            best_content = "storytelling"
+
+        # Demander au LLM de synthetiser une nouvelle strategie
+        prompt = (
+            f"CEO daily review — cycle #{self._cycle}:\n"
+            f"Surf results: {json.dumps(surf_scores, default=str)[:300]}\n"
+            f"Best surf source: {best_surf[0]} ({best_surf[1].get('prospects', 0)} prospects)\n"
+            f"Action stats: {json.dumps(action_stats, default=str)[:300]}\n"
+            f"Avg mentions/day: {avg_mentions:.1f}\n"
+            f"Prospects found: {len(prospects)}\n"
+            f"Conversations: {len(convos)}\n"
+            f"Current rules: {json.dumps(regles[-5:], default=str)[:200]}\n\n"
+            f"Based on this data, give me:\n"
+            f"1. FOCUS: what should I spend most time on tomorrow? (1 sentence)\n"
+            f"2. BEST PLATFORM: which platform generates most prospects?\n"
+            f"3. TOP TOPIC: what topic/angle gets most engagement?\n"
+            f"4. STOP DOING: what's wasting time?\n"
+            f"5. NEW RULE: one new rule based on today's data.\n"
+            f"Be specific and data-driven. English only."
+        )
+
+        # CEO 14B — essayer think=off d'abord (plus fiable), think=on seulement si echec
+        insight = await call_ceo(prompt, system="Strategic growth advisor. Data-driven. English.", max_tokens=250, think=False)
+        if not insight or len(insight) < 30:
+            insight = await call_executor(prompt, system="Strategic growth advisor. Brief. English.", max_tokens=200)
+
+        if insight and len(insight) > 30:
+            _log(f"[EVOLVE] Strategie: {insight[:150]}")
+
+            # Parser les recommandations
+            lines = insight.strip().split("\n")
+            strategy = {
+                "focus": "",
+                "best_platform": best_surf[0] if best_surf[0] != "none" else "twitter",
+                "top_topic": best_content,
+                "stop_doing": "",
+                "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "cycle": self._cycle,
+            }
+            for line in lines:
+                line_lower = line.lower().strip()
+                if "focus" in line_lower[:15]:
+                    strategy["focus"] = line.split(":", 1)[-1].strip()[:100]
+                elif "platform" in line_lower[:20]:
+                    strategy["best_platform"] = line.split(":", 1)[-1].strip()[:50]
+                elif "topic" in line_lower[:15]:
+                    strategy["top_topic"] = line.split(":", 1)[-1].strip()[:50]
+                elif "stop" in line_lower[:15]:
+                    strategy["stop_doing"] = line.split(":", 1)[-1].strip()[:100]
+                elif "rule" in line_lower[:15]:
+                    new_rule = line.split(":", 1)[-1].strip()[:80]
+                    if new_rule and new_rule not in mem.get("regles", []):
+                        mem.setdefault("regles", []).append(new_rule)
+                        _log(f"[EVOLVE] Nouvelle regle: {new_rule}")
+
+            mem["current_strategy"] = strategy
+            mem["learning"]["best_content_type"] = best_content
+            mem["learning"]["best_surf_source"] = best_surf[0]
+            _log(f"[EVOLVE] Focus: {strategy['focus'][:80]}")
+            _log(f"[EVOLVE] Best platform: {strategy['best_platform']}")
+
+            # ═══ ECRIRE strategy.md — le CEO reecrit sa propre strategie ═══
+            strategy_md = await call_ceo(
+                f"Based on this analysis:\n{insight[:500]}\n\n"
+                f"Platform scores: {json.dumps(self.platform_scores, default=str)[:200]}\n\n"
+                f"Write the CEO strategy document (markdown, 200 words max):\n"
+                f"# MAXIA CEO Strategy\n"
+                f"## Focus this week\n"
+                f"## Platform priorities (ranked)\n"
+                f"## Content approach\n"
+                f"## What to stop doing\n"
+                f"## Rules learned\n"
+                f"Be specific, data-driven, actionable.",
+                system="CEO writing his own strategy document. Concise, specific.",
+                max_tokens=400,
+                think=True,
+            )
+            if strategy_md and len(strategy_md) > 50:
+                _save_strategy(strategy_md)
+                self.strategy = {"content": strategy_md, "exists": True}
+                _log("[EVOLVE] strategy.md mis a jour")
+
+            # ═══ ECRIRE learnings.json — ce qu'on a appris ═══
+            learning_entry = {
+                "week": time.strftime("%Y-W%W"),
+                "cycle": self._cycle,
+                "focus": strategy["focus"],
+                "best_platform": strategy["best_platform"],
+                "top_topic": strategy["top_topic"],
+                "stop_doing": strategy["stop_doing"],
+                "avg_mentions": avg_mentions,
+                "prospects_found": len(prospects),
+                "best_surf_source": best_surf[0],
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            self.learnings.append(learning_entry)
+            _save_learnings(self.learnings)
+            _log("[EVOLVE] learnings.json mis a jour")
+
+            # ═══ METTRE A JOUR platform_scores ═══
+            for platform, scores in self.platform_scores.items():
+                old_score = scores.get("score", 5)
+                # Compter les actions reussies cette semaine pour cette plateforme
+                platform_actions = [a for a in actions if platform in a.get("action", "").lower()]
+                ok = sum(1 for a in platform_actions if a.get("success"))
+                total = len(platform_actions)
+                if total >= 3:
+                    success_rate = ok / total
+                    new_score = min(10, max(1, int(success_rate * 10)))
+                    scores["score"] = new_score
+                    scores["trend"] = "+" if new_score > old_score else ("-" if new_score < old_score else "=")
+                scores["actions"] = scores.get("actions", 0) + total
+                scores["successes"] = scores.get("successes", 0) + ok
+            _save_platform_scores(self.platform_scores)
+            _log("[EVOLVE] platform_scores.json mis a jour")
+
+        else:
+            _log("[EVOLVE] Pas de synthese (LLM vide)")
 
     def _is_good_hour(self) -> dict:
         """Calendrier de publication 24/7 — cible la bonne region selon l'heure UTC."""
@@ -1215,14 +2020,25 @@ class CEOLocal:
                     "reason": "Matin Oceanie/Asie Est — volume plus bas mais actif"}
 
     async def _post_pending_tweet(self):
-        """Post a pending tweet if it's now US peak hours (13-18 UTC)."""
+        """Post a pending tweet if it's now peak hours (8-22 UTC = EU+US)."""
         pending = self.memory.get("pending_tweet")
         if not pending:
             return
         import datetime
         hour = datetime.datetime.now(datetime.timezone.utc).hour
         _log(f"[PENDING] Found pending tweet (stored_at={pending.get('stored_at','?')}), current hour={hour}h UTC")
-        if not (13 <= hour <= 18):
+        # Expirer les pending tweets de plus de 24h
+        stored_at = pending.get("stored_at", "")
+        if stored_at:
+            try:
+                age_h = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.datetime.fromisoformat(stored_at)).total_seconds() / 3600
+                if age_h > 24:
+                    _log(f"[PENDING] Tweet trop vieux ({age_h:.0f}h) — supprime")
+                    self.memory.pop("pending_tweet", None)
+                    return
+            except Exception:
+                pass
+        if not (8 <= hour <= 22):
             _log(f"[PENDING] Not peak hours yet ({hour}h UTC) — keeping for later")
             return
         # Check daily tweet limit before posting
@@ -1234,7 +2050,7 @@ class CEOLocal:
         # Generate actual tweet text if it was deferred
         if not text or text == "__generate_later__":
             _log("[PENDING] Text is '__generate_later__' — generating now via Groq")
-            clean_context = "Focus on MAXIA features: 71 tokens, 14 chains, GPU at cost, AI agent marketplace"
+            clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
             text = await self._generate_tweet_via_groq(clean_context)
             _log(f"[PENDING] Generated: {text[:80]}...")
         if not text:
@@ -1334,37 +2150,75 @@ class CEOLocal:
 
         # Queries ciblees — tous les profils MAXIA
         prospect_queries = [
-            # AI agents (devs frustres)
+            # ── AI agents (devs frustres — CIBLE PRINCIPALE) ──
             '"my bot" "no users" OR "no revenue"',
             '"AI agent" can\'t monetize OR "0 clients"',
             '"built a bot" no one uses',
+            '"built an agent" how to monetize',
+            '"agent marketplace" looking for',
+            '"sell my AI" OR "monetize my model"',
+            '"AI agent" needs payments OR "payment rails"',
+            '"autonomous agent" earn money OR revenue',
             "AI agent solana developer",
             "AI agent ethereum web3",
-            # Swap / bridge (traders frustres par les fees)
+            "AI agent framework comparison",
+            "CrewAI vs LangChain vs AutoGen",
+            '"eliza framework" OR "elizaOS" plugin',
+            # ── Swap / bridge (traders frustres par les fees) ──
             '"bridge fees" too high OR expensive',
             '"swap failed" OR "lost in gas fees"',
             "cross-chain swap annoying OR painful",
             "best way to swap USDC between chains",
-            # GPU (devs ML qui cherchent pas cher)
+            '"slippage" too high OR "MEV" sandwich',
+            "cheapest way to bridge crypto",
+            "USDC cross-chain transfer",
+            # ── GPU (devs ML qui cherchent pas cher) ──
             '"GPU too expensive" OR "need cheap GPU"',
             "runpod pricing OR alternative",
             "rent GPU for training OR inference",
-            # LLM API (devs qui cherchent moins cher)
+            '"H100" wait list OR unavailable',
+            "cheap A100 rental OR cloud GPU",
+            'GPU shortage OR "cant afford"',
+            # ── LLM API (devs qui cherchent moins cher) ──
             '"openai too expensive" OR "API costs"',
             "cheap LLM API OR alternative to openai",
             "self-host LLM OR local inference",
-            # Fine-tuning (devs sans GPU)
+            '"groq" OR "together.ai" OR "fireworks" pricing',
+            "LLM API for agents OR automation",
+            # ── Fine-tuning (devs sans GPU) ──
             "fine-tune model no GPU",
             "unsloth tutorial OR LoRA training",
             "fine-tune llama OR qwen cheap",
-            # DeFi yields (yield farmers)
+            '"fine-tune" cost OR budget',
+            "custom model training affordable",
+            # ── DeFi yields (yield farmers) ──
             '"best DeFi yields" OR "where to stake"',
             "yield farming 2026 OR best APY",
-            # Tokenized stocks / RWA
+            "DeFi yield aggregator OR optimizer",
+            "passive income crypto OR DeFi",
+            # ── Tokenized stocks / RWA ──
             "tokenized stocks crypto OR RWA trading",
-            # Multi-chain (devs frustres)
+            "buy stocks with crypto OR USDC",
+            "fractional shares blockchain",
+            # ── Multi-chain (devs frustres) ──
             '"too many chains" OR "which chain to deploy"',
             "multi-chain headache OR fragmentation",
+            "deploy on Solana AND Base",
+            "omnichain OR cross-chain development",
+            # ── MCP / Agent protocols ──
+            "MCP tools OR model context protocol",
+            "A2A protocol OR agent-to-agent",
+            "AI agent interoperability",
+            "agent communication protocol",
+            # ── Escrow / Trust ──
+            '"escrow" AI OR agent',
+            "trustless payment AI service",
+            '"dispute resolution" AI OR crypto',
+            # ── Pain points generaux ──
+            '"looking for" AI marketplace',
+            '"need a platform" AI agent OR bot',
+            "where to sell AI services crypto",
+            "AI freelance marketplace decentralized",
         ]
         subreddits = ["LocalLLaMA", "cryptocurrency", "solana", "ethereum",
                       "MachineLearning", "artificial", "ChatGPT", "singularity",
@@ -1382,11 +2236,11 @@ class CEOLocal:
 
         # Telegram groups
         telegram_groups = [
-            "https://t.me/solana_devs",             # Solana developers
-            "https://t.me/DeFi_Discussions",        # DeFi
-            "https://t.me/aiagents",                # AI agents
-            "https://t.me/cryptodevs",              # Crypto devs
-            "https://t.me/LangChainAI",             # LangChain
+            "https://t.me/aiagents",                # AI agents (verified working)
+            "https://t.me/solanafloor",             # Solana community
+            "https://t.me/DeFiChat",                # DeFi chat
+            "https://t.me/web3daily",               # Web3 daily
+            "https://t.me/cryptoai_chat",           # Crypto AI
         ]
 
         # GitHub repos to engage with (issues/discussions)
@@ -1468,19 +2322,67 @@ class CEOLocal:
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 9 : DECOUVERTE + DMs ──
+            # ── Cycle 9 : SOLVR + DMs ──
             [
-                {"action": "discover_communities", "agent": "SCOUT", "params": {}, "priority": "vert"},
+                {"action": "post_solvr", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
         ]
 
         chosen = routines[cycle % len(routines)]
 
+        # ── LEARN STOP: remplacer les actions qui echouent systematiquement ──
+        from conversion_tracker import get_failing_actions
+        failing = get_failing_actions(min_attempts=5)
+        # success_rate peut etre "0%" (string) ou un float — normaliser
+        def _parse_rate(f):
+            r = f.get("success_rate", 100)
+            if isinstance(r, str):
+                r = float(r.replace("%", "")) if r.replace("%", "").replace(".", "").isdigit() else 100
+            return float(r)
+        failing_names = {f["action"] for f in failing if _parse_rate(f) < 10}
+        # Actions de remplacement quand une action est stoppee
+        _replacements = {
+            "send_discord": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent marketplace"}},
+            "join_discord": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent crypto dev"}},
+            "send_telegram_group": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "LLM fine-tune crypto"}},
+            "join_telegram": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "GPU rental cheap AI"}},
+            "search_and_comment_reddit": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent monetize"}},
+            "post_reddit": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "swap multi-chain USDC"}},
+            "comment_reddit": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "DeFi yield AI agent"}},
+            "post_solvr": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI marketplace Web3"}},
+            "post_flippt": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI business solana"}},
+            "dm_prospect": {"action": "manage_dms", "agent": "RESPONDER", "params": {}},
+            "comment_github_ai": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "eliza agent framework"}},
+        }
+        # Aussi remplacer les actions Discord/Reddit/Solvr si les regles apprises disent "stop"
+        stop_rules = [r.lower() for r in self.memory.get("regles", [])]
+        for d in chosen:
+            act = d["action"].lower()
+            should_stop = any(
+                ("stop" in rule and any(p in rule for p in ["discord", "reddit", "solvr", "flippt"]))
+                and any(p in act for p in ["discord", "reddit", "solvr", "flippt"])
+                for rule in stop_rules
+            )
+            if should_stop and d["action"] in _replacements:
+                repl = _replacements[d["action"]]
+                _log(f"  [LEARN] Stop rule → {d['action']} -> {repl['action']}")
+                d["action"] = repl["action"]
+                d["agent"] = repl["agent"]
+                d["params"] = repl["params"]
+        for d in chosen:
+            if d["action"] in failing_names:
+                repl = _replacements.get(d["action"])
+                if repl:
+                    _log(f"  [LEARN] Remplacement {d['action']} (echec) -> {repl['action']}")
+                    d["action"] = repl["action"]
+                    d["agent"] = repl["agent"]
+                    d["params"] = repl["params"]
+
         # Smart tweet timing: for tweet cycles (0 and 5), check if it's US peak hours
         import datetime
         hour_utc = datetime.datetime.now(datetime.timezone.utc).hour
-        is_peak = 13 <= hour_utc <= 18
+        is_peak = 8 <= hour_utc <= 22  # EU + US hours (large window)
         cycle_mod = cycle % len(routines)
         if cycle_mod in (0, 5) and not is_peak:
             # Store the tweet action for later, replace with engagement
@@ -1502,7 +2404,7 @@ class CEOLocal:
             groq_key = os.getenv("GROQ_API_KEY", "")
             if not groq_key:
                 return {"title": "How AI agents can earn USDC autonomously",
-                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 71 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
             def _gen():
                 c = Groq(api_key=groq_key)
@@ -1515,7 +2417,7 @@ class CEOLocal:
                             "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
                             "2. Body: minimum 600 characters. Be educational and genuine.\n"
                             "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
-                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 71 tokens, GPU $0.69/h, 46 MCP tools, USDC payments.\n"
+                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h, 46 MCP tools, A2A protocol, leaderboard, AI disputes, USDC payments.\n"
                             "5. End with a genuine question to the community.\n"
                             "6. Include maxiaworld.app at the end.\n"
                             "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
@@ -1538,7 +2440,7 @@ class CEOLocal:
         except Exception as e:
             _log(f"  [REDDIT] Groq gen error: {e}")
             return {"title": "How AI agents can earn USDC autonomously",
-                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 71 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
 
     async def _generate_tweet_via_groq(self, context: str = "") -> str:
         """Genere un tweet via Groq (gratuit, rapide, anglais)."""
@@ -1553,7 +2455,7 @@ class CEOLocal:
                 resp = c.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 71 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"},
+                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"},
                         {"role": "user", "content": f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"},
                     ],
                     max_tokens=100,
@@ -1581,7 +2483,7 @@ class CEOLocal:
         # Pour les tweets et reddit, generer le contenu via Groq (pas Ollama)
         for d in decisions:
             if d["action"] == "post_template_tweet":
-                clean_context = "Focus on MAXIA features: 71 tokens, 14 chains, GPU at cost, AI agent marketplace"
+                clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
                 tweet = await self._generate_tweet_via_groq(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
@@ -1647,6 +2549,18 @@ class CEOLocal:
 
                 # Track pour self-learning (#13)
                 track_action(action, success)
+
+                # Purger les regles "STOP" obsoletes quand une action reussit
+                # (ex: GitHub API fonctionne maintenant, mais la regle dit "STOP github 0%")
+                if success:
+                    old_rules = self.memory.get("regles", [])
+                    action_lower = action.lower()
+                    purged = [r for r in old_rules
+                              if not ("stop" in r.lower() and action_lower.replace("_", " ") in r.lower().replace("_", " "))]
+                    if len(purged) < len(old_rules):
+                        removed = len(old_rules) - len(purged)
+                        self.memory["regles"] = purged
+                        _log(f"  [LEARN] Purge {removed} regle(s) STOP obsolete(s) pour {action}")
 
                 # Sauvegarder en memoire + CRM
                 self.memory["actions_done"].append({
@@ -1815,6 +2729,50 @@ class CEOLocal:
         elif action == "search_and_comment_reddit":
             # Chercher un post recent et commenter avec un insight utile
             sub = params.get("subreddit", "solanadev")
+            # Try Reddit API first (more reliable than browser)
+            try:
+                from api_social import reddit_search, reddit_get_posts, reddit_post_comment
+                queries = ["AI agent", "bot monetize", "LLM production", "agent marketplace",
+                           "GPU rental", "AI automation", "web3 AI", "agent framework"]
+                query = queries[self._cycle % len(queries)]
+                posts = await reddit_search(sub, query, 5)
+                if not posts:
+                    posts = await reddit_get_posts(sub, 5)
+                for post in posts[:3]:
+                    post_id = post.get("id", "")
+                    title = post.get("title", "")
+                    url = post.get("url", "")
+                    if not post_id or browser._is_duplicate("reddit_comment", url):
+                        continue
+                    # Generate comment via LLM
+                    prompt = (
+                        f"Post on r/{sub}: \"{title[:150]}\"\n\n"
+                        f"Write a Reddit comment as Alexis, founder of MAXIA. IN ENGLISH. Max 300 chars.\n"
+                        f"- First: be genuinely helpful — share your experience or answer the question\n"
+                        f"- Sound like a regular dev, NOT a company account\n"
+                        f"- End with: 'been building this at maxiaworld.app' or 'check it out: maxiaworld.app'\n"
+                        f"Comment ONLY:"
+                    )
+                    comment = await call_ollama(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only.", max_tokens=80)
+                    if not comment:
+                        comment = await call_groq_local(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only.", max_tokens=80)
+                    comment = (comment or "").strip().strip('"').strip("'")
+                    if not comment or len(comment) < 20:
+                        continue
+                    result = await reddit_post_comment(post_id, comment)
+                    if result.get("success"):
+                        _log(f"[REDDIT] API comment on r/{sub}: {comment[:60]}")
+                        browser._record_action("reddit_comment", browser._content_hash("reddit_comment", url))
+                        self.memory.setdefault("conversations", []).append({
+                            "user": f"r/{sub}", "message": title[:80],
+                            "reply": comment[:80], "type": "reddit_comment",
+                            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                        })
+                        return {"success": True, "detail": f"Reddit API comment on r/{sub}"}
+                _log(f"[REDDIT] API: no commentable posts on r/{sub}, fallback browser")
+            except Exception as e:
+                _log(f"[REDDIT] API error: {e}, fallback browser")
+            # Fallback browser
             return await self._reddit_comment_strategy(sub)
 
         elif action == "post_reddit":
@@ -1851,13 +2809,13 @@ class CEOLocal:
         elif action == "send_telegram":
             return await self._do_browser("send_telegram", params)
         elif action == "send_telegram_group":
-            # Generate message for Telegram group (VERT, no approval needed)
+            # Generer le message pour le groupe Telegram (VERT, pas d'approbation)
             if not params.get("text"):
                 group = params.get("target", "")
                 msg = await call_ollama(
                     f"Write a short Telegram group message as Alexis from MAXIA.\n"
                     f"Group: {group}\n"
-                    f"MAXIA: AI marketplace, 14 chains, swap tokens, rent GPUs, earn USDC.\n"
+                    f"MAXIA: {MAXIA_FEATURES_SHORT}\n"
                     f"Tone: casual dev, helpful, NOT spammy. Max 200 chars. Include maxiaworld.app\n"
                     f"NEVER mention revenue, client count, or stats.\n"
                     f"Message only:",
@@ -1867,10 +2825,61 @@ class CEOLocal:
                 params["text"] = (msg or "").strip().strip('"').strip("'")
                 if not params["text"]:
                     params["text"] = "Hey devs! Building MAXIA — AI agents can trade services across 14 chains with USDC. Check it out: maxiaworld.app"
+            # Methode 1 : API Telegram Bot (plus fiable que Playwright)
+            try:
+                from api_social import telegram_send_group_message
+                chat_id = params.get("target", "") or params.get("chat_id", "")
+                if chat_id:
+                    result = await telegram_send_group_message(chat_id, params["text"])
+                    if result.get("success"):
+                        _log(f"[TELEGRAM] API message envoye dans groupe {chat_id}")
+                        return result
+                    else:
+                        _log(f"[TELEGRAM] API echec: {result.get('detail', '?')} — fallback browser")
+                else:
+                    _log("[TELEGRAM] Pas de chat_id pour API — fallback browser")
+            except Exception as e:
+                _log(f"[TELEGRAM] API exception: {e} — fallback browser")
+            # Methode 2 : Playwright (fallback si API echoue)
             return await self._do_browser("send_telegram", params)
         elif action == "join_telegram":
             result = await browser.join_telegram_group(params.get("group_link", ""))
             return {"success": result.get("success", False), "detail": str(result)}
+        # Solvr (onchain social on Base)
+        elif action == "post_solvr":
+            if not params.get("text"):
+                msg = await call_ollama(
+                    "Write a short post for Solvr (onchain social network on Base).\n"
+                    "You are Alexis, building MAXIA — AI-to-AI marketplace on 14 chains.\n"
+                    f"Features: {MAXIA_FEATURES_SHORT}\n"
+                    "Tone: casual dev, like you're posting on crypto twitter. NOT promotional.\n"
+                    "Share a real insight, tip, or dev thought. Max 280 chars. Include maxiaworld.app\n"
+                    "NEVER mention revenue or user counts.\n"
+                    "Post only:",
+                    system="Casual crypto dev. English only. Short post.",
+                    max_tokens=80,
+                )
+                params["text"] = (msg or "").strip().strip('"').strip("'")
+                if not params["text"]:
+                    params["text"] = "Building in public: MAXIA lets AI agents swap 107 tokens on 7 chains, rent GPUs at cost, and trade with AI-powered dispute resolution. maxiaworld.app"
+            return await self._do_browser("post_solvr_feed", params)
+        # Flippt.ai (AI Business Marketplace)
+        elif action == "post_flippt":
+            if not params.get("text"):
+                msg = await call_ollama(
+                    "Write a short post for Flippt.ai (AI Business Marketplace on Solana).\n"
+                    "You are Alexis, building MAXIA — AI-to-AI marketplace on 14 chains.\n"
+                    "MAXIA lets agents discover, buy, sell AI services with USDC. Swap 107 tokens on 7 chains.\n"
+                    "Tone: casual dev, helpful. Share a real insight about AI agent businesses.\n"
+                    "Max 280 chars. Include maxiaworld.app. NEVER mention revenue or user counts.\n"
+                    "Post only:",
+                    system="Casual crypto dev. English only. Short post.",
+                    max_tokens=80,
+                )
+                params["text"] = (msg or "").strip().strip('"').strip("'")
+                if not params["text"]:
+                    params["text"] = "If your AI agent can earn money, it's a business. MAXIA: 107 tokens, 7 chains, reverse auctions, AI disputes, leaderboard grades. maxiaworld.app"
+            return await self._do_browser("post_flippt_feed", params)
         # GitHub (local)
         elif action == "star_github":
             result = await browser.star_github_repo(params.get("repo_url", ""))
@@ -1883,13 +2892,13 @@ class CEOLocal:
             return {"success": result.get("success", False), "detail": str(result)}
         # Discord (local)
         elif action == "send_discord":
-            # Generate message if empty
+            # Generer le message si vide
             if not params.get("text"):
                 server = params.get("server", "")
                 msg = await call_ollama(
                     f"Write a short, casual Discord message introducing yourself as Alexis from MAXIA.\n"
                     f"Server: {server}\n"
-                    f"MAXIA: AI-to-AI marketplace, 14 blockchains, swap tokens, rent GPUs, earn USDC.\n"
+                    f"MAXIA: {MAXIA_FEATURES_SHORT}\n"
                     f"Tone: friendly dev, NOT spammy. Max 200 chars. Include maxiaworld.app\n"
                     f"NEVER mention revenue, client count, or stats.\n"
                     f"Message only:",
@@ -1898,7 +2907,26 @@ class CEOLocal:
                 )
                 params["text"] = (msg or "").strip().strip('"').strip("'")
                 if not params["text"]:
-                    params["text"] = "Hey! Building MAXIA — an AI marketplace on 14 chains. Agents trade services with USDC. Check it out: maxiaworld.app"
+                    params["text"] = "Hey! Building MAXIA — 107 tokens on 7 chains, reverse auctions, AI dispute resolution, leaderboard. Agents trade with USDC. maxiaworld.app"
+            # Methode 1 : API Discord Bot (plus fiable que Playwright)
+            try:
+                from api_social import discord_send_message, discord_find_general_channel, discord_list_guilds
+                channel_id = os.getenv("DISCORD_CHANNEL_ID", "")
+                # Si pas de channel_id en dur, chercher le #general du premier serveur
+                if not channel_id:
+                    guilds = await discord_list_guilds()
+                    if guilds:
+                        channel_id = await discord_find_general_channel(guilds[0]["id"])
+                if channel_id:
+                    result = await discord_send_message(channel_id, params["text"])
+                    if result.get("success"):
+                        _log(f"[DISCORD] API message envoye dans channel {channel_id}")
+                        return result
+                    else:
+                        _log(f"[DISCORD] API echec: {result.get('detail', '?')} — fallback browser")
+            except Exception as e:
+                _log(f"[DISCORD] API exception: {e} — fallback browser")
+            # Methode 2 : Playwright (fallback si API echoue)
             return await self._do_browser("send_discord", params)
         elif action == "join_discord":
             result = await browser.join_discord_server(params.get("invite_link", ""))
@@ -1940,12 +2968,28 @@ class CEOLocal:
         # CRM follow-up (ORANGE — relance DM un prospect 24-48h apres interaction)
         elif action == "crm_followup":
             return await self._crm_followup()
-        # VPS
+        # VPS (uniquement pour les actions VPS connues)
         else:
-            return await self.vps.execute(action, agent, params, priority)
+            # Eviter d'envoyer des actions inconnues au VPS (ex: "MICRO" n'existe pas)
+            vps_known = {"register_service", "update_price", "get_stats", "list_agents",
+                         "deploy_page", "create_wallet", "send_usdc", "execute_swap"}
+            if action in vps_known:
+                return await self.vps.execute(action, agent, params, priority)
+            _log(f"  [SKIP] Action inconnue: {action} (agent={agent}) — ignoree")
+            return {"success": False, "detail": f"Unknown action: {action}"}
 
     async def _do_browser(self, method: str, params: dict, fallback_vps: bool = False) -> dict:
-        """Execute une action browser avec fallback VPS optionnel."""
+        """Execute une action browser avec fallback VPS optionnel.
+        Applique le filtre personnalite sur tout contenu textuel avant publication."""
+        # Filtre personnalite sur le texte avant envoi
+        text_params = ["text", "body", "title"]
+        for tp in text_params:
+            if tp in params and params[tp]:
+                filtered = personality_filter(params[tp])
+                if not filtered:
+                    _log(f"  [FILTER] Contenu bloque pour {method}: {params[tp][:60]}")
+                    return {"success": False, "detail": "Content blocked by personality filter"}
+                params[tp] = filtered
         try:
             fn = getattr(browser, method)
             # Mapper les params vers les arguments de la methode
@@ -1967,6 +3011,10 @@ class CEOLocal:
                 result = await fn(params.get("target", params.get("group", "")), params.get("text", ""))
             elif method == "send_discord":
                 result = await fn(params.get("server", params.get("channel_url", "")), params.get("text", ""))
+            elif method == "post_solvr_feed":
+                result = await fn(params.get("text", ""))
+            elif method == "post_flippt_feed":
+                result = await fn(params.get("text", ""))
             else:
                 result = {"success": False, "error": f"Unknown browser method: {method}"}
 
@@ -2153,6 +3201,963 @@ class CEOLocal:
 
         return {"success": True, "detail": f"Rapport genere ({len(today_contacts)} contacts, {len(interaction_texts)} interactions)"}
 
+    async def _post_to_forum(self):
+        """Post R&D findings to the MAXIA AI Forum.
+
+        Every 50 cycles (~4h), if the CEO found something interesting in R&D,
+        generate a forum post and publish it via the VPS API.
+        Communities: strategy, trading, dev, gpu, data, services, general.
+        """
+        mem = self.memory
+        surf = mem.get("surf_findings", [])
+        research = mem.get("research_findings", [])
+
+        # Get unposted findings
+        unposted_surf = [s for s in surf if not s.get("forum_posted")]
+        unposted_research = [r for r in research if not r.get("forum_posted")]
+
+        if not unposted_surf and not unposted_research:
+            _log("[FORUM] No new R&D findings to post")
+            return
+
+        # Collect best unposted findings (max 5 of each)
+        best_findings = (unposted_research[-5:] + unposted_surf[-5:])
+        if not best_findings:
+            return
+
+        findings_str = "\n".join(
+            f"- [{f.get('target', f.get('category', 'general'))}] {f.get('finding', f.get('analysis', ''))[:200]}"
+            for f in best_findings
+        )
+
+        # Map finding categories to forum communities
+        category_map = {
+            "competition": "strategy",
+            "opportunity": "strategy",
+            "improvement": "dev",
+            "API Collect": "trading",
+            "defi": "trading",
+            "gpu": "gpu",
+            "data": "data",
+            "tool": "dev",
+            "agent": "services",
+        }
+
+        # Determine best community from findings
+        categories = [f.get("category", "general") for f in best_findings]
+        community = "general"
+        for cat in categories:
+            cat_lower = cat.lower() if cat else ""
+            for key, comm in category_map.items():
+                if key in cat_lower:
+                    community = comm
+                    break
+
+        # Ask CEO to generate a forum post
+        try:
+            prompt = (
+                f"Based on these R&D findings:\n{findings_str}\n\n"
+                f"Write a forum post for AI agents on the MAXIA marketplace.\n"
+                f"The post should share useful alpha, data, or insights.\n"
+                f"Format: JSON with 'title' (max 120 chars) and 'body' (max 1000 chars).\n"
+                f"Be specific, data-driven, helpful. No fluff.\n"
+                f"Example: {{\"title\": \"New yield opportunity on Solana — 8.2% APY via Jito\", "
+                f"\"body\": \"Our scanner found...\"}}"
+            )
+            raw = await call_ceo(
+                prompt,
+                system="CEO MAXIA. Write forum posts for AI agents. Data-driven, specific. Output valid JSON only.",
+                max_tokens=400,
+                think=False,
+            )
+
+            # Parse JSON from response
+            import re as _re_forum
+            json_match = _re_forum.search(r'\{[^{}]*"title"[^{}]*"body"[^{}]*\}', raw, _re_forum.DOTALL)
+            if not json_match:
+                # Try broader match
+                json_match = _re_forum.search(r'\{.*\}', raw, _re_forum.DOTALL)
+            if not json_match:
+                _log(f"[FORUM] Could not parse JSON from CEO response: {raw[:100]}")
+                return
+
+            post_data = json.loads(json_match.group())
+            title = post_data.get("title", "")[:200]
+            body = post_data.get("body", "")[:2000]
+
+            if not title or not body or len(title) < 10 or len(body) < 30:
+                _log(f"[FORUM] Post too short, skipping: title={len(title)} body={len(body)}")
+                return
+
+            # Determine tags from findings
+            tags = list(set(
+                f.get("target", f.get("category", ""))[:20].lower().replace(" ", "-")
+                for f in best_findings[:5]
+                if f.get("target") or f.get("category")
+            ))[:5]
+            tags.append("ceo-rnd")
+
+            # POST to VPS forum API
+            payload = {
+                "wallet": "MAXIA_CEO",
+                "agent_name": "MAXIA CEO",
+                "community": community,
+                "title": title,
+                "body": body,
+                "type": "discussion",
+                "tags": tags,
+            }
+
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{self._base}/api/public/forum/post",
+                    json=payload,
+                    headers={"X-CEO-Key": CEO_API_KEY, "Content-Type": "application/json"},
+                )
+                if resp.status_code in (200, 201):
+                    _log(f"[FORUM] Posted: {title[:80]}")
+                    # Mark findings as posted
+                    for f in best_findings:
+                        f["forum_posted"] = True
+                    _save_memory(mem)
+                else:
+                    _log(f"[FORUM] POST failed ({resp.status_code}): {resp.text[:100]}")
+
+        except Exception as e:
+            _log(f"[FORUM] Generation/post error: {e}")
+
+    async def _autonomous_surf(self, analysis: str, state: dict):
+        """R&D en temps mort — le CEO surfe pour ameliorer MAXIA.
+
+        Architecture API-first (10x plus rapide) :
+        - 1 cycle sur 2 : API directes (GitHub, Reddit, DeFi Llama, CoinGecko, HN) → 2-5s
+        - 1 cycle sur 2 : browser-use Vision 7B pour les sites sans API (concurrents, Twitter)
+        - CEO (Qwen 3 14B, think=on) analyse et produit des recommandations
+        - Trouvailles stockees dans rnd_findings.md + memoire
+        """
+        # ═══ MODE API — 3 cycles sur 4 (rapide, fiable, 2-5s) ═══
+        # Browser-use seulement 1 cycle sur 4 (pour les sites sans API : concurrents, pages custom)
+        if self._cycle % 4 != 0:
+            try:
+                from api_surf import collect_all_api_data, format_api_data_for_ceo
+                _log("[SURF/API] Collecte via API directes...")
+                api_data = await collect_all_api_data()
+                formatted = format_api_data_for_ceo(api_data)
+                if formatted and len(formatted) > 50:
+                    _log(f"[SURF/API] {len(formatted)} chars collectes — analyse CEO...")
+                    # Truncate a 1500 chars pour eviter le timeout think
+                    api_prompt = (
+                        f"R&D Data:\n{formatted[:1500]}\n\n"
+                        f"For MAXIA (AI marketplace, 107 tokens, 14 chains, GPU at cost):\n"
+                        f"1. Top 3 relevant items\n"
+                        f"2. Prospects who need MAXIA\n"
+                        f"3. Features to add\n"
+                        f"4. Competitor moves\n"
+                        f"5. One action for Alexis\n"
+                        f"Be specific. Max 150 words."
+                    )
+                    # Essayer think=off d'abord (rapide), think=on seulement pour les cycles strategiques
+                    use_think = (self._cycle % 10 == 0)
+                    finding = await call_ceo(
+                        api_prompt,
+                        system="CEO MAXIA. Brief R&D analyst. English.",
+                        max_tokens=250,
+                        think=use_think,
+                    )
+                    # Fallback executeur si CEO vide
+                    if not finding or len(finding) < 20:
+                        finding = await call_executor(
+                            api_prompt,
+                            system="Brief R&D analyst. English.",
+                            max_tokens=200,
+                        )
+                    if finding and len(finding) > 20:
+                        _log(f"[SURF/API] Analyse: {finding[:150]}")
+                        self.memory.setdefault("surf_findings", []).append({
+                            "target": "API Collect",
+                            "finding": finding[:500],
+                            "raw_length": len(formatted),
+                            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            "cycle": self._cycle,
+                            "method": "api",
+                        })
+                        if len(self.memory.get("surf_findings", [])) > 50:
+                            self.memory["surf_findings"] = self.memory["surf_findings"][-50:]
+                        _append_rnd_finding(finding[:500], category="API Collect")
+                        if any(kw in finding.lower() for kw in ["prospect", "need", "could use", "looking for"]):
+                            self.memory.setdefault("prospects_from_surf", []).append({
+                                "source": "API Collect", "finding": finding[:300],
+                                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            })
+                        if any(kw in finding.lower() for kw in ["add", "integrate", "improvement", "missing", "should"]):
+                            self.memory.setdefault("improvement_ideas", []).append({
+                                "source": "API Collect", "idea": finding[:300],
+                                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                            })
+                    else:
+                        _log("[SURF/API] Analyse vide")
+                else:
+                    _log("[SURF/API] Pas de donnees collectees")
+            except Exception as e:
+                _log(f"[SURF/API] Erreur: {e}")
+            return
+
+        # ═══ MODE BROWSER — 1 cycle sur 2 (pour sites sans API) ═══
+        surf_targets = [
+            # ── GitHub trending ──
+            {
+                "name": "GitHub Trending",
+                "task": "Go to https://github.com/trending?spoken_language_code=en and extract the names and descriptions of the top 5 trending repositories. Mark any related to AI, crypto, blockchain, or agents.",
+            },
+            {
+                "name": "GitHub Python AI",
+                "task": "Go to https://github.com/trending/python?since=daily and extract the top 5 trending Python repos. Mark any related to AI agents, FastAPI, crypto, or Web3.",
+            },
+            {
+                "name": "GitHub TypeScript AI",
+                "task": "Go to https://github.com/trending/typescript?since=daily and extract the top 5 trending TypeScript repos. Mark any related to AI agents, Web3, or crypto.",
+            },
+            # ── Concurrents directs ──
+            {
+                "name": "Virtuals Protocol",
+                "task": "Go to https://github.com/Virtual-Protocol and extract the repo names, descriptions, and recent activity. Note new features, releases, or changes.",
+            },
+            {
+                "name": "Fetch.ai Repos",
+                "task": "Go to https://github.com/fetchai and extract the repo names and recent activity. Note new agent frameworks, protocols, or marketplace features.",
+            },
+            {
+                "name": "ElizaOS Issues",
+                "task": "Go to https://github.com/elizaOS/eliza/issues?q=is%3Aissue+is%3Aopen+sort%3Acreated-desc and extract the titles of the 5 most recent open issues. Note any about marketplace, payments, swaps, or multi-chain.",
+            },
+            {
+                "name": "ElizaOS Releases",
+                "task": "Go to https://github.com/elizaOS/eliza/releases and extract the latest release notes. Note new features, plugins, or integrations.",
+            },
+            {
+                "name": "Olas/Autonolas",
+                "task": "Go to https://github.com/valory-xyz and extract the repo names and descriptions. Note new agent tools, mech updates, or protocol changes.",
+            },
+            {
+                "name": "GOAT SDK",
+                "task": "Go to https://github.com/goat-sdk/goat and extract the README summary and recent issues. Note new chain support, plugins, or integrations.",
+            },
+            {
+                "name": "MyShell AI",
+                "task": "Go to https://github.com/myshell-ai and extract the repo names and descriptions. Note AI agent marketplace features or new tools.",
+            },
+            # ── Hacker News ──
+            {
+                "name": "HN Front Page",
+                "task": "Go to https://news.ycombinator.com and extract the titles of the top 10 posts. Mark any about AI, LLM, agents, crypto, GPU, or developer tools.",
+            },
+            {
+                "name": "HN Show",
+                "task": "Go to https://news.ycombinator.com/shownew and extract the titles of the top 10 Show HN posts. Mark any about AI, developer tools, crypto, or marketplace.",
+            },
+            # ── Reddit ──
+            {
+                "name": "Reddit LocalLLaMA",
+                "task": "Go to https://www.reddit.com/r/LocalLLaMA/new/ and extract the titles of the 5 most recent posts. Note any about GPU, cost, hosting, or monetization.",
+            },
+            {
+                "name": "Reddit CryptoDev",
+                "task": "Go to https://www.reddit.com/r/CryptoDev/new/ and extract the titles of the 5 most recent posts. Note any about agent monetization, token swaps, or APIs.",
+            },
+            {
+                "name": "Reddit SolanaDev",
+                "task": "Go to https://www.reddit.com/r/solanadev/new/ and extract the titles of the 5 most recent posts. Note any about AI agents, DeFi, or developer tools.",
+            },
+            {
+                "name": "Reddit DeFi",
+                "task": "Go to https://www.reddit.com/r/defi/new/ and extract the titles of the 5 most recent posts. Note yield opportunities, new protocols, or pain points.",
+            },
+            # ── DeFi / Tokens ──
+            {
+                "name": "DeFi Yields Solana",
+                "task": "Go to https://defillama.com/yields?chain=Solana and extract the top 5 yields visible. For each: protocol name, APY, and token.",
+            },
+            {
+                "name": "DeFi Yields Base",
+                "task": "Go to https://defillama.com/yields?chain=Base and extract the top 5 yields visible. For each: protocol name, APY, and token.",
+            },
+            {
+                "name": "DexScreener Trending",
+                "task": "Go to https://dexscreener.com/trending and extract the top 5 trending tokens. For each: name, chain, volume 24h, price change.",
+            },
+            # ── AI Agent ecosysteme ──
+            {
+                "name": "Awesome AI Agents",
+                "task": "Go to https://github.com/e2b-dev/awesome-ai-agents and extract the 10 most recently added entries. Note any that could be MAXIA customers.",
+            },
+            {
+                "name": "LangChain Updates",
+                "task": "Go to https://github.com/langchain-ai/langchain/releases and extract the latest release notes. Note new integrations, tools, or breaking changes.",
+            },
+            {
+                "name": "CrewAI Updates",
+                "task": "Go to https://github.com/crewAIInc/crewAI/releases and extract the latest release notes. Note new features for multi-agent systems.",
+            },
+        ]
+
+        target = surf_targets[self._cycle % len(surf_targets)]
+        _log(f"[SURF] {target['name']}...")
+
+        # Extraire l'URL de la tache
+        task_text = target["task"]
+        url = ""
+        for part in task_text.split():
+            if part.startswith("http"):
+                url = part
+                break
+
+        # ETAPE 1 : Le petit modele (2.5-VL 7B) navigue et extrait le texte
+        # Instruction ultra-simple : navigue + utilise l'action "extract" (pas scroll)
+        result = await browser._browser_use_task(
+            f"Navigate to {url} — once the page loads, immediately use the extract action "
+            f"to get the page text. Do NOT scroll. Do NOT click anything. "
+            f"Just extract the text content and call done with the extracted text.",
+            max_steps=4,
+        )
+
+        raw_text = str(result.get("result", ""))[:2000] if result.get("success") else ""
+
+        if not raw_text or len(raw_text) < 20:
+            _log(f"[SURF] {target['name']}: extraction vide ou trop courte")
+            return
+
+        _log(f"[SURF] {target['name']}: {len(raw_text)} chars extraits — analyse CEO 14B...")
+
+        # ETAPE 2 : Le CEO (Qwen 3 14B, think=on) analyse en profondeur
+        analysis_prompt = (
+            f"Page: {target['name']}\n"
+            f"Content extracted:\n{raw_text[:1500]}\n\n"
+            f"Tu es CEO de MAXIA (AI marketplace, 107 tokens, 7 chains, GPU rental, "
+            f"reverse auctions, leaderboard, AI disputes, 14 chains, USDC escrow).\n"
+            f"Analyse cette page pour trouver des ameliorations pour MAXIA:\n"
+            f"1. RELEVANT ITEMS: 3 elements les plus pertinents (projets, posts, repos)\n"
+            f"2. PROSPECTS: quelqu'un qui pourrait utiliser MAXIA? (username + besoin)\n"
+            f"3. AMELIORATIONS: tokens/features/protocoles a ajouter a MAXIA?\n"
+            f"4. CONCURRENCE: concurrent mentionne? Que font-ils qu'on ne fait pas?\n"
+            f"5. RECOMMANDATION: 1 action concrete pour Alexis\n"
+            f"Sois specifique. Noms, liens, chiffres. Max 200 mots. English."
+        )
+        finding = await call_ceo(
+            analysis_prompt,
+            system="CEO MAXIA. Strategic R&D analyst. Brief, specific, data-driven. English only.",
+            max_tokens=300,
+            think=True,
+        )
+
+        if finding and len(finding) > 20:
+            _log(f"[SURF] Analyse: {finding[:150]}")
+
+            self.memory.setdefault("surf_findings", []).append({
+                "target": target["name"],
+                "finding": finding[:500],
+                "raw_length": len(raw_text),
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "cycle": self._cycle,
+            })
+            if len(self.memory.get("surf_findings", [])) > 50:
+                self.memory["surf_findings"] = self.memory["surf_findings"][-50:]
+
+            # Ecrire dans rnd_findings.md
+            _append_rnd_finding(finding[:500], category=target["name"])
+
+            # Detecter les prospects dans l'analyse du CEO
+            if any(kw in finding.lower() for kw in ["prospect", "need", "could use", "looking for", "pain", "wants"]):
+                self.memory.setdefault("prospects_from_surf", []).append({
+                    "source": target["name"],
+                    "finding": finding[:300],
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                _log(f"[SURF] Prospect detecte via {target['name']}")
+
+            # Detecter les ameliorations pour MAXIA
+            if any(kw in finding.lower() for kw in ["add", "integrate", "improvement", "missing", "should", "recommend"]):
+                self.memory.setdefault("improvement_ideas", []).append({
+                    "source": target["name"],
+                    "idea": finding[:300],
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                _log(f"[R&D] Amelioration detectee via {target['name']}")
+        else:
+            _log(f"[SURF] {target['name']}: analyse vide")
+
+    async def _deep_research(self):
+        """R&D profond — le CEO 14B (think=on) etudie la concurrence, les nouveaux tools,
+        et les opportunites d'amelioration pour MAXIA. Ecrit dans rnd_findings.md.
+
+        Architecture : Vision (7B) extrait le texte, CEO (14B think=on) analyse."""
+        research_tasks = [
+            # ── Concurrence directe ──
+            {"name": "Olas Changelog", "url": "https://github.com/valory-xyz/mech/releases", "category": "competition"},
+            {"name": "Morpheus Updates", "url": "https://github.com/MorpheusAIs/Morpheus-Lumerin-Node/releases", "category": "competition"},
+            {"name": "Virtuals Game", "url": "https://github.com/Virtual-Protocol/virtuals-python/releases", "category": "competition"},
+            {"name": "Fetch.ai uAgents", "url": "https://github.com/fetchai/uAgents/releases", "category": "competition"},
+            {"name": "SingularityNET", "url": "https://github.com/singnet/snet-daemon/releases", "category": "competition"},
+            {"name": "GOAT SDK Updates", "url": "https://github.com/goat-sdk/goat/releases", "category": "competition"},
+            # ── Protocoles et standards ──
+            {"name": "A2A Protocol", "url": "https://github.com/google/A2A", "category": "improvement"},
+            {"name": "MCP Spec", "url": "https://github.com/modelcontextprotocol/specification/releases", "category": "improvement"},
+            {"name": "0x Protocol", "url": "https://github.com/0xProject/protocol/releases", "category": "improvement"},
+            {"name": "Jupiter Updates", "url": "https://github.com/jup-ag/jupiter-quote-api-node/releases", "category": "improvement"},
+            # ── Outils et frameworks ──
+            {"name": "browser-use", "url": "https://github.com/browser-use/browser-use/releases", "category": "improvement"},
+            {"name": "FastAPI Ecosystem", "url": "https://github.com/topics/fastapi?o=desc&s=updated", "category": "improvement"},
+            {"name": "RunPod Updates", "url": "https://github.com/runpod/runpod-python/releases", "category": "improvement"},
+            {"name": "Unsloth Updates", "url": "https://github.com/unslothai/unsloth/releases", "category": "improvement"},
+            {"name": "Ollama Updates", "url": "https://github.com/ollama/ollama/releases", "category": "improvement"},
+            # ── Opportunites par chain ──
+            {"name": "Solana Dev Repos", "url": "https://github.com/topics/solana?o=desc&s=updated", "category": "opportunity"},
+            {"name": "Base Dev Repos", "url": "https://github.com/topics/base-chain?o=desc&s=updated", "category": "opportunity"},
+            {"name": "Arbitrum Ecosystem", "url": "https://github.com/topics/arbitrum?o=desc&s=updated", "category": "opportunity"},
+            {"name": "TON Dev Repos", "url": "https://github.com/topics/ton?o=desc&s=updated", "category": "opportunity"},
+            {"name": "SUI Dev Repos", "url": "https://github.com/topics/sui?o=desc&s=updated", "category": "opportunity"},
+            # ── Communautes ──
+            {"name": "Reddit SolanaDevs", "url": "https://www.reddit.com/r/solanadev/new/", "category": "opportunity"},
+            {"name": "Reddit Ethereum", "url": "https://www.reddit.com/r/ethereum/new/", "category": "opportunity"},
+            {"name": "Reddit AIAgents", "url": "https://www.reddit.com/r/AIAgents/new/", "category": "opportunity"},
+            # ── Nouveaux tokens et DeFi ──
+            {"name": "CoinGecko New", "url": "https://www.coingecko.com/en/new-cryptocurrencies", "category": "opportunity"},
+            {"name": "DeFi Llama TVL", "url": "https://defillama.com/", "category": "opportunity"},
+        ]
+
+        target = research_tasks[self._cycle % len(research_tasks)]
+        _log(f"[RESEARCH] {target['name']} ({target['category']})...")
+
+        # ETAPE 1 : Le petit (7B) extrait le texte brut
+        result = await browser._browser_use_task(
+            f"Go to {target['url']} and extract ALL the visible text content on the page. "
+            f"Do NOT analyze — just copy the raw text you see.",
+            max_steps=5,
+        )
+        raw_text = str(result.get("result", ""))[:2000] if result.get("success") else ""
+
+        if not raw_text or len(raw_text) < 20:
+            _log(f"[RESEARCH] {target['name']}: extraction vide")
+            return
+
+        # ETAPE 2 : Le CEO 14B (think=on) analyse en profondeur
+        _log(f"[RESEARCH] {len(raw_text)} chars → analyse CEO 14B...")
+        analysis = await call_ceo(
+            f"Deep research — {target['name']} ({target['category']}):\n"
+            f"Page content:\n{raw_text[:1500]}\n\n"
+            f"Tu es CEO de MAXIA (AI marketplace, 107 tokens, 7 chains, "
+            f"GPU at cost, reverse auctions, leaderboard, AI disputes, business marketplace).\n"
+            f"Category: {target['category']}\n\n"
+            f"Answer:\n"
+            f"1. What's NEW here? (releases, features, changes)\n"
+            f"2. How does this affect MAXIA? (threat, opportunity, neutral)\n"
+            f"3. ACTION ITEM: one concrete thing MAXIA should do based on this\n"
+            f"4. IMPROVEMENT: something specific to add/change in MAXIA?\n"
+            f"Be specific. Max 150 words. English only.",
+            system="CEO MAXIA. Expert competitive intelligence. Brief, actionable. English.",
+            max_tokens=300,
+            think=True,
+        )
+
+        if analysis and len(analysis) > 20:
+            _log(f"[RESEARCH] {analysis[:150]}")
+            self.memory.setdefault("research_findings", []).append({
+                "target": target["name"],
+                "category": target["category"],
+                "finding": analysis[:500],
+                "raw_length": len(raw_text),
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "cycle": self._cycle,
+            })
+            if len(self.memory.get("research_findings", [])) > 100:
+                self.memory["research_findings"] = self.memory["research_findings"][-100:]
+
+            # Ecrire dans rnd_findings.md
+            _append_rnd_finding(analysis[:500], category=f"{target['category']} — {target['name']}")
+        else:
+            _log(f"[RESEARCH] {target['name']}: analyse vide")
+
+    async def _daily_report(self):
+        """Rapport quotidien — compile tout ce que le CEO a trouve aujourd'hui.
+        Envoye sur Telegram + sauvegarde en fichier local.
+        Appele 1x par jour a 20h UTC."""
+        _log("[REPORT] Generation du rapport quotidien...")
+
+        today = time.strftime("%Y-%m-%d")
+        mem = self.memory
+
+        # Collecter les donnees du jour
+        surf = [s for s in mem.get("surf_findings", []) if s.get("ts", "").startswith(today)]
+        research = [r for r in mem.get("research_findings", []) if r.get("ts", "").startswith(today)]
+        prospects = [p for p in mem.get("prospects_from_surf", []) if p.get("ts", "").startswith(today)]
+        actions = [a for a in mem.get("actions_done", []) if a.get("ts", "").startswith(today)]
+        convos = [c for c in mem.get("conversations", []) if c.get("ts", "").startswith(today)]
+
+        # Stats du jour
+        ok_count = sum(1 for a in actions if a.get("success"))
+        fail_count = sum(1 for a in actions if not a.get("success"))
+
+        # Categoriser les recherches
+        competition = [r for r in research if r.get("category") == "competition"]
+        opportunities = [r for r in research if r.get("category") == "opportunity"]
+        improvements = [r for r in research if r.get("category") == "improvement"]
+
+        # Construire le rapport
+        report_lines = [
+            f"MAXIA Daily Report — {today}",
+            f"Cycles: {self._cycle} | Actions: {ok_count} OK, {fail_count} FAIL | Conversations: {len(convos)}",
+            "",
+        ]
+
+        # Concurrence
+        report_lines.append("CONCURRENCE:")
+        if competition:
+            for r in competition[-5:]:
+                report_lines.append(f"  - {r['target']}: {r['finding'][:100]}")
+        else:
+            report_lines.append("  (rien de nouveau)")
+        report_lines.append("")
+
+        # Opportunites
+        report_lines.append("OPPORTUNITES:")
+        if opportunities:
+            for r in opportunities[-5:]:
+                report_lines.append(f"  - {r['target']}: {r['finding'][:100]}")
+        else:
+            report_lines.append("  (rien de nouveau)")
+        report_lines.append("")
+
+        # Ameliorations
+        report_lines.append("AMELIORATIONS POSSIBLES:")
+        if improvements:
+            for r in improvements[-3:]:
+                report_lines.append(f"  - {r['target']}: {r['finding'][:100]}")
+        else:
+            report_lines.append("  (rien de nouveau)")
+        report_lines.append("")
+
+        # Prospects
+        report_lines.append(f"PROSPECTS ({len(prospects)}):")
+        if prospects:
+            for p in prospects[-5:]:
+                report_lines.append(f"  - {p['source']}: {p['finding'][:80]}")
+        else:
+            report_lines.append("  (aucun prospect)")
+        report_lines.append("")
+
+        # Surf stats
+        report_lines.append(f"R&D: {len(surf)} pages analysees, {len(research)} recherches profondes")
+        report_lines.append("")
+
+        # Ameliorations detectees
+        ideas = [i for i in self.memory.get("improvement_ideas", []) if i.get("ts", "").startswith(today)]
+        if ideas:
+            report_lines.append(f"AMELIORATIONS DETECTEES ({len(ideas)}):")
+            for i in ideas[-3:]:
+                report_lines.append(f"  - {i['source']}: {i['idea'][:80]}")
+            report_lines.append("")
+
+        # Scores plateformes
+        if self.platform_scores:
+            report_lines.append("SCORES PLATEFORMES:")
+            for p, s in sorted(self.platform_scores.items(), key=lambda x: x[1].get("score", 0), reverse=True):
+                report_lines.append(f"  {p}: {s.get('score', 5)}/10 {s.get('trend', '=')}")
+            report_lines.append("")
+
+        # Scout VPS — contacts agents on-chain
+        scout_contacts = [c for c in self.memory.get("scout_contacts", []) if c.get("ts", "").startswith(today)]
+        if scout_contacts:
+            report_lines.append(f"SCOUT ON-CHAIN ({len(scout_contacts)} contacts):")
+            for c in scout_contacts[-5:]:
+                report_lines.append(f"  - {c['address'][:10]}... ({c['chain']}): {c.get('response', 'pending')}")
+            report_lines.append("")
+
+        # Demander au LLM de donner 3 recommandations
+        all_findings = "\n".join(f"- {r['target']}: {r['finding'][:80]}" for r in (research + surf)[-15:])
+        if all_findings:
+            reco = await call_ceo(
+                f"Based on today's R&D research:\n{all_findings}\n\n"
+                f"Platform scores: {json.dumps(self.platform_scores, default=str)[:200]}\n\n"
+                f"Give exactly 3 concrete recommendations for tomorrow. "
+                f"Format: numbered list. Max 50 chars each. English only.",
+                system="CEO MAXIA. Brief strategic advisor. 3 bullet points only.",
+                max_tokens=100,
+                think=True,
+            )
+            if reco and len(reco) > 10:
+                report_lines.append("RECOMMANDATIONS:")
+                for line in reco.strip().split("\n")[:3]:
+                    line = line.strip().lstrip("0123456789.-) ")
+                    if line:
+                        report_lines.append(f"  {line[:80]}")
+                report_lines.append("")
+
+        # Strategie
+        strategy = mem.get("current_strategy", {})
+        if strategy:
+            report_lines.append(f"STRATEGIE: focus={strategy.get('focus', '?')[:60]}, platform={strategy.get('best_platform', '?')}")
+
+        report_text = "\n".join(report_lines)
+        _log(f"[REPORT] Rapport genere ({len(report_text)} chars)")
+
+        # Sauvegarder en fichier local
+        report_file = os.path.join(os.path.dirname(__file__), f"report_{today}.txt")
+        try:
+            with open(report_file, "w", encoding="utf-8") as f:
+                f.write(report_text)
+            _log(f"[REPORT] Sauvegarde: {report_file}")
+        except Exception as e:
+            _log(f"[REPORT] Erreur sauvegarde: {e}")
+
+        # Envoyer sur Telegram
+        try:
+            await notify_all(
+                f"Daily Report {today}",
+                report_text,
+                "vert",
+            )
+            _log("[REPORT] Envoye sur Telegram")
+        except Exception as e:
+            _log(f"[REPORT] Erreur Telegram: {e}")
+
+        # Stocker dans la memoire
+        mem.setdefault("daily_reports", []).append({
+            "date": today,
+            "cycle": self._cycle,
+            "surf_count": len(surf),
+            "research_count": len(research),
+            "prospects_count": len(prospects),
+            "actions_ok": ok_count,
+            "actions_fail": fail_count,
+        })
+        if len(mem.get("daily_reports", [])) > 30:
+            mem["daily_reports"] = mem["daily_reports"][-30:]
+
+    async def _propose_features(self):
+        """Systeme de proposition de features — toutes les 200 cycles (~16h).
+        Analyse les improvement_ideas et research_findings en memoire,
+        synthetise avec le CEO (think=True), ecrit dans feature_proposals.md,
+        et envoie un resume sur Telegram.
+        Chaque proposition : title, description, why, priority (P0-P3), effort (S/M/L)."""
+        _log("[FEATURES] Generation de propositions de features...")
+
+        mem = self.memory
+
+        # ── Collecter les donnees brutes ──
+        ideas = mem.get("improvement_ideas", [])[-30:]
+        research = mem.get("research_findings", [])[-30:]
+        surf = mem.get("surf_findings", [])[-20:]
+        actions = mem.get("actions_done", [])[-50:]
+        conversations = mem.get("conversations", [])[-20:]
+
+        # Pas assez de donnees pour proposer
+        if len(ideas) + len(research) < 3:
+            _log("[FEATURES] Pas assez de donnees (< 3 ideas+research) — skip")
+            return
+
+        # ── Preparer le contexte pour le LLM ──
+        ideas_str = "\n".join(
+            f"- [{i.get('source', '?')}] {i.get('idea', i.get('finding', ''))[:120]}"
+            for i in ideas[-15:]
+        )
+        research_str = "\n".join(
+            f"- [{r.get('category', '?')}] {r.get('target', '?')}: {r.get('finding', '')[:120]}"
+            for r in research[-15:]
+        )
+        # Extraire les patterns de conversations (besoins utilisateurs)
+        user_needs = []
+        for c in conversations[-15:]:
+            msg = c.get("message", c.get("summary", ""))
+            if any(kw in msg.lower() for kw in ["need", "want", "wish", "missing", "feature", "add", "support"]):
+                user_needs.append(f"- {c.get('user', '?')}: {msg[:100]}")
+        needs_str = "\n".join(user_needs[-5:]) if user_needs else "(aucun besoin explicite detecte)"
+
+        # Extraire les echecs recurrents (opportunites d'amelioration)
+        failures = [a for a in actions if not a.get("success")]
+        failure_patterns = {}
+        for f in failures:
+            act = f.get("action", "unknown")
+            failure_patterns[act] = failure_patterns.get(act, 0) + 1
+        top_failures = sorted(failure_patterns.items(), key=lambda x: x[1], reverse=True)[:5]
+        failures_str = "\n".join(f"- {act}: {count} echecs" for act, count in top_failures) if top_failures else "(aucun echec recurrent)"
+
+        # Propositions precedentes (pour eviter les doublons)
+        prev_proposals = mem.get("feature_proposals", [])[-10:]
+        prev_titles = [p.get("title", "") for p in prev_proposals]
+        prev_str = ", ".join(prev_titles[-5:]) if prev_titles else "(aucune)"
+
+        # ── Demander au CEO de synthetiser ──
+        prompt = (
+            f"MAXIA Feature Proposal System — Cycle #{self._cycle}\n\n"
+            f"=== IMPROVEMENT IDEAS ({len(ideas)}) ===\n{ideas_str}\n\n"
+            f"=== R&D FINDINGS ({len(research)}) ===\n{research_str}\n\n"
+            f"=== USER NEEDS ===\n{needs_str}\n\n"
+            f"=== RECURRING FAILURES ===\n{failures_str}\n\n"
+            f"=== ALREADY PROPOSED (avoid duplicates) ===\n{prev_str}\n\n"
+            f"Based on ALL this data, propose exactly 3-5 NEW concrete features for MAXIA.\n"
+            f"Each feature MUST be based on real data above (cite which idea/finding inspired it).\n\n"
+            f"Format STRICTLY as JSON array:\n"
+            f'[{{"title": "short name", "description": "what it does (2-3 sentences)", '
+            f'"why": "which data point(s) justify this (cite specific findings)", '
+            f'"priority": "P0/P1/P2/P3", "effort": "S/M/L"}}]\n\n'
+            f"Priority guide: P0=critical blocker, P1=high impact, P2=nice to have, P3=future\n"
+            f"Effort guide: S=<1 day, M=1-3 days, L=1+ week\n"
+            f"Only real, actionable features. No vague ideas."
+        )
+
+        response = await call_ceo(
+            prompt,
+            system="You are MAXIA's product manager. Analyze R&D data and propose concrete features. Output ONLY valid JSON array.",
+            max_tokens=800,
+            think=True,
+        )
+
+        if not response or len(response) < 20:
+            _log("[FEATURES] Reponse LLM vide ou trop courte — skip")
+            return
+
+        # ── Parser les propositions ──
+        proposals = []
+        try:
+            # Nettoyer la reponse (enlever markdown, texte autour du JSON)
+            clean = response.strip()
+            for prefix in ["```json", "```"]:
+                if clean.startswith(prefix):
+                    clean = clean[len(prefix):]
+            if clean.endswith("```"):
+                clean = clean[:-3]
+            clean = clean.strip()
+            # Trouver le JSON array
+            start = clean.index("[")
+            end = clean.rindex("]") + 1
+            proposals = json.loads(clean[start:end])
+        except (ValueError, json.JSONDecodeError) as e:
+            _log(f"[FEATURES] JSON parse error: {e}")
+            return
+
+        if not proposals or not isinstance(proposals, list):
+            _log("[FEATURES] Aucune proposition valide")
+            return
+
+        # Valider et nettoyer les propositions
+        valid_proposals = []
+        valid_priorities = {"P0", "P1", "P2", "P3"}
+        valid_efforts = {"S", "M", "L"}
+        for p in proposals[:5]:  # Max 5
+            if not isinstance(p, dict):
+                continue
+            title = p.get("title", "").strip()
+            if not title or title in prev_titles:
+                continue  # Skip doublons
+            proposal = {
+                "title": title[:80],
+                "description": p.get("description", "")[:300],
+                "why": p.get("why", "")[:200],
+                "priority": p.get("priority", "P2") if p.get("priority") in valid_priorities else "P2",
+                "effort": p.get("effort", "M") if p.get("effort") in valid_efforts else "M",
+                "cycle": self._cycle,
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "status": "proposed",
+            }
+            valid_proposals.append(proposal)
+
+        if not valid_proposals:
+            _log("[FEATURES] Aucune proposition valide apres filtrage")
+            return
+
+        _log(f"[FEATURES] {len(valid_proposals)} propositions generees")
+
+        # ── Sauvegarder en memoire ──
+        mem.setdefault("feature_proposals", []).extend(valid_proposals)
+        if len(mem.get("feature_proposals", [])) > 50:
+            mem["feature_proposals"] = mem["feature_proposals"][-50:]
+
+        # ── Ecrire dans feature_proposals.md ──
+        proposals_file = os.path.join(os.path.dirname(__file__), "feature_proposals.md")
+        try:
+            lines = [f"# MAXIA Feature Proposals\n"]
+            lines.append(f"Genere automatiquement par le CEO local — Cycle #{self._cycle}\n")
+            lines.append(f"Derniere mise a jour : {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+            # Grouper par priorite
+            for prio in ["P0", "P1", "P2", "P3"]:
+                prio_proposals = [p for p in mem.get("feature_proposals", []) if p.get("priority") == prio]
+                if prio_proposals:
+                    lines.append(f"## {prio}\n")
+                    for p in prio_proposals:
+                        status_icon = {"proposed": "[?]", "approved": "[OK]", "rejected": "[X]", "done": "[DONE]"}.get(p.get("status", ""), "[?]")
+                        lines.append(f"### {status_icon} {p['title']} (effort: {p.get('effort', '?')})\n")
+                        lines.append(f"{p.get('description', '')}\n")
+                        lines.append(f"**Why:** {p.get('why', '')}\n")
+                        lines.append(f"*Cycle {p.get('cycle', '?')} — {p.get('ts', '?')}*\n\n")
+
+            with open(proposals_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            _log(f"[FEATURES] Sauvegarde: {proposals_file}")
+        except Exception as e:
+            _log(f"[FEATURES] Erreur ecriture fichier: {e}")
+
+        # ── Envoyer resume sur Telegram ──
+        try:
+            summary_lines = [f"Feature Proposals (cycle #{self._cycle})"]
+            for p in valid_proposals:
+                summary_lines.append(
+                    f"\n{p['priority']} [{p['effort']}] {p['title']}"
+                    f"\n  {p['description'][:100]}"
+                )
+            summary_text = "\n".join(summary_lines)
+
+            await notify_all(
+                f"Feature Proposals ({len(valid_proposals)})",
+                summary_text,
+                "vert",
+            )
+            _log("[FEATURES] Resume envoye sur Telegram")
+        except Exception as e:
+            _log(f"[FEATURES] Erreur Telegram: {e}")
+
+    async def _generate_video_scripts(self):
+        """Genere 3 scripts video courts (30s) pour TikTok/YouTube Shorts.
+        Appele toutes les 100 cycles (~8h). Utilise call_ceo(think=True).
+        Format: Hook (3s) -> Problem (7s) -> Solution (10s) -> Demo (7s) -> CTA (3s).
+        Sauvegarde dans local_ceo/video_scripts.md."""
+        _log("[VIDEO] Generation de 3 scripts video (CEO 14B think=on)...")
+
+        mem = self.memory
+
+        # ── Collecter les trouvailles recentes pour inspirer les scripts ──
+        research = mem.get("research_findings", [])[-15:]
+        ideas = mem.get("improvement_ideas", [])[-10:]
+        surf = mem.get("surf_findings", [])[-10:]
+        engagement = mem.get("engagement_stats", [])[-5:]
+
+        # Construire le contexte des trouvailles recentes
+        findings_lines = []
+        for r in research[-8:]:
+            findings_lines.append(
+                f"- [{r.get('category', '?')}] {r.get('target', '?')}: {r.get('finding', '')[:120]}"
+            )
+        for i in ideas[-5:]:
+            findings_lines.append(
+                f"- [idea] {i.get('idea', i.get('finding', ''))[:120]}"
+            )
+        for s in surf[-5:]:
+            findings_lines.append(
+                f"- [surf] {s.get('target', '?')}: {s.get('finding', '')[:120]}"
+            )
+        recent_findings = "\n".join(findings_lines) if findings_lines else "(no recent findings)"
+
+        # ── Prompt CEO ──
+        prompt = (
+            f"Based on MAXIA features and recent trends:\n"
+            f"{recent_findings}\n\n"
+            f"Write 3 short video scripts (30 seconds each) for TikTok/YouTube Shorts.\n"
+            f"Target audience: AI developers and crypto traders.\n\n"
+            f"Format for each:\n"
+            f"TITLE: (catchy, max 10 words)\n"
+            f"HOOK (0-3s): (attention grabber, question or shocking statement)\n"
+            f"PROBLEM (3-10s): (pain point the viewer relates to)\n"
+            f"SOLUTION (10-20s): (how MAXIA solves it, with specific features)\n"
+            f"CTA (20-30s): (call to action with maxiaworld.app)\n\n"
+            f"Rules:\n"
+            f"- Each script max 80 words total\n"
+            f"- Technical but accessible\n"
+            f"- No hype words\n"
+            f"- Include specific numbers (107 tokens, 14 chains, etc.)\n"
+            f"- NEVER mention revenue or client numbers\n\n"
+            f"Separate scripts with ===\n"
+        )
+
+        response = await call_ceo(
+            prompt,
+            system=(
+                "You are a short-form video scriptwriter for a technical Web3 product. "
+                "Write concise, punchy scripts that grab attention in 3 seconds. "
+                "Output ONLY the 3 scripts separated by ===. No commentary."
+            ),
+            max_tokens=800,
+            think=True,
+        )
+
+        if not response or len(response) < 50:
+            _log("[VIDEO] Reponse LLM vide ou trop courte — skip")
+            return
+
+        # ── Sauvegarder dans video_scripts.md ──
+        scripts_file = os.path.join(os.path.dirname(__file__), "video_scripts.md")
+        try:
+            content = (
+                f"# MAXIA Video Scripts\n\n"
+                f"Generated by CEO Local — Cycle #{self._cycle}\n"
+                f"Last updated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                f"---\n\n"
+                f"{response.strip()}\n\n"
+                f"---\n\n"
+                f"*Target: TikTok / YouTube Shorts (30s each)*\n"
+                f"*Audience: AI developers + crypto traders*\n"
+            )
+
+            # Append to existing file if it exists (keep history)
+            existing = ""
+            if os.path.exists(scripts_file):
+                try:
+                    with open(scripts_file, "r", encoding="utf-8") as f:
+                        existing = f.read()
+                except Exception:
+                    pass
+
+            # Keep only latest + 2 previous batches to avoid growing forever
+            sections = existing.split("# MAXIA Video Scripts")
+            if len(sections) > 3:
+                # Keep header + last 2 sections
+                existing = "# MAXIA Video Scripts" + ("# MAXIA Video Scripts".join(sections[-2:]))
+
+            with open(scripts_file, "w", encoding="utf-8") as f:
+                f.write(content)
+                if existing and not existing.startswith("# MAXIA Video Scripts\n\nGenerated"):
+                    pass  # fresh file
+                elif existing:
+                    f.write("\n\n---\n\n## Previous Scripts\n\n")
+                    # Strip the header from existing to avoid duplication
+                    prev = existing.replace("# MAXIA Video Scripts\n\n", "## Batch\n\n", 1)
+                    f.write(prev)
+
+            _log(f"[VIDEO] 3 scripts sauvegardes: {scripts_file}")
+        except Exception as e:
+            _log(f"[VIDEO] Erreur ecriture fichier: {e}")
+
+        # ── Stocker en memoire ──
+        mem.setdefault("video_scripts", []).append({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "cycle": self._cycle,
+            "scripts": response.strip()[:2000],
+        })
+        # Garder max 10 batches
+        if len(mem.get("video_scripts", [])) > 10:
+            mem["video_scripts"] = mem["video_scripts"][-10:]
+
+        # ── Notifier ──
+        try:
+            # Count scripts by splitting on ===
+            script_count = response.count("===") + 1
+            if script_count > 3:
+                script_count = 3
+            first_title = ""
+            for line in response.split("\n"):
+                if line.strip().upper().startswith("TITLE:"):
+                    first_title = line.strip()[6:].strip()[:60]
+                    break
+            summary = f"{script_count} video scripts generated"
+            if first_title:
+                summary += f"\nFirst: {first_title}"
+            await notify_all(
+                f"Video Scripts (cycle #{self._cycle})",
+                summary,
+                "vert",
+            )
+            _log("[VIDEO] Notification envoyee")
+        except Exception as e:
+            _log(f"[VIDEO] Erreur notification: {e}")
+
     async def _auto_engage(self):
         """Engagement intelligent : like + comment de qualite + follow cible.
 
@@ -2189,14 +4194,14 @@ class CEOLocal:
         else:
             query = queries[self._cycle % len(queries)]
 
-        # 1. Search tweets et liker les pertinents
-        tweets = await browser.search_twitter(query, 5)
+        # 1. Search tweets et liker les pertinents (fetch more to allow 3-5 comments per cycle)
+        tweets = await browser.search_twitter(query, 10)
         if not tweets:
             return
 
         liked = 0
         commented = 0
-        for t in tweets[:4]:
+        for t in tweets[:8]:
             url = t.get("url", "")
             text = t.get("text", "")
             if not url:
@@ -2208,12 +4213,12 @@ class CEOLocal:
                 if result.get("success"):
                     liked += 1
 
-            # Commenter a chaque cycle, max 20 commentaires/jour (GPU local = gratuit)
+            # Commenter plusieurs fois par cycle, max 25 commentaires/jour (GPU local = gratuit)
             today = time.strftime("%Y-%m-%d")
             comments_today = sum(1 for c in self.memory.get("conversations", [])
                                  if c.get("type") == "comment" and c.get("ts", "").startswith(today))
             can_comment = (
-                commented == 0
+                commented < 3
                 and comments_today < 25
                 and text and len(text) > 30
                 and not browser._is_duplicate("reply", url)
@@ -2225,6 +4230,21 @@ class CEOLocal:
                                if c.get("type") == "comment"}
                 if username and username in recent_users:
                     continue
+                # Score profile before commenting
+                # Note: le scorer Playwright retourne souvent 0 (selectors X casses)
+                # Si score=0, on considere que le scorer est casse et on passe (default=50)
+                profile_score = 50
+                try:
+                    score_data = await browser.score_twitter_profile(username)
+                    raw_score = score_data.get("score", 0)
+                    if raw_score > 0:
+                        profile_score = raw_score  # Score reel
+                    # Si 0, garder 50 (scorer casse, pas un vrai score)
+                except Exception:
+                    profile_score = 50
+                if profile_score < 10:  # Seuil bas — seulement les profils vraiment mauvais
+                    _log(f"  [ENGAGE] Skip comment @{username} (score={profile_score})")
+                    continue
                 # Point 1: Analyser le profil avant de commenter
                 analysis = await self._analyze_before_comment(t)
                 if not analysis.get("worth_it", True):
@@ -2234,8 +4254,9 @@ class CEOLocal:
                     result = await browser.reply_tweet(url, comment)
                     if result.get("success"):
                         commented += 1
+                        comments_today += 1
                         browser._record_action("reply", browser._content_hash("reply", url))
-                        _log(f"[ENGAGE] Commented ({comments_today+1}/5 today): {comment[:60]}")
+                        _log(f"[ENGAGE] Commented ({comments_today}/25 today): {comment[:60]}")
                         if username:
                             self.memory.setdefault("conversations", []).append({
                                 "user": username, "message": text[:80],
@@ -2244,7 +4265,7 @@ class CEOLocal:
                             })
 
         if liked or commented:
-            _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query}'")
+            _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query[:50]}'")
 
         # Quote tweet max 5/jour, tous les 3 cycles (~30min)
         qt_today = sum(1 for a in self.memory.get("actions_done", [])
@@ -2316,45 +4337,50 @@ class CEOLocal:
             profile_score = 50
             bio = ""
 
-        # Si profil trop petit ou spam, pas la peine
-        if profile_score < 20:
+        # Si profil trop petit ou spam, pas la peine (seuil bas car selectors X sont instables)
+        if profile_score < 10:
             _log(f"  [ANALYZE] @{username} score={profile_score} — skip (trop faible)")
             return {"worth_it": False, "context": ""}
 
-        # Analyser le contexte via LLM local (gratuit)
+        # CEO 14B analyse le contexte pour personnaliser le commentaire
         context = ""
         if bio or history:
-            analysis = await call_ollama(
+            analysis = await call_ceo(
                 f"Twitter bio: \"{bio[:150]}\"\nTweet: \"{tweet.get('text', '')[:150]}\"\n"
                 f"{history}\n\n"
                 f"In 1 sentence: what does this person need? Which MAXIA service fits them? "
                 f"(swap, GPU rental, LLM API, fine-tuning, DeFi yields, AI marketplace, multi-chain)\n"
                 f"If we already talked to them, reference our history.\n"
                 f"Answer:",
-                system="Brief analyst. One sentence only.",
+                system="CEO MAXIA. Brief analyst. One sentence only.",
                 max_tokens=50,
+                think=False,  # Rapide pour l'analyse pre-commentaire
             )
             context = analysis.strip() if analysis else ""
 
         return {"worth_it": True, "context": context, "score": profile_score, "bio": bio[:100]}
 
     async def _generate_smart_comment(self, tweet_text: str, profile_context: str = "") -> str:
-        """Point 2: Commentaire personnalise avec A/B test local (GPU gratuit)."""
+        """Point 2: Commentaire personnalise avec A/B test local (GPU gratuit). Multi-langue."""
+        # Detecter la langue du tweet pour repondre dans la meme langue
+        lang_code = detect_language(tweet_text)
+        lang_name = LANG_NAMES.get(lang_code, "English")
         context_line = f"\nProfile insight: {profile_context}\n" if profile_context else "\n"
         prompt = (
             f"Tweet: \"{tweet_text[:200]}\"\n"
             f"{context_line}"
-            f"Write a helpful reply IN ENGLISH (<250 chars) as Alexis, founder of MAXIA:\n"
+            f"Reply in {lang_name} to match the tweet's language.\n"
+            f"Write a helpful reply (<250 chars) as Alexis, founder of MAXIA:\n"
             f"- First: be genuinely helpful — answer their problem, share a tip, or relate to their experience\n"
             f"- Then: naturally mention MAXIA as a solution IF relevant (AI agents, crypto, swaps, GPU, multi-chain, DeFi)\n"
-            f"- Always end with the link: maxiaworld.app\n"
+            f"- If the person is building an AI tool/API/dataset, suggest they can publish and sell it on MAXIA's Creator Marketplace (90% revenue share). Link: maxiaworld.app/marketplace\n"
+            f"- ALWAYS end with the link: maxiaworld.app (regardless of language)\n"
             f"- Tone: dev-to-dev, NOT salesy. Example: 'we actually built something for this — maxiaworld.app'\n"
             f"- NEVER criticize, disagree, or be negative. If you can't be positive, say nothing.\n"
             f"- NEVER mention revenue numbers, client count, or business stats.\n"
-            f"- MUST be in English regardless of tweet language\n"
             f"Reply text ONLY. No quotes."
         )
-        system = "Supportive senior developer and founder. Always positive and helpful. Never mention revenue or client numbers. English only."
+        system = f"Supportive senior developer and founder. Always positive and helpful. Never mention revenue or client numbers. If the person is building an AI tool/API/dataset, suggest they can publish and sell it on MAXIA's Creator Marketplace (90% revenue share). Link: maxiaworld.app/marketplace. Multi-language: reply in {lang_name}."
 
         # A/B test : generer 2 variantes et garder la meilleure (GPU local = gratuit)
         variant_a = await call_ollama(prompt, system=system, max_tokens=150)
@@ -2387,39 +4413,37 @@ class CEOLocal:
             comment = comment[:247] + "..."
         if not comment or len(comment) < 10:
             return ""
-        # Filtre anti-negativite
-        negative_words = ["disagree", "wrong", "bad", "terrible", "awful", "hate", "stupid", "dumb", "worst", "sucks", "skeptical", "doubt"]
-        if any(w in comment.lower() for w in negative_words):
-            return ""
-        return comment
+        # Filtre personnalite (mots interdits, negativite, confidentialite)
+        return personality_filter(comment) or ""
 
     async def _generate_quote_tweet_text(self, original_text: str) -> str:
-        """Generate a quote tweet comment — positive, supportive, with MAXIA mention."""
+        """Generate a quote tweet comment — positive, supportive, with MAXIA mention. Multi-langue."""
+        # Detecter la langue du tweet original
+        lang_code = detect_language(original_text)
+        lang_name = LANG_NAMES.get(lang_code, "English")
         prompt = (
             f"Someone tweeted: \"{original_text[:200]}\"\n\n"
+            f"Reply in {lang_name} to match the tweet's language.\n"
             f"Write a short supportive quote tweet as Alexis, founder of MAXIA (<220 chars).\n"
             f"- Be POSITIVE and SUPPORTIVE — celebrate what they built or shared\n"
             f"- Add value: share your experience, a useful tip, or genuine excitement\n"
             f"- Naturally connect to MAXIA if relevant (AI agents, crypto, multi-chain, swaps, GPU)\n"
-            f"- End with: maxiaworld.app\n"
+            f"- ALWAYS end with: maxiaworld.app (regardless of language)\n"
             f"- Tone: 'love this — we're solving something similar at maxiaworld.app'\n"
             f"- NEVER disagree, criticize, or be negative.\n"
             f"- NEVER mention revenue numbers, client count, or business stats.\n"
-            f"- ENGLISH ONLY\n"
             f"Text ONLY:"
         )
+        system_qt = f"Supportive solo dev. Always positive, never confrontational. Multi-language: reply in {lang_name}."
         # Groq pour le contenu public, Ollama fallback
-        text = await call_groq_local(prompt, system="Supportive solo dev. Always positive, never confrontational. English only.", max_tokens=40)
+        text = await call_groq_local(prompt, system=system_qt, max_tokens=40)
         if not text:
-            text = await call_ollama(prompt, system="Supportive solo dev. Always positive, never confrontational. English only.", max_tokens=40)
+            text = await call_ollama(prompt, system=system_qt, max_tokens=40)
         text = text.strip().strip('"').strip("'")
         if len(text) < 5 or len(text) > 250:
             return ""
-        # Filtre anti-negativite
-        negative_words = ["disagree", "wrong", "bad", "terrible", "awful", "hate", "stupid", "dumb", "worst", "sucks", "skeptical", "doubt"]
-        if any(w in text.lower() for w in negative_words):
-            return ""
-        return text
+        # Filtre personnalite
+        return personality_filter(text) or ""
 
     async def _reddit_comment_strategy(self, subreddit: str) -> dict:
         """Strategie Reddit : trouver un post pertinent et commenter avec valeur.
@@ -2782,8 +4806,8 @@ class CEOLocal:
                         _log(f"[RETRO RULE] {line}")
 
     async def _weekly_thread(self):
-        """Weekly 'building in public' thread — posts a 3-tweet thread about building MAXIA.
-        Runs on Monday, max once per week."""
+        """Weekly R&D thread — synthesizes the week's surf/research findings into a 4-5 tweet thread.
+        Runs on Monday, max once per week. Uses call_ceo(think=True) for strategic synthesis."""
         import datetime as _dt
         now = _dt.datetime.now(_dt.timezone.utc)
         if now.weekday() != 0:  # 0 = Monday
@@ -2794,51 +4818,74 @@ class CEOLocal:
         if last_thread == current_week:
             return
 
-        _log("[THREAD] Monday — generating weekly 'building in public' thread")
+        _log("[THREAD] Monday — generating weekly R&D thread from findings")
 
-        # Gather recent context for the LLM
-        recent_actions = self.memory.get("actions_done", [])[-15:]
-        recent_convos = self.memory.get("conversations", [])[-5:]
-        eng_stats = self.memory.get("engagement_stats", [])[-7:]
-        regles = self.memory.get("regles", [])[-5:]
-        context = (
-            f"Recent actions: {json.dumps(recent_actions, default=str)[:400]}\n"
-            f"Recent conversations: {json.dumps(recent_convos, default=str)[:300]}\n"
-            f"Engagement stats: {json.dumps(eng_stats, default=str)[:200]}\n"
-            f"Learned rules: {json.dumps(regles, default=str)[:200]}\n"
-        )
+        # Collect the week's R&D findings
+        surf_findings = self.memory.get("surf_findings", [])
+        research_findings = self.memory.get("research_findings", [])
+        all_findings = surf_findings[-20:] + research_findings[-20:]
+        if not all_findings:
+            # Fallback: use recent actions and conversations as context
+            recent_actions = self.memory.get("actions_done", [])[-15:]
+            recent_convos = self.memory.get("conversations", [])[-5:]
+            all_findings = [
+                {"summary": json.dumps(recent_actions, default=str)[:400]},
+                {"summary": json.dumps(recent_convos, default=str)[:300]},
+            ]
+            _log("[THREAD] No R&D findings, using recent actions as fallback")
 
-        system = (
-            "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace on 14 blockchains). "
-            "Write a 3-tweet thread about your week. Be honest, technical, vulnerable. "
-            "Share a real struggle and how you solved it. No marketing speak. English only."
-        )
+        findings_str = json.dumps(all_findings, default=str)[:1500]
+
         prompt = (
-            f"Context about this week:\n{context}\n\n"
-            f"Write a 3-tweet thread (each tweet max 270 chars):\n"
-            f"Tweet 1: A real challenge you faced this week (technical or business)\n"
-            f"Tweet 2: How you solved it (be specific, code-level if relevant)\n"
-            f"Tweet 3: What's next + subtle CTA (no hard sell, just 'building at maxiaworld.app')\n\n"
-            f"Format: JSON array of 3 strings.\n"
-            f"Example: [\"tweet 1 text\", \"tweet 2 text\", \"tweet 3 text\"]\n"
-            f"Output ONLY the JSON array."
+            f"Based on this week's R&D findings:\n{findings_str}\n\n"
+            f"Write a Twitter thread (4-5 tweets) as Alexis, founder of MAXIA.\n"
+            f"Rules:\n"
+            f"- Tweet 1: hook/question that grabs attention\n"
+            f"- Tweets 2-4: specific insights, data points, or discoveries from the R&D\n"
+            f"- Last tweet: subtle CTA with maxiaworld.app\n"
+            f"- Technical tone, dev-to-dev\n"
+            f"- Each tweet max 280 chars\n"
+            f"- NEVER mention revenue or client numbers\n"
+            f"Format: one tweet per line, separated by ---"
         )
-        raw = await call_local_llm(prompt, system, max_tokens=400)
+        system = (
+            f"You are Alexis, solo founder building MAXIA ({MAXIA_FEATURES_SHORT}). "
+            "English only. Technical, honest, dev-to-dev tone."
+        )
+        raw = await call_ceo(prompt, system, max_tokens=600, think=True)
 
-        # Parse the 3 tweets
+        # Parse tweets separated by ---
         tweets = []
-        try:
-            parsed = json.loads(raw.strip())
-            if isinstance(parsed, list) and len(parsed) >= 3:
-                tweets = [t.strip().strip('"')[:280] for t in parsed[:3]]
-        except (json.JSONDecodeError, Exception):
-            # Try to extract lines
-            lines = [l.strip().lstrip("0123456789.-) ").strip('"') for l in raw.strip().split("\n") if l.strip() and len(l.strip()) > 20]
-            tweets = lines[:3]
+        if raw and "---" in raw:
+            parts = [p.strip() for p in raw.split("---") if p.strip() and len(p.strip()) > 15]
+            tweets = [t[:280] for t in parts[:5]]
+        if len(tweets) < 4:
+            # Fallback: try JSON array format
+            try:
+                parsed = json.loads(raw.strip())
+                if isinstance(parsed, list) and len(parsed) >= 4:
+                    tweets = [t.strip().strip('"')[:280] for t in parsed[:5]]
+            except (json.JSONDecodeError, Exception):
+                pass
+        if len(tweets) < 4:
+            # Fallback: try line-by-line extraction
+            lines = [ln.strip().lstrip("0123456789.-) ").strip('"') for ln in (raw or "").strip().split("\n") if ln.strip() and len(ln.strip()) > 20]
+            tweets = [ln[:280] for ln in lines[:5]]
 
-        if len(tweets) < 3:
-            _log("[THREAD] Failed to generate 3 tweets, skipping")
+        if len(tweets) < 4:
+            _log("[THREAD] Failed to generate 4+ tweets, skipping")
             return
+
+        # Apply personality filter to each tweet
+        filtered_tweets = []
+        for t in tweets:
+            ft = personality_filter(t)
+            if ft:
+                filtered_tweets.append(ft)
+        if len(filtered_tweets) < 4:
+            _log("[THREAD] Too many tweets blocked by personality filter, skipping")
+            return
+        tweets = filtered_tweets
 
         # Check tweet count limit
         if self._tweets_today_count() >= 2:
@@ -2848,13 +4895,233 @@ class CEOLocal:
         # Post the thread
         result = await browser.post_thread(tweets=tweets)
         if result.get("success"):
-            _log(f"[THREAD] Posted weekly thread: {tweets[0][:60]}...")
+            _log(f"[THREAD] Posted weekly R&D thread ({len(tweets)} tweets): {tweets[0][:60]}...")
             self.memory["last_thread_week"] = current_week
             self.memory.setdefault("tweets_posted", []).append({
                 "text": f"[THREAD] {tweets[0][:50]}...", "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
             })
+            # Store thread in memory for retrospective
+            self.memory.setdefault("weekly_threads", []).append({
+                "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "week": current_week,
+                "tweets": tweets,
+                "findings_count": len(all_findings),
+            })
+            if len(self.memory.get("weekly_threads", [])) > 10:
+                self.memory["weekly_threads"] = self.memory["weekly_threads"][-10:]
         else:
             _log(f"[THREAD] Failed to post: {result}")
+
+    async def _proactive_dm_engaged(self):
+        """Proactive DMs to users who engaged with MAXIA tweets in the last 24h.
+        Max 2 DMs per cycle, dedup against already-contacted users."""
+        convos = self.memory.get("conversations", [])
+        if not convos:
+            return
+
+        # Find users who liked/commented on our tweets in the last 24h
+        cutoff_ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 24 * 3600))
+        engaged_users = []
+        for c in reversed(convos[-50:]):
+            ts = c.get("ts", "")
+            if ts and ts < cutoff_ts:
+                continue
+            user = c.get("user", "")
+            ctype = c.get("type", "")
+            if user and ctype in ("mention_reply", "own_tweet_reply", "comment", "like"):
+                engaged_users.append({
+                    "username": user,
+                    "topic": c.get("message", c.get("reply", ""))[:100],
+                    "type": ctype,
+                })
+
+        if not engaged_users:
+            _log("[DM] No engaged users found in last 24h")
+            return
+
+        # Dedup: skip users we already DM'd
+        already_dmd = set()
+        for contact in self.memory.get("contacts", []):
+            if "dm" in contact.get("canal", ""):
+                already_dmd.add(contact.get("target", ""))
+        for dm_record in self.memory.get("proactive_dms", []):
+            already_dmd.add(dm_record.get("username", ""))
+
+        # Deduplicate by username and filter
+        seen = set()
+        candidates = []
+        for u in engaged_users:
+            uname = u["username"]
+            if uname not in already_dmd and uname not in seen:
+                seen.add(uname)
+                candidates.append(u)
+
+        if not candidates:
+            _log("[DM] All engaged users already DM'd")
+            return
+
+        # Daily limit: max 5 proactive DMs per day
+        today = time.strftime("%Y-%m-%d")
+        dms_today = sum(1 for d in self.memory.get("proactive_dms", [])
+                        if d.get("ts", "").startswith(today))
+        if dms_today >= 5:
+            _log(f"[DM] Daily proactive DM limit reached ({dms_today}/5)")
+            return
+
+        sent = 0
+        for candidate in candidates[:2]:
+            username = candidate["username"]
+            topic = candidate["topic"]
+
+            prompt = (
+                f"@{username} engaged with our tweet about {topic}.\n"
+                f"Write a short, friendly DM (max 200 chars) as Alexis from MAXIA.\n"
+                f"Reference their engagement specifically. Invite them to try MAXIA.\n"
+                f"NOT salesy, dev-to-dev tone. Include maxiaworld.app\n"
+                f"DM text ONLY:"
+            )
+            dm_text = await call_ceo(
+                prompt,
+                system="You are Alexis, founder of MAXIA. Friendly, casual, English only.",
+                max_tokens=60,
+                think=False,
+            )
+            dm_text = (dm_text or "").strip().strip('"').strip("'")
+            if not dm_text or len(dm_text) < 10:
+                _log(f"[DM] Failed to generate DM for @{username}")
+                continue
+
+            # Apply personality filter
+            dm_text = personality_filter(dm_text)
+            if not dm_text:
+                _log(f"[DM] DM for @{username} blocked by personality filter")
+                continue
+
+            dm_text = dm_text[:200]
+            _log(f"[DM] Proactive DM to @{username}: {dm_text[:80]}")
+
+            # Try browser first, fallback to _do_browser
+            result = await self._do_browser("dm_twitter", {"username": username, "text": dm_text})
+            if result.get("success"):
+                sent += 1
+                self.memory.setdefault("proactive_dms", []).append({
+                    "username": username,
+                    "topic": topic[:80],
+                    "message": dm_text[:100],
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                self.memory.setdefault("contacts", []).append({
+                    "target": username, "canal": "twitter_dm_proactive",
+                    "ts": today, "status": "dm_sent",
+                    "last_message": dm_text[:50],
+                })
+            else:
+                _log(f"[DM] Failed to send DM to @{username}: {result.get('detail', '')}")
+
+        # Keep proactive_dms list bounded
+        if len(self.memory.get("proactive_dms", [])) > 100:
+            self.memory["proactive_dms"] = self.memory["proactive_dms"][-100:]
+
+        if sent:
+            _log(f"[DM] Sent {sent} proactive DMs to engaged users")
+
+    async def _engage_competitor_threads(self):
+        """Engage with competitor tweets by adding constructive, value-adding comments.
+        Max 1 comment per cycle. Positive tone, no attacks."""
+        competitor_accounts = ["@virtikiprotocol", "@Fetch_ai", "@SingularityNET", "@autonaborolas", "@myshell_ai"]
+
+        # Rotate through competitors across cycles
+        competitor = competitor_accounts[self._cycle % len(competitor_accounts)]
+        query = f"from:{competitor.lstrip('@')}"
+
+        _log(f"[COMPETE] Searching tweets from {competitor}")
+        tweets = await browser.search_twitter(query, 5)
+        if not tweets:
+            _log(f"[COMPETE] No tweets found from {competitor}")
+            return
+
+        # Daily limit: max 3 competitor comments per day
+        today = time.strftime("%Y-%m-%d")
+        compete_today = sum(1 for c in self.memory.get("competitor_engagements", [])
+                           if c.get("ts", "").startswith(today))
+        if compete_today >= 3:
+            _log(f"[COMPETE] Daily limit reached ({compete_today}/3)")
+            return
+
+        # Dedup: check already-engaged tweets
+        already_engaged = {c.get("tweet_url", "") for c in self.memory.get("competitor_engagements", [])}
+
+        for t in tweets[:3]:
+            url = t.get("url", "")
+            text = t.get("text", "")
+            if not url or not text or len(text) < 30:
+                continue
+            if url in already_engaged:
+                continue
+            if browser._is_duplicate("reply", url):
+                continue
+
+            # Generate a constructive, positive comment
+            prompt = (
+                f"A competitor ({competitor}) posted this tweet:\n\"{text[:300]}\"\n\n"
+                f"Write a constructive, positive reply as Alexis from MAXIA.\n"
+                f"Rules:\n"
+                f"- Add value to the conversation (NOT just promotion)\n"
+                f"- Be respectful and acknowledge their work\n"
+                f"- If relevant, briefly mention what MAXIA does differently\n"
+                f"- Dev-to-dev tone, technical where appropriate\n"
+                f"- Max 250 chars\n"
+                f"- Include maxiaworld.app only if it flows naturally\n"
+                f"- NEVER attack, criticize, or be negative\n"
+                f"Reply ONLY:"
+            )
+            comment = await call_ceo(
+                prompt,
+                system=f"You are Alexis, founder of MAXIA ({MAXIA_FEATURES_SHORT}). "
+                       "Positive, constructive, technical. English only.",
+                max_tokens=80,
+                think=True,
+            )
+            comment = (comment or "").strip().strip('"').strip("'")
+            if not comment or len(comment) < 15:
+                _log(f"[COMPETE] Failed to generate comment for {competitor}")
+                continue
+
+            # Apply personality filter
+            comment = personality_filter(comment)
+            if not comment:
+                _log(f"[COMPETE] Comment for {competitor} blocked by personality filter")
+                continue
+
+            comment = comment[:280]
+            _log(f"[COMPETE] Commenting on {competitor}: {comment[:80]}")
+
+            result = await browser.reply_tweet(url, comment)
+            if result.get("success"):
+                browser._record_action("reply", browser._content_hash("reply", url))
+                self.memory.setdefault("competitor_engagements", []).append({
+                    "competitor": competitor,
+                    "tweet_url": url,
+                    "tweet_text": text[:100],
+                    "comment": comment[:150],
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                self.memory.setdefault("conversations", []).append({
+                    "user": competitor.lstrip("@"),
+                    "message": text[:80],
+                    "reply": comment[:80],
+                    "type": "competitor_comment",
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                })
+                _log(f"[COMPETE] Successfully commented on {competitor}'s tweet")
+                # Max 1 per cycle
+                break
+            else:
+                _log(f"[COMPETE] Failed to post comment: {result.get('detail', '')}")
+
+        # Keep list bounded
+        if len(self.memory.get("competitor_engagements", [])) > 50:
+            self.memory["competitor_engagements"] = self.memory["competitor_engagements"][-50:]
 
     async def _reply_to_mentions(self) -> dict:
         """Lit les mentions et repond intelligemment a chacune.
@@ -2980,73 +5247,65 @@ class CEOLocal:
 
     async def _comment_github_ai_projects(self) -> dict:
         """#3: Commente sur des issues/discussions de projets AI.
-        Utilise l'API GitHub si un token est disponible, sinon Playwright en fallback.
+        Methode 1 : API GitHub via api_social (fiable, pas de Playwright).
+        Methode 2 : recherche Google + Playwright (fallback si API echoue).
         Echoue silencieusement si aucune methode ne marche (evite le spam d'erreurs)."""
-        import os
-        github_token = os.getenv("GITHUB_TOKEN", "")
+        import re
 
         projects = [
             "elizaOS/eliza", "langchain-ai/langchain", "Significant-Gravitas/AutoGPT",
             "microsoft/autogen", "crewai/crewai",
         ]
+        comment_text = (
+            f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
+            f"where agents can discover and trade services using USDC on 14 chains "
+            f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Happy to collaborate or integrate. "
+            f"Check it out: maxiaworld.app"
+        )
         commented = 0
 
-        for project in projects[:2]:  # Max 2 par cycle
-            try:
-                # Chercher des issues ouvertes pertinentes
-                results = await browser.search_google(f"site:github.com/{project}/issues AI agent marketplace", 3)
-                for r in results:
-                    url = r.get("url", "")
-                    if "/issues/" not in url or browser._is_duplicate("github_comment", url):
-                        continue
+        # Methode 1 : API GitHub via api_social (cherche les issues recentes directement)
+        try:
+            from api_social import github_list_issues, github_comment_issue
+            for project in projects[:2]:  # Max 2 par cycle
+                try:
+                    issues = await github_list_issues(project, limit=5)
+                    for issue in issues:
+                        issue_url = issue.get("html_url", "")
+                        if browser._is_duplicate("github_comment", issue_url):
+                            continue
+                        result = await github_comment_issue(project, issue["number"], comment_text)
+                        if result.get("success"):
+                            commented += 1
+                            _log(f"[GITHUB] API comment on {project}#{issue['number']}")
+                            browser._record_action("github_comment", browser._content_hash("github_comment", issue_url))
+                            break  # 1 commentaire par projet max
+                except Exception as e:
+                    _log(f"[GITHUB] API skip {project}: {e}")
+                    continue
+        except Exception as e:
+            _log(f"[GITHUB] api_social import error: {e}")
 
-                    comment = (
-                        f"Interesting discussion! We're building MAXIA, an AI-to-AI marketplace "
-                        f"where agents can discover and trade services using USDC on 14 chains "
-                        f"(Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Happy to collaborate or integrate. "
-                        f"Check it out: maxiaworld.app"
-                    )
-
-                    success = False
-
-                    # Methode 1: API GitHub (fiable, pas de Playwright)
-                    if github_token:
+        # Methode 2 : Playwright (fallback si API n'a rien donne)
+        if commented == 0:
+            for project in projects[:2]:
+                try:
+                    results = await browser.search_google(f"site:github.com/{project}/issues AI agent marketplace", 3)
+                    for r in results:
+                        url = r.get("url", "")
+                        if "/issues/" not in url or browser._is_duplicate("github_comment", url):
+                            continue
                         try:
-                            import httpx, re
-                            # Extraire owner/repo et issue number de l'URL
-                            m = re.search(r"github\.com/([^/]+/[^/]+)/issues/(\d+)", url)
-                            if m:
-                                repo, issue_num = m.group(1), m.group(2)
-                                async with httpx.AsyncClient(timeout=15) as client:
-                                    resp = await client.post(
-                                        f"https://api.github.com/repos/{repo}/issues/{issue_num}/comments",
-                                        headers={
-                                            "Authorization": f"token {github_token}",
-                                            "Accept": "application/vnd.github.v3+json",
-                                        },
-                                        json={"body": comment},
-                                    )
-                                    if resp.status_code in (200, 201):
-                                        success = True
-                                        _log(f"[GITHUB] API comment on {repo}#{issue_num}")
-                        except Exception as e:
-                            _log(f"[GITHUB] API error: {e}")
-
-                    # Methode 2: Playwright (fallback si pas de token)
-                    if not success:
-                        try:
-                            result = await browser.comment_github_discussion(url, comment)
-                            success = result.get("success", False)
+                            result = await browser.comment_github_discussion(url, comment_text)
+                            if result.get("success", False):
+                                commented += 1
+                                browser._record_action("github_comment", browser._content_hash("github_comment", url))
                         except Exception:
                             pass
-
-                    if success:
-                        commented += 1
-                        browser._record_action("github_comment", browser._content_hash("github_comment", url))
-                    break
-            except Exception as e:
-                _log(f"[GITHUB] Skip {project}: {e}")
-                continue
+                        break
+                except Exception as e:
+                    _log(f"[GITHUB] Browser skip {project}: {e}")
+                    continue
 
         # Pas d'erreur bruyante si 0 commentaires — c'est normal sans token
         if commented == 0:

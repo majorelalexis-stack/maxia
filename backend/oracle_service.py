@@ -1,5 +1,6 @@
 """MAXIA Oracle & Data Marketplace — Donnees de prix et datasets pour protocols et agents IA."""
 import time, uuid
+import httpx
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -203,7 +204,7 @@ def _format_uptime(seconds: float) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 async def _build_crypto_prices_dataset() -> dict:
-    """Dataset 1: Prix crypto en temps reel (50 tokens, 14 chains)."""
+    """Dataset 1: Prix crypto en temps reel (107 tokens, 14 chains)."""
     prices, _ = await _get_cached_prices()
     stock_syms = {"AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"}
     crypto_entries = []
@@ -222,7 +223,7 @@ async def _build_crypto_prices_dataset() -> dict:
     return {
         "id": "crypto-prices-14chains",
         "name": "Crypto Prices (14 Chains)",
-        "description": "Prix en temps reel de 50 tokens sur 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Sources: Helius DAS, CoinGecko, fallback.",
+        "description": "Prix en temps reel de 107 tokens sur 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Sources: Helius DAS, CoinGecko, fallback.",
         "format": "json",
         "records": len(crypto_entries),
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -302,25 +303,75 @@ async def _build_stock_prices_dataset() -> dict:
     }
 
 
-def _build_defi_yields_dataset() -> dict:
-    """Dataset 4: Meilleurs rendements DeFi (donnees estimees)."""
-    # Donnees estimees (pas de yield_aggregator existant)
-    defi_entries = [
-        {"protocol": "Marinade", "chain": "Solana", "asset": "SOL", "apy_pct": 7.2, "tvl_usd": 1_200_000_000, "risk": "low"},
-        {"protocol": "Jito", "chain": "Solana", "asset": "SOL", "apy_pct": 7.8, "tvl_usd": 800_000_000, "risk": "low"},
-        {"protocol": "Raydium", "chain": "Solana", "asset": "SOL/USDC", "apy_pct": 22.5, "tvl_usd": 150_000_000, "risk": "medium"},
-        {"protocol": "Aave V3", "chain": "Ethereum", "asset": "USDC", "apy_pct": 4.1, "tvl_usd": 5_000_000_000, "risk": "low"},
-        {"protocol": "Aave V3", "chain": "Polygon", "asset": "USDC", "apy_pct": 3.8, "tvl_usd": 800_000_000, "risk": "low"},
-        {"protocol": "Aave V3", "chain": "Arbitrum", "asset": "USDC", "apy_pct": 4.5, "tvl_usd": 600_000_000, "risk": "low"},
-        {"protocol": "Compound V3", "chain": "Ethereum", "asset": "USDC", "apy_pct": 3.5, "tvl_usd": 2_000_000_000, "risk": "low"},
-        {"protocol": "GMX", "chain": "Arbitrum", "asset": "GLP", "apy_pct": 18.0, "tvl_usd": 400_000_000, "risk": "medium"},
-        {"protocol": "Kamino", "chain": "Solana", "asset": "USDC", "apy_pct": 8.5, "tvl_usd": 300_000_000, "risk": "low"},
-        {"protocol": "Sanctum", "chain": "Solana", "asset": "INF", "apy_pct": 9.2, "tvl_usd": 200_000_000, "risk": "medium"},
+async def _build_defi_yields_dataset() -> dict:
+    """Dataset 4: Meilleurs rendements DeFi (live via DeFiLlama)."""
+    defi_entries = []
+    # Protocoles cibles avec leurs cles DeFiLlama
+    _TARGET_POOLS = [
+        ("marinade-finance", "msol", "Marinade", "Solana", "SOL", "low"),
+        ("jito", "jitosol", "Jito", "Solana", "SOL", "low"),
+        ("raydium", "sol-usdc", "Raydium", "Solana", "SOL/USDC", "medium"),
+        ("aave-v3", "usdc", "Aave V3", "Ethereum", "USDC", "low"),
+        ("compound-v3", "usdc", "Compound V3", "Ethereum", "USDC", "low"),
+        ("gmx-v2", "glp", "GMX", "Arbitrum", "GLP", "medium"),
+        ("kamino-lend", "usdc", "Kamino", "Solana", "USDC", "low"),
+        ("sanctum", "inf", "Sanctum", "Solana", "INF", "medium"),
     ]
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get("https://yields.llama.fi/pools")
+            resp.raise_for_status()
+            pools = resp.json().get("data", [])
+            # Index par project_symbol
+            pool_index = {}
+            for p in pools:
+                key = f"{p.get('project', '').lower()}_{p.get('symbol', '').lower()}"
+                if key not in pool_index or p.get("apy", 0) > pool_index[key].get("apy", 0):
+                    pool_index[key] = p
+
+            for project_key, symbol_key, display_name, chain, asset, risk in _TARGET_POOLS:
+                lookup_key = f"{project_key}_{symbol_key}"
+                pool_data = pool_index.get(lookup_key, {})
+                apy = round(pool_data.get("apy", 0), 2)
+                tvl = round(pool_data.get("tvlUsd", 0), 0)
+                if apy > 0:
+                    defi_entries.append({
+                        "protocol": display_name, "chain": chain, "asset": asset,
+                        "apy_pct": apy, "tvl_usd": tvl, "risk": risk,
+                        "source": "defillama_live",
+                    })
+
+            # Si on a aussi des pools Aave Polygon/Arbitrum, les chercher
+            for p in pools:
+                proj = (p.get("project") or "").lower()
+                chain_raw = (p.get("chain") or "").lower()
+                sym = (p.get("symbol") or "").upper()
+                apy = p.get("apy", 0)
+                tvl = p.get("tvlUsd", 0)
+                if proj == "aave-v3" and "USDC" in sym and tvl > 100_000_000:
+                    if chain_raw == "polygon":
+                        defi_entries.append({"protocol": "Aave V3", "chain": "Polygon", "asset": "USDC",
+                                             "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
+                    elif chain_raw == "arbitrum":
+                        defi_entries.append({"protocol": "Aave V3", "chain": "Arbitrum", "asset": "USDC",
+                                             "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
+    except Exception as e:
+        print(f"[Oracle] DeFiLlama fetch error pour dataset yields: {e}")
+
+    # Deduplication par protocol+chain
+    seen = set()
+    unique = []
+    for entry in defi_entries:
+        k = f"{entry['protocol']}_{entry['chain']}_{entry['asset']}"
+        if k not in seen:
+            seen.add(k)
+            unique.append(entry)
+    defi_entries = unique
+
     return {
         "id": "defi-yields",
         "name": "Best DeFi Yields",
-        "description": "Meilleurs rendements DeFi sur Solana, Ethereum, Polygon et Arbitrum. Pools USDC, SOL et LP. Donnees mises a jour quotidiennement.",
+        "description": "Meilleurs rendements DeFi live via DeFiLlama. Solana, Ethereum, Polygon et Arbitrum. Mis a jour toutes les 5 min.",
         "format": "json",
         "records": len(defi_entries),
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -398,7 +449,7 @@ async def _get_builtin_dataset(dataset_id: str) -> Optional[dict]:
     elif dataset_id == "stock-prices":
         return await _build_stock_prices_dataset()
     elif dataset_id == "defi-yields":
-        return _build_defi_yields_dataset()
+        return await _build_defi_yields_dataset()
     elif dataset_id == "fear-greed-index":
         return _build_fear_greed_dataset()
     return None

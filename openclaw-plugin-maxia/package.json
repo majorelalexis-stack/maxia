@@ -1,0 +1,44 @@
+{
+  "name": "@maxia/openclaw-plugin",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MAXIA AI-to-AI Marketplace plugin for OpenClaw — 14 chains, 71 tokens, GPU rental, tokenized stocks, DeFi yields",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "openclaw": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "maxia",
+    "ai-marketplace",
+    "solana",
+    "base",
+    "ethereum",
+    "crypto",
+    "gpu",
+    "defi",
+    "tokenized-stocks",
+    "mcp",
+    "agent-to-agent"
+  ],
+  "author": "MAXIA <ceo@maxiaworld.app>",
+  "license": "MIT",
+  "repository": "https://github.com/MAXIAWORLD/openclaw-plugin-maxia",
+  "homepage": "https://maxiaworld.app",
+  "peerDependencies": {
+    "openclaw": ">=2026.1.0"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.32.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

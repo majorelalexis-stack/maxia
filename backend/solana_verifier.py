@@ -1,9 +1,31 @@
-"""MAXIA Solana Verifier V12 — Verification complete (destinataire + montant)"""
+"""MAXIA Solana Verifier V12 — Verification complete (destinataire + montant)
+RPC failover : essaie chaque URL dans l'ordre (Helius > custom > publics)."""
 import os, httpx, asyncio
-from config import get_rpc_url, TREASURY_ADDRESS
+from config import get_rpc_url, TREASURY_ADDRESS, SOLANA_RPC_URLS
 
-SOLANA_RPC = os.getenv("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
+
+async def _rpc_post(payload: dict, timeout: float = 15) -> dict:
+    """Post RPC avec failover sur toutes les URLs Solana.
+    Meme pattern que base_verifier._rpc_post."""
+    last_error = None
+    for rpc_url in SOLANA_RPC_URLS:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(rpc_url, json=payload)
+                data = resp.json()
+            if "error" in data and data["error"]:
+                last_error = Exception(f"RPC error: {data['error']}")
+                continue
+            return data
+        except httpx.TimeoutException as e:
+            last_error = e
+        except httpx.ConnectError as e:
+            last_error = e
+        except Exception as e:
+            last_error = e
+    raise last_error or Exception("All Solana RPC endpoints failed")
 
 
 async def verify_transaction(tx_signature: str, expected_wallet: str = None,
@@ -21,7 +43,6 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
     if not expected_recipient:
         expected_recipient = TREASURY_ADDRESS
 
-    rpc = get_rpc_url()
     payload = {
         "jsonrpc": "2.0", "id": 1,
         "method": "getTransaction",
@@ -32,9 +53,7 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(rpc, json=payload)
-                data = resp.json()
+            data = await _rpc_post(payload)
 
             result = data.get("result")
             if not result:

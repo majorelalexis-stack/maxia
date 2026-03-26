@@ -48,3 +48,15 @@ def get_logger(name: str) -> logging.Logger:
 
 # Convenience: app-wide logger
 app_logger = get_logger("maxia")
+
+
+def log_json(level: str, module: str, msg: str, **extra):
+    """Ecrit un log structure en JSON sur stderr. Usage simple sans configurer un logger."""
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "level": level,
+        "module": module,
+        "msg": msg,
+    }
+    entry.update(extra)
+    print(json.dumps(entry, default=str), file=sys.stderr)

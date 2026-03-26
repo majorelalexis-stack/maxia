@@ -1,7 +1,7 @@
 """MAXIA Integration Tests — Full flow testing against live server"""
 import httpx, sys, time, uuid
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:8001"
 PASSED = 0
 FAILED = 0
 ERRORS = []

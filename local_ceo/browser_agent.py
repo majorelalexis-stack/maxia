@@ -1,17 +1,16 @@
-"""Browser Agent — Playwright ameliore avec multi-selectors, role-based, retry.
+"""Browser Agent — Hybride Playwright + browser-use (LLM vision local).
 
-Zero LLM, zero token. Robuste grace a :
-- Multi-selectors avec fallback (3-4 alternatives par element)
-- Selection par role/texte (pas juste data-testid)
-- Attente intelligente (wait_for_selector au lieu de sleep)
-- Screenshot avant/apres pour debug
-- Auto-detection login
-- Retry avec backoff
+Mode 1 (Playwright) : Selectors CSS pour les actions rapides et fiables (search, like, star, get_mentions).
+Mode 2 (browser-use) : LLM vision local (Qwen 3.5 9B via Ollama) pour les actions complexes
+    qui echouent avec les selectors (send_discord, send_telegram, dm_twitter, reply_tweet).
+    Le LLM voit le screenshot et decide ou cliquer — resilient aux changements de DOM.
 """
 import asyncio
+import base64
 import os
 import time
-from config_local import BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY
+import httpx
+from config_local import BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY, OLLAMA_URL, OLLAMA_VISION_MODEL, OLLAMA_MODEL, OLLAMA_BROWSER_MODEL
 
 
 # Rate limits pour eviter les bans (actions par minute)
@@ -24,6 +23,7 @@ _RATE_LIMITS = {
     "reddit_comment": {"per_min": 1, "per_day": 15},
     "reddit_upvote": {"per_min": 2, "per_day": 20},
     "dm": {"per_min": 1, "per_day": 10},
+    "solvr_post": {"per_min": 1, "per_day": 1},
 }
 
 
@@ -40,7 +40,85 @@ class BrowserAgent:
         self._action_history = []  # Deduplication: [{action, hash, ts}]
         self._profile_dir = BROWSER_PROFILE_DIR
         self._dedup_file = os.path.join(os.path.dirname(__file__), ".browser_dedup.json")
+        self._bu_llm = None  # LLM browser-use (lazy init)
         self._load_dedup()
+
+    def _get_bu_llm(self):
+        """Initialise le LLM browser-use en lazy.
+        Utilise Qwen 2.5 14B (pas de thinking, tool calling OK) — PAS Qwen 3.5.
+        Qwen 3.5 a 5 bugs confirmes avec tool calling sur Ollama (issue #14493).
+        browser-use 0.12 a sa propre ChatOllama — on l'utilise directement."""
+        if self._bu_llm is None:
+            try:
+                from browser_use import ChatOllama as BUChatOllama
+                self._bu_llm = BUChatOllama(
+                    model=OLLAMA_BROWSER_MODEL,  # qwen2.5:14b — tool calling fonctionne
+                    host=OLLAMA_URL,             # browser-use utilise 'host' pas 'base_url'
+                    ollama_options={
+                        "num_ctx": 16000,
+                        "temperature": 0.3,
+                        "num_predict": 512,
+                    },
+                )
+                print(f"[BrowserAgent] browser-use LLM: {OLLAMA_BROWSER_MODEL} (native ChatOllama)")
+            except Exception as e:
+                print(f"[BrowserAgent] browser-use LLM init FAILED: {e}")
+        return self._bu_llm
+
+    async def _browser_use_task(self, task: str, max_steps: int = 8) -> dict:
+        """Execute une tache via browser-use (Qwen 2.5 14B local via Ollama).
+        Fallback intelligent : si Playwright echoue, browser-use prend le relais.
+        Retourne {success: bool, result: str, steps: int, error: str}."""
+        llm = self._get_bu_llm()
+        if not llm:
+            return {"success": False, "error": "browser-use LLM not available"}
+        try:
+            from browser_use import Agent as BUAgent, BrowserSession, BrowserProfile
+
+            # Se connecter au Chrome EXISTANT via CDP (memes cookies, meme session)
+            # Playwright lance Chrome avec --remote-debugging-port=9222
+            profile = BrowserProfile(
+                cdp_url="http://localhost:9222",  # Connexion au Chrome deja lance
+            )
+            bu_browser = BrowserSession(browser_profile=profile)
+
+            agent = BUAgent(
+                task=task,
+                llm=llm,
+                browser_session=bu_browser,
+                use_vision=True,
+                use_thinking=False,
+                max_actions_per_step=1,
+                max_failures=2,
+                llm_timeout=180,          # 3 min (7B local = lent sur pages lourdes)
+                step_timeout=200,         # 3m20 par step (inclut navigation)
+                max_clickable_elements_length=5000,  # Limiter le DOM envoye au LLM
+            )
+
+            print(f"[browser-use] Task (CDP): {task[:80]}...")
+            result = await agent.run(max_steps=max_steps)
+
+            # Extraire le resultat (API browser-use 0.12)
+            final = ""
+            if hasattr(result, 'final_result'):
+                final = result.final_result() or ""
+            steps = len(result.history()) if callable(getattr(result, 'history', None)) else 0
+            is_err = result.has_errors() if hasattr(result, 'has_errors') else False
+
+            # NE PAS fermer bu_browser — c'est le meme Chrome que Playwright !
+            # On detache juste la session browser-use
+            try:
+                await bu_browser.close(force=False)
+            except Exception:
+                pass
+
+            success = bool(final) or (steps > 0 and not is_err)
+            print(f"[browser-use] Done: {steps} steps, success={success}")
+            return {"success": success, "result": final, "steps": steps}
+
+        except Exception as e:
+            print(f"[browser-use] Error: {str(e)[:200]}")
+            return {"success": False, "error": str(e)[:200]}
 
     def _load_dedup(self):
         """Charge l'historique de dedup depuis le disque (survit aux restarts)."""
@@ -226,6 +304,7 @@ class BrowserAgent:
                     "--homepage=about:blank",
                     "--no-first-run",
                     "--disable-features=SessionRestore,InfiniteSessionRestore",
+                    "--remote-debugging-port=9222",  # CDP port pour browser-use
                     "--disable-background-networking",
                     "--disable-sync",
                     "--noerrdialogs",
@@ -432,8 +511,74 @@ class BrowserAgent:
 
     # ── Helpers robustes ──
 
+    async def _vision_find_element(self, page, description: str) -> dict:
+        """Fallback vision: screenshot + Qwen 3.5 multimodal to find an element on screen.
+        Returns {"x": int, "y": int} or {} if not found.
+        """
+        try:
+            # Take screenshot as PNG bytes
+            screenshot = await page.screenshot(type="png")
+            img_b64 = base64.b64encode(screenshot).decode("utf-8")
+
+            # Ask Qwen 3.5 vision to find the element
+            prompt = (
+                f"Look at this screenshot. I need to find: {description}. "
+                f"Return ONLY the x,y pixel coordinates of the CENTER of that element. "
+                f"Format: x,y (just two numbers separated by a comma, nothing else). "
+                f"If not found, return: none"
+            )
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    f"{OLLAMA_URL}/api/chat",
+                    json={
+                        "model": OLLAMA_VISION_MODEL,
+                        "messages": [{
+                            "role": "user",
+                            "content": prompt,
+                            "images": [img_b64],
+                        }],
+                        "stream": False,
+                        "think": False,
+                        "options": {"num_predict": 20},
+                    },
+                )
+                if resp.status_code == 200:
+                    text = resp.json().get("message", {}).get("content", "").strip()
+                    if text and text.lower() != "none" and "," in text:
+                        # Parse "x,y" — extract first two numbers
+                        parts = text.replace(" ", "").split(",")
+                        x = int(float(parts[0]))
+                        y = int(float(parts[1]))
+                        if 0 < x < 3000 and 0 < y < 3000:
+                            print(f"[Vision] Found '{description}' at ({x}, {y})")
+                            return {"x": x, "y": y}
+                    print(f"[Vision] Could not find '{description}': {text[:50]}")
+        except Exception as e:
+            print(f"[Vision] Error: {e}")
+        return {}
+
+    async def _vision_click(self, page, description: str) -> bool:
+        """Use vision to find and click an element."""
+        coords = await self._vision_find_element(page, description)
+        if coords:
+            await page.mouse.click(coords["x"], coords["y"])
+            await page.wait_for_timeout(1000)
+            return True
+        return False
+
+    async def _vision_fill(self, page, description: str, text: str) -> bool:
+        """Use vision to find an input, click it, and type text."""
+        coords = await self._vision_find_element(page, description)
+        if coords:
+            await page.mouse.click(coords["x"], coords["y"])
+            await page.wait_for_timeout(500)
+            await page.keyboard.type(text, delay=15)
+            return True
+        return False
+
     async def _find_and_click(self, page, selectors: list, description: str, timeout: int = 10000) -> bool:
-        """Essaie plusieurs selectors jusqu'a en trouver un qui marche."""
+        """Essaie plusieurs selectors, puis fallback vision si rien ne marche."""
         for sel in selectors:
             try:
                 el = page.locator(sel).first
@@ -442,11 +587,12 @@ class BrowserAgent:
                     return True
             except Exception:
                 continue
-        print(f"[BrowserAgent] {description}: aucun selector trouve parmi {len(selectors)}")
-        return False
+        # Vision fallback — ask Qwen 3.5 to find it on screen
+        print(f"[BrowserAgent] {description}: selectors failed, trying vision...")
+        return await self._vision_click(page, description)
 
     async def _find_and_fill(self, page, selectors: list, text: str, description: str, timeout: int = 10000) -> bool:
-        """Essaie plusieurs selectors pour remplir un champ."""
+        """Essaie plusieurs selectors, puis fallback vision si rien ne marche."""
         for sel in selectors:
             try:
                 el = page.locator(sel).first
@@ -456,13 +602,67 @@ class BrowserAgent:
                         await el.fill(text)
                         return True
                     except Exception:
-                        # fill() echoue sur contenteditable — fallback keyboard.type()
                         await page.keyboard.type(text, delay=15)
                         return True
             except Exception:
                 continue
-        print(f"[BrowserAgent] {description}: aucun selector trouve")
-        return False
+        # Vision fallback — ask Qwen 3.5 to find the input
+        print(f"[BrowserAgent] {description}: selectors failed, trying vision...")
+        return await self._vision_fill(page, description, text)
+
+    async def _navigate_to_first_channel(self, page) -> bool:
+        """Apres avoir rejoint un serveur Discord, clique sur le premier text channel visible."""
+        # Discord affiche les channels dans la sidebar gauche
+        # Les text channels ont une icone # et sont dans des liens <a> vers /channels/SERVER/CHANNEL
+        try:
+            # Attendre que la sidebar charge
+            await page.wait_for_timeout(2000)
+
+            # Methode 1: Cliquer sur le premier lien de channel text dans la sidebar
+            # Les channels sont des <a> avec href=/channels/SERVER_ID/CHANNEL_ID
+            channel_links = page.locator('a[href*="/channels/"][data-list-item-id*="channels"]')
+            count = await channel_links.count()
+            if count > 0:
+                await channel_links.first.click()
+                await page.wait_for_timeout(3000)
+                print(f"[BrowserAgent] Discord: navigated to first channel (method 1)")
+                return True
+
+            # Methode 2: Trouver les text channels par leur icone/classe
+            for sel in [
+                'li[class*="containerDefault"] a[class*="link"]',
+                'div[class*="content"] a[class*="name"][href*="/channels/"]',
+                'a[class*="channelName"]',
+                'li a[href*="/channels/"]',
+            ]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=2000):
+                        await el.click()
+                        await page.wait_for_timeout(3000)
+                        print(f"[BrowserAgent] Discord: navigated to channel via {sel}")
+                        return True
+                except Exception:
+                    continue
+
+            # Methode 3: URL directe — extraire server ID du URL et aller au channel par defaut
+            current_url = page.url
+            if "/channels/" in current_url:
+                # Discord redirige souvent vers le channel par defaut tout seul
+                # Verifier si on a deja un textbox
+                try:
+                    tb = page.locator('div[role="textbox"][contenteditable="true"]').first
+                    if await tb.is_visible(timeout=3000):
+                        print("[BrowserAgent] Discord: textbox already visible, channel loaded")
+                        return True
+                except Exception:
+                    pass
+
+            print("[BrowserAgent] Discord: could not find a text channel to navigate to")
+            return False
+        except Exception as e:
+            print(f"[BrowserAgent] Discord channel navigation error: {e}")
+            return False
 
     async def _screenshot(self, page, name: str) -> str:
         """Screenshot de preuve."""
@@ -588,7 +788,17 @@ class BrowserAgent:
             ], text[:280], "Reply textbox")
 
             if not filled:
-                return {"success": False, "error": "Champ reponse introuvable"}
+                # ── FALLBACK browser-use ──
+                print("[BrowserAgent] Reply Playwright failed — trying browser-use...")
+                bu_result = await self._browser_use_task(
+                    f"You are on a Twitter/X tweet page ({tweet_url}). "
+                    f"Find the reply input field, click on it, type: '{text[:280]}', "
+                    f"then click the Reply button to post your reply.",
+                    max_steps=5,
+                )
+                if bu_result.get("success"):
+                    return {"success": True, "url": tweet_url, "reply": text[:100], "method": "browser-use"}
+                return {"success": False, "error": "Reply: Playwright + browser-use both failed"}
 
             await page.wait_for_timeout(1000)
 
@@ -1464,13 +1674,28 @@ class BrowserAgent:
             score = 0
             details = {}
 
-            # Bio
+            # Bio — multiple selectors (X change souvent son DOM)
             bio = ""
-            for sel in ['div[data-testid="UserDescription"]', '[data-testid="UserDescription"] span']:
-                el = page.locator(sel).first
-                if await el.is_visible(timeout=2000):
-                    bio = await el.inner_text()
-                    break
+            for sel in ['div[data-testid="UserDescription"]', '[data-testid="UserDescription"] span',
+                        'div[data-testid="UserDescription"] > span',
+                        'div[class*="ProfileHeaderCard-bio"]',
+                        'div[dir="auto"][data-testid="UserDescription"]']:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=1500):
+                        bio = await el.inner_text()
+                        if bio:
+                            break
+                except Exception:
+                    continue
+            # Fallback: chercher la bio dans le texte complet de la page profil
+            if not bio:
+                try:
+                    # Lire tout le texte visible sur la page profil pour scorer
+                    page_text = await page.locator('main').first.inner_text() if await page.locator('main').first.is_visible(timeout=2000) else ""
+                    bio = page_text[:500]  # Utiliser le texte brut comme fallback
+                except Exception:
+                    pass
             details["bio"] = bio[:200]
 
             # Mots-cles pertinents dans la bio
@@ -1544,11 +1769,26 @@ class BrowserAgent:
             clicked = await self._find_and_click(page, [
                 '[data-testid="NewDM_Button"]',
                 'a[href="/messages/compose"]',
+                'a[href="/messages/compose-message"]',
                 '[aria-label*="New message" i]',
                 '[aria-label*="Nouveau message" i]',
+                '[aria-label*="Compose" i]',
+                'button[aria-label*="message" i]',
+                '[data-testid="DM_Fab_Button"]',
             ], "New DM button")
             if not clicked:
-                return {"success": False, "error": "Bouton nouveau DM introuvable"}
+                # ── FALLBACK browser-use pour tout le flow DM ──
+                print("[BrowserAgent] Twitter DM Playwright failed — trying browser-use...")
+                bu_result = await self._browser_use_task(
+                    f"You are on Twitter/X DMs page. Send a new DM to @{clean}. "
+                    f"Click the new message button (pen/compose icon), search for '{clean}', "
+                    f"select them, then type: '{text[:300]}' and send it.",
+                    max_steps=8,
+                )
+                if bu_result.get("success"):
+                    self._record_action("dm", self._content_hash("dm", username))
+                    return {"success": True, "username": clean, "method": "browser-use"}
+                return {"success": False, "error": "Twitter DM: Playwright + browser-use both failed"}
             await page.wait_for_timeout(1500)
 
             # Chercher le destinataire
@@ -1615,6 +1855,12 @@ class BrowserAgent:
         page = self._page
 
         try:
+            # Extraire le nom du groupe depuis l'URL (https://t.me/DeFiChat -> DeFiChat)
+            search_name = group_or_user
+            if "t.me/" in group_or_user:
+                search_name = group_or_user.split("t.me/")[-1].split("/")[0].split("?")[0]
+            search_name_lower = search_name.lower()
+
             await page.goto("https://web.telegram.org/a/", wait_until="domcontentloaded", timeout=20000)
             await page.wait_for_timeout(5000)
 
@@ -1624,30 +1870,40 @@ class BrowserAgent:
             for item in items[:15]:
                 try:
                     item_text = await item.inner_text()
-                    if group_or_user.lower() in item_text.lower():
+                    # Comparer le nom du groupe (sans espaces/casse) avec le texte du chat
+                    item_lower = item_text.lower().replace(" ", "")
+                    if search_name_lower in item_lower or search_name_lower.replace("_", "") in item_lower:
                         await item.click()
                         found = True
                         break
                 except Exception:
                     continue
 
-            # Fallback: recherche
+            # Fallback: recherche par nom extrait
             if not found:
-                search = page.locator('#telegram-search-input, input[placeholder*="Search" i]').first
-                if await search.is_visible(timeout=3000):
-                    await search.click()
-                    await search.fill(group_or_user)
-                    await page.wait_for_timeout(3000)
-                    items2 = await page.locator('.ListItem').all()
-                    for item in items2[:5]:
-                        try:
-                            item_text = await item.inner_text()
-                            if group_or_user.lower() in item_text.lower():
-                                await item.click()
-                                found = True
+                for search_sel in ['#telegram-search-input', 'input[placeholder*="Search" i]',
+                                   '.input-search input', 'input[type="text"]']:
+                    try:
+                        search = page.locator(search_sel).first
+                        if await search.is_visible(timeout=2000):
+                            await search.click()
+                            await search.fill(search_name)
+                            await page.wait_for_timeout(3000)
+                            items2 = await page.locator('.ListItem, .search-result, .chatlist-chat').all()
+                            for item in items2[:5]:
+                                try:
+                                    item_text = await item.inner_text()
+                                    item_lower = item_text.lower().replace(" ", "")
+                                    if search_name_lower in item_lower or search_name_lower.replace("_", "") in item_lower:
+                                        await item.click()
+                                        found = True
+                                        break
+                                except Exception:
+                                    continue
+                            if found:
                                 break
-                        except Exception:
-                            continue
+                    except Exception:
+                        continue
 
             if not found:
                 return {"success": False, "error": f"Groupe/user '{group_or_user}' introuvable"}
@@ -1658,10 +1914,23 @@ class BrowserAgent:
             filled = await self._find_and_fill(page, [
                 'div.input-message-input[contenteditable="true"]',
                 '#editable-message-text',
-                'div[contenteditable="true"]',
+                'div[class*="input-message"][contenteditable="true"]',
+                'div.composer-wrapper div[contenteditable="true"]',
+                'div[class*="ComposerInput"] div[contenteditable="true"]',
+                'div[contenteditable="true"][dir="auto"]',
             ], text[:4000], "Telegram message")
             if not filled:
-                return {"success": False, "error": "Champ message Telegram introuvable"}
+                # ── FALLBACK browser-use ──
+                print("[BrowserAgent] Telegram Playwright failed — trying browser-use...")
+                bu_result = await self._browser_use_task(
+                    f"You are on Telegram Web. Find the message input field at the bottom. "
+                    f"Click on it, type: '{text[:500]}', then press Enter to send.",
+                    max_steps=5,
+                )
+                if bu_result.get("success"):
+                    self._record_action("dm", self._content_hash("telegram", f"{group_or_user}:{text[:50]}"))
+                    return {"success": True, "target": group_or_user, "method": "browser-use"}
+                return {"success": False, "error": "Telegram: Playwright + browser-use both failed"}
 
             # Envoyer (Enter)
             await page.keyboard.press("Enter")
@@ -1773,47 +2042,177 @@ class BrowserAgent:
 
     async def comment_github_discussion(self, discussion_url: str, text: str) -> dict:
         """Commente sur une discussion/issue GitHub via Playwright.
-        Echoue silencieusement si les selectors ne matchent pas (UI peut varier)."""
+        Selectors mis a jour mars 2026 (GitHub Primer UI React)."""
         await self._ensure_ready()
         page = self._page
 
         try:
             await page.goto(discussion_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(4000)
 
-            # Verifier qu'on est bien sur une page GitHub avec un champ commentaire
-            # (si pas connecte ou page invalide, on skip)
-            logged_in = await page.locator('meta[name="user-login"]').count() > 0
-            if not logged_in:
-                # Verifier via un autre indicateur
-                logged_in = await page.locator('.Header-link--current-user, [data-login]').count() > 0
+            # Verifier qu'on est connecte a GitHub
+            logged_in = (
+                await page.locator('meta[name="user-login"]').count() > 0
+                or await page.locator('[data-login]').count() > 0
+                or await page.locator('img.avatar[alt*="@"]').count() > 0
+                or await page.locator('button[aria-label="Open user navigation menu"]').count() > 0
+            )
             if not logged_in:
                 return {"success": False, "error": "Not logged in to GitHub"}
 
+            # Scroller en bas de page pour voir le champ commentaire
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.wait_for_timeout(2000)
+
+            # GitHub 2026 — selectors pour le champ commentaire (Primer React + legacy)
             filled = await self._find_and_fill(page, [
-                'textarea#new_comment_field',
+                # GitHub Primer React (2025+)
                 'textarea[name="comment[body]"]',
+                'textarea#new_comment_field',
                 'textarea[placeholder*="Leave a comment" i]',
                 'textarea[placeholder*="Add your comment" i]',
-                'div.CommentBox-container textarea',
+                'textarea[placeholder*="Write" i]',
+                # GitHub legacy
                 'textarea.js-comment-field',
+                'div.CommentBox-container textarea',
+                # Markdown editor (nouveau GitHub)
+                'textarea[data-testid="markdown-editor-input"]',
+                'div[data-testid="markdown-editor"] textarea',
+                'file-attachment textarea',
+                # Contenteditable (discussions)
+                'div.ProseMirror[contenteditable="true"]',
+                'div[role="textbox"][contenteditable="true"]',
+                # Dernier recours
+                'textarea[aria-label*="comment" i]',
+                'textarea[aria-label*="Reply" i]',
             ], text[:5000], "GitHub comment")
+
+            if not filled:
+                # Fallback : cliquer sur "Write" tab d'abord si le champ est cache
+                write_tab = page.locator('button:has-text("Write"), a:has-text("Write")').first
+                try:
+                    if await write_tab.is_visible(timeout=2000):
+                        await write_tab.click()
+                        await page.wait_for_timeout(1000)
+                        filled = await self._find_and_fill(page, [
+                            'textarea[name="comment[body]"]',
+                            'textarea#new_comment_field',
+                            'textarea.js-comment-field',
+                            'textarea[data-testid="markdown-editor-input"]',
+                        ], text[:5000], "GitHub comment after Write tab")
+                except Exception:
+                    pass
+
             if not filled:
                 return {"success": False, "error": "GitHub comment field not found"}
 
             await page.wait_for_timeout(1000)
 
+            # Bouton Comment (Primer React + legacy)
             submitted = await self._find_and_click(page, [
-                'button:has-text("Comment")',
                 'button[type="submit"]:has-text("Comment")',
+                'button:has-text("Comment"):not(:has-text("Close"))',
                 'button.btn-primary:has-text("Comment")',
+                'button[data-testid="submit-comment-button"]',
+                'div.form-actions button[type="submit"]',
             ], "Comment button")
 
             await page.wait_for_timeout(5000)
             return {"success": submitted, "url": discussion_url}
 
         except Exception as e:
-            print(f"[BrowserAgent] GitHub comment failed (expected without login): {e}")
+            print(f"[BrowserAgent] GitHub comment error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def search_github_issues(self, repo: str, query: str = "", limit: int = 5) -> list:
+        """Cherche les issues ouvertes d'un repo GitHub. Retourne titre + URL."""
+        await self._ensure_ready()
+        page = self._page
+        results = []
+        try:
+            url = f"https://github.com/{repo}/issues?q=is%3Aissue+is%3Aopen"
+            if query:
+                url += f"+{query.replace(' ', '+')}"
+            url += "+sort%3Acreated-desc"
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Extraire les issues
+            items = page.locator('div[id^="issue_"] a.Link--primary, .js-issue-row a.Link--primary')
+            count = await items.count()
+            for i in range(min(count, limit)):
+                try:
+                    el = items.nth(i)
+                    title = (await el.inner_text()).strip()
+                    href = await el.get_attribute("href")
+                    if title and href:
+                        full_url = f"https://github.com{href}" if href.startswith("/") else href
+                        results.append({"title": title, "url": full_url})
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"[BrowserAgent] GitHub search issues error: {e}")
+        return results
+
+    async def search_github_repos(self, query: str, limit: int = 5) -> list:
+        """Cherche des repos GitHub. Retourne nom + description + URL + stars."""
+        await self._ensure_ready()
+        page = self._page
+        results = []
+        try:
+            url = f"https://github.com/search?q={query.replace(' ', '+')}&type=repositories&s=updated&o=desc"
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
+
+            # Extraire les repos (le DOM de GitHub Search peut varier)
+            items = page.locator('div[data-testid="results-list"] > div, .repo-list-item')
+            count = await items.count()
+            for i in range(min(count, limit)):
+                try:
+                    el = items.nth(i)
+                    # Nom du repo (lien)
+                    name_el = el.locator('a[class*="Link"] span, a.v-align-middle').first
+                    name = (await name_el.inner_text()).strip() if await name_el.count() > 0 else ""
+                    href = await name_el.get_attribute("href") if name else ""
+                    # Description
+                    desc_el = el.locator('p, span[class*="description"]').first
+                    desc = (await desc_el.inner_text()).strip()[:200] if await desc_el.count() > 0 else ""
+                    if name and href:
+                        full_url = f"https://github.com{href}" if href.startswith("/") else href
+                        results.append({"name": name, "description": desc, "url": full_url})
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"[BrowserAgent] GitHub search repos error: {e}")
+        return results
+
+    async def watch_github_repo(self, repo_url: str) -> dict:
+        """Watch un repo GitHub (notifications)."""
+        await self._ensure_ready()
+        page = self._page
+        try:
+            await page.goto(repo_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Cliquer Watch
+            watched = await self._find_and_click(page, [
+                'button:has-text("Watch")',
+                'details summary:has-text("Watch")',
+                'button[aria-label*="Watch"]',
+            ], "Watch button")
+
+            if watched:
+                # Si un menu dropdown apparait, cliquer "All Activity"
+                await page.wait_for_timeout(1000)
+                try:
+                    all_activity = page.locator('label:has-text("All Activity"), button:has-text("All Activity")').first
+                    if await all_activity.is_visible(timeout=2000):
+                        await all_activity.click()
+                except Exception:
+                    pass
+
+            return {"success": watched, "repo": repo_url}
+        except Exception as e:
             return {"success": False, "error": str(e)}
 
     # ── Discord Web ──
@@ -1848,22 +2247,46 @@ class BrowserAgent:
                         continue
                 # Attendre d'etre sur discord.com/channels/...
                 await page.wait_for_timeout(3000)
+                # Apres invite, on atterrit sur le serveur sans channel
+                # Il faut cliquer sur le premier text channel visible
+                await self._navigate_to_first_channel(page)
             elif "discord.com/channels/" in server_or_channel_url:
                 await page.goto(server_or_channel_url, wait_until="domcontentloaded", timeout=20000)
                 await page.wait_for_timeout(5000)
+                # Si URL est server-only (pas de channel ID), naviguer au premier channel
+                parts = server_or_channel_url.rstrip("/").split("/")
+                # discord.com/channels/SERVER_ID => 5 parts, pas de channel
+                # discord.com/channels/SERVER_ID/CHANNEL_ID => 6 parts
+                if len(parts) <= 5:
+                    await self._navigate_to_first_channel(page)
             else:
                 # Aller sur Discord app directement
                 await page.goto("https://discord.com/channels/@me", wait_until="domcontentloaded", timeout=20000)
                 await page.wait_for_timeout(3000)
 
+            # Attendre que le textbox charge (Discord est lent)
+            await page.wait_for_timeout(3000)
             # Chercher et remplir le champ de message
             filled = await self._find_and_fill(page, [
                 'div[role="textbox"][contenteditable="true"]',
                 'div[data-slate-editor="true"]',
-                'div.slateTextArea-1Mkdgw',
+                'div[class*="markup"][contenteditable="true"]',
+                'div[class*="textArea"] div[contenteditable="true"]',
+                'div[class*="channelTextArea"] div[contenteditable="true"]',
+                'div[class*="editor"][contenteditable="true"]',
             ], text[:2000], "Discord message")
             if not filled:
-                return {"success": False, "error": "Champ message Discord introuvable (pas connecte?)"}
+                # ── FALLBACK browser-use : le LLM trouve le champ message ──
+                print("[BrowserAgent] Discord Playwright failed — trying browser-use...")
+                bu_result = await self._browser_use_task(
+                    f"You are on Discord. Find the message input field at the bottom of the screen. "
+                    f"Click on it, type this message: '{text[:500]}', then press Enter to send it.",
+                    max_steps=5,
+                )
+                if bu_result.get("success"):
+                    self._record_action("dm", self._content_hash("discord", f"{server_or_channel_url}:{text[:50]}"))
+                    return {"success": True, "channel": server_or_channel_url, "method": "browser-use"}
+                return {"success": False, "error": "Discord: Playwright + browser-use both failed"}
 
             await page.keyboard.press("Enter")
             await page.wait_for_timeout(2000)
@@ -2405,6 +2828,97 @@ class BrowserAgent:
         except Exception as e:
             print(f"[BrowserAgent] Read Discord error: {e}")
             return []
+
+    # ── Solvr (onchain social on Base) ──
+
+    async def post_solvr_feed(self, text: str) -> dict:
+        """Poste un message sur le feed Solvr (solvrbot.com/feed)."""
+        err = self._check_rate("solvr_post")
+        if err:
+            return {"success": False, "error": err}
+        if self._is_duplicate("solvr_post", self._content_hash("solvr", text[:100])):
+            return {"success": False, "error": "Post Solvr deja fait (doublon)"}
+
+        await self._ensure_ready()
+        page = self._page
+
+        try:
+            await page.goto("https://solvrbot.com/feed", wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(5000)
+
+            # Verifier si on est connecte (chercher un indicateur de login)
+            login_indicators = await page.locator('a[href*="login"], a[href*="signin"], button:has-text("Connect"), button:has-text("Sign in")').all()
+            for indicator in login_indicators[:3]:
+                try:
+                    if await indicator.is_visible(timeout=2000):
+                        text_content = await indicator.inner_text()
+                        if any(kw in text_content.lower() for kw in ["login", "sign in", "connect wallet"]):
+                            return {"success": False, "error": "Solvr: pas connecte (login requis)"}
+                except Exception:
+                    continue
+
+            # Trouver le champ de texte pour poster
+            filled = await self._find_and_fill(page, [
+                'textarea[placeholder*="post" i]',
+                'textarea[placeholder*="write" i]',
+                'textarea[placeholder*="say" i]',
+                'textarea[placeholder*="what" i]',
+                'div[contenteditable="true"][role="textbox"]',
+                'div[data-lexical-editor="true"]',
+                'div[contenteditable="true"][class*="editor"]',
+                'div[contenteditable="true"][class*="input"]',
+                'div[contenteditable="true"]',
+                'textarea',
+            ], text[:280], "Solvr post")
+
+            if not filled:
+                await self._screenshot(page, "solvr_input_fail")
+                return {"success": False, "error": "Champ texte Solvr introuvable"}
+
+            await page.wait_for_timeout(1000)
+
+            # Cliquer sur le bouton Post / Submit / Send
+            posted = await self._find_and_click(page, [
+                'button:has-text("Post"):not([disabled])',
+                'button:has-text("Submit"):not([disabled])',
+                'button:has-text("Send"):not([disabled])',
+                'button:has-text("Publish"):not([disabled])',
+                'button[type="submit"]:not([disabled])',
+            ], "Solvr post button")
+
+            if not posted:
+                await self._screenshot(page, "solvr_post_fail")
+                return {"success": False, "error": "Bouton Post Solvr introuvable"}
+
+            await page.wait_for_timeout(3000)
+
+            self._record_action("solvr_post", self._content_hash("solvr", text[:100]))
+            return {"success": True, "platform": "solvr", "text": text[:280]}
+
+        except Exception as e:
+            await self._screenshot(page, "solvr_error")
+            return {"success": False, "error": str(e)}
+
+    # ── Flippt.ai (AI Business Marketplace) ──
+
+    async def post_flippt_feed(self, text: str) -> dict:
+        """Poste sur Flippt.ai — utilise browser-use (vision) car site SPA React."""
+        err = self._check_rate("solvr_post")  # Partage la limite 1/jour avec Solvr
+        if err:
+            return {"success": False, "error": err}
+
+        # Flippt.ai est un SPA React (Manus) — les selectors CSS ne marchent pas.
+        # On utilise directement browser-use avec vision pour naviguer et poster.
+        result = await self._browser_use_task(
+            f"Go to https://flippt.ai. Look for a way to post or create a listing. "
+            f"If there's a text input, post button, or 'Create' button, click it and type: '{text[:280]}'. "
+            f"If the site requires login/wallet connection, connect using the available wallet. "
+            f"If you can't find a way to post, describe what you see on the page.",
+            max_steps=6,
+        )
+        if result.get("success"):
+            self._record_action("solvr_post", self._content_hash("flippt", text[:100]))
+        return result
 
     # ── Veille concurrentielle ──
 

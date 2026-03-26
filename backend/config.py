@@ -11,17 +11,36 @@ SOLANA_RPC         = os.getenv("SOLANA_RPC", "https://api.mainnet-beta.solana.co
 HELIUS_API_KEY     = os.getenv("HELIUS_API_KEY", "")
 FEE_BPS            = int(os.getenv("FEE_BPS", "10"))
 
+# Solana RPC failover — comme base_verifier.py, on essaie chaque URL dans l'ordre
+SOLANA_RPC_URLS: list = []
+
+def _build_solana_rpc_urls() -> list:
+    urls = []
+    if HELIUS_API_KEY:
+        urls.append(f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}")
+    custom = os.getenv("SOLANA_RPC", "")
+    if custom and custom not in urls:
+        urls.append(custom)
+    # Fallbacks publics (rate-limited mais fonctionnels)
+    urls.extend([
+        "https://api.mainnet-beta.solana.com",
+        "https://solana-mainnet.rpc.extrnode.com",
+        "https://rpc.ankr.com/solana",
+    ])
+    return urls
+
+SOLANA_RPC_URLS = _build_solana_rpc_urls()
+
 def get_rpc_url() -> str:
     """V-20: Helius requires API key in URL (no header option). Never log this URL."""
-    if HELIUS_API_KEY:
-        return f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
-    return SOLANA_RPC
+    return SOLANA_RPC_URLS[0] if SOLANA_RPC_URLS else SOLANA_RPC
 
 def get_rpc_url_safe() -> str:
     """Safe version for logging — masks the API key."""
-    if HELIUS_API_KEY:
-        return f"https://mainnet.helius-rpc.com/?api-key=***"
-    return SOLANA_RPC
+    url = get_rpc_url()
+    if "api-key=" in url:
+        return url.split("api-key=")[0] + "api-key=***"
+    return url
 
 # ── IA (Groq) ──
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -134,31 +153,81 @@ SCALE_OUT_QUEUE_THRESHOLD = int(os.getenv("SCALE_OUT_QUEUE_THRESHOLD", "100"))
 SCALE_OUT_COOLDOWN        = int(os.getenv("SCALE_OUT_COOLDOWN_S", "300"))
 RAILWAY_API_TOKEN         = os.getenv("RAILWAY_API_TOKEN", "")
 
-# ── Commissions (base — ajustables par Dynamic Pricing) ──
+# ── Commissions (per-transaction — bigger trade = lower fee) ──
 COMMISSION_TIERS = [
-    {"name": "BRONZE",  "min_volume": 0,    "max_volume": 500,  "rate_bps": 100},   # 1% (moins cher que la plupart des marketplaces 15-30%)
-    {"name": "GOLD",    "min_volume": 500,  "max_volume": 5000, "rate_bps": 50},    # 0.5%
-    {"name": "WHALE",   "min_volume": 5000, "max_volume": None, "rate_bps": 10},    # 0.1%
+    {"name": "BRONZE",  "min_amount": 0,    "max_amount": 500,  "rate_bps": 100},   # 1%
+    {"name": "GOLD",    "min_amount": 500,  "max_amount": 5000, "rate_bps": 50},    # 0.5%
+    {"name": "WHALE",   "min_amount": 5000, "max_amount": None, "rate_bps": 10},    # 0.1%
 ]
 
-def get_commission_bps(volume_30d: float) -> int:
+def get_commission_bps(amount_usdc: float) -> int:
+    """Commission based on transaction amount (not cumulative volume)."""
     for tier in reversed(COMMISSION_TIERS):
-        if volume_30d >= tier["min_volume"]:
+        if amount_usdc >= tier["min_amount"]:
             return tier["rate_bps"]
     return 100
 
-# ── GPU Tiers ──
-GPU_TIERS = [
+def get_commission_tier_name(amount_usdc: float) -> str:
+    for tier in reversed(COMMISSION_TIERS):
+        if amount_usdc >= tier["min_amount"]:
+            return tier["name"]
+    return "BRONZE"
+
+# ── GPU Tiers — prix LIVE RunPod (0% markup) ──
+# Les prix sont fetches en live via l'API RunPod GraphQL.
+# GPU_TIERS_FALLBACK = prix de dernier recours si l'API RunPod est down.
+# GPU_TIERS = liste dynamique mise a jour par gpu_pricing.refresh_gpu_prices()
+GPU_TIERS_FALLBACK = [
     {"id": "local_7900xt", "label": "Local RX 7900XT", "vram_gb": 20, "base_price_per_hour": 0.35, "local": True},
-    {"id": "rtx3090",   "label": "RTX 3090",     "vram_gb": 24,  "base_price_per_hour": 0.48},
-    {"id": "rtx4090",   "label": "RTX 4090",     "vram_gb": 24,  "base_price_per_hour": 0.76},
-    {"id": "a6000",     "label": "RTX A6000",    "vram_gb": 48,  "base_price_per_hour": 1.09},
-    {"id": "l40s",      "label": "L40S",         "vram_gb": 48,  "base_price_per_hour": 1.25},
-    {"id": "a100_80",   "label": "A100 80GB",    "vram_gb": 80,  "base_price_per_hour": 1.97},
-    {"id": "h100_sxm5", "label": "H100 SXM5",    "vram_gb": 80,  "base_price_per_hour": 2.96},
-    {"id": "h200",      "label": "H200 SXM",     "vram_gb": 141, "base_price_per_hour": 4.74},
-    {"id": "4xa100",    "label": "4x A100 80GB", "vram_gb": 320, "base_price_per_hour": 7.88},
+    {"id": "rtx3090",     "label": "RTX 3090",       "vram_gb": 24,  "base_price_per_hour": 0.22},
+    {"id": "rtx4090",     "label": "RTX 4090",       "vram_gb": 24,  "base_price_per_hour": 0.34},
+    {"id": "rtx5090",     "label": "RTX 5090",       "vram_gb": 32,  "base_price_per_hour": 0.69},
+    {"id": "a6000",       "label": "RTX A6000",      "vram_gb": 48,  "base_price_per_hour": 0.33},
+    {"id": "l4",          "label": "L4",             "vram_gb": 24,  "base_price_per_hour": 0.44},
+    {"id": "l40s",        "label": "L40S",           "vram_gb": 48,  "base_price_per_hour": 0.79},
+    {"id": "rtx_pro6000", "label": "RTX Pro 6000",   "vram_gb": 96,  "base_price_per_hour": 1.69},
+    {"id": "a100_80",     "label": "A100 80GB",      "vram_gb": 80,  "base_price_per_hour": 1.19},
+    {"id": "h100_sxm",    "label": "H100 SXM",       "vram_gb": 80,  "base_price_per_hour": 2.69},
+    {"id": "h100_nvl",    "label": "H100 NVL",       "vram_gb": 94,  "base_price_per_hour": 2.59},
+    {"id": "h200",        "label": "H200 SXM",       "vram_gb": 141, "base_price_per_hour": 3.59},
+    {"id": "b200",        "label": "B200",           "vram_gb": 180, "base_price_per_hour": 5.98},
+    {"id": "4xa100",      "label": "4x A100 80GB",   "vram_gb": 320, "base_price_per_hour": 4.76},
 ]
+# GPU_TIERS dynamique — mis a jour au demarrage + toutes les 30 min
+GPU_TIERS = list(GPU_TIERS_FALLBACK)
+
+# ── Service Prices (centralisees, modifiables sans toucher main.py) ──
+SERVICE_PRICES = {
+    "maxia-audit": 4.99,
+    "maxia-code-review": 2.99,
+    "maxia-translate": 0.05,
+    "maxia-summary": 0.49,
+    "maxia-wallet-analysis": 1.99,
+    "maxia-marketing": 0.99,
+    "maxia-image": 0.10,
+    "maxia-scraper": 0.02,
+    "maxia-finetune": 2.99,
+    "maxia-awp-staking": 0.00,
+    "maxia-transcription": 0.01,
+    "maxia-embedding": 0.001,
+    "maxia-sentiment": 0.005,
+    "maxia-wallet-risk": 0.10,
+    "maxia-airdrop-scanner": 0.50,
+    "maxia-smart-money": 0.25,
+    "maxia-nft-rarity": 0.05,
+}
+
+# ── Fine-tune pricing ──
+FINETUNE_SERVICE_FEE = float(os.getenv("FINETUNE_SERVICE_FEE", "2.99"))
+FINETUNE_GPU_MARKUP = float(os.getenv("FINETUNE_GPU_MARKUP", "0.10"))
+
+# ── LLM cost tracking (cout interne par 1k tokens) ──
+LLM_COSTS = {
+    "local": {"input": 0.0005, "output": 0.001},
+    "fast": {"input": 0.0008, "output": 0.0015},
+    "mid": {"input": 0.001, "output": 0.003},
+    "strategic": {"input": 0.003, "output": 0.015},
+}
 
 # ── Securite Art.1 ──
 BLOCKED_WORDS = [

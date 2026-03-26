@@ -29,7 +29,9 @@ from config import (
     GROWTH_MAX_SPEND_DAY, GROWTH_MAX_SPEND_TX,
     GROWTH_RESERVE_ALERT, PROSPECT_MIN_SOL, PROSPECT_MAX_PER_DAY,
     TREASURY_ADDRESS, MARKETING_WALLET_ADDRESS,
+    GPU_TIERS,
 )
+_gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 from solana_tx import send_memo_transfer, get_sol_balance
 from alerts import alert_prospect_contacted, alert_low_balance, alert_error, alert_system
 
@@ -59,7 +61,7 @@ SERVICE_CATALOG = (
     "Marketplace: 1% Bronze → 0.1% Whale. Swap: 0.10% → 0.01%. You keep up to 99.9%.\n"
     "\n"
     "SELL: data, code, analysis, images, signals — set your price\n"
-    "BUY: swap 2450 pairs, GPU $0.69/h, audit $9.99, scraper $0.02\n"
+    f"BUY: swap 5000+ pairs, GPU {_gpu_cheapest}, audit $9.99, scraper $0.02\n"
     "\n"
     "POST /register → API key in 2 seconds\n"
     "POST /sell → your service is live\n"
@@ -81,7 +83,7 @@ PROFILES = {
     },
     "active_trader": {
         "description": "100+ swaps on Jupiter",
-        "value_message": "Automate your trading. MAXIA API: 2450 pairs, 0.01% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
+        "value_message": "Automate your trading. MAXIA API: 5000+ pairs, 0.01% whale tier. Your bot trades while you sleep. " + MAXIA_URL,
         "services": ["swap 0.01%", "data $2.99", "monitor $1.99"],
     },
     "token_creator": {
@@ -91,8 +93,8 @@ PROFILES = {
     },
     "gpu_user": {
         "description": "Uses GPU/AI programs on-chain",
-        "value_message": "GPU at cost: RTX4090 $0.69/h. Then sell your AI results on MAXIA marketplace. Earn USDC passively. " + MAXIA_URL + "/api/public/gpu/tiers",
-        "services": ["gpu $0.69/h", "sell services", "marketplace"],
+        "value_message": f"GPU at cost: RTX4090 {_gpu_cheapest}. Then sell your AI results on MAXIA marketplace. Earn USDC passively. " + MAXIA_URL + "/api/public/gpu/tiers",
+        "services": [f"gpu {_gpu_cheapest}", "sell services", "marketplace"],
     },
     "data_provider": {
         "description": "Wallet interacts with oracle/data programs",

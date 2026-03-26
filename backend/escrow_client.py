@@ -1,6 +1,13 @@
 """MAXIA Art.21 V12 — Escrow Client (wallet-based avec persistance DB)
 Production-hardened: race-condition locks, DB-as-truth, input validation,
-safe SQL, audit trail, int amounts, releasing-state crash recovery."""
+safe SQL, audit trail, int amounts, releasing-state crash recovery.
+
+SECURITE ESCROW WALLET :
+  - ESCROW_ADDRESS tient les fonds clients, SEPARE du treasury
+  - ESCROW_PRIVKEY_B58 ne doit JAMAIS etre dans le code, uniquement en .env
+  - En prod : utiliser un hardware wallet ou KMS (AWS/GCP)
+  - Verification au demarrage : adresse valide, cle correspond a l'adresse
+"""
 import uuid, time, json, asyncio, re
 import httpx
 import base58
@@ -16,6 +23,46 @@ _escrow_lock = asyncio.Lock()
 
 # Solana base58 address regex (#3 / #13)
 _SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
+
+
+def _verify_escrow_config():
+    """Verifie au demarrage que le wallet escrow est correctement configure.
+    CRITIQUE : sans ca, les fonds clients pourraient etre perdus."""
+    errors = []
+    if not ESCROW_ADDRESS:
+        errors.append("ESCROW_ADDRESS non defini dans .env")
+    elif not _SOLANA_ADDR_RE.match(ESCROW_ADDRESS):
+        errors.append(f"ESCROW_ADDRESS invalide: {ESCROW_ADDRESS[:10]}...")
+    if not ESCROW_PRIVKEY_B58:
+        errors.append("ESCROW_PRIVKEY_B58 non defini dans .env")
+    else:
+        # Verifier que la cle privee correspond a l'adresse
+        try:
+            from nacl.signing import SigningKey
+            privkey_bytes = base58.b58decode(ESCROW_PRIVKEY_B58)
+            if len(privkey_bytes) == 64:
+                signing_key = SigningKey(privkey_bytes[:32])
+            else:
+                signing_key = SigningKey(privkey_bytes)
+            pubkey = base58.b58encode(bytes(signing_key.verify_key)).decode()
+            if ESCROW_ADDRESS and pubkey != ESCROW_ADDRESS:
+                errors.append(f"ESCROW_PRIVKEY ne correspond PAS a ESCROW_ADDRESS (got {pubkey[:10]}... vs {ESCROW_ADDRESS[:10]}...)")
+        except ImportError:
+            pass  # nacl non installe, skip la verification
+        except Exception as e:
+            errors.append(f"ESCROW_PRIVKEY invalide: {e}")
+    if ESCROW_ADDRESS and TREASURY_ADDRESS and ESCROW_ADDRESS == TREASURY_ADDRESS:
+        errors.append("ESCROW_ADDRESS == TREASURY_ADDRESS — ils doivent etre DIFFERENTS pour la securite")
+    if errors:
+        for e in errors:
+            print(f"[ESCROW] ERREUR CRITIQUE: {e}")
+    else:
+        print(f"[ESCROW] Config OK: {ESCROW_ADDRESS[:8]}... (separe du treasury)")
+    return errors
+
+
+# Verification au chargement du module
+_escrow_errors = _verify_escrow_config()
 
 
 class EscrowClient:

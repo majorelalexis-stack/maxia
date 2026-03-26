@@ -9,7 +9,7 @@ Strategie:
 3. Fallback mars 2026 si echec
 
 Optimisations V12:
-- Parallel fetch (50 tokens en ~1s au lieu de 7.5s)
+- Parallel fetch (107 tokens en ~1s au lieu de 7.5s)
 - Circuit breaker (coupe apres 3 echecs, retry apres 60s)
 - Connection pool HTTP partage
 """
@@ -196,44 +196,59 @@ async def _fetch_yahoo_stock_prices() -> dict:
     """Fetch real-time stock prices from Yahoo Finance (free, no API key)."""
     if _cb_yahoo.is_open:
         return {}
-    stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ"]
+    stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ",
+               "COIN", "AMD", "NFLX", "PLTR", "PYPL", "INTC", "DIS", "V", "MA", "UBER", "CRM", "SQ", "SHOP"]
     prices = {}
     try:
-        client = await _get_http()
-        # Yahoo Finance v8 API (free, no key needed)
-        symbols = ",".join(stocks)
-        url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=1d&interval=1d"
-        resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-        if resp.status_code == 200:
-            data = resp.json()
-            for sym, info in data.items():
-                try:
-                    close = info.get("close", [])
-                    prev = info.get("previousClose", 0)
-                    price = close[-1] if close else info.get("regularMarketPrice", 0)
-                    if price and price > 0:
-                        change_pct = ((price - prev) / prev * 100) if prev else 0
-                        prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
-                except Exception:
-                    pass
+        # Use dedicated client for Yahoo (avoids shared pool issues)
+        # Yahoo v8 limits to 20 symbols per request — batch if needed
+        async with httpx.AsyncClient(timeout=15) as client:
+            for batch_start in range(0, len(stocks), 20):
+                batch = stocks[batch_start:batch_start + 20]
+                symbols = ",".join(batch)
+                url = f"https://query1.finance.yahoo.com/v8/finance/spark?symbols={symbols}&range=1d&interval=1d"
+                resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    raw = resp.json()
+                    # v8 may wrap in {"spark": {}} or return flat dict
+                    data = raw
+                    if "spark" in raw:
+                        # Error case: {"spark": {"result": null, "error": {...}}}
+                        if raw["spark"].get("result") is None:
+                            continue
+                    # Flat dict: {"AAPL": {...}, "TSLA": {...}}
+                    for sym, info in data.items():
+                        if sym == "spark":
+                            continue
+                        try:
+                            close = info.get("close", [])
+                            prev = info.get("previousClose") or info.get("chartPreviousClose", 0)
+                            price = close[-1] if close else info.get("regularMarketPrice", 0)
+                            if price and price > 0:
+                                change_pct = ((price - prev) / prev * 100) if prev else 0
+                                prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
+                        except Exception:
+                            pass
     except Exception as e:
+        import traceback
         print(f"[PriceOracle] Yahoo Finance error: {e}")
+        traceback.print_exc()
 
     # Fallback: try v7 quote API if v8 fails
     if not prices:
         try:
-            client = await _get_http()
-            symbols = ",".join(stocks)
-            url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.status_code == 200:
-                data = resp.json()
-                for q in data.get("quoteResponse", {}).get("result", []):
-                    sym = q.get("symbol", "")
-                    price = q.get("regularMarketPrice", 0)
-                    change = q.get("regularMarketChangePercent", 0)
-                    if sym and price:
-                        prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
+            async with httpx.AsyncClient(timeout=15) as client:
+                symbols = ",".join(stocks)
+                url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbols}"
+                resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for q in data.get("quoteResponse", {}).get("result", []):
+                        sym = q.get("symbol", "")
+                        price = q.get("regularMarketPrice", 0)
+                        change = q.get("regularMarketChangePercent", 0)
+                        if sym and price:
+                            prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
         except Exception as e2:
             print(f"[PriceOracle] Yahoo v7 error: {e2}")
 
@@ -442,7 +457,8 @@ async def get_stock_prices() -> dict:
 
     # Try Yahoo Finance first (real-time, free)
     yahoo_prices = await _fetch_yahoo_stock_prices()
-    if yahoo_prices and len(yahoo_prices) >= 5:
+    print(f"[PriceOracle] Yahoo returned {len(yahoo_prices)} stock prices, CB state: {_cb_yahoo.get_status()}")
+    if yahoo_prices and len(yahoo_prices) >= 1:
         result = {}
         for sym in stocks:
             if sym in yahoo_prices:

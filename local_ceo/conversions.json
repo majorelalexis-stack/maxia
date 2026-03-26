@@ -12,9 +12,9 @@
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 68,
-      "successes": 52,
-      "failures": 16
+      "attempts": 174,
+      "successes": 140,
+      "failures": 34
     },
     "handle_support": {
       "attempts": 1,
@@ -52,9 +52,9 @@
       "failures": 2
     },
     "comment_github_ai": {
-      "attempts": 11,
-      "successes": 7,
-      "failures": 4
+      "attempts": 59,
+      "successes": 22,
+      "failures": 37
     },
     "Lancer une campagne de prospection ultra-cibl\u00e9e sur Reddit (r/solanadev, r/aiagents) avec des messages personnalis\u00e9s pour les devs ayant des bots IA fonctionnels mais sans revenus.": {
       "attempts": 1,
@@ -72,8 +72,8 @@
       "failures": 1
     },
     "reply_mentions": {
-      "attempts": 26,
-      "successes": 26,
+      "attempts": 49,
+      "successes": 49,
       "failures": 0
     },
     "post_reddit": {
@@ -82,9 +82,9 @@
       "failures": 17
     },
     "post_tweet": {
-      "attempts": 35,
-      "successes": 32,
-      "failures": 3
+      "attempts": 87,
+      "successes": 35,
+      "failures": 52
     },
     "scrape_followers": {
       "attempts": 22,
@@ -97,21 +97,76 @@
       "failures": 0
     },
     "detect_opportunities": {
-      "attempts": 13,
-      "successes": 13,
-      "failures": 0
+      "attempts": 39,
+      "successes": 36,
+      "failures": 3
     },
     "manage_dms": {
-      "attempts": 14,
-      "successes": 14,
+      "attempts": 153,
+      "successes": 153,
       "failures": 0
     },
     "check_emails": {
-      "attempts": 13,
-      "successes": 13,
+      "attempts": 81,
+      "successes": 81,
       "failures": 0
     },
     "search_and_comment_reddit": {
+      "attempts": 29,
+      "successes": 0,
+      "failures": 29
+    },
+    "watch_prices": {
+      "attempts": 12,
+      "successes": 12,
+      "failures": 0
+    },
+    "launch_report": {
+      "attempts": 12,
+      "successes": 12,
+      "failures": 0
+    },
+    "send_discord": {
+      "attempts": 31,
+      "successes": 0,
+      "failures": 31
+    },
+    "discover_communities": {
+      "attempts": 10,
+      "successes": 10,
+      "failures": 0
+    },
+    "dm_prospect": {
+      "attempts": 12,
+      "successes": 0,
+      "failures": 12
+    },
+    "join_discord": {
+      "attempts": 10,
+      "successes": 10,
+      "failures": 0
+    },
+    "join_telegram": {
+      "attempts": 15,
+      "successes": 15,
+      "failures": 0
+    },
+    "send_telegram": {
+      "attempts": 1,
+      "successes": 0,
+      "failures": 1
+    },
+    "send_telegram_group": {
+      "attempts": 21,
+      "successes": 0,
+      "failures": 21
+    },
+    "star_github": {
+      "attempts": 15,
+      "successes": 9,
+      "failures": 6
+    },
+    "post_solvr": {
       "attempts": 1,
       "successes": 0,
       "failures": 1
