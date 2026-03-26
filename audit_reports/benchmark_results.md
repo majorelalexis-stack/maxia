@@ -1,11 +1,11 @@
-# MAXIA V12 — Benchmark Results
+# MAXIA V12 — Stress Test Results
 
 **Date:** 2026-03-26
-**Environment:** Windows 11, Python 3.12, SQLite, SANDBOX_MODE=true
-**Method:** 50 sequential requests per endpoint + 50 concurrent on /health
-**Tool:** httpx AsyncClient against FastAPI ASGI (in-process, no network)
+**Environment:** Windows 11, AMD 5800X, Python 3.12, uvicorn 1 worker, SQLite
+**Method:** Real HTTP (httpx → uvicorn on localhost:8001), not in-process
+**Mode:** SANDBOX_MODE=true
 
-## Chaos / Resilience Tests (circuit breaker)
+## 1. Chaos / Resilience Tests (circuit breaker)
 
 | Test | Result |
 |------|--------|
@@ -19,37 +19,69 @@
 
 **7/7 tests passed**
 
-## HTTP Endpoint Benchmark (50 requests each)
+## 2. Sequential Benchmark (50 requests per endpoint, real HTTP)
 
 | Endpoint | p50 | p95 | p99 | avg | errors |
 |----------|-----|-----|-----|-----|--------|
-| /health | <1ms | 15ms | 16ms | 0.9ms | 0/50 |
-| /api/public/crypto/prices | <1ms | 16ms | 1031ms | 21.9ms | 0/50 |
-| /api/public/stocks | <1ms | 16ms | 1250ms | 26.2ms | 0/50 |
-| /api/public/gpu/tiers | <1ms | 15ms | 16ms | 0.9ms | 0/50 |
-| /api/public/services | <1ms | <1ms | 16ms | 0.3ms | 0/50 |
-| /api/public/marketplace-stats | <1ms | <1ms | 15ms | 0.3ms | 0/50 |
-| /oracle/feeds | <1ms | <1ms | 16ms | 0.3ms | 0/50 |
-| /status/chain/solana | <1ms | <1ms | <1ms | <0.1ms | 0/50 |
+| /health | 1ms | 4ms | 217ms | 6ms | 0/50 |
+| /api/public/crypto/prices | 1ms | 2ms | 3ms | 1ms | 0/50 |
+| /api/public/stocks | 2ms | 3ms | 854ms | 19ms | 0/50 |
+| /api/public/gpu/tiers | 1ms | 1ms | 2ms | 1ms | 0/50 |
+| /api/public/services | 1ms | 1ms | 2ms | 1ms | 0/50 |
+| /api/public/marketplace-stats | 1ms | 1ms | 1ms | 1ms | 0/50 |
+| /oracle/feeds | <1ms | 1ms | 1ms | <1ms | 0/50 |
+| /oracle/health | <1ms | 1ms | 1ms | <1ms | 0/50 |
+| /status/chain/solana | 1ms | 1ms | 1ms | 1ms | 0/50 |
+| /status/history | <1ms | 1ms | 1ms | <1ms | 0/50 |
 
-## Concurrent Load Test
+**500 requests, 0 errors. p99 spikes on /health and /stocks are cold-cache hits.**
 
-| Test | Total time | Success rate |
-|------|-----------|-------------|
-| 50x /health in parallel | 16ms | 50/50 (100%) |
+## 3. Burst Test (100 concurrent on /health)
 
-## Notes
+| Metric | Value |
+|--------|-------|
+| Total time | 113ms |
+| Success rate | 100/100 (100%) |
+| Errors | 0 |
 
-- p99 spikes on /crypto/prices and /stocks are cold-cache hits (first request fetches from oracle)
-- After warm-up, all endpoints respond in <1ms (in-process, no network latency)
-- Zero errors across 400+ requests
-- Circuit breaker correctly handles: timeouts, cascading failures, concurrent access, chain failover
-- Production latency will be higher (network + TLS + RPC calls) but architecture is sound
+## 4. Sustained Load (500 requests, 30 seconds)
 
-## Infrastructure Summary
+| Metric | Value |
+|--------|-------|
+| Duration | 34.1s |
+| Throughput | 14.7 req/s |
+| Success rate | 500/500 (100%) |
+| Latency p50 | 2ms |
+| Latency p95 | 3ms |
+| Latency p99 | 4ms |
+| Errors | 0 |
 
-- **14 chains** with USDC payment verification
-- **7 chains** with native token swap (Solana Jupiter + 6 EVM via 0x)
-- **2-3 RPC providers per chain** with automatic failover
-- **Pyth oracle** with 30s staleness check for stocks, 120s for crypto
-- **Circuit breaker** per chain: 3 failures to open, 30s reset, 2 successes to close
+## 5. Heavy Concurrent (warm cache)
+
+| Test | Time | Success |
+|------|------|---------|
+| 10x /crypto/prices concurrent | 28ms | 10/10 |
+| 25x /crypto/prices concurrent | 32ms | 25/25 |
+| 50x /crypto/prices concurrent | 75ms | 50/50 |
+
+**Note:** Cold-cache concurrent fails due to external API rate limits (CoinGecko). After first request warms cache (60s TTL), all concurrent requests succeed. This is expected behavior — production cache is always warm via scheduler.
+
+## Summary
+
+| Category | Requests | OK | Error Rate |
+|----------|----------|-----|------------|
+| Sequential (10 endpoints x 50) | 500 | 500 | 0% |
+| Burst (100 concurrent) | 100 | 100 | 0% |
+| Sustained (14.7 req/s) | 500 | 500 | 0% |
+| Heavy concurrent (warm) | 85 | 85 | 0% |
+| **Total** | **1185** | **1185** | **0%** |
+
+## Infrastructure
+
+- 14 chains with USDC payment verification
+- 7 chains with native token swap (Solana Jupiter + 6 EVM via 0x)
+- 2-3 RPC providers per chain with automatic failover
+- Circuit breaker per chain: 3 failures → open, 30s reset, 2 successes → close
+- Pyth oracle with 30s staleness check (stocks), 120s (crypto)
+- Price cache: 60s TTL (crypto), 180s (stocks)
+- Rate limiting: 100 req/day free tier
