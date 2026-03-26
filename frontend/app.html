@@ -511,10 +511,29 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         </div>
       </div>
 
+      <!-- Slippage Settings -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button onclick="document.getElementById('slippage-panel').style.display=document.getElementById('slippage-panel').style.display==='none'?'block':'none'" style="background:none;border:1px solid var(--border,rgba(255,255,255,.1));color:var(--muted);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">&#9881; Slippage: <span id="slippage-display">1%</span></button>
+      </div>
+      <div id="slippage-panel" style="display:none;background:var(--bg,#0a0e17);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Slippage Tolerance</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button onclick="setSlippage(0.5)" class="btn-sm" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border,rgba(255,255,255,.1));background:none;color:var(--muted);cursor:pointer;font-size:12px">0.5%</button>
+          <button onclick="setSlippage(1)" class="btn-sm" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--cyan);background:rgba(6,182,212,.1);color:var(--cyan);cursor:pointer;font-size:12px" id="slip-1">1%</button>
+          <button onclick="setSlippage(2)" class="btn-sm" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border,rgba(255,255,255,.1));background:none;color:var(--muted);cursor:pointer;font-size:12px">2%</button>
+          <input type="number" id="slip-custom" placeholder="Custom" min="0.1" max="50" step="0.1" style="width:70px;padding:6px;border-radius:6px;border:1px solid var(--border,rgba(255,255,255,.1));background:var(--card,#151d2e);color:var(--text);font-size:12px;text-align:center" oninput="setSlippage(parseFloat(this.value)||1)">
+        </div>
+        <div id="slippage-warn" style="display:none;font-size:11px;color:var(--orange);margin-top:4px">High slippage — your trade may execute at a worse price</div>
+      </div>
+
       <div class="swap-info" id="swap-info" style="display:none">
         <div class="swap-info-row">
           <span class="label">Rate</span>
           <span class="value" id="swap-rate">—</span>
+        </div>
+        <div class="swap-info-row">
+          <span class="label">Price Impact</span>
+          <span class="value" id="swap-impact" style="color:var(--green)">—</span>
         </div>
         <div class="swap-info-row">
           <span class="label">MAXIA Fee</span>
@@ -523,6 +542,10 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         <div class="swap-info-row">
           <span class="label">Network Fee</span>
           <span class="value" id="swap-network-fee" style="color:var(--muted)">~$0.001 (Solana)</span>
+        </div>
+        <div class="swap-info-row">
+          <span class="label">Min. Received</span>
+          <span class="value" id="swap-min-received" style="color:var(--muted)">—</span>
         </div>
         <div class="swap-info-row">
           <span class="label">You receive</span>
@@ -4900,8 +4923,69 @@ window.addEventListener('hashchange', function() {
     }
   } catch (e) {
     console.warn('[Prices] Could not fetch live prices:', e);
-    // Leave "Loading..." text as-is — pages will fetch their own data
   }
+
+  // ══════════════════════════════════════════
+  //  Slippage control + Price Impact + Tx History
+  // ══════════════════════════════════════════
+  var swapSlippage = 1.0; // default 1%
+
+  window.setSlippage = function(pct) {
+    swapSlippage = Math.max(0.1, Math.min(50, pct));
+    document.getElementById('slippage-display').textContent = swapSlippage + '%';
+    // Update button styles
+    document.querySelectorAll('#slippage-panel .btn-sm').forEach(function(b) {
+      b.style.borderColor = 'var(--border,rgba(255,255,255,.1))';
+      b.style.background = 'none';
+      b.style.color = 'var(--muted)';
+    });
+    var warn = document.getElementById('slippage-warn');
+    if (swapSlippage > 3) {
+      warn.style.display = 'block';
+      document.getElementById('slippage-display').style.color = 'var(--red)';
+    } else if (swapSlippage > 1) {
+      warn.style.display = 'none';
+      document.getElementById('slippage-display').style.color = 'var(--orange)';
+    } else {
+      warn.style.display = 'none';
+      document.getElementById('slippage-display').style.color = 'var(--green)';
+    }
+    // Re-fetch quote with new slippage
+    if (typeof updateSwapQuote === 'function') updateSwapQuote();
+  };
+
+  // Price impact display helper
+  window.updatePriceImpact = function(inputValueUsd, outputValueUsd) {
+    var el = document.getElementById('swap-impact');
+    if (!el || !inputValueUsd || inputValueUsd <= 0) return;
+    var impact = ((inputValueUsd - outputValueUsd) / inputValueUsd * 100);
+    var impactStr = impact.toFixed(2) + '%';
+    if (impact < 0.5) { el.style.color = 'var(--green)'; el.textContent = impactStr; }
+    else if (impact < 2) { el.style.color = 'var(--orange)'; el.textContent = impactStr + ' ⚠'; }
+    else { el.style.color = 'var(--red)'; el.textContent = impactStr + ' ⚠ High impact!'; }
+    // Min received
+    var minEl = document.getElementById('swap-min-received');
+    if (minEl && outputValueUsd > 0) {
+      var minReceived = outputValueUsd * (1 - swapSlippage / 100);
+      minEl.textContent = '$' + minReceived.toFixed(2);
+    }
+  };
+
+  // Swap transaction history (localStorage)
+  window.saveSwapToHistory = function(from, to, amountIn, amountOut, fee, txHash, chain) {
+    var history = JSON.parse(localStorage.getItem('maxia_swap_history') || '[]');
+    history.unshift({
+      date: new Date().toISOString(), from: from, to: to,
+      amountIn: amountIn, amountOut: amountOut, fee: fee,
+      txHash: txHash || '', chain: chain || 'solana'
+    });
+    if (history.length > 20) history = history.slice(0, 20);
+    localStorage.setItem('maxia_swap_history', JSON.stringify(history));
+  };
+
+  window.getSwapHistory = function() {
+    return JSON.parse(localStorage.getItem('maxia_swap_history') || '[]');
+  };
 })();
 
 // ══════════════════════════════════════

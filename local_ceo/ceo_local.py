@@ -88,6 +88,8 @@ def _load_memory() -> dict:
     _default = {
         "decisions": [], "actions_done": [], "regles": [],
         "tweets_posted": [], "contacts": [], "follows": [],
+        "conversations": [],  # Track qui on a deja commente/DM (anti-spam)
+        "forum_digest": [],
         "last_strategic": "", "cycle_count": 0,
         "daily_stats": {},
     }
@@ -4316,10 +4318,12 @@ class CEOLocal:
             )
             if can_comment:
                 username = t.get("username", "")
-                # Ne pas commenter si on a deja commente ce user recemment
-                recent_users = {c.get("user") for c in self.memory.get("conversations", [])[-20:]
-                               if c.get("type") == "comment"}
+                # Ne pas commenter si on a deja commente ce user (3 derniers jours)
+                cutoff_3d = time.strftime("%Y-%m-%d", time.gmtime(time.time() - 86400 * 3))
+                recent_users = {c.get("user") for c in self.memory.get("conversations", [])
+                               if c.get("type") == "comment" and c.get("ts", "") >= cutoff_3d}
                 if username and username in recent_users:
+                    _log(f"  [DEDUP] Skip @{username} (deja commente dans les 3 derniers jours)")
                     continue
                 # Score profile before commenting
                 # Note: le scorer Playwright retourne souvent 0 (selectors X casses)
