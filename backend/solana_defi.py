@@ -167,6 +167,7 @@ STAKING_PROTOCOLS = {
         "apy": 0,
         "tvl_usd": 0,
         "min_stake": 0.01,
+        "url": "https://marinade.finance/app/stake",
         "description": "Liquid staking for SOL. Receive mSOL, earn staking rewards + MEV.",
     },
     "jito": {
@@ -176,6 +177,7 @@ STAKING_PROTOCOLS = {
         "apy": 0,
         "tvl_usd": 0,
         "min_stake": 0.01,
+        "url": "https://www.jito.network/staking/",
         "description": "MEV-powered liquid staking. Highest SOL staking yields via MEV redistribution.",
     },
     "blazestake": {
@@ -185,6 +187,7 @@ STAKING_PROTOCOLS = {
         "apy": 0,
         "tvl_usd": 0,
         "min_stake": 0.01,
+        "url": "https://stake.solblaze.org",
         "description": "Decentralized liquid staking pool for SOL.",
     },
 }
@@ -322,11 +325,17 @@ async def lend_asset(request: dict, x_api_key: str = Header(alias="X-API-Key")):
             "action": "lend",
             "asset": asset,
             "amount": amount,
+            "current_apy_percent": apy,
             "estimated_apy": f"{apy}%",
             "yearly_yield": round(amount * apy / 100, 2),
-            "steps": f"Go to {p['url']}, connect your wallet, supply {amount} {asset}.",
         },
-        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
+        "steps": [
+            f"1. Go to {p['url']} and connect your wallet",
+            f"2. Select {asset} and enter the amount: {amount}",
+            "3. Approve the transaction in your wallet",
+            "4. Return to MAXIA to track your position",
+        ],
+        "note": "MAXIA does not execute on-chain — sign via the protocol's app or install solana-agent-kit",
     }
 
 
@@ -359,13 +368,20 @@ async def borrow_asset(request: dict, x_api_key: str = Header(alias="X-API-Key")
             "action": "borrow",
             "borrow_asset": asset,
             "borrow_amount": amount,
+            "current_borrow_apy_percent": borrow_apy,
             "borrow_apy": f"{borrow_apy}%",
             "collateral_asset": collateral_asset,
             "collateral_amount": collateral_amount,
             "yearly_cost": round(amount * borrow_apy / 100, 2),
-            "steps": f"Go to {p['url']}, supply {collateral_amount} {collateral_asset} as collateral, borrow {amount} {asset}.",
         },
-        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
+        "steps": [
+            f"1. Go to {p['url']} and connect your wallet",
+            f"2. Supply {collateral_amount} {collateral_asset} as collateral",
+            f"3. Borrow {amount} {asset} against your collateral",
+            "4. Approve the transaction in your wallet",
+            "5. Return to MAXIA to track your position",
+        ],
+        "note": "MAXIA does not execute on-chain — sign via the protocol's app or install solana-agent-kit",
     }
 
 
@@ -383,21 +399,30 @@ async def stake_sol(request: dict, x_api_key: str = Header(alias="X-API-Key")):
         raise HTTPException(400, f"Unknown staking protocol: {protocol}")
 
     p = STAKING_PROTOCOLS[protocol]
+    apy = p["apy"]
     # Mode instruction — l'utilisateur doit signer la transaction lui-meme
     return {
         "status": "requires_wallet_signature",
         "execution_mode": "instruction",
         "instruction": {
             "protocol": p["name"],
+            "protocol_url": p["url"],
             "action": "stake",
             "amount_sol": amount,
             "receive_token": p["token"],
-            "estimated_apy": f"{p['apy']}%",
-            "yearly_yield_sol": round(amount * p["apy"] / 100, 2),
+            "current_apy_percent": apy,
+            "estimated_apy": f"{apy}%",
+            "yearly_yield_sol": round(amount * apy / 100, 2),
             "description": p["description"],
-            "steps": f"Stake {amount} SOL to receive {p['token']}. APY: {p['apy']}%.",
         },
-        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
+        "steps": [
+            f"1. Go to {p['url']} and connect your wallet",
+            f"2. Enter the amount to stake: {amount} SOL",
+            "3. Approve the transaction in your wallet",
+            f"4. You will receive {p['token']} in your wallet",
+            "5. Return to MAXIA to track your position",
+        ],
+        "note": "MAXIA does not execute on-chain — sign via the protocol's app or install solana-agent-kit",
     }
 
 

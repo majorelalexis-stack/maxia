@@ -534,6 +534,14 @@ async def lifespan(app: FastAPI):
     t_price_broadcast = asyncio.create_task(_price_broadcast_loop())
     print("[MAXIA] Price broadcast loop started (30s interval)")
 
+    # V13+: Streaming Payments updater (60s interval)
+    try:
+        from streaming_payments import stream_updater_loop
+        asyncio.create_task(stream_updater_loop())
+        print("[MAXIA] Streaming payments updater started (60s interval)")
+    except Exception as e:
+        print(f"[MAXIA] Stream updater init error: {e}")
+
     print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
     print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
@@ -964,6 +972,43 @@ try:
     print("[Enterprise] Dashboard (fleet analytics + SLA + revenue) monte")
 except Exception as e:
     print(f"[MAXIA] Dashboard router error: {e}")
+
+try:
+    from redis_rate_limiter import router as rate_limit_router
+    app.include_router(rate_limit_router)
+    print("[RateLimit] Redis Rate Limiter monte")
+except Exception as e:
+    print(f"[MAXIA] Rate limiter router error: {e}")
+
+try:
+    from agent_analytics import router as agent_analytics_router
+    app.include_router(agent_analytics_router)
+    print("[Analytics] Agent Analytics monte")
+except Exception as e:
+    print(f"[MAXIA] Agent Analytics router error: {e}")
+
+try:
+    from agent_credit import router as agent_credit_router
+    app.include_router(agent_credit_router)
+    print("[Credit] Agent Credit System monte")
+except Exception as e:
+    print(f"[MAXIA] Agent Credit router error: {e}")
+
+# V13+: Streaming Payments — pay-per-second (Art.57)
+try:
+    from streaming_payments import router as stream_router
+    app.include_router(stream_router)
+    print("[StreamPay] Streaming Payments (pay-per-second) monte")
+except Exception as e:
+    print(f"[MAXIA] StreamPay router error: {e}")
+
+# V13+: Agent Subcontracting — delegation automatique (Art.58)
+try:
+    from agent_subcontract import router as subcontract_router
+    app.include_router(subcontract_router)
+    print("[Subcontract] Agent Subcontracting (delegation) monte")
+except Exception as e:
+    print(f"[MAXIA] Subcontract router error: {e}")
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"

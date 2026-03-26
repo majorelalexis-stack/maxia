@@ -194,20 +194,64 @@ def _cleanup_rate_store():
 
 
 async def check_rate_limit_async(request: Request) -> None:
-    """Async rate limit — uses Redis if available, else in-memory fallback."""
+    """Async rate limit — uses redis_rate_limiter (daily quotas) + redis_client (per-minute).
+
+    Ordre de priorite :
+    1. redis_rate_limiter (INCR+EXPIRE, quotas journaliers par tier)
+    2. redis_client existant (sorted sets, 60 req/min)
+    3. In-memory fallback
+    """
     ip = get_real_ip(request)
+    # 1. Redis rate limiter (quotas journaliers par tier)
+    try:
+        from redis_rate_limiter import check_rate_limit_redis
+        allowed = await check_rate_limit_redis(ip, endpoint=request.url.path)
+        if not allowed:
+            raise HTTPException(429, "Rate limit journalier depasse. Reessayez demain ou passez en tier Pro.")
+    except ImportError:
+        pass
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    # 2. Redis client existant (per-minute burst protection)
     if _redis_client is not None and _redis_client.is_connected:
         allowed = await _redis_client.rate_limit_check(ip, RATE_LIMIT, RATE_WINDOW)
         if not allowed:
             raise HTTPException(429, "Rate limit depasse. Reessayez dans 1 minute.")
         return
-    # Fallback: in-memory (sync path)
+    # 3. Fallback: in-memory (sync path)
     _check_rate_limit_memory(ip)
 
 
 def check_rate_limit(request: Request) -> None:
-    """Synchronous rate limit fallback (in-memory only). 60 req/min."""
+    """Rate limit — essaie Redis (redis_rate_limiter) puis fallback in-memory.
+
+    Redis permet le rate limiting distribue (multi-worker/multi-instance).
+    Si Redis est indisponible, degrade gracieusement vers le store in-memory local.
+    """
     ip = get_real_ip(request)
+    # Tentative Redis via redis_rate_limiter (async dans un sync context)
+    try:
+        import asyncio
+        from redis_rate_limiter import check_rate_limit_redis
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # On est dans un contexte async — on ne peut pas run_until_complete
+            # Le check Redis sera fait par check_rate_limit_async a la place
+            _check_rate_limit_memory(ip)
+            return
+        allowed = loop.run_until_complete(check_rate_limit_redis(ip, endpoint=request.url.path))
+        if not allowed:
+            raise HTTPException(429, "Rate limit journalier depasse. Reessayez demain ou passez en tier Pro.")
+        return
+    except ImportError:
+        pass
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    # Fallback in-memory
     _check_rate_limit_memory(ip)
 
 

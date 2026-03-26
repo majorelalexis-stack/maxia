@@ -21,7 +21,7 @@ try:
     _GOAT_AVAILABLE = True
     log.info("[GOAT] SDK detected")
 except ImportError:
-    log.info("[GOAT] SDK not installed — using built-in protocol bridges")
+    log.info("[GOAT] SDK not installed — catalog only (protocol directory)")
 
 # ── Built-in protocol catalog (works without GOAT SDK) ──
 PROTOCOLS = {
