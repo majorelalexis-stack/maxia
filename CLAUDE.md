@@ -39,7 +39,7 @@ Python 3.12 FastAPI monolith (~91 modules). All modules are flat in `backend/` �
 **Core framework:**
 - `main.py` — FastAPI app, all route mounting, WebSocket manager, lifespan startup (DB init, scheduler, swarm)
 - `config.py` — all env vars, commission tiers, GPU tiers, content safety lists, pricing config
-- `database.py` — async SQLite via aiosqlite, auto-creates schema on first run (`maxia.db`)
+- `database.py` — PostgreSQL (prod via asyncpg) / SQLite (dev via aiosqlite), schema migrations via `schema_version` table
 - `models.py` — Pydantic request/response models
 - `auth.py` — JWT auth, `require_auth` dependency
 - `security.py` — Art.1 content safety (`check_content_safety`), rate limiting (`check_rate_limit`)
@@ -90,7 +90,7 @@ Anchor (Solana) escrow program in Rust. Handles USDC locking in PDAs for trades.
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
 - **AI models**: Groq `llama-3.3-70b-versatile` for fast inference, Claude Sonnet/Opus for strategic decisions
-- **Database**: SQLite with async access, schema auto-created, no migrations system
+- **Database**: PostgreSQL 17 in prod (asyncpg, pool 2-20), SQLite for dev. Schema migrations via `schema_version` table. Set `DATABASE_URL=postgresql://...` in `.env` for PostgreSQL.
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
 - **Deployment**: Railway/Render via `Procfile`, or Docker via `docker-compose.yml`
 
