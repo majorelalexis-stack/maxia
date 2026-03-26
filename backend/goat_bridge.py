@@ -1,18 +1,10 @@
-"""MAXIA GOAT SDK Bridge — 200+ onchain tools exposed via MAXIA API.
+"""MAXIA GOAT Protocol Directory — Catalogue de 200+ protocoles onchain.
 
-Wraps the GOAT SDK (goat-sdk) to expose DEX, NFT, prediction markets,
-and DeFi tools through MAXIA's API and MCP. Falls back to direct
-API calls if goat-sdk is not installed.
+Repertorie les protocoles DeFi/DEX/NFT/Staking accessibles via GOAT SDK.
+Quand goat-sdk est installe, permet l'execution directe.
+Sans goat-sdk, fonctionne comme un annuaire de protocoles avec liens directs.
 
-Install: pip install goat-sdk (optional — module works without it)
-
-Supported protocols (when GOAT SDK installed):
-- Jupiter, Orca, Raydium (Solana DEX)
-- Uniswap, Sushiswap (EVM DEX)
-- OpenSea, MagicEden (NFT)
-- Polymarket (Predictions)
-- Aave, Compound (DeFi lending)
-- And 150+ more via GOAT plugins
+Install: pip install goat-sdk (optionnel — le catalogue fonctionne sans)
 """
 import asyncio, time, json, logging
 from fastapi import APIRouter, HTTPException, Header
@@ -70,7 +62,7 @@ PROTOCOLS = {
 
 @router.get("/protocols")
 async def list_protocols(chain: Optional[str] = None, type: Optional[str] = None):
-    """List all 200+ supported onchain protocols."""
+    """List all 200+ onchain protocols in the directory."""
     results = []
     for pid, info in PROTOCOLS.items():
         if chain and chain.lower() not in info["chain"].lower():
@@ -98,7 +90,7 @@ async def get_protocol(protocol_id: str):
 
 @router.post("/execute")
 async def execute_protocol_action(request: dict, x_api_key: str = Header(alias="X-API-Key")):
-    """Execute an action on a supported protocol."""
+    """Lookup a protocol and return execution guidance."""
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
 
@@ -111,7 +103,7 @@ async def execute_protocol_action(request: dict, x_api_key: str = Header(alias="
 
     info = PROTOCOLS[protocol]
 
-    # For protocols with native MAXIA integration, route to existing endpoints
+    # Protocoles avec integration native MAXIA — rediriger
     if info.get("native"):
         return {
             "protocol": protocol,
@@ -121,23 +113,23 @@ async def execute_protocol_action(request: dict, x_api_key: str = Header(alias="
             "endpoints": _get_native_endpoints(protocol),
         }
 
-    # For non-native protocols, use GOAT SDK if available
+    # Execution via GOAT SDK si installe
     if _GOAT_AVAILABLE:
         try:
             result = await _execute_via_goat(protocol, action, params)
             return {"protocol": protocol, "action": action, "result": result}
         except Exception as e:
             return {"protocol": protocol, "action": action, "error": str(e),
-                    "hint": "Try using the protocol's native API directly."}
+                    "hint": "Try using the protocol's native interface directly."}
 
-    # Fallback: return protocol info and direct API guidance
+    # Sans SDK — mode annuaire uniquement
     return {
         "protocol": protocol,
         "action": action,
-        "status": "manual",
-        "message": f"GOAT SDK not installed. Use {info['name']}'s API directly.",
+        "status": "directory_only",
+        "url": info.get("description", ""),
         "protocol_info": info,
-        "install_hint": "pip install goat-sdk to enable direct execution",
+        "note": "Use protocol's native interface to execute. Install goat-sdk for direct execution via MAXIA.",
     }
 
 
@@ -160,4 +152,4 @@ async def _execute_via_goat(protocol: str, action: str, params: dict) -> dict:
     return {"status": "goat_sdk_execution", "protocol": protocol, "action": action, "params": params}
 
 
-print(f"[GOAT] Protocol bridge monte — {len(PROTOCOLS)} protocols ({'+GOAT SDK' if _GOAT_AVAILABLE else 'built-in catalog'})")
+print(f"[GOAT] Protocol Directory monte — {len(PROTOCOLS)} protocols ({'+GOAT SDK' if _GOAT_AVAILABLE else 'catalog only'})")

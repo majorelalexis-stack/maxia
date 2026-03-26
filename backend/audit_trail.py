@@ -392,40 +392,7 @@ async def route_get_audit_trail(
         action_type=action_type, actor=actor, limit=limit, offset=offset,
     )
 
-    # Si pas de donnees, retourner des exemples
-    if not trail:
-        now = int(time.time())
-        trail = [
-            {
-                "id": "sample-001",
-                "timestamp": now - 3600,
-                "datetime": datetime.utcfromtimestamp(now - 3600).isoformat() + "Z",
-                "actor": "AgentAlpha.sol",
-                "action": "trade",
-                "resource": "service/sentiment-analysis",
-                "amount_usdc": 12.50,
-                "chain": "solana",
-                "result": "success",
-                "policy_check": "pass",
-                "tenant_id": tenant_id or "demo",
-                "metadata": {"service_id": "svc-001", "latency_ms": 340},
-            },
-            {
-                "id": "sample-002",
-                "timestamp": now - 1800,
-                "datetime": datetime.utcfromtimestamp(now - 1800).isoformat() + "Z",
-                "actor": "AgentBeta.base",
-                "action": "swap",
-                "resource": "SOL/USDC",
-                "amount_usdc": 250.00,
-                "chain": "base",
-                "result": "success",
-                "policy_check": "pass",
-                "tenant_id": tenant_id or "demo",
-                "metadata": {"from": "SOL", "to": "USDC", "slippage_bps": 50},
-            },
-        ]
-
+    # Reponse honnete — pas de donnees fictives
     return {
         "count": len(trail),
         "trail": trail,
@@ -455,20 +422,7 @@ async def route_export_csv(
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    # Si CSV vide (juste le header), generer des donnees sample
-    lines = csv_content.strip().split("\n")
-    if len(lines) <= 1:
-        now = int(time.time())
-        sample_rows = [
-            f"sample-001,{now-86400},{datetime.utcfromtimestamp(now-86400).isoformat()}Z,"
-            f"AgentAlpha.sol,trade,service/image-gen,25.00,solana,success,pass,"
-            f"{tenant_id or 'demo'},\"{{}}\"",
-            f"sample-002,{now-43200},{datetime.utcfromtimestamp(now-43200).isoformat()}Z,"
-            f"AgentBeta.base,escrow_lock,escrow/esc-001,100.00,base,success,pass,"
-            f"{tenant_id or 'demo'},\"{{}}\"",
-        ]
-        csv_content = lines[0] + "\n" + "\n".join(sample_rows) + "\n"
-
+    # CSV vide = juste les headers, pas de donnees fictives
     filename = f"maxia_audit_{tenant_id or 'all'}_{month}.csv"
     return Response(
         content=csv_content,

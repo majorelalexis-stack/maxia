@@ -312,16 +312,21 @@ async def lend_asset(request: dict, x_api_key: str = Header(alias="X-API-Key")):
         # Would use solana-agent-kit to execute
         return {"status": "executed", "protocol": protocol, "asset": asset, "amount": amount, "apy": apy}
 
+    # Mode instruction — l'utilisateur doit signer la transaction lui-meme
     return {
-        "status": "instruction",
-        "protocol": p["name"],
-        "asset": asset,
-        "amount": amount,
-        "estimated_apy": f"{apy}%",
-        "yearly_yield": round(amount * apy / 100, 2),
-        "url": p["url"],
-        "instruction": f"Go to {p['url']}, connect your wallet, supply {amount} {asset}.",
-        "solana_agent_kit": "pip install solana-agent-kit to enable direct execution",
+        "status": "requires_wallet_signature",
+        "execution_mode": "instruction",
+        "instruction": {
+            "protocol": p["name"],
+            "protocol_url": p["url"],
+            "action": "lend",
+            "asset": asset,
+            "amount": amount,
+            "estimated_apy": f"{apy}%",
+            "yearly_yield": round(amount * apy / 100, 2),
+            "steps": f"Go to {p['url']}, connect your wallet, supply {amount} {asset}.",
+        },
+        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
     }
 
 
@@ -344,14 +349,23 @@ async def borrow_asset(request: dict, x_api_key: str = Header(alias="X-API-Key")
     p = LENDING_PROTOCOLS[protocol]
     borrow_apy = p.get("borrow_apy", {}).get(asset.upper(), 0)
 
+    # Mode instruction — l'utilisateur doit signer la transaction lui-meme
     return {
-        "status": "instruction",
-        "protocol": p["name"],
-        "borrow": {"asset": asset, "amount": amount, "apy": f"{borrow_apy}%"},
-        "collateral": {"asset": collateral_asset, "amount": collateral_amount},
-        "yearly_cost": round(amount * borrow_apy / 100, 2),
-        "url": p["url"],
-        "instruction": f"Go to {p['url']}, supply {collateral_amount} {collateral_asset} as collateral, borrow {amount} {asset}.",
+        "status": "requires_wallet_signature",
+        "execution_mode": "instruction",
+        "instruction": {
+            "protocol": p["name"],
+            "protocol_url": p["url"],
+            "action": "borrow",
+            "borrow_asset": asset,
+            "borrow_amount": amount,
+            "borrow_apy": f"{borrow_apy}%",
+            "collateral_asset": collateral_asset,
+            "collateral_amount": collateral_amount,
+            "yearly_cost": round(amount * borrow_apy / 100, 2),
+            "steps": f"Go to {p['url']}, supply {collateral_amount} {collateral_asset} as collateral, borrow {amount} {asset}.",
+        },
+        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
     }
 
 
@@ -369,15 +383,21 @@ async def stake_sol(request: dict, x_api_key: str = Header(alias="X-API-Key")):
         raise HTTPException(400, f"Unknown staking protocol: {protocol}")
 
     p = STAKING_PROTOCOLS[protocol]
+    # Mode instruction — l'utilisateur doit signer la transaction lui-meme
     return {
-        "status": "instruction",
-        "protocol": p["name"],
-        "amount_sol": amount,
-        "receive_token": p["token"],
-        "estimated_apy": f"{p['apy']}%",
-        "yearly_yield_sol": round(amount * p["apy"] / 100, 2),
-        "description": p["description"],
-        "instruction": f"Stake {amount} SOL to receive {p['token']}. APY: {p['apy']}%.",
+        "status": "requires_wallet_signature",
+        "execution_mode": "instruction",
+        "instruction": {
+            "protocol": p["name"],
+            "action": "stake",
+            "amount_sol": amount,
+            "receive_token": p["token"],
+            "estimated_apy": f"{p['apy']}%",
+            "yearly_yield_sol": round(amount * p["apy"] / 100, 2),
+            "description": p["description"],
+            "steps": f"Stake {amount} SOL to receive {p['token']}. APY: {p['apy']}%.",
+        },
+        "note": "MAXIA does not execute on-chain — sign via your wallet or install solana-agent-kit",
     }
 
 

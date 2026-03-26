@@ -2,7 +2,7 @@
 
 Fournit des vues aggregees : overview flotte, analytics temporelles,
 drilldown par agent, compliance SLA, et breakdown revenus.
-Retourne des donnees sample si pas de donnees reelles (utile pour le dev frontend).
+Retourne des donnees demo (demo_data: true) si pas de donnees reelles.
 """
 import os
 import time
@@ -118,7 +118,7 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
                     sum(a["uptime_pct"] for a in sample_agents) / len(sample_agents), 2
                 ),
                 "agents": sample_agents,
-                "_sample_data": True,
+                "demo_data": True,
             }
 
         fleet = []
@@ -186,7 +186,7 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
             "total_calls_30d": total_calls,
             "avg_uptime_pct": 99.5,
             "agents": fleet,
-            "_sample_data": False,
+            "demo_data": False,
         }
 
     except Exception as e:
@@ -200,7 +200,7 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
             "total_calls_30d": sum(a["calls_30d"] for a in sample_agents),
             "avg_uptime_pct": 99.0,
             "agents": sample_agents,
-            "_sample_data": True,
+            "demo_data": True,
             "_error": str(e),
         }
 
@@ -272,7 +272,7 @@ async def get_fleet_analytics(owner_id: str, db, period: str = "7d") -> dict:
                 sum(p["value"] for p in latency_p95) / max(len(latency_p95), 1), 1
             ),
         },
-        "_sample_data": not real_data,
+        "demo_data": not real_data,
     }
 
 
@@ -347,7 +347,7 @@ async def get_agent_drilldown(agent_id: str, db) -> dict:
             },
             "services": services,
             "recent_transactions": recent_txs[:10],
-            "_sample_data": False,
+            "demo_data": False,
         }
 
     # Agent pas trouve — retourner des donnees sample
@@ -375,7 +375,7 @@ async def get_agent_drilldown(agent_id: str, db) -> dict:
             {"name": "Code Review", "type": "text", "price_usdc": 10.00, "status": "paused", "rating": 4.5, "sales": 0},
         ],
         "recent_transactions": [],
-        "_sample_data": True,
+        "demo_data": True,
     }
 
 
@@ -459,7 +459,7 @@ async def get_sla_compliance(owner_id: str, db) -> dict:
             "compliance_rate_pct": round(compliant_count / len(agents_sla) * 100, 1),
             "agents": agents_sla,
             "sla_tiers": SLA_TIERS,
-            "_sample_data": True,
+            "demo_data": True,
         }
 
     # Donnees reelles
@@ -501,7 +501,7 @@ async def get_sla_compliance(owner_id: str, db) -> dict:
         ),
         "agents": agents_sla,
         "sla_tiers": SLA_TIERS,
-        "_sample_data": False,
+        "demo_data": False,
     }
 
 
@@ -614,7 +614,7 @@ async def get_revenue_breakdown(owner_id: str, db, period: str = "30d") -> dict:
         "by_chain": by_chain_sorted,
         "commission_paid_usdc": round(total * 0.005, 2),  # Estimation commission moyenne
         "net_revenue_usdc": round(total * 0.995, 2),
-        "_sample_data": not real_data,
+        "demo_data": not real_data,
     }
 
 

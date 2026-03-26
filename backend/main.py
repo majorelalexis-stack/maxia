@@ -392,6 +392,14 @@ async def lifespan(app: FastAPI):
         print(f"[MAXIA] Health monitor init error: {e}")
         t_health = None
 
+    # Enterprise: billing flush loop (persiste usage toutes les 60s)
+    try:
+        from enterprise_billing import billing_flush_loop
+        asyncio.create_task(billing_flush_loop())
+        print("[Enterprise] Billing flush loop started")
+    except Exception as e:
+        print(f"[MAXIA] Billing flush loop error: {e}")
+
     # V12: New features (trading, marketplace, infra)
     try:
         from trading_features import ensure_tables as ensure_trading_tables, check_whales, update_candles
@@ -887,6 +895,24 @@ try:
 except Exception as e:
     print(f"[MAXIA] Metrics router error: {e}")
 
+# Enterprise: tenant context middleware — set tenant_id from X-Tenant or API key
+@app.middleware("http")
+async def tenant_middleware(request, call_next):
+    """Set tenant context from X-Tenant header or API key lookup."""
+    try:
+        from tenant_isolation import TenantContext
+        tenant_id = request.headers.get("X-Tenant", "")
+        if not tenant_id:
+            # Fallback: extract from API key if authenticated
+            wallet = request.headers.get("X-Wallet", "")
+            if wallet:
+                tenant_id = wallet[:16]  # Use wallet prefix as tenant ID
+        async with TenantContext(tenant_id or "default"):
+            response = await call_next(request)
+        return response
+    except Exception:
+        return await call_next(request)
+
 try:
     from audit_trail import router as audit_router
     app.include_router(audit_router)
@@ -932,12 +958,11 @@ async def serve_landing():
 
 LANDING_V2_PAGE = Path(__file__).parent.parent / "frontend" / "landing_v2.html"
 
-@app.get("/v2", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/v2", include_in_schema=False)
 async def serve_landing_v2():
-    """Preview de la nouvelle landing (temporaire)."""
-    if LANDING_V2_PAGE.exists():
-        return HTMLResponse(LANDING_V2_PAGE.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>V2 coming soon</h1>")
+    """Redirige vers la landing principale."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/", status_code=301)
 
 REGISTER_PAGE = Path(__file__).parent.parent / "frontend" / "register.html"
 APP_PAGE = Path(__file__).parent.parent / "frontend" / "app.html"

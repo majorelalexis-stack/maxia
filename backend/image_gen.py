@@ -189,14 +189,16 @@ def _generate_placeholder(prompt: str, width: int, height: int) -> dict:
         f'</svg>'
     )
     b64 = base64.b64encode(svg.encode()).decode()
+    # Reponse honnete — c'est un placeholder, pas une vraie image IA
     return {
         "success": True,
+        "mode": "placeholder",
         "image_base64": b64,
         "format": "svg",
         "width": width, "height": height,
         "model": "placeholder",
         "prompt": prompt,
-        "note": "Mode demo — ajoutez TOGETHER_API_KEY pour des vraies images",
+        "note": "Configure TOGETHER_API_KEY for real AI image generation",
     }
 
 
