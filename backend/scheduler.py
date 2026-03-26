@@ -142,6 +142,13 @@ class Scheduler:
             try:
                 _cycle += 1
 
+                # Toutes les 5 min : snapshot RPC stats pour /status/history
+                try:
+                    from chain_resilience import snapshot_chain_stats
+                    snapshot_chain_stats()
+                except Exception:
+                    pass
+
                 # Toutes les 5 min : check liveness des deliveries (PoD auto-confirm)
                 try:
                     from proof_of_delivery import check_liveness_expirations

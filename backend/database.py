@@ -289,15 +289,14 @@ class Database:
     }
 
     async def _run_migrations(self):
-        """Applique les migrations manquantes dans l'ordre."""
+        """Applique les migrations manquantes dans l'ordre. Compatible SQLite + PostgreSQL."""
         # Creer la table de tracking si elle n'existe pas
-        await self._db.execute(
+        await self.raw_execute(
             "CREATE TABLE IF NOT EXISTS schema_version ("
             "version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL, description TEXT)")
-        await self._db.commit()
 
         # Lire la version actuelle
-        rows = await self._db.execute_fetchall(
+        rows = await self.raw_execute_fetchall(
             "SELECT MAX(version) as v FROM schema_version")
         current = rows[0]["v"] if rows and rows[0]["v"] is not None else 0
 
@@ -309,15 +308,14 @@ class Database:
             desc, sql = self.MIGRATIONS[version]
             if sql:
                 try:
-                    await self._db.executescript(sql)
+                    await self.executescript(sql)
                 except Exception as e:
                     print(f"[DB] MIGRATION {version} ECHOUEE: {e}")
                     break
             from datetime import datetime, timezone
-            await self._db.execute(
+            await self.raw_execute(
                 "INSERT INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
                 (version, datetime.now(timezone.utc).isoformat(), desc))
-            await self._db.commit()
             applied += 1
             print(f"[DB] Migration {version} appliquee: {desc}")
 
@@ -326,10 +324,12 @@ class Database:
         elif current == 0:
             # Premier demarrage — enregistrer version 1
             from datetime import datetime, timezone
-            await self._db.execute(
-                "INSERT OR IGNORE INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
-                (1, datetime.now(timezone.utc).isoformat(), "Initial schema — baseline V12"))
-            await self._db.commit()
+            try:
+                await self.raw_execute(
+                    "INSERT INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
+                    (1, datetime.now(timezone.utc).isoformat(), "Initial schema — baseline V12"))
+            except Exception:
+                pass  # Deja insere
 
     async def disconnect(self):
         if self._db:

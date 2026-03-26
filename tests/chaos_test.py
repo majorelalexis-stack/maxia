@@ -53,8 +53,20 @@ if "fastapi" not in sys.modules:
                 return decorator
             return decorator
 
+    class _FakeRequest:
+        pass
+
     _fake_fastapi.APIRouter = _FakeAPIRouter
+    _fake_fastapi.Request = _FakeRequest
+    _fake_fastapi.HTTPException = Exception
+    _fake_fastapi.Query = lambda *a, **kw: None
+    _fake_fastapi.Depends = lambda *a, **kw: None
+    _fake_fastapi.Header = lambda *a, **kw: None
     sys.modules["fastapi"] = _fake_fastapi
+    # Mock fastapi.responses
+    _fake_responses = types.ModuleType("fastapi.responses")
+    _fake_responses.RedirectResponse = lambda *a, **kw: None
+    sys.modules["fastapi.responses"] = _fake_responses
 
 # dotenv: config.py importe load_dotenv
 if "dotenv" not in sys.modules:

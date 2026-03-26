@@ -8,30 +8,113 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-test-secret-key-32chars-minimum
+      SANDBOX_MODE: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
       - name: Install dependencies
         run: |
-          pip install httpx aiosqlite python-dotenv pynacl base58
+          pip install httpx aiosqlite python-dotenv pynacl base58 chromadb
+
       - name: Syntax check all Python files
         run: |
           python -c "
           import ast, glob, sys
           errors = 0
-          for f in glob.glob('backend/*.py'):
+          for f in glob.glob('backend/*.py') + glob.glob('local_ceo/*.py') + glob.glob('tests/*.py'):
               try:
                   ast.parse(open(f, encoding='utf-8').read())
               except SyntaxError as e:
                   print(f'FAIL {f}: {e}')
                   errors += 1
-          print(f'{len(glob.glob(\"backend/*.py\"))} files checked, {errors} errors')
+          total = len(glob.glob('backend/*.py')) + len(glob.glob('local_ceo/*.py')) + len(glob.glob('tests/*.py'))
+          print(f'{total} files checked, {errors} errors')
           sys.exit(errors)
           "
-      - name: Import check critical modules
+
+      - name: Import all critical backend modules
         run: |
           cd backend
-          python -c "import config; print('config OK')"
-          python -c "import models; print('models OK')"
+          python -c "
+          import sys, importlib, os
+          sys.path.insert(0, '.')
+          modules = [
+              'config', 'security', 'auth', 'database',
+              'price_oracle', 'pyth_oracle', 'chain_resilience',
+              'crypto_swap', 'tokenized_stocks', 'evm_swap',
+              'dynamic_pricing', 'logger', 'api_keys',
+              'trading_tools', 'gpu_pricing', 'referral',
+              'error_tracker', 'alert_service', 'activity_feed',
+              'agent_credit_score', 'agent_leaderboard',
+              'sla_enforcer', 'fleet_manager', 'proof_of_delivery',
+              'dispute_resolver', 'app_store', 'business_listing',
+              'solana_defi', 'compliance_report',
+          ]
+          errors = []
+          for mod in modules:
+              try:
+                  importlib.import_module(mod)
+              except Exception as e:
+                  errors.append(f'{mod}: {e}')
+          if errors:
+              for e in errors:
+                  print(f'FAIL: {e}')
+              sys.exit(1)
+          print(f'All {len(modules)} modules imported OK')
+          "
+
+      - name: Load FastAPI app (527 routes)
+        run: |
+          cd backend
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          import main
+          routes = [r.path for r in main.app.routes if hasattr(r, 'path')]
+          print(f'FastAPI loaded: {len(routes)} routes')
+          assert len(routes) > 400, f'Too few routes: {len(routes)}'
+          "
+
+      - name: HTTP smoke tests (sandbox)
+        run: |
+          cd backend
+          python -c "
+          import sys, asyncio; sys.path.insert(0, '.')
+          from httpx import AsyncClient, ASGITransport
+          import main
+
+          async def smoke():
+              transport = ASGITransport(app=main.app)
+              async with AsyncClient(transport=transport, base_url='http://test') as c:
+                  tests = [
+                      ('/health', 200),
+                      ('/api/public/crypto/prices', 200),
+                      ('/api/public/stocks', 200),
+                      ('/api/public/gpu/tiers', 200),
+                      ('/api/public/services', 200),
+                      ('/oracle/feeds', 200),
+                      ('/status/chain/solana', 200),
+                      ('/api/public/marketplace-stats', 200),
+                  ]
+                  failures = []
+                  for path, expected in tests:
+                      r = await c.get(path, follow_redirects=True)
+                      if r.status_code != expected:
+                          failures.append(f'{path}: got {r.status_code}, expected {expected}')
+                      else:
+                          print(f'  OK: {path} -> {r.status_code}')
+                  if failures:
+                      for f in failures:
+                          print(f'  FAIL: {f}')
+                      sys.exit(1)
+                  print(f'All {len(tests)} smoke tests passed')
+
+          asyncio.run(smoke())
+          "
+
+      - name: Chaos / resilience tests
+        run: python tests/chaos_test.py

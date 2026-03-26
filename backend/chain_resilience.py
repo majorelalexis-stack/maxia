@@ -635,3 +635,74 @@ async def chain_reset(chain_name: str, request: Request):
         "message": f"Circuit breaker reset pour {chain_name}",
         "state": breaker.state,
     }
+
+
+# ═══════════════════════════════════════════════════════════
+#  Persistence des stats RPC (snapshot toutes les 5 min)
+# ═══════════════════════════════════════════════════════════
+
+_history_snapshots: list[dict] = []  # [{timestamp, chains: {name: {status, latency_avg_ms, failures}}}]
+_HISTORY_MAX = 2016  # 7 jours * 24h * 12 snapshots/h (toutes les 5 min)
+
+
+def snapshot_chain_stats():
+    """Prend un snapshot de l'etat de toutes les chains. Appeler toutes les 5 min."""
+    snap = {"timestamp": int(time.time()), "chains": {}}
+    for chain_name, breaker in chain_breakers.items():
+        stats = breaker.stats
+        state = stats["state"]
+        snap["chains"][chain_name] = {
+            "status": "ok" if state == STATE_CLOSED else "recovering" if state == STATE_HALF_OPEN else "down",
+            "latency_avg_ms": stats["latency_avg_ms"],
+            "failures": stats["total_failures"],
+            "calls": stats["total_calls"],
+        }
+    _history_snapshots.append(snap)
+    if len(_history_snapshots) > _HISTORY_MAX:
+        _history_snapshots.pop(0)
+
+
+def get_uptime_stats(hours: int = 24) -> dict:
+    """Calcule l'uptime par chain sur les N dernieres heures."""
+    cutoff = time.time() - (hours * 3600)
+    recent = [s for s in _history_snapshots if s["timestamp"] >= cutoff]
+    if not recent:
+        return {"period_hours": hours, "snapshots": 0, "chains": {}, "note": "No data yet — stats collected every 5 min"}
+
+    result = {}
+    for chain_name in chain_breakers:
+        total = 0
+        ok_count = 0
+        for snap in recent:
+            chain_data = snap["chains"].get(chain_name)
+            if chain_data:
+                total += 1
+                if chain_data["status"] == "ok":
+                    ok_count += 1
+        uptime_pct = round(ok_count / total * 100, 2) if total > 0 else 0
+        result[chain_name] = {
+            "uptime_pct": uptime_pct,
+            "samples": total,
+            "down_samples": total - ok_count,
+        }
+    return {"period_hours": hours, "snapshots": len(recent), "chains": result}
+
+
+@router.get("/history")
+async def chain_history(hours: int = 24):
+    """Uptime stats par chain sur les N dernieres heures (defaut 24h)."""
+    if hours < 1:
+        hours = 1
+    if hours > 168:
+        hours = 168
+    return get_uptime_stats(hours)
+
+
+@router.get("/history/raw")
+async def chain_history_raw(limit: int = 12):
+    """Derniers N snapshots bruts (defaut 12 = derniere heure)."""
+    if limit < 1:
+        limit = 1
+    if limit > 288:
+        limit = 288
+    return {"snapshots": _history_snapshots[-limit:], "total_stored": len(_history_snapshots)}
