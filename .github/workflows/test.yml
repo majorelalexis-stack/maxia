@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install httpx aiosqlite python-dotenv pynacl base58 chromadb
+          pip install -r backend/requirements.txt
 
       - name: Syntax check all Python files
         run: |
