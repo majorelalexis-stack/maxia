@@ -264,6 +264,12 @@ async def _route(cible: str, action: str, decision: dict, memory, db=None) -> di
         memory.save()
         return {"executed": True, "detail": f"CRISIS-MANAGER tasked: {action[:80]}"}
 
+    elif cible == "MICRO":
+        # MICRO wallet — petty cash pour experimentations
+        memory.update_agent("MICRO", {"pending_action": action[:300], "from": "CEO"})
+        memory.save()
+        return {"executed": True, "detail": f"MICRO tasked: {action[:80]}"}
+
     elif cible == "FONDATEUR":
         # Never auto-execute for founder — always alert
         try:
@@ -274,9 +280,8 @@ async def _route(cible: str, action: str, decision: dict, memory, db=None) -> di
         return {"executed": False, "reason": "FONDATEUR — routed as alert only"}
 
     else:
-        # Unknown cible — log it
+        # Unknown cible — log it (mais ne pas spammer les alertes)
         print(f"[CEO-Executor] Unknown cible: {cible}")
-        memory.log_error("ceo_executor", f"Unknown cible: {cible}")
         return {"executed": False, "reason": f"Unknown cible: {cible}"}
 
 

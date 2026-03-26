@@ -3122,7 +3122,11 @@ class CEOMaxia:
         self._running = True
         print("[CEO MAXIA] Demarre — MODE SCOUT (collecte + scan + contact A2A)")
         print("[CEO MAXIA] Strategie et outreach delegues au CEO Local (PC + GPU)")
-        await alert_info("CEO VPS V5 SCOUT — collecte metriques + scan agents on-chain")
+        # Alerte Telegram une seule fois par jour (pas a chaque restart)
+        _today = date.today().isoformat()
+        if getattr(self, '_last_start_alert', '') != _today:
+            self._last_start_alert = _today
+            await alert_info("CEO VPS V5 SCOUT — collecte metriques + scan agents on-chain")
 
         while self._running:
             self._cycle += 1
