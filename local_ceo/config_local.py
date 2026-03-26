@@ -70,7 +70,7 @@ BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.ma
 # ══════════════════════════════════════════
 # Limites quotidiennes par plateforme
 # ══════════════════════════════════════════
-MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "2"))  # Qualite > quantite
+MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "3"))  # 2 regular + 1 Feature of the Day
 MAX_COMMENTS_TWITTER_DAY = int(os.getenv("MAX_COMMENTS_TWITTER_DAY", "25"))
 MAX_QUOTE_TWEETS_DAY = int(os.getenv("MAX_QUOTE_TWEETS_DAY", "7"))
 MAX_REDDIT_POSTS_DAY = int(os.getenv("MAX_REDDIT_POSTS_DAY", "5"))

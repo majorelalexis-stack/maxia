@@ -267,6 +267,25 @@ TWEET_TEMPLATES = [
     "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
 ]
 
+# ── Feature of the Day — 1 tweet/jour presentant une feature MAXIA ──
+# Cycle automatique : jour 1 = feature[0], jour 2 = feature[1], ...
+FEATURE_OF_THE_DAY = [
+    "Feature of the Day: On-chain Escrow\n\nYour USDC is locked in a Solana PDA until the buyer confirms delivery. Timeout? Auto-refund.\n\nNo trust needed. Smart contract does the work.\n\nProgram: solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
+    "Feature of the Day: 5-Source Oracle\n\nStock prices from 5 sources: Pyth Hermes (sub-second) → Finnhub → CoinGecko → Yahoo → static fallback.\n\n30s staleness check. Circuit breaker. Age spread protection.\n\n25 tokenized stocks. maxiaworld.app",
+    "Feature of the Day: Swap on 7 Chains\n\nSolana (Jupiter) + 6 EVM chains (0x API): Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB.\n\n107 tokens. Commission: 0.10% → 0.01% based on 30-day volume.\n\nmaxiaworld.app/app#swap",
+    "Feature of the Day: 46 MCP Tools\n\nMAXIA is an MCP server. Claude, Cursor, or any MCP client can call 46 tools: swap, stocks, GPU rental, DeFi yields, wallet analysis.\n\nApproved on mcpservers.org\n\nmaxiaworld.app/mcp/manifest",
+    "Feature of the Day: GPU Rental at Cost\n\n13 GPU tiers from RTX 3090 ($0.22/h) to B200 ($5.98/h). Zero markup — pass-through RunPod pricing.\n\nFine-tune your LLM for $2.99 + GPU time.\n\nmaxiaworld.app/app#gpu",
+    "Feature of the Day: Enterprise Suite\n\nSSO (Google/Microsoft), Stripe billing, Prometheus /metrics, audit trail, multi-tenant isolation, fleet dashboard.\n\n30 enterprise endpoints. 559 total API routes.\n\nmaxiaworld.app/enterprise",
+    "Feature of the Day: A2A Protocol\n\nGoogle's Agent-to-Agent standard. 11 skills: discover, execute, swap, stocks, GPU, DeFi, wallet analysis.\n\nYour AI agent finds and buys services from other agents. Automatically.\n\nmaxiaworld.app/.well-known/agent.json",
+    "Feature of the Day: DeFi Yield Aggregator\n\nFind the best APY across 14 chains. Live data from DeFiLlama.\n\nAave, Marinade, Jito, Compound, Aerodrome — one API call.\n\nmaxiaworld.app/app#defi",
+    "Feature of the Day: Tokenized Stocks\n\n25 stocks: AAPL, TSLA, NVDA, GOOGL... via xStocks, Ondo, and Dinari.\n\nBuy fractional shares with USDC. Commission: 0.5% → 0.05%.\n\nmaxiaworld.app/app#stocks",
+    "Feature of the Day: Chain Resilience\n\n14 chains, 2-3 RPC providers each. Circuit breaker (3 fails → open). Auto-failover. Timeout per chain.\n\n/status/chain/solana shows it all live.\n\nmaxiaworld.app/status/chain/solana",
+    "Feature of the Day: Autonomous CEO Agent\n\n17 sub-agents running 24/7. OODA loop. Learns what works, stops what doesn't.\n\nSearches Twitter, GitHub, Reddit. Engages prospects. Reports daily.\n\nFully autonomous. No human needed.",
+    "Feature of the Day: Reverse Auctions\n\nBuyers post what they need → agents compete on price + quality + speed.\n\nScoring: 40% reputation, 25% SLA, 20% price, 15% speed.\n\nBest agent wins. maxiaworld.app",
+    "Feature of the Day: Cross-Chain Bridge\n\nTransfer tokens between 14 chains. Wormhole, LayerZero, Portal.\n\nZero MAXIA fee. Only pay gas.\n\nmaxiaworld.app/app#bridge",
+    "Feature of the Day: Agent Leaderboard\n\nAAA to CCC grades. Bayesian scoring: 30% trust + 25% success + 20% latency + 15% uptime + 10% stake.\n\nAuto-penalty. Auto-promotion.\n\nmaxiaworld.app/api/public/leaderboard",
+]
+
 TWEET_VARIANTS = {
     "A": {"style": "direct, technique, code snippets", "cta": "maxiaworld.app?utm_source=twitter&utm_medium=tweet"},
     "B": {"style": "storytelling, probleme/solution", "cta": "link in bio"},
@@ -2292,9 +2311,9 @@ class CEOLocal:
                 {"action": "star_github", "agent": "SCOUT", "params": {"repo_url": f"https://github.com/{all_github[cycle % len(all_github)]}"}, "priority": "vert"},
             ],
 
-            # ── Cycle 4 : TWITTER — tweet + DMs ──
+            # ── Cycle 4 : TWITTER — Feature of the Day + DMs ──
             [
-                {"action": "post_template_tweet", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "post_feature_of_day", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
                 {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
@@ -2322,10 +2341,10 @@ class CEOLocal:
                 {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
             ],
 
-            # ── Cycle 9 : SOLVR + DMs ──
+            # ── Cycle 9 : SOLVR + FORUM ──
             [
                 {"action": "post_solvr", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "read_forum", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
         ]
 
@@ -2579,7 +2598,7 @@ class CEOLocal:
                             "target": params.get("username", params.get("target", params.get("wallet", ""))),
                             "canal": action, "ts": time.strftime("%Y-%m-%d"), "status": "contacted",
                         })
-                    elif action in ("post_tweet", "post_template_tweet"):
+                    elif action in ("post_tweet", "post_template_tweet", "post_feature_of_day"):
                         self.memory.setdefault("tweets_posted", []).append({
                             "text": params.get("text", "")[:50], "ts": time.strftime("%Y-%m-%d"),
                         })
@@ -2968,6 +2987,12 @@ class CEOLocal:
         # CRM follow-up (ORANGE — relance DM un prospect 24-48h apres interaction)
         elif action == "crm_followup":
             return await self._crm_followup()
+        # Feature of the Day tweet (1x/jour, cycle dans les 14 features)
+        elif action == "post_feature_of_day":
+            return await self._post_feature_of_day()
+        # Lire le forum MAXIA et remonter les remarques
+        elif action == "read_forum":
+            return await self._read_forum()
         # VPS (uniquement pour les actions VPS connues)
         else:
             # Eviter d'envoyer des actions inconnues au VPS (ex: "MICRO" n'existe pas)
@@ -3678,10 +3703,65 @@ class CEOLocal:
         else:
             _log(f"[RESEARCH] {target['name']}: analyse vide")
 
+    async def _post_feature_of_day(self) -> dict:
+        """Poste le tweet Feature of the Day — 1 feature differente chaque jour."""
+        # Calculer l'index du jour (cycle dans les 14 features)
+        from datetime import date
+        day_index = date.today().toordinal() % len(FEATURE_OF_THE_DAY)
+
+        # Verifier si deja poste aujourd'hui
+        today = time.strftime("%Y-%m-%d")
+        posted_today = [t for t in self.memory.get("tweets_posted", [])
+                        if t.get("ts", "").startswith(today) and "Feature of the Day" in t.get("text", "")]
+        if posted_today:
+            _log("[TWEET] Feature of the Day deja poste aujourd'hui — skip")
+            return {"success": True, "detail": "Feature of the Day already posted today"}
+
+        tweet_text = FEATURE_OF_THE_DAY[day_index]
+        _log(f"[TWEET] Feature of the Day #{day_index + 1}: {tweet_text[:60]}...")
+
+        result = await self._do_browser("tweet", {"text": tweet_text})
+        if result.get("success"):
+            self.memory.setdefault("tweets_posted", []).append({
+                "text": f"Feature of the Day: {tweet_text[:40]}", "ts": today,
+            })
+        return result
+
+    async def _read_forum(self) -> dict:
+        """Lit le forum MAXIA et remonte les remarques/suggestions au fondateur."""
+        _log("[FORUM] Lecture du forum MAXIA...")
+        try:
+            result = await self.vps.get("/api/public/forum/posts?sort=hot&limit=10")
+            posts = result.get("posts", []) if isinstance(result, dict) else []
+
+            if not posts:
+                _log("[FORUM] Aucun post")
+                return {"success": True, "detail": "Forum vide"}
+
+            # Sauvegarder en memoire pour le rapport quotidien
+            today = time.strftime("%Y-%m-%d")
+            self.memory.setdefault("forum_digest", []).append({
+                "ts": today,
+                "count": len(posts),
+                "posts": [{"title": p.get("title", "")[:80], "author": p.get("author", ""),
+                           "votes": p.get("votes", 0), "replies": p.get("reply_count", 0)}
+                          for p in posts[:5]],
+            })
+
+            _log(f"[FORUM] {len(posts)} posts lus, top: {posts[0].get('title', '')[:50] if posts else 'none'}")
+            return {"success": True, "detail": f"{len(posts)} forum posts read"}
+        except Exception as e:
+            _log(f"[FORUM] Erreur lecture: {e}")
+            return {"success": False, "error": str(e)}
+
     async def _daily_report(self):
         """Rapport quotidien — compile tout ce que le CEO a trouve aujourd'hui.
         Envoye sur Telegram + sauvegarde en fichier local.
         Appele 1x par jour a 20h UTC."""
+
+        # Lire le forum avant de generer le rapport
+        await self._read_forum()
+
         _log("[REPORT] Generation du rapport quotidien...")
 
         today = time.strftime("%Y-%m-%d")
@@ -3756,6 +3836,15 @@ class CEOLocal:
             report_lines.append(f"AMELIORATIONS DETECTEES ({len(ideas)}):")
             for i in ideas[-3:]:
                 report_lines.append(f"  - {i['source']}: {i['idea'][:80]}")
+            report_lines.append("")
+
+        # Forum digest
+        forum_entries = [f for f in self.memory.get("forum_digest", []) if f.get("ts", "").startswith(today)]
+        if forum_entries:
+            latest = forum_entries[-1]
+            report_lines.append(f"FORUM ({latest.get('count', 0)} posts):")
+            for p in latest.get("posts", [])[:5]:
+                report_lines.append(f"  - {p['title'][:60]} (votes={p['votes']}, replies={p['replies']})")
             report_lines.append("")
 
         # Scores plateformes
