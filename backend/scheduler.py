@@ -2,6 +2,18 @@
 import asyncio, time
 from alerts import alert_system
 
+
+def _safe_task(coro, name: str):
+    """Wrap une coroutine pour qu'un crash n'affecte pas les autres tasks."""
+    async def _wrapper():
+        try:
+            await coro
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[Scheduler] Task '{name}' crashed: {e} — autres tasks continuent")
+    return _wrapper()
+
 # Imports avec fallback si module absent
 async def _noop(): pass
 
@@ -56,24 +68,24 @@ class Scheduler:
             print(f"[Scheduler] CEO MAXIA non disponible: {e}")
 
         tasks = [
-            asyncio.create_task(brain.run(db)),
-            asyncio.create_task(growth_agent.run()),
-            asyncio.create_task(agent_worker.run()),
-            asyncio.create_task(run_discord_bot()),
-            asyncio.create_task(run_telegram_bot()),
-            asyncio.create_task(run_twitter_bot()),
-            asyncio.create_task(run_reddit_bot()),
-            asyncio.create_task(run_outreach_bot()),
-            asyncio.create_task(run_monitor_loop()),
+            asyncio.create_task(_safe_task(brain.run(db), "brain")),
+            asyncio.create_task(_safe_task(growth_agent.run(), "growth_agent")),
+            asyncio.create_task(_safe_task(agent_worker.run(), "agent_worker")),
+            asyncio.create_task(_safe_task(run_discord_bot(), "discord_bot")),
+            asyncio.create_task(_safe_task(run_telegram_bot(), "telegram_bot")),
+            asyncio.create_task(_safe_task(run_twitter_bot(), "twitter_bot")),
+            asyncio.create_task(_safe_task(run_reddit_bot(), "reddit_bot")),
+            asyncio.create_task(_safe_task(run_outreach_bot(), "outreach_bot")),
+            asyncio.create_task(_safe_task(run_monitor_loop(), "monitor_loop")),
             asyncio.create_task(self._health_monitor(brain, growth_agent)),
         ]
 
         # Ajouter le CEO si disponible
         if ceo_available:
-            tasks.append(asyncio.create_task(ceo.run()))
+            tasks.append(asyncio.create_task(_safe_task(ceo.run(), "ceo")))
 
         # V13: Background tasks (PoD liveness, leaderboard, SLA, auctions)
-        tasks.append(asyncio.create_task(self._v13_background_loop()))
+        tasks.append(asyncio.create_task(_safe_task(self._v13_background_loop(), "v13_background")))
 
         self._tasks = tasks
 

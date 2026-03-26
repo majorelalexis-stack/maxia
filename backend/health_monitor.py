@@ -26,7 +26,8 @@ async def run_health_monitor():
             for path, expected in ENDPOINTS:
                 try:
                     r = await client.get(path)
-                    if r.status_code != expected:
+                    # 429 = rate limit, pas une panne (le endpoint fonctionne)
+                    if r.status_code != expected and r.status_code != 429:
                         failures.append(f"{path}: {r.status_code}")
                 except Exception as e:
                     failures.append(f"{path}: {e}")

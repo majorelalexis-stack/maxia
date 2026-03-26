@@ -2548,11 +2548,13 @@ async def crisis_detect(memory: Memory, skip_health: bool = False) -> list:
         })
 
     # P1 : Churn massif (perte >30% clients en 24h)
+    # Ignore si clients_now == 0 (probable reset DB, pas un vrai churn)
+    # Ignore si clients_8h < 10 (trop peu pour etre significatif)
     kpis = d.get("kpi", [])
     if len(kpis) >= 8:
         clients_now = kpis[-1].get("clients_actifs", 0)
         clients_8h = kpis[-8].get("clients_actifs", 0)
-        if clients_8h > 5 and clients_now < clients_8h * 0.7:
+        if clients_8h >= 10 and clients_now > 0 and clients_now < clients_8h * 0.7:
             crises.append({
                 "level": "P1", "type": "mass_churn",
                 "details": f"Clients: {clients_8h} -> {clients_now} (-{clients_8h - clients_now})",
