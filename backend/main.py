@@ -1390,20 +1390,67 @@ async def sitemap():
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+async def admin_login_page():
+    """Page de login admin — formulaire qui stocke la cle en sessionStorage."""
+    return HTMLResponse("""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAXIA Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0A0E17;color:#E2E8F0;font-family:'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
+.login{background:#151D2E;border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:40px;max-width:400px;width:90%}
+h1{font-size:28px;margin-bottom:8px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+p{color:#94A3B8;font-size:14px;margin-bottom:24px}
+input{width:100%;padding:14px;border-radius:10px;background:#0A0E17;border:1px solid rgba(255,255,255,.08);color:#E2E8F0;font-size:15px;margin-bottom:16px;outline:none;font-family:monospace}
+input:focus{border-color:#06B6D4}
+button{width:100%;padding:14px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer}
+button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+.err{color:#EF4444;font-size:13px;margin-top:12px;display:none}
+</style></head><body>
+<div class="login">
+<h1>MAXIA Admin</h1>
+<p>Enter your admin key to access the dashboard.</p>
+<form onsubmit="return doLogin()">
+<input type="password" id="admin-key" placeholder="Admin Key" autofocus>
+<button type="submit">Login</button>
+</form>
+<div class="err" id="err">Invalid key. Try again.</div>
+</div>
+<script>
+async function doLogin(){
+  var key=document.getElementById('admin-key').value;
+  if(!key)return false;
+  try{
+    var r=await fetch('/dashboard',{headers:{'X-Admin-Key':key}});
+    if(r.ok){
+      sessionStorage.setItem('maxia_admin_key',key);
+      window.location.href='/dashboard';
+      return false;
+    }
+    document.getElementById('err').style.display='block';
+  }catch(e){document.getElementById('err').style.display='block'}
+  return false;
+}
+// Si deja connecte, rediriger
+if(sessionStorage.getItem('maxia_admin_key')){
+  fetch('/dashboard',{headers:{'X-Admin-Key':sessionStorage.getItem('maxia_admin_key')}})
+    .then(r=>{if(r.ok)window.location.href='/dashboard'});
+}
+</script></body></html>""")
+
+
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
-    # Securite: accepter UNIQUEMENT le header X-Admin-Key (pas de query param dans l'URL)
+    """Dashboard admin — authentification via header X-Admin-Key."""
     key = request.headers.get("X-Admin-Key", "")
     import hmac as _hmac_dash
     if not key or not _hmac_dash.compare_digest(key, ADMIN_KEY):
-        return HTMLResponse(
-            "<div style='background:#0A0E17;color:#94A3B8;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif'>"
-            "<h1 style='color:#FF4560'>403 — Acces refuse</h1></div>",
-            status_code=403
-        )
+        # Rediriger vers la page de login
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin", status_code=302)
     if FRONTEND_INDEX.exists():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
-    # Fallback: try alternative paths
     alt_paths = [
         Path("/opt/maxia/frontend/index.html"),
         Path(__file__).parent / "index.html",
@@ -1411,7 +1458,7 @@ async def serve_dashboard(request: Request):
     for p in alt_paths:
         if p.exists():
             return HTMLResponse(p.read_text(encoding="utf-8"))
-    return HTMLResponse(f"<h1>MAXIA</h1><p>Dashboard introuvable. Paths checked: {FRONTEND_INDEX}, {alt_paths}</p>")
+    return HTMLResponse("<h1>MAXIA</h1><p>Dashboard introuvable.</p>")
 
 
 # ═══════════════════════════════════════════════════════════
