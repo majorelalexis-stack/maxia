@@ -1099,7 +1099,7 @@ class TokenizedStockExchange:
         return {
             "maxia_tiers": {
                 name: {
-                    "volume_range": f"{t['min_volume']}-{t['max_volume'] if t['max_volume'] != float('inf') else '∞'} USDC",
+                    "volume_range": f"{t['min_amount']}-{t['max_amount'] if t['max_amount'] < 999999999 else '∞'} USDC",
                     "fee_pct": f"{t['bps']/100:.2f}%",
                     "fee_bps": t["bps"],
                 }

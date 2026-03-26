@@ -558,12 +558,10 @@ def _compute_overall_status(chain_statuses: dict) -> str:
 router = APIRouter(prefix="/status", tags=["Chain Resilience"])
 
 
-@router.get("")
-@router.get("/")
+@router.get("/all")
 async def chain_status():
-    """Redirige vers /api/public/status qui ping les RPCs en vrai."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/api/public/status", status_code=307)
+    """Status de toutes les chains (JSON). Pour la page HTML, voir /status."""
+    return get_all_chain_status()
 
 
 @router.get("/chain/{chain_name}")
