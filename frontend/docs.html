@@ -505,6 +505,31 @@ print(f<span style="color:#A5D6FF">"Bought {result['shares']} shares of {result[
       </div>
 
       <div class="note">Stock prices come from Pyth Hermes Oracle (real-time, 895 feeds). 3 providers: xStocks (Solana), Ondo (Ethereum), Dinari (Arbitrum). Not available in the USA.</div>
+
+      <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-top:24px">
+        <h3 style="font-size:18px;margin-bottom:12px">Oracle Architecture</h3>
+        <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:16px">5-source fallback chain for maximum reliability. Prices are audited on every trade.</p>
+        <table style="width:100%;font-size:13px;color:var(--muted)">
+          <tr><td style="padding:6px 0;font-weight:600;color:var(--cyan)">1. Pyth Hermes</td><td>11 stocks (AAPL, TSLA, NVDA, AMZN, GOOG, MSFT, META, COIN, QQQ, SPY, MSTR). Sub-400ms, confidence interval.</td></tr>
+          <tr><td style="padding:6px 0;font-weight:600;color:var(--cyan)">2. Finnhub</td><td>All stocks. Free tier 60 req/min. Fallback when Pyth is stale.</td></tr>
+          <tr><td style="padding:6px 0;font-weight:600;color:var(--cyan)">3. CoinGecko</td><td>Crypto assets. Free API.</td></tr>
+          <tr><td style="padding:6px 0;font-weight:600;color:var(--cyan)">4. Yahoo Finance</td><td>18 additional stocks. 180s cache.</td></tr>
+          <tr><td style="padding:6px 0;font-weight:600;color:var(--cyan)">5. Static fallback</td><td>Last known prices. Trades blocked if amount > $100 on fallback only.</td></tr>
+        </table>
+
+        <h4 style="font-size:15px;margin:20px 0 8px;color:var(--text)">Safety Guards</h4>
+        <ul style="color:var(--muted);font-size:13px;line-height:1.8;list-style:none;padding:0">
+          <li>&#9679; <strong>Staleness:</strong> Max 30s for stocks, 120s for crypto. Stale prices fall through to next source.</li>
+          <li>&#9679; <strong>Confidence:</strong> Reject if oracle spread > 2% of price.</li>
+          <li>&#9679; <strong>Circuit breaker:</strong> 5 consecutive stale reads = source marked as down.</li>
+          <li>&#9679; <strong>Price jump:</strong> Block trade if price moved > 5% in 5 minutes.</li>
+          <li>&#9679; <strong>Age spread:</strong> Automatic +0.5% fee per 60s of price age (capped at 3%).</li>
+          <li>&#9679; <strong>Audit trail:</strong> Every trade logs price source, confidence, age, publish_time in DB.</li>
+          <li>&#9679; <strong>Telegram alert:</strong> Notification if any stock feed is stale > 5 minutes.</li>
+        </ul>
+
+        <p style="color:var(--muted2);font-size:12px;margin-top:16px;font-style:italic">Tokenized stocks are synthetic assets backed by on-chain protocols (xStocks/Ondo/Dinari). Prices sourced from Pyth Network and Yahoo Finance. MAXIA does not provide investment advice. Trade at your own risk.</p>
+      </div>
     </section>
 
     <!-- DEFI YIELDS -->
