@@ -83,12 +83,7 @@ def _build_tiers_from_runpod(gpu_types: list) -> list:
     tiers = []
     seen_ids = set()
 
-    # 1. GPU local (toujours present, pas RunPod)
-    tiers.append({
-        "id": "local_7900xt", "label": "Local RX 7900XT",
-        "vram_gb": 20, "base_price_per_hour": 0.35, "local": True,
-    })
-    seen_ids.add("local_7900xt")
+    # local_7900xt retire — GPU utilise par le CEO local (Ollama + Qwen)
 
     # 2. GPU RunPod — prix Community Cloud (le moins cher, 0% markup)
     for gpu in gpu_types:
