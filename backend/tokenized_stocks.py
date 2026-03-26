@@ -772,9 +772,10 @@ class TokenizedStockExchange:
         if price <= 0:
             return {"success": False, "error": f"Prix indisponible pour {symbol}"}
 
-        # ── Oracle Safety Guard 1: Reject fallback-only prices for large trades ──
-        if price_source == "fallback" and amount_usdc > 100:
-            return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible. Reessayer plus tard."}
+        # ── Oracle Safety Guard 1: Bloquer TOUT trade si prix fallback (oracles down) ──
+        if price_source == "fallback":
+            print(f"[Stocks] BLOCKED buy {symbol} ${amount_usdc} — all oracles unavailable (fallback price)")
+            return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
 
         # ── Oracle Safety Guard 2: Check Pyth staleness ──
         pyth_data = {}
@@ -964,8 +965,10 @@ class TokenizedStockExchange:
 
         # ── Oracle Safety Guards (memes que buy_stock) ──
         gross_usdc_est = round(shares * price, 4)
-        if price_source == "fallback" and gross_usdc_est > 100:
-            return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible."}
+        # Bloquer TOUT trade si prix fallback (oracles down)
+        if price_source == "fallback":
+            print(f"[Stocks] BLOCKED sell {symbol} {shares} shares (~${gross_usdc_est}) — all oracles unavailable (fallback price)")
+            return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
         pyth_data = {}
         try:
             from pyth_oracle import get_stock_price as pyth_get_stock

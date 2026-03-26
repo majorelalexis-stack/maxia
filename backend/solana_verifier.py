@@ -48,7 +48,7 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
         "method": "getTransaction",
         "params": [tx_signature, {"encoding": "jsonParsed",
                                    "maxSupportedTransactionVersion": 0,
-                                   "commitment": "confirmed"}]
+                                   "commitment": "finalized"}]
     }
 
     for attempt in range(3):

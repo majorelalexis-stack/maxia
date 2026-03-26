@@ -527,7 +527,7 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     # Utilise le volume 30 jours pour determiner le tier
     commission_bps = get_swap_commission_bps(value_usd, user_volume_30d, swap_count)
     tier = get_swap_tier_name(value_usd, user_volume_30d, swap_count)
-    commission_usd = value_usd * commission_bps / 10000
+    commission_usd = round(value_usd * commission_bps / 10000, 6)
     net_value_usd = value_usd - commission_usd
 
     # Montant recu (base estimate from cached prices — fast path)
@@ -576,10 +576,10 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
                         # #5: Apply commission ONCE — deduct from Jupiter output
                         # instead of double-charging
                         if jupiter_output > output_amount:
-                            commission_from_jupiter = jupiter_output * commission_bps / 10000
+                            commission_from_jupiter = round(jupiter_output * commission_bps / 10000, 6)
                             output_amount = jupiter_output - commission_from_jupiter
                             # Update commission_usd to reflect Jupiter-based calc
-                            commission_usd = commission_from_jupiter * to_price
+                            commission_usd = round(commission_from_jupiter * to_price, 6)
                     else:
                         _log_swap(f"Jupiter returned 0 output — using cached prices")
             else:
@@ -667,6 +667,11 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d, swap_count)
     if "error" in quote:
         return {"success": False, "error": quote["error"]}
+
+    # Bloquer le swap si le prix du token source est un fallback (oracles down)
+    if quote.get("price_source") == "fallback":
+        _log_swap(f"BLOCKED swap {from_token}->{to_token} {amount} — oracle unavailable (fallback price)")
+        return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
 
     output_amount = quote["output_amount"]
     commission_bps = quote["commission_bps"]

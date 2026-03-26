@@ -1691,7 +1691,7 @@ async function loadAppAlerts() {
           + '<span><strong>' + esc(a.token) + '</strong> ' + esc(a.condition) + ' $' + a.target_price.toLocaleString('en-US') + '</span>'
           + '<span style="color:' + statusColor + ';font-size:12px;font-weight:600">' + statusText + notified + '</span>'
           + '<span style="color:var(--muted);font-size:12px">$' + (a.current_price||0).toFixed(2) + '</span>'
-          + '<button onclick="deleteAlert(\'' + a.alert_id + '\')" style="padding:2px 8px;background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:4px;font-size:11px;cursor:pointer">X</button>'
+          + '<button onclick="deleteAlert(\'' + esc(a.alert_id) + '\')" style="padding:2px 8px;background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:4px;font-size:11px;cursor:pointer">X</button>'
           + '</div>';
       }).join('');
     } else { el.textContent = 'No alerts — create one above'; }
@@ -2896,7 +2896,7 @@ async function executeSolanaSwap(from, to, amount) {
     btn.textContent = 'Confirming...';
     setSwapStatus(
       '<span class="swap-spinner"></span>Transaction sent! Waiting for confirmation...' +
-      '<div class="tx-sig">Signature: ' + txSignature + '</div>',
+      '<div class="tx-sig">Signature: ' + esc(txSignature) + '</div>',
       'confirming'
     );
 
@@ -2917,7 +2917,7 @@ async function executeSolanaSwap(from, to, amount) {
     setSwapStatus(
       'Swap successful! ' + amount + ' ' + from + ' → ' +
       outHuman.toFixed(toInfo.decimals <= 6 ? Math.min(toInfo.decimals, 6) : 4) + ' ' + to +
-      '<div class="tx-sig"><a href="' + solscanUrl + '" target="_blank" rel="noopener">View on Solscan: ' + txSignature.slice(0, 20) + '...' + txSignature.slice(-8) + '</a></div>' +
+      '<div class="tx-sig"><a href="' + esc(solscanUrl) + '" target="_blank" rel="noopener">View on Solscan: ' + esc(txSignature.slice(0, 20)) + '...' + esc(txSignature.slice(-8)) + '</a></div>' +
       '<div style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#00ff88;margin-top:8px"><span>&#10003;</span> OFAC Screened</div>',
       'success'
     );
@@ -3128,8 +3128,8 @@ async function executeEvmSwap(from, to, amount) {
     // ── Step 7: Wait for confirmation ──
     btn.textContent = 'Confirming...';
     setSwapStatus(
-      '<span class="swap-spinner"></span>Transaction sent on ' + chainInfo.name + '! Waiting for confirmation...' +
-      '<div class="tx-sig">Tx: ' + txHash + '</div>',
+      '<span class="swap-spinner"></span>Transaction sent on ' + esc(chainInfo.name) + '! Waiting for confirmation...' +
+      '<div class="tx-sig">Tx: ' + esc(txHash) + '</div>',
       'confirming'
     );
 
@@ -3155,7 +3155,7 @@ async function executeEvmSwap(from, to, amount) {
     setSwapStatus(
       'Swap successful on ' + chainInfo.name + '! ' + amount + ' ' + from + ' → ' +
       destHuman.toFixed(toEvm.decimals <= 6 ? Math.min(toEvm.decimals, 6) : 4) + ' ' + to +
-      '<div class="tx-sig"><a href="' + explorerUrl + '" target="_blank" rel="noopener">View on ' + chainInfo.name + ' Explorer: ' + txHash.slice(0, 20) + '...' + txHash.slice(-8) + '</a></div>' +
+      '<div class="tx-sig"><a href="' + esc(explorerUrl) + '" target="_blank" rel="noopener">View on ' + esc(chainInfo.name) + ' Explorer: ' + esc(txHash.slice(0, 20)) + '...' + esc(txHash.slice(-8)) + '</a></div>' +
       '<div style="display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:2px 8px;font-size:11px;color:#00ff88;margin-top:8px"><span>&#10003;</span> OFAC Screened</div>',
       'success'
     );

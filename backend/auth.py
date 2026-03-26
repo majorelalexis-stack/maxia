@@ -119,7 +119,7 @@ async def verify_signature(req: AuthRequest):
         _record_failed(req.wallet)
         raise HTTPException(401, "Nonce introuvable.")
     nonce, expires = entry
-    if time.time() > expires:
+    if time.time() > expires + 60:  # 60s grace period pour clock skew
         del NONCES[req.wallet]
         raise HTTPException(401, "Nonce expire.")
     if nonce != req.nonce:
@@ -194,7 +194,7 @@ async def require_auth(
         _record_failed(x_wallet)
         raise HTTPException(401, "Nonce introuvable — demandez /api/auth/nonce d'abord.")
     stored_nonce, expires = entry
-    if time.time() > expires:
+    if time.time() > expires + 60:  # 60s grace period pour clock skew
         del NONCES[x_wallet]
         raise HTTPException(401, "Nonce expire.")
     if stored_nonce != x_nonce:

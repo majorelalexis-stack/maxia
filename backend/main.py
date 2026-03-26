@@ -512,9 +512,11 @@ async def lifespan(app: FastAPI):
         print(f"[MAXIA] Preflight error: {e}")
 
     # Security checks at startup
-    from security import check_jwt_secret, _flush_audit
+    from security import check_jwt_secret, check_admin_key, _flush_audit
     if not check_jwt_secret():
         print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
+    # H4: Validation ADMIN_KEY au demarrage
+    check_admin_key()
 
     # V12: Price broadcast loop — broadcasts top token prices every 30s to /ws clients
     async def _price_broadcast_loop():
@@ -586,6 +588,35 @@ async def lifespan(app: FastAPI):
 # ── App ──
 
 app = FastAPI(title="MAXIA API V12", version="12.0.0", lifespan=lifespan)
+
+
+# ── M2: Limite globale taille requete (5 MB max) — protection contre upload abusif ──
+from starlette.responses import JSONResponse as _JSONResponseGlobal
+
+
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > 5_000_000:
+        return _JSONResponseGlobal(status_code=413, content={"error": "Request too large (max 5MB)"})
+    return await call_next(request)
+
+
+# ── H1: Global exception handler — ne jamais exposer str(e) aux clients ──
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Intercepte les exceptions non gerees et retourne un message generique.
+    Le request_id permet de retrouver l'erreur dans les logs serveur."""
+    import traceback
+    req_id = str(uuid.uuid4())[:8]
+    print(f"[ERROR] {req_id}: {type(exc).__name__}: {exc}")
+    traceback.print_exc()
+    return _JSONResponseGlobal(
+        status_code=500,
+        content={"error": "Internal server error", "request_id": req_id},
+    )
+
 
 # ── CORS restrictif (pas de wildcard en prod) ──
 _ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app").split(",")
@@ -1118,6 +1149,16 @@ async def app_store_search(q: str = ""):
 
 # ── AI Forum ──
 
+import re as _re
+# H2: Regex validation — Solana (base58, 32-44 chars) ou EVM (0x + 40 hex)
+_WALLET_SOLANA_RE = _re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+_WALLET_EVM_RE = _re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+def _validate_wallet_format(wallet: str) -> None:
+    """Verifie que le wallet est un format Solana ou EVM valide. Anti-spam basique."""
+    if not wallet or (not _WALLET_SOLANA_RE.match(wallet) and not _WALLET_EVM_RE.match(wallet)):
+        raise HTTPException(400, "Invalid wallet format (expected Solana or EVM address)")
+
 @app.get("/api/public/forum")
 async def forum_home(sort: str = "hot", page: int = 0, limit: int = 20):
     """AI Forum — communities, hot posts, and stats."""
@@ -1149,6 +1190,8 @@ async def forum_create_post(request: Request):
     body = await request.json()
     if not body.get("title") or not body.get("wallet"):
         raise HTTPException(400, "title and wallet required")
+    # H2: Verification format wallet (Solana base58 ou EVM 0x) anti-spam
+    _validate_wallet_format(body["wallet"])
     from security import check_content_safety
     safety = check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     if not safety.get("safe", True):
@@ -1162,6 +1205,8 @@ async def forum_reply(post_id: str, request: Request):
     body = await request.json()
     if not body.get("body") or not body.get("wallet"):
         raise HTTPException(400, "body and wallet required")
+    # H2: Verification format wallet anti-spam
+    _validate_wallet_format(body["wallet"])
     return await create_reply(db, post_id, body)
 
 @app.post("/api/public/forum/post/{post_id}/vote")
@@ -1169,7 +1214,12 @@ async def forum_vote(post_id: str, request: Request):
     """AI Forum — vote on a post (+1 or -1)."""
     from forum import vote_post
     body = await request.json()
-    return await vote_post(db, post_id, body.get("wallet", ""), body.get("vote", 1))
+    wallet = body.get("wallet", "")
+    if not wallet:
+        raise HTTPException(400, "wallet required")
+    # H2: Verification format wallet anti-spam
+    _validate_wallet_format(wallet)
+    return await vote_post(db, post_id, wallet, body.get("vote", 1))
 
 @app.get("/api/public/forum/search")
 async def forum_search(q: str = "", limit: int = 20):
@@ -1183,7 +1233,12 @@ async def forum_report(post_id: str, request: Request):
     """AI Forum — report a post."""
     from forum import report_post
     body = await request.json()
-    return await report_post(db, post_id, body.get("wallet", ""), body.get("reason", ""))
+    wallet = body.get("wallet", "")
+    if not wallet:
+        raise HTTPException(400, "wallet required")
+    # H2: Verification format wallet anti-spam
+    _validate_wallet_format(wallet)
+    return await report_post(db, post_id, wallet, body.get("reason", ""))
 
 @app.post("/api/admin/forum/ban")
 async def forum_admin_ban(request: Request):
@@ -1292,8 +1347,8 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded d
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
-    # Accept X-Admin-Key header OR ?key= query param (dashboard is browser-accessed)
-    key = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
+    # Securite: accepter UNIQUEMENT le header X-Admin-Key (pas de query param dans l'URL)
+    key = request.headers.get("X-Admin-Key", "")
     import hmac as _hmac_dash
     if not key or not _hmac_dash.compare_digest(key, ADMIN_KEY):
         return HTMLResponse(
@@ -2917,6 +2972,28 @@ async def x402_info():
 #  WEBSOCKET
 # ═══════════════════════════════════════════════════════════
 
+# H5: Limite taille message WebSocket (64 KB) — protection contre les payloads geants
+_WS_MAX_MESSAGE_SIZE = 65536
+
+
+async def _ws_receive_json(ws: WebSocket) -> dict:
+    """Recoit un message JSON avec controle de taille (H5)."""
+    raw = await ws.receive_text()
+    if len(raw) > _WS_MAX_MESSAGE_SIZE:
+        await ws.close(1009, "Message too large")
+        raise WebSocketDisconnect(1009)
+    return json.loads(raw)
+
+
+async def _ws_receive_json_timeout(ws: WebSocket, timeout: float) -> dict:
+    """Recoit un message JSON avec timeout et controle de taille (H5)."""
+    raw = await asyncio.wait_for(ws.receive_text(), timeout=timeout)
+    if len(raw) > _WS_MAX_MESSAGE_SIZE:
+        await ws.close(1009, "Message too large")
+        raise WebSocketDisconnect(1009)
+    return json.loads(raw)
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await ws.accept()
@@ -2925,16 +3002,16 @@ async def ws_endpoint(ws: WebSocket):
     authenticated_wallet = None
     try:
         while True:
-            # Auth timeout: use asyncio.wait_for so receive_json doesn't block indefinitely
+            # Auth timeout + H5: controle taille message
             if not authenticated_wallet:
                 try:
-                    msg = await asyncio.wait_for(ws.receive_json(), timeout=30.0)
+                    msg = await _ws_receive_json_timeout(ws, timeout=30.0)
                 except asyncio.TimeoutError:
                     await ws.send_json({"type": "AUTH_TIMEOUT", "error": "Authentication required within 30 seconds"})
                     await ws.close(1008)
                     break
             else:
-                msg = await ws.receive_json()
+                msg = await _ws_receive_json(ws)
             if msg.get("type") == "AUTH":
                 wallet = msg.get("wallet", "")
                 signature = msg.get("signature", "")
@@ -2960,7 +3037,8 @@ async def ws_endpoint(ws: WebSocket):
                         agent_worker.register_external_agent(wallet)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
                     except Exception as e:
-                        await ws.send_json({"type": "AUTH_FAILED", "error": f"Signature invalide: {e}"})
+                        print(f"[WS] Auth signature error: {e}")
+                        await ws.send_json({"type": "AUTH_FAILED", "error": "Signature invalide"})
                 else:
                     await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
             elif msg.get("type") == "PING":
@@ -2981,7 +3059,8 @@ async def auction_ws(ws: WebSocket):
         for a in auction_manager.get_open_auctions():
             await ws.send_json({"type": "AUCTION_OPENED", "payload": a})
         while True:
-            msg = await ws.receive_json()
+            # H5: controle taille message
+            msg = await _ws_receive_json(ws)
             if msg.get("type") == "AUTH":
                 _wallet = msg.get("wallet", "")
                 _sig = msg.get("signature", "")
@@ -3006,7 +3085,8 @@ async def auction_ws(ws: WebSocket):
                         agent_worker.register_external_agent(wallet)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
                     except Exception as e:
-                        await ws.send_json({"type": "AUTH_FAILED", "error": f"Signature invalide: {e}"})
+                        print(f"[WS/auctions] Auth signature error: {e}")
+                        await ws.send_json({"type": "AUTH_FAILED", "error": "Signature invalide"})
                 else:
                     await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
             elif msg.get("type") == "PLACE_BID":
@@ -3057,8 +3137,8 @@ async def ws_candles(websocket: WebSocket):
     """WebSocket: real-time candle updates every 60 seconds."""
     await websocket.accept()
     try:
-        # Get subscription params from first message
-        params = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        # Get subscription params from first message (H5: controle taille)
+        params = await _ws_receive_json_timeout(websocket, timeout=10.0)
         symbol = params.get("symbol", "SOL").upper()
         interval = params.get("interval", "1m")
         while True:

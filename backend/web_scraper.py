@@ -4,7 +4,8 @@ Les IA ne peuvent pas acceder au web. Ce service scrape une URL
 et retourne le contenu structure (texte, titres, liens, images).
 Utilise httpx + BeautifulSoup (ou regex fallback).
 """
-import asyncio, re, time, hashlib
+import asyncio, re, time, hashlib, ipaddress
+from urllib.parse import urlparse
 import httpx
 
 # Cache pour eviter de scraper la meme page plusieurs fois
@@ -35,11 +36,48 @@ def _get_ua() -> str:
 
 
 def _is_blocked(url: str) -> bool:
-    """Verifie si l'URL est bloquee (Art.1)."""
+    """Verifie si l'URL est bloquee (Art.1 + SSRF protection).
+
+    Bloque: domaines interdits, schemas dangereux, IPs privees/loopback/link-local/metadata.
+    """
     url_lower = url.lower()
+
+    # Schemas dangereux — seuls http:// et https:// sont autorises
+    BLOCKED_SCHEMES = ("file://", "ftp://", "gopher://", "dict://", "ldap://", "tftp://")
+    for scheme in BLOCKED_SCHEMES:
+        if url_lower.startswith(scheme):
+            return True
+
+    # Domaines interdits (contenu Art.1)
     for blocked in BLOCKED_DOMAINS:
         if blocked in url_lower:
             return True
+
+    # SSRF: bloquer les IPs privees, loopback, link-local, metadata cloud
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+
+        # Bloquer localhost et variantes
+        if hostname in ("localhost", "0.0.0.0", "[::]", "[::1]"):
+            return True
+
+        # Resoudre le hostname en IP et verifier les plages privees
+        import socket
+        resolved_ips = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        for _, _, _, _, sockaddr in resolved_ips:
+            ip_str = sockaddr[0]
+            ip = ipaddress.ip_address(ip_str)
+            # Bloquer: loopback, prive, link-local, metadata AWS/cloud
+            if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
+                return True
+            # Double-check metadata IP explicitement (169.254.169.254)
+            if ip_str in ("169.254.169.254", "fd00::ec2"):
+                return True
+    except Exception:
+        # DNS resolution impossible — bloquer par precaution
+        return True
+
     return False
 
 

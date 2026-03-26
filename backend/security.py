@@ -18,6 +18,20 @@ from config import (
     GROWTH_MAX_SPEND_DAY, GROWTH_MAX_SPEND_TX,
 )
 
+# ── Validation d'adresses wallet (EVM + Solana) ──
+_EVM_ADDR_RE = re.compile(r'^0x[0-9a-fA-F]{40}$')
+_SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
+
+
+def validate_wallet_address(address: str, chain: str = "auto") -> bool:
+    """Valide le format d'une adresse wallet (EVM 0x... ou Solana base58).
+    chain: 'evm', 'solana', ou 'auto' (detection automatique)."""
+    if not address or len(address) < 20:
+        return False
+    if chain == "evm" or address.startswith("0x"):
+        return bool(_EVM_ADDR_RE.match(address))
+    return bool(_SOLANA_ADDR_RE.match(address))
+
 
 # ── Audit log (admin actions) ──
 
@@ -77,7 +91,7 @@ def require_admin(request: Request) -> str:
     admin_key = os.getenv("ADMIN_KEY", "")
     if not admin_key:
         raise HTTPException(500, "ADMIN_KEY not configured")
-    ip = request.client.host if request.client else "unknown"
+    ip = get_real_ip(request)
     # Header only (secure)
     import hmac
     key = request.headers.get("X-Admin-Key", "")
@@ -98,6 +112,46 @@ def check_jwt_secret():
         print("[SECURITY] ⚠️  JWT_SECRET is insecure or missing! Set a strong random value (32+ chars).")
         return False
     return True
+
+
+def check_admin_key():
+    """H4: Verifie que ADMIN_KEY est suffisamment fort en production. Appele au demarrage."""
+    from config import SANDBOX_MODE
+    admin_key = os.getenv("ADMIN_KEY", "")
+    if SANDBOX_MODE:
+        return True  # Pas critique en mode sandbox/dev
+    if not admin_key or len(admin_key) < 16:
+        print("[SECURITY] CRITICAL: ADMIN_KEY is missing or too short (< 16 chars)!")
+        print("[SECURITY] CRITICAL: Admin endpoints are vulnerable. Set a strong ADMIN_KEY in .env (32+ chars).")
+        return False
+    return True
+
+
+# ── IP extraction securisee (anti-spoofing) ──
+
+# Proxies de confiance — seuls ces IPs peuvent injecter X-Forwarded-For
+_TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+
+
+def get_real_ip(request: Request) -> str:
+    """Extrait l'IP reelle du client de maniere securisee.
+
+    Ne fait confiance a X-Forwarded-For QUE si la requete vient d'un proxy connu.
+    Prend la DERNIERE IP de la chaine (la plus proche du proxy, donc la plus fiable).
+    """
+    client_ip = request.client.host if request.client else "unknown"
+
+    # X-Forwarded-For seulement si la connexion directe vient d'un proxy de confiance
+    if client_ip in _TRUSTED_PROXIES:
+        xff = request.headers.get("X-Forwarded-For", "")
+        if xff:
+            # Derniere IP de la chaine = la plus fiable (ajoutee par notre proxy)
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            if parts:
+                return parts[-1]
+
+    return client_ip
+
 
 # ── Content filtering ──
 
@@ -141,7 +195,7 @@ def _cleanup_rate_store():
 
 async def check_rate_limit_async(request: Request) -> None:
     """Async rate limit — uses Redis if available, else in-memory fallback."""
-    ip = request.client.host if request.client else "unknown"
+    ip = get_real_ip(request)
     if _redis_client is not None and _redis_client.is_connected:
         allowed = await _redis_client.rate_limit_check(ip, RATE_LIMIT, RATE_WINDOW)
         if not allowed:
@@ -153,7 +207,7 @@ async def check_rate_limit_async(request: Request) -> None:
 
 def check_rate_limit(request: Request) -> None:
     """Synchronous rate limit fallback (in-memory only). 60 req/min."""
-    ip = request.client.host if request.client else "unknown"
+    ip = get_real_ip(request)
     _check_rate_limit_memory(ip)
 
 
@@ -175,7 +229,8 @@ def check_rate_limit_smart(identifier: str, endpoint: str = "") -> bool:
     Returns True if request is allowed, False if rate-limited.
     Sets rate limit info in _smart_rate_info[identifier] for response headers.
     """
-    path = endpoint.lower()
+    # H3: Ignorer les query params — ne checker que le path
+    path = endpoint.split("?", 1)[0].lower()
 
     # FREE endpoints — always allowed
     for kw in _FREE_PATH_KEYWORDS:
