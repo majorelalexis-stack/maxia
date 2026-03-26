@@ -956,6 +956,13 @@ async def serve_landing():
         return HTMLResponse(FRONTEND_INDEX.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
 
+@app.get("/landing", include_in_schema=False)
+async def serve_landing_alias():
+    """Alias /landing -> meme page que /."""
+    if LANDING_PAGE.exists():
+        return HTMLResponse(LANDING_PAGE.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>MAXIA</h1>")
+
 LANDING_V2_PAGE = Path(__file__).parent.parent / "frontend" / "landing_v2.html"
 
 @app.get("/v2", include_in_schema=False)
@@ -4107,12 +4114,34 @@ async def swarm_stop(clone_id: str, request: Request):
 #  V11: ESCROW ON-CHAIN (Art.21)
 # ══════════════════════════════════════════════════════════
 
+@app.get("/api/public/escrow/info")
+async def escrow_public_info():
+    """Escrow public info — program ID et stats sans wallets."""
+    from config import ESCROW_PROGRAM_ID
+    stats = escrow_client.get_stats()
+    return {
+        "program_id": ESCROW_PROGRAM_ID,
+        "solscan": f"https://solscan.io/account/{ESCROW_PROGRAM_ID}",
+        "network": "mainnet-beta",
+        "active_escrows": stats.get("active", 0) if isinstance(stats, dict) else 0,
+        "total_escrows": stats.get("total", 0) if isinstance(stats, dict) else 0,
+        "escrow_enabled": not getattr(escrow_client, '_disabled', False),
+    }
+
 @app.get("/api/escrow/stats")
 async def escrow_stats(request: Request):
-    """Escrow stats. Admin only (leaks wallet addresses)."""
+    """Escrow stats detailles. Admin only (contient wallet addresses)."""
     from security import require_admin
     require_admin(request)
     return escrow_client.get_stats()
+
+@app.get("/api/escrow/list")
+async def list_escrows(wallet: str = Depends(require_auth)):
+    """List escrows for the authenticated wallet (as buyer or seller)."""
+    all_escrows = escrow_client._escrows
+    user_escrows = [e for e in all_escrows.values()
+                    if e.get("buyer") == wallet or e.get("seller") == wallet]
+    return {"escrows": user_escrows, "count": len(user_escrows), "wallet": wallet}
 
 @app.get("/api/escrow/{escrow_id}")
 async def get_escrow(escrow_id: str, wallet: str = Depends(require_auth)):
