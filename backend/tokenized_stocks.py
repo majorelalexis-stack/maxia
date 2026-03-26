@@ -10,6 +10,101 @@ import httpx
 from config import TREASURY_ADDRESS, get_rpc_url
 from security import require_ofac_clear
 
+# ── Disclaimer legal (inclus dans les reponses API) ──
+STOCK_DISCLAIMER = (
+    "Tokenized stocks are synthetic assets backed by on-chain protocols "
+    "(xStocks/Ondo/Dinari). Prices sourced from Pyth Network and Yahoo Finance. "
+    "MAXIA does not provide investment advice. Trade at your own risk."
+)
+
+# ── Item 5: Audit trail des prix — schema lazy creation ──
+_price_audit_schema_ready = False
+
+_PRICE_AUDIT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS price_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    price REAL NOT NULL,
+    source TEXT NOT NULL,
+    publish_time INTEGER DEFAULT 0,
+    confidence REAL DEFAULT 0,
+    confidence_pct REAL DEFAULT 0,
+    age_s INTEGER DEFAULT 0,
+    trade_type TEXT NOT NULL,
+    amount_usdc REAL NOT NULL,
+    age_spread_pct REAL DEFAULT 0,
+    timestamp INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_price_audit_symbol ON price_audit_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_price_audit_ts ON price_audit_log(timestamp);
+"""
+
+
+async def _ensure_price_audit_schema():
+    """Cree la table price_audit_log si elle n'existe pas encore (lazy)."""
+    global _price_audit_schema_ready
+    if _price_audit_schema_ready:
+        return
+    try:
+        from database import db
+        await db.raw_executescript(_PRICE_AUDIT_SCHEMA)
+        _price_audit_schema_ready = True
+        print("[Stocks] Schema price_audit_log pret")
+    except Exception as e:
+        print(f"[Stocks] Erreur schema price_audit_log: {e}")
+
+
+async def _log_price_audit(symbol: str, price: float, source: str,
+                           pyth_data: dict, trade_type: str,
+                           amount_usdc: float, age_spread_pct: float = 0.0):
+    """Persiste une entree d'audit prix en DB avant chaque trade."""
+    await _ensure_price_audit_schema()
+    try:
+        from database import db
+        await db.raw_execute(
+            "INSERT INTO price_audit_log "
+            "(symbol, price, source, publish_time, confidence, confidence_pct, "
+            "age_s, trade_type, amount_usdc, age_spread_pct, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                symbol,
+                round(price, 6),
+                source,
+                pyth_data.get("publish_time", 0),
+                pyth_data.get("confidence", 0),
+                pyth_data.get("confidence_pct", 0),
+                pyth_data.get("age_s", 0),
+                trade_type,
+                round(amount_usdc, 4),
+                round(age_spread_pct, 4),
+                int(time.time()),
+            ),
+        )
+    except Exception as e:
+        print(f"[Stocks] Erreur audit log: {e}")
+
+
+# ── Item 6: Spread dynamique quand prix vieux ──
+# Si le prix a entre 60s et staleness limit d'age, on applique un spread de protection.
+# 0.5% par 60s d'age, plafonne a 3%. Ajoute a la commission (ne la remplace pas).
+AGE_SPREAD_PER_60S = 0.5       # 0.5% par tranche de 60s d'age
+AGE_SPREAD_MAX_PCT = 3.0       # Plafond: 3% max de spread additionnel
+AGE_SPREAD_MIN_AGE_S = 60      # On ne commence qu'a 60s d'age
+
+
+def _calc_age_spread(age_s: int) -> float:
+    """Calcule le spread additionnel base sur l'age du prix.
+
+    Returns:
+        Spread en pourcentage (0.0 si prix frais, jusqu'a AGE_SPREAD_MAX_PCT).
+    """
+    if age_s < AGE_SPREAD_MIN_AGE_S:
+        return 0.0
+    # Nombre de tranches de 60s au-dela du seuil
+    tranches = age_s / 60.0
+    spread = tranches * AGE_SPREAD_PER_60S
+    return min(spread, AGE_SPREAD_MAX_PCT)
+
 # ── Oracle Safety Guards ──
 # Protection contre les prix stale, les jumps de prix, et le slippage excessif.
 MAX_PRICE_JUMP_PCT = 5.0        # Rejeter si le prix a bouge de >5% depuis le dernier check
@@ -600,6 +695,7 @@ class TokenizedStockExchange:
                 "baleine": "0.05% (25K+ USDC/mois)",
             },
             "note": "Commission la plus basse du marche. Achat fractionne a partir de 1 USDC.",
+            "disclaimer": STOCK_DISCLAIMER,
         }
 
     async def get_price(self, symbol: str) -> dict:
@@ -677,6 +773,7 @@ class TokenizedStockExchange:
             return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible. Reessayer plus tard."}
 
         # ── Oracle Safety Guard 2: Check Pyth staleness ──
+        pyth_data = {}
         try:
             from pyth_oracle import get_stock_price as pyth_get_stock
             pyth_data = await pyth_get_stock(symbol)
@@ -707,9 +804,22 @@ class TokenizedStockExchange:
             }
         _record_price(symbol, price)
 
-        # Calculer la commission
+        # ── Item 6: Spread dynamique si prix vieux (>60s mais pas stale) ──
+        price_age_s = pyth_data.get("age_s", 0) if pyth_data else 0
+        age_spread_pct = _calc_age_spread(price_age_s)
+
+        # ── Item 5: Audit trail prix AVANT execution ──
+        await _log_price_audit(
+            symbol=symbol, price=price, source=price_source,
+            pyth_data=pyth_data, trade_type="buy",
+            amount_usdc=amount_usdc, age_spread_pct=age_spread_pct,
+        )
+
+        # Calculer la commission (+ age spread si applicable)
         commission_bps = get_stock_commission_bps(amount_usdc)
-        commission = round(amount_usdc * commission_bps / 10000, 4)
+        age_spread_bps = round(age_spread_pct * 100)  # pct -> bps
+        total_fee_bps = commission_bps + age_spread_bps
+        commission = round(amount_usdc * total_fee_bps / 10000, 4)
         net_amount = amount_usdc - commission
         shares = round(net_amount / price, 6)
         tier = get_stock_tier_name(amount_usdc)
@@ -775,6 +885,7 @@ class TokenizedStockExchange:
             "amount_usdc": amount_usdc,
             "commission_usdc": commission,
             "commission_bps": commission_bps,
+            "age_spread_pct": age_spread_pct,
             "net_amount_usdc": net_amount,
             "price_per_share": price,
             "shares": shares,
@@ -813,8 +924,9 @@ class TokenizedStockExchange:
         return {
             "success": True,
             **trade,
-            "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
+            "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({total_fee_bps/100:.2f}%).",
             "price_source": price_source,
+            "disclaimer": STOCK_DISCLAIMER,
         }
 
     async def sell_stock(self, seller_api_key: str, seller_name: str,
@@ -850,6 +962,7 @@ class TokenizedStockExchange:
         gross_usdc_est = round(shares * price, 4)
         if price_source == "fallback" and gross_usdc_est > 100:
             return {"success": False, "error": "Prix provient d'un fallback statique — oracle indisponible."}
+        pyth_data = {}
         try:
             from pyth_oracle import get_stock_price as pyth_get_stock
             pyth_data = await pyth_get_stock(symbol)
@@ -862,9 +975,24 @@ class TokenizedStockExchange:
             return {"success": False, "error": f"Prix {symbol} a bouge de {jump_pct}% — circuit breaker actif."}
         _record_price(symbol, price)
 
+        # ── Item 6: Spread dynamique si prix vieux (>60s mais pas stale) ──
+        price_age_s = pyth_data.get("age_s", 0) if pyth_data else 0
+        age_spread_pct = _calc_age_spread(price_age_s)
+
         gross_usdc = round(shares * price, 4)
+
+        # ── Item 5: Audit trail prix AVANT execution ──
+        await _log_price_audit(
+            symbol=symbol, price=price, source=price_source,
+            pyth_data=pyth_data, trade_type="sell",
+            amount_usdc=gross_usdc, age_spread_pct=age_spread_pct,
+        )
+
+        # Calculer la commission (+ age spread si applicable)
         commission_bps = get_stock_commission_bps(gross_usdc)
-        commission = round(gross_usdc * commission_bps / 10000, 4)
+        age_spread_bps = round(age_spread_pct * 100)  # pct -> bps
+        total_fee_bps = commission_bps + age_spread_bps
+        commission = round(gross_usdc * total_fee_bps / 10000, 4)
         net_usdc = gross_usdc - commission
         tier = get_stock_tier_name(gross_usdc)
 
@@ -897,6 +1025,7 @@ class TokenizedStockExchange:
                     "gross_usdc": gross_usdc,
                     "commission_usdc": commission,
                     "commission_bps": commission_bps,
+                    "age_spread_pct": age_spread_pct,
                     "net_usdc": net_usdc,
                     "tier": tier,
                     "tenant_id": _tenant_id,
@@ -924,8 +1053,9 @@ class TokenizedStockExchange:
                 return {
                     "success": True,
                     **trade,
-                    "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({commission_bps/100:.2f}%).",
+                    "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({total_fee_bps/100:.2f}%).",
                     "price_source": price_source,
+                    "disclaimer": STOCK_DISCLAIMER,
                 }
             except Exception as e:
                 return {"success": False, "error": f"Jupiter error: {e}"}

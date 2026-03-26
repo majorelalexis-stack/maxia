@@ -94,6 +94,9 @@ X402_PRICE_MAP = {
     "/api/gpu/auctions":        1.00,
 }
 
+# ── Finnhub (oracle fallback pour actions tokenisees) ──
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")  # Free tier: 60 req/min
+
 # ── Serveur ──
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8001"))

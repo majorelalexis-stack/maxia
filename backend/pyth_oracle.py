@@ -6,17 +6,23 @@ Utilise pour:
 - Prix crypto majeurs — source alternative a CoinGecko/Helius
 - Batch pricing — un seul appel HTTP pour N symboles
 
-Strategie:
+Strategie (chaine de fallback):
 1. Pyth Hermes API (prix <400ms, confidence interval)
-2. Fallback CoinGecko via price_oracle.get_price()
-3. Cache 10s par feed (evite le spam API)
+2. Finnhub (free tier 60 req/min)
+3. CoinGecko via price_oracle.get_price()
+4. Yahoo Finance via price_oracle
+5. Prix statique fallback
 """
 import asyncio
+import os
 import time
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Query, HTTPException
+
+# ── Finnhub API (3eme source oracle pour actions) ──
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 
 
 # ── Constantes Pyth Hermes ──
@@ -34,6 +40,20 @@ STALE_CIRCUIT_THRESHOLD = 5    # 5 stales d'affilee -> source consideree down
 _consecutive_stale: dict[str, int] = {}  # {feed_id: count}
 
 # Feed IDs Pyth pour les actions (confirmes sur hermes.pyth.network)
+# Stocks sans feed Pyth connu (mars 2026) :
+#   AMD  — No Pyth feed available
+#   NFLX — No Pyth feed available
+#   PLTR — No Pyth feed available
+#   PYPL — No Pyth feed available
+#   INTC — No Pyth feed available
+#   DIS  — No Pyth feed available
+#   V    — No Pyth feed available
+#   MA   — No Pyth feed available
+#   UBER — No Pyth feed available
+#   CRM  — No Pyth feed available
+#   SQ   — No Pyth feed available
+#   SHOP — No Pyth feed available
+# Ces actions utilisent le fallback Finnhub -> Yahoo -> statique.
 EQUITY_FEEDS = {
     "AAPL": "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
     "TSLA": "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
@@ -43,6 +63,9 @@ EQUITY_FEEDS = {
     "MSFT": "d0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",
     "META": "3fa4252848f9f0a1480be62745a4629d9eb1322aebab8a791e344b3b9c1adcf5",
     "COIN": "ff2b0cecc26a7ca08c0894594d6b72ca0ae1cfaae0b94e1e1af68aabc14c2f09",
+    "QQQ":  "9695e2b96ea7b3859da9a0d18c46986bcc6c6e3e764c879930d3be688b0e41cc",
+    "SPY":  "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+    "MSTR": "245a7a2dd7084a75baf3e12e6ec42350e1b6f8b15e64e3aef6c9b1a362174b56",
 }
 
 # Feed IDs Pyth pour les cryptos principales
@@ -181,32 +204,82 @@ async def get_pyth_price(feed_id: str) -> dict:
         return {"error": f"Pyth error: {str(e)[:100]}", "source": "pyth"}
 
 
+async def get_stock_price_finnhub(symbol: str) -> dict:
+    """Recupere le prix d'une action via Finnhub API (free tier: 60 req/min).
+
+    Args:
+        symbol: Ticker de l'action (AAPL, TSLA, etc.)
+
+    Returns:
+        {"price": float, "source": "finnhub", "confidence": 0, "publish_time": int}
+        ou {"error": "..."} en cas d'echec
+    """
+    if not FINNHUB_API_KEY:
+        return {"error": "FINNHUB_API_KEY not set", "source": "finnhub"}
+
+    sym = symbol.upper()
+    try:
+        client = await _get_http()
+        resp = await client.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": sym, "token": FINNHUB_API_KEY},
+        )
+        if resp.status_code != 200:
+            return {"error": f"Finnhub HTTP {resp.status_code}", "source": "finnhub"}
+
+        data = resp.json()
+        # Finnhub retourne c=current, t=timestamp, h=high, l=low, o=open, pc=prev close
+        price = data.get("c", 0)
+        timestamp = data.get("t", 0)
+
+        if not price or price <= 0:
+            return {"error": "Finnhub returned no price", "source": "finnhub"}
+
+        return {
+            "price": round(float(price), 6),
+            "confidence": 0,
+            "publish_time": int(timestamp) if timestamp else int(time.time()),
+            "source": "finnhub",
+            "symbol": sym,
+        }
+    except httpx.TimeoutException:
+        return {"error": "Finnhub timeout", "source": "finnhub"}
+    except Exception as e:
+        return {"error": f"Finnhub error: {str(e)[:100]}", "source": "finnhub"}
+
+
 async def get_stock_price(symbol: str) -> dict:
-    """Recupere le prix d'une action via Pyth, fallback CoinGecko.
+    """Recupere le prix d'une action via Pyth -> Finnhub -> CoinGecko -> Yahoo -> fallback.
 
     Args:
         symbol: Ticker de l'action (AAPL, TSLA, NVDA, etc.)
 
     Returns:
-        {"price": float, "confidence": float, "source": "pyth"|"coingecko"|"fallback"}
+        {"price": float, "confidence": float, "source": "pyth"|"finnhub"|"coingecko"|"yahoo"|"fallback"}
     """
     sym = symbol.upper()
     # Alias GOOGL -> GOOG (Pyth utilise GOOG)
     if sym == "GOOGL":
         sym = "GOOG"
 
+    # ── Source 1: Pyth Hermes (meilleur — temps reel, confidence interval) ──
     feed_id = EQUITY_FEEDS.get(sym)
     if feed_id:
         result = await get_pyth_price(feed_id)
         if "error" not in result and result.get("price", 0) > 0:
             result["symbol"] = symbol.upper()
-            # Stale stock price -> fallback to CoinGecko instead of serving stale
+            # Stale stock price -> fallback au lieu de servir un prix stale
             if result.get("stale"):
                 print(f"[PythOracle] STALE stock price for {sym} (age={result.get('age_s')}s > {MAX_STALENESS_STOCK_S}s), falling back")
             else:
                 return result
 
-    # Fallback CoinGecko via price_oracle existant
+    # ── Source 2: Finnhub (gratuit, 60 req/min) ──
+    finnhub_result = await get_stock_price_finnhub(symbol)
+    if "error" not in finnhub_result and finnhub_result.get("price", 0) > 0:
+        return finnhub_result
+
+    # ── Source 3: CoinGecko via price_oracle existant ──
     try:
         from price_oracle import get_price as cg_get_price
         price = await cg_get_price(symbol.upper())
@@ -221,7 +294,23 @@ async def get_stock_price(symbol: str) -> dict:
     except Exception:
         pass
 
-    # Fallback statique
+    # ── Source 4: Yahoo Finance via price_oracle ──
+    try:
+        from price_oracle import get_stock_prices as yahoo_get_stocks
+        yahoo_prices = await yahoo_get_stocks()
+        yahoo_data = yahoo_prices.get(symbol.upper(), {})
+        if yahoo_data.get("price", 0) > 0:
+            return {
+                "price": yahoo_data["price"],
+                "confidence": 0,
+                "publish_time": int(time.time()),
+                "source": yahoo_data.get("source", "yahoo"),
+                "symbol": symbol.upper(),
+            }
+    except Exception:
+        pass
+
+    # ── Source 5: Fallback statique (dernier recours) ──
     from price_oracle import FALLBACK_PRICES
     fb = FALLBACK_PRICES.get(symbol.upper(), 0)
     return {
@@ -580,6 +669,63 @@ async def api_oracle_health():
         }
     except Exception as e:
         return {"status": "error", "error": str(e)[:100]}
+
+
+# ── Item 7: Alerte Telegram quand oracle stale pendant market hours ──
+# Rate limit: max 1 alerte par symbole par heure
+_oracle_alert_last: dict[str, float] = {}  # {symbol: timestamp dernier alerte}
+_ORACLE_ALERT_COOLDOWN = 3600  # 1 heure entre chaque alerte par symbole
+_ORACLE_STALE_ALERT_THRESHOLD = 300  # 5 minutes = feed considere stale pour alerte
+
+
+async def check_oracle_health_alert():
+    """Verifie la staleness de tous les feeds equity Pyth.
+
+    Si un feed est stale > 5 min, envoie une alerte Telegram via alert_error.
+    Rate-limited: max 1 alerte par symbole par heure.
+    Appele depuis scheduler._v13_background_loop() toutes les 5 min.
+    """
+    now = time.time()
+    stale_count = 0
+
+    for symbol, feed_id in EQUITY_FEEDS.items():
+        try:
+            result = await get_pyth_price(feed_id)
+            if "error" in result:
+                # Feed en erreur — verifier si c'est un stale circuit open
+                if result.get("stale"):
+                    age = result.get("age_s", 0)
+                else:
+                    continue
+            else:
+                age = result.get("age_s", 0)
+
+            if age < _ORACLE_STALE_ALERT_THRESHOLD:
+                continue
+
+            stale_count += 1
+
+            # Rate limit par symbole
+            last_alert = _oracle_alert_last.get(symbol, 0)
+            if now - last_alert < _ORACLE_ALERT_COOLDOWN:
+                continue
+
+            _oracle_alert_last[symbol] = now
+
+            try:
+                from alerts import alert_error
+                await alert_error(
+                    "PythOracle",
+                    f"Oracle STALE: {symbol} prix age {age}s (Pyth Hermes)"
+                )
+            except Exception as e:
+                print(f"[PythOracle] Erreur envoi alerte stale {symbol}: {e}")
+
+        except Exception as e:
+            print(f"[PythOracle] Health check error for {symbol}: {e}")
+
+    if stale_count > 0:
+        print(f"[PythOracle] Health check: {stale_count}/{len(EQUITY_FEEDS)} feeds stale (>{_ORACLE_STALE_ALERT_THRESHOLD}s)")
 
 
 print(f"[PythOracle] Initialise — {len(EQUITY_FEEDS)} equity + {len(CRYPTO_FEEDS)} crypto feeds via Hermes")

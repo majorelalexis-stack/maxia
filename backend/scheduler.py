@@ -161,6 +161,14 @@ class Scheduler:
                 except Exception:
                     pass
 
+                # Toutes les 5 min : check staleness oracle Pyth (alerte Telegram si >5min)
+                try:
+                    from pyth_oracle import check_oracle_health_alert
+                    await check_oracle_health_alert()
+                except Exception as e:
+                    if "No module" not in str(e):
+                        print(f"[V13] Oracle health alert error: {e}")
+
                 # Toutes les 5 min : check liveness des deliveries (PoD auto-confirm)
                 try:
                     from proof_of_delivery import check_liveness_expirations
