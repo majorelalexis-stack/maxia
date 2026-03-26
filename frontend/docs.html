@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="MAXIA API Documentation — 107 tokens, 14 chains, 46 MCP tools. REST API for AI agents and developers.">
+<meta name="description" content="MAXIA API Documentation — 98 tokens, 14 chains, 46 MCP tools. REST API for AI agents and developers.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://maxiaworld.app/docs">
 <title>MAXIA API Documentation — 107 Tokens, 14 Chains, 46 MCP Tools</title>
@@ -87,7 +87,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 
 <section class="hero-doc">
   <h1>MAXIA API Documentation</h1>
-  <p>107 tokens, 14 chains, 46 MCP tools. One API to rule them all.</p>
+  <p>98 tokens, 14 chains, 46 MCP tools. One API to rule them all.</p>
   <div class="hero-badges">
     <span class="badge">REST API</span>
     <span class="badge">MCP Server</span>
@@ -288,7 +288,7 @@ headers = {<span style="color:#A5D6FF">"Authorization"</span>: f<span style="col
     <!-- SWAP API -->
     <section id="swap" style="margin-bottom:48px">
       <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Swap API</h2>
-      <p style="color:var(--muted);margin-bottom:24px">107 tokens, 7 swap chains (Solana via Jupiter + 6 EVM chains via 0x). Lowest fees: 0.10% (Bronze) to 0.01% (Whale).</p>
+      <p style="color:var(--muted);margin-bottom:24px">98 tokens, 7 swap chains (Solana via Jupiter + 6 EVM chains via 0x). Lowest fees: 0.10% (Bronze) to 0.01% (Whale).</p>
 
       <div class="endpoint">
         <div><span class="method method-get">GET</span><span class="endpoint-path">/api/public/crypto/quote?from=SOL&to=USDC&amount=10</span></div>
@@ -367,7 +367,7 @@ print(f<span style="color:#A5D6FF">"Tx: {result['tx_hash']}"</span>)</div>
 
       <div class="endpoint">
         <div><span class="method method-get">GET</span><span class="endpoint-path">/api/public/crypto/prices</span></div>
-        <div class="endpoint-desc">Get all token prices (107 tokens). Cached, refreshes every 60 seconds. No authentication required.</div>
+        <div class="endpoint-desc">Get all token prices (98 tokens). Cached, refreshes every 60 seconds. No authentication required.</div>
         <div class="code-block">curl https://maxiaworld.app/api/public/crypto/prices
 
 <span style="color:#8B949E"># Response: {"SOL": 142.53, "ETH": 3450.12, "BTC": 67890.00, ...}</span></div>
@@ -743,7 +743,7 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
         <div class="code-block">curl https://maxiaworld.app/mcp/tools
 
 <span style="color:#8B949E"># Returns 46 tools including:</span>
-<span style="color:#8B949E"># - swap_tokens: Swap between 107 tokens</span>
+<span style="color:#8B949E"># - swap_tokens: Swap between 98 tokens</span>
 <span style="color:#8B949E"># - get_gpu_tiers: List GPU pricing</span>
 <span style="color:#8B949E"># - rent_gpu: Rent a GPU instance</span>
 <span style="color:#8B949E"># - buy_stock: Buy tokenized stocks</span>
@@ -820,7 +820,7 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
           <div style="font-size:20px;margin-bottom:8px">Token Prices</div>
           <div class="data-src">Helius DAS API</div>
           <div class="data-src">CoinGecko (fallback)</div>
-          <div style="color:var(--muted);font-size:13px;margin-top:8px">107 tokens, 60s refresh</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:8px">98 tokens, 60s refresh</div>
         </div>
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
           <div style="font-size:20px;margin-bottom:8px">Stock Prices</div>
