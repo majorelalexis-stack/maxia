@@ -857,6 +857,50 @@ try:
 except Exception as e:
     print(f"[MAXIA] Auction router error: {e}")
 
+# ═══ Enterprise Suite (6 modules) ═══
+try:
+    from enterprise_billing import router as billing_router
+    app.include_router(billing_router)
+    print("[Enterprise] Billing (usage-based metering + invoices) monte")
+except Exception as e:
+    print(f"[MAXIA] Billing router error: {e}")
+
+try:
+    from enterprise_sso import router as sso_router
+    app.include_router(sso_router)
+    print("[Enterprise] SSO (OIDC/Google/Microsoft) monte")
+except Exception as e:
+    print(f"[MAXIA] SSO router error: {e}")
+
+try:
+    from enterprise_metrics import router as metrics_router, metrics_middleware
+    app.include_router(metrics_router)
+    app.middleware("http")(metrics_middleware)
+    print("[Enterprise] Metrics (Prometheus /metrics + SLA) monte")
+except Exception as e:
+    print(f"[MAXIA] Metrics router error: {e}")
+
+try:
+    from audit_trail import router as audit_router
+    app.include_router(audit_router)
+    print("[Enterprise] Audit Trail (compliance + policies) monte")
+except Exception as e:
+    print(f"[MAXIA] Audit router error: {e}")
+
+try:
+    from tenant_isolation import router as tenant_router
+    app.include_router(tenant_router)
+    print("[Enterprise] Tenant Isolation (multi-tenant + plans) monte")
+except Exception as e:
+    print(f"[MAXIA] Tenant router error: {e}")
+
+try:
+    from enterprise_dashboard import router as dashboard_router
+    app.include_router(dashboard_router)
+    print("[Enterprise] Dashboard (fleet analytics + SLA + revenue) monte")
+except Exception as e:
+    print(f"[MAXIA] Dashboard router error: {e}")
+
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
