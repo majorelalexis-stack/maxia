@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="MAXIA Enterprise — Infrastructure for AI Agent Companies. Deploy your agents on 14 blockchains. Payments, compute, compliance, and reputation.">
+<meta name="description" content="MAXIA Enterprise — Infrastructure for AI Agent Companies. SSO, billing, audit trail, SLA monitoring, multi-tenant, fleet dashboard. 555 API routes, 30 enterprise endpoints. Deploy your agents on 14 blockchains.">
 <meta name="keywords" content="AI enterprise, AI agents infrastructure, blockchain API, GPU compute, USDC payments, compliance, fleet management">
 <meta name="author" content="MAXIA">
 <meta name="robots" content="index, follow">
@@ -112,7 +112,7 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
   .section{padding:60px 16px}
   .section-title{font-size:24px}
   .section-sub{font-size:15px}
-  .grid{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr !important}
   .stats-bar{gap:24px}
   nav{padding:12px 16px}
   .nav-links{gap:12px}
@@ -161,10 +161,10 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
 <!-- Stats -->
 <div class="stats-bar">
   <div class="stat"><div class="stat-num">14</div><div class="stat-label">Blockchains</div></div>
-  <div class="stat"><div class="stat-num">46</div><div class="stat-label">MCP Tools</div></div>
-  <div class="stat"><div class="stat-num">13</div><div class="stat-label">GPU Tiers</div></div>
+  <div class="stat"><div class="stat-num">555</div><div class="stat-label">API Routes</div></div>
+  <div class="stat"><div class="stat-num">30</div><div class="stat-label">Enterprise Endpoints</div></div>
   <div class="stat"><div class="stat-num">100K</div><div class="stat-label">API Calls/Day</div></div>
-  <div class="stat"><div class="stat-num">99.9%</div><div class="stat-label">SLA</div></div>
+  <div class="stat"><div class="stat-num">99.9%</div><div class="stat-label">SLA (Prometheus)</div></div>
 </div>
 
 <!-- 4 Offers -->
@@ -233,6 +233,67 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
   </div>
 </section>
 
+<!-- Enterprise Platform (6 modules) -->
+<section class="section-dark" style="padding:80px 24px">
+  <div style="max-width:1100px;margin:0 auto;text-align:center">
+    <h2 class="section-title fade-in">Enterprise Platform</h2>
+    <p class="section-sub fade-in">6 modules included with Enterprise. All accessible via API.</p>
+
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128176;</div>
+        <div class="card-name">Usage-Based Billing</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Automatic metering of API calls, GPU hours, swap volume, LLM tokens. Auto-generated invoices per tenant. Hybrid pricing (subscription + usage).</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/billing/usage</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/billing/invoice/{month}</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128274;</div>
+        <div class="card-name">Enterprise SSO</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">OIDC-compatible SSO. Connect with Google Workspace, Microsoft Entra, Okta, or any custom OIDC provider. JWT validation via JWKS.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/sso/login</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/sso/callback</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128200;</div>
+        <div class="card-name">SLA Monitoring</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Prometheus-compatible /metrics endpoint. Real-time SLA tracking per tier (99% / 99.5% / 99.9%). Request latency, chain status, error rates.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /metrics</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/sla/status</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128209;</div>
+        <div class="card-name">Audit Trail</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Every trade, escrow, swap, and fund transfer logged. Policy enforcement (OFAC, $100K max, $500K daily). CSV export for auditors.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/audit/trail</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/audit/export/{month}</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#127970;</div>
+        <div class="card-name">Multi-Tenant Isolation</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Data isolation per tenant. 4 plans (Free / Pro / Enterprise / Custom) with rate limits, agent caps, and volume controls. PostgreSQL RLS ready.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/tenants/plans</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">POST /api/enterprise/tenants</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128202;</div>
+        <div class="card-name">Fleet Dashboard</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Fleet overview, time-series analytics (revenue/calls/errors), agent drilldown, SLA compliance per agent, revenue breakdown by service and chain.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/dashboard/overview</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/dashboard/analytics</code>
+      </div>
+
+    </div>
+    <p style="color:var(--muted2);font-size:13px;margin-top:24px">30 enterprise API endpoints. All auth-protected. JSON responses.</p>
+  </div>
+</section>
+
 <!-- Comparison Table -->
 <section class="section-dark" style="padding:80px 24px">
   <div style="max-width:1000px;margin:0 auto;text-align:center">
@@ -287,6 +348,42 @@ nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:lin
           </tr>
           <tr>
             <td>White-label</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>SSO (Google/Microsoft/OIDC)</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Prometheus /metrics</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Audit trail + CSV export</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Usage-based billing</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Multi-tenant isolation</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Fleet analytics dashboard</td>
             <td style="color:var(--muted2)">&#10007;</td>
             <td style="color:var(--muted2)">&#10007;</td>
             <td style="color:var(--green);font-weight:700">&#10003;</td>
@@ -470,7 +567,7 @@ async function submitEnterpriseForm(e) {
     <a href="/architecture">Architecture</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
   </div>
-  <p>MAXIA Enterprise — Infrastructure for AI Agent Companies — 14 Chains — 46 MCP Tools</p>
+  <p>MAXIA Enterprise — Infrastructure for AI Agent Companies — 14 Chains — 555 Routes — 30 Enterprise Endpoints</p>
   <p style="margin-top:8px;font-size:12px;color:var(--muted2)">Contact: ceo@maxiaworld.app</p>
 </footer>
 
