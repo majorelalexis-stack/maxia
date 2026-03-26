@@ -823,8 +823,10 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
         </div>
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
           <div style="font-size:20px;margin-bottom:8px">Stock Prices</div>
-          <div class="data-src">Pyth Hermes Oracle</div>
-          <div style="color:var(--muted);font-size:13px;margin-top:8px">895 feeds, real-time (sub-second)</div>
+          <div class="data-src">Pyth Hermes Oracle (11 stocks)</div>
+          <div class="data-src">Finnhub (fallback, 60 req/min)</div>
+          <div class="data-src">Yahoo Finance (18 stocks)</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:8px">5-source chain, 30s staleness check</div>
         </div>
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
           <div style="font-size:20px;margin-bottom:8px">DeFi Yields</div>
@@ -837,6 +839,68 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
           <div style="color:var(--muted);font-size:13px;margin-top:8px">13 tiers, 30min refresh</div>
         </div>
       </div>
+    </section>
+
+    <!-- IMAGE GENERATION -->
+    <section id="image-gen" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Image Generation</h2>
+      <p style="color:var(--muted);margin-bottom:24px">AI image generation via Pollinations.ai (free, no API key required). Fallback: Together AI if configured.</p>
+
+      <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div class="endpoint"><span class="method post">POST</span><code>/api/public/image/generate</code></div>
+        <div class="endpoint-desc">Generate an AI image from a text prompt. Content safety enforced (Art.1).</div>
+        <div class="code-block">curl -X POST https://maxiaworld.app/api/public/image/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "futuristic AI marketplace", "width": 512, "height": 512}'</div>
+        <p style="color:var(--muted);font-size:13px;margin-top:8px">Response: <code>image_base64</code> (PNG), <code>source</code> (pollinations.ai or together), <code>model</code></p>
+      </div>
+      <div class="note">Images generated via Pollinations.ai (FLUX model, free, unlimited). Blocked prompts: violence, NSFW, illegal content. Max 2048x2048px.</div>
+    </section>
+
+    <!-- ENTERPRISE API -->
+    <section id="enterprise-api" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Enterprise API</h2>
+      <p style="color:var(--muted);margin-bottom:24px">30 enterprise endpoints for billing, SSO, metrics, audit, tenants, and fleet analytics. <a href="/enterprise" style="color:var(--cyan)">See Enterprise page</a>.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Billing</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">POST /api/enterprise/billing/record</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/billing/usage</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/billing/invoice/{month}</code>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">SSO (Google/Microsoft)</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/login</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/callback</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/providers</code>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Prometheus Metrics</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /metrics</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sla/status</code>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Audit Trail</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/trail</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/export/{month}</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/policies</code>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Multi-Tenant</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/tenants/plans</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">POST /api/enterprise/tenants</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/tenants/me</code>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Fleet Dashboard</div>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/overview</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/analytics</code>
+          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/sla</code>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:16px">Stripe payments available via <code>POST /api/enterprise/stripe/checkout</code>. Webhook at <code>/api/enterprise/stripe/webhook</code>. 4 plans: Pro ($9.99), Fleet ($49), Compliance ($199), Enterprise ($299).</div>
     </section>
 
   </main>

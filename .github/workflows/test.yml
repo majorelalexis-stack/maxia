@@ -70,7 +70,7 @@ jobs:
           print(f'All {len(modules)} modules imported OK')
           "
 
-      - name: Load FastAPI app (527 routes)
+      - name: Load FastAPI app (559 routes)
         run: |
           cd backend
           python -c "
