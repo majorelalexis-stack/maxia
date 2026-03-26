@@ -1912,7 +1912,8 @@ async function connectSpecific(type) {
       if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'coinbase'; }
     }
     else if (type === 'walletconnect') {
-      if (!window.ethereum) { toast('WalletConnect requires an EVM wallet installed', 'error'); return; }
+      // WalletConnect uses the injected EVM provider (MetaMask/Rabby/Coinbase)
+      if (!window.ethereum) { toast('Install an EVM wallet (MetaMask, Rabby, or Coinbase) first', 'error'); return; }
       var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'walletconnect'; }
     }
@@ -2483,13 +2484,8 @@ function renderSwapTierProgress(tierInfo, currentTier, valueUsd) {
 
   if (tiers.length === 0) { tierProgress.style.display = 'none'; return; }
 
-  // Determine current tier from tierInfo or by matching valueUsd
-  var activeTier = (tierInfo && tierInfo.current_tier) ? tierInfo.current_tier : (currentTier || null);
-  if (!activeTier && valueUsd > 0) {
-    for (var i = 0; i < tiers.length; i++) {
-      if (valueUsd >= tiers[i].min && valueUsd < tiers[i].max) { activeTier = tiers[i].name; break; }
-    }
-  }
+  // Determine current tier from API response (based on 30-day volume, not trade amount)
+  var activeTier = (tierInfo && tierInfo.current_tier) ? tierInfo.current_tier : (currentTier || 'BRONZE');
   if (!activeTier) activeTier = 'BRONZE';
 
   tierProgress.style.display = 'flex';
@@ -2525,12 +2521,13 @@ function renderSwapTierProgress(tierInfo, currentTier, valueUsd) {
     nextEl.style.color = 'var(--cyan)';
     nextEl.style.display = 'block';
   } else {
-    // Compute next tier from tiers array for fallback
+    // Compute next tier from tiers array (based on 30-day volume, not trade amount)
+    var volume30d = (tierInfo && tierInfo.volume_30d) ? tierInfo.volume_30d : 0;
     var activeIdx = -1;
     for (var j = 0; j < tiers.length; j++) { if (tiers[j].name === activeTier) { activeIdx = j; break; } }
     if (activeIdx >= 0 && activeIdx + 1 < tiers.length) {
       var nextT = tiers[activeIdx + 1];
-      var rem = Math.max(0, nextT.min - (valueUsd || 0));
+      var rem = Math.max(0, nextT.min - volume30d);
       if (rem > 0) {
         nextEl.textContent = 'Swap $' + Math.round(rem).toLocaleString() + ' more to reach ' + nextT.name + ' tier';
         nextEl.style.color = 'var(--muted)';
