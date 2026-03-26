@@ -11,6 +11,7 @@ jobs:
     env:
       JWT_SECRET: ci-test-secret-key-32chars-minimum
       SANDBOX_MODE: "true"
+      ADMIN_KEY: ci-admin-key-32chars-minimum-here
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,6 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
 
       - name: Syntax check all Python files
         run: |
@@ -69,6 +71,14 @@ jobs:
               sys.exit(1)
           print(f'All {len(modules)} modules imported OK')
           "
+
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=backend \
+            --cov-report=term-missing \
+            --cov-fail-under=30 \
+            --tb=short
 
       - name: Load FastAPI app (559 routes)
         run: |

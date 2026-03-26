@@ -217,7 +217,16 @@ class EscrowClient:
             f"Timeout: {timeout_hours}h",
         )
 
-        return {"success": True, **escrow}
+        # Avertissement risque gel USDC par Circle
+        return {
+            "success": True,
+            **escrow,
+            "usdc_risk_notice": (
+                "USDC is issued by Circle and can be frozen by regulatory order. "
+                "In case of a freeze, funds in escrow may be temporarily unavailable. "
+                "MAXIA will assist in resolution."
+            ),
+        }
 
     async def confirm_delivery(self, escrow_id: str, buyer_wallet: str) -> dict:
         """Buyer confirme la livraison -> USDC liberes au seller."""

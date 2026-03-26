@@ -100,6 +100,7 @@ Anchor (Solana) escrow program in Rust. Deployed on Solana **mainnet** (2026-03-
 - **AI models**: Groq `llama-3.3-70b-versatile` for fast inference, Claude Sonnet/Opus for strategic decisions
 - **Database**: PostgreSQL 17 in prod (asyncpg, pool 2-20), SQLite for dev. Schema migrations via `schema_version` table. Set `DATABASE_URL=postgresql://...` in `.env` for PostgreSQL.
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
+- **Security**: SSRF protection (private IP blocking), IP spoofing prevention (X-Forwarded-For validation), global exception handler (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation (EVM + Solana regex), Solana commitment `finalized` for payments
 - **Deployment**: Railway/Render via `Procfile`, or Docker via `docker-compose.yml`
 
 ## User Preferences (Alexis)

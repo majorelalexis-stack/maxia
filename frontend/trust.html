@@ -422,6 +422,57 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
   </div>
 </section>
 
+<!-- USDC REGULATORY RISKS -->
+<section class="section fade-in" id="usdc-risks">
+  <h2 class="section-title">USDC & Regulatory Risks</h2>
+  <p class="section-sub">Transparency about USDC settlement and potential regulatory actions.</p>
+  <div class="card" style="border-left:3px solid var(--orange)">
+    <div style="color:var(--muted);font-size:15px;line-height:1.8">
+      MAXIA settles all trades in USDC (Circle). USDC is a regulated stablecoin. In compliance with US and international regulations, Circle may freeze USDC on specific addresses if required by law enforcement (OFAC sanctions). If this affects an escrow PDA, the funds would be temporarily frozen until the regulatory matter is resolved. MAXIA's <code style="background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px">emergency_close</code> mechanism attempts to recover funds, and our team will actively work with Circle to resolve any freezes. This risk is inherent to all USDC-based protocols and is not specific to MAXIA.
+    </div>
+  </div>
+</section>
+
+<!-- SECURITY AUDIT -->
+<section class="section fade-in" id="security-audit">
+  <h2 class="section-title">Security Audit</h2>
+  <p class="section-sub">Comprehensive security audit completed March 2026. All critical and high-severity issues resolved.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px">
+    <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;text-align:center">
+      <div style="font-size:36px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">15</div>
+      <div style="color:var(--muted);font-size:14px;margin-top:4px">Vulnerabilities Fixed</div>
+    </div>
+    <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;text-align:center">
+      <div style="font-size:36px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">0</div>
+      <div style="color:var(--muted);font-size:14px;margin-top:4px">Critical Findings (Contract)</div>
+    </div>
+    <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;text-align:center">
+      <div style="font-size:36px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace">5</div>
+      <div style="color:var(--muted);font-size:14px;margin-top:4px">Sources (Oracle)</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div class="card" style="border-left:3px solid var(--green)">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--green)">Oracle Protection</div>
+      <div style="color:var(--muted);font-size:14px;line-height:1.6">5-source oracle (Pyth, CoinGecko, Yahoo, Finnhub, Helius). 30s staleness check on stock prices. Circuit breaker auto-disables unhealthy feeds. Age spread validation prevents price manipulation.</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--cyan)">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--cyan)">Escrow Protection</div>
+      <div style="color:var(--muted);font-size:14px;line-height:1.6">Smart contract audited &mdash; 0 critical findings. Each trade uses an isolated PDA (Program Derived Address). 48h auto-refund if seller fails to deliver. <a href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" style="color:var(--cyan)">View on Solscan</a>.</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--purple)">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--purple)">Infrastructure Hardening</div>
+      <div style="color:var(--muted);font-size:14px;line-height:1.6">SSRF protection (private IP blocking), IP spoofing prevention, global exception handler (no internal errors leaked), WebSocket 64KB limit, HTTP body 5MB limit, wallet address validation (EVM + Solana regex).</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--orange)">
+      <div style="font-weight:700;margin-bottom:8px;color:var(--orange)">OFAC/AML Compliance</div>
+      <div style="color:var(--muted);font-size:14px;line-height:1.6">Chainalysis oracle screening on all EVM chains. 55 hardcoded sanctioned addresses (Tornado Cash, Lazarus Group). Pre-transaction screening with auto-block and admin alerts via Telegram.</div>
+    </div>
+  </div>
+</section>
+
 <!-- CTA -->
 <section style="text-align:center;padding:80px 24px;background:radial-gradient(ellipse 60% 50% at 50% 100%,rgba(16,185,129,.06) 0%,transparent 60%)">
   <h2 style="font-size:32px;font-weight:700;margin-bottom:12px">Trade with Confidence</h2>

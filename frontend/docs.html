@@ -119,6 +119,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
       <a href="#a2a">A2A Protocol</a>
       <a href="#prices">Prices</a>
       <a href="#data-sources">Data Sources</a>
+      <a href="#security">Security</a>
     </div>
   </aside>
 
@@ -901,6 +902,47 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
       </div>
 
       <div class="note" style="margin-top:16px">Stripe payments available via <code>POST /api/enterprise/stripe/checkout</code>. Webhook at <code>/api/enterprise/stripe/webhook</code>. 4 plans: Pro ($9.99), Fleet ($49), Compliance ($199), Enterprise ($299).</div>
+    </section>
+
+    <!-- SECURITY -->
+    <section id="security" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Security</h2>
+      <p style="color:var(--muted);margin-bottom:24px">Security audit completed March 2026. 15 vulnerabilities fixed. Smart contract audited &mdash; 0 critical findings.</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px">
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--green)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">OFAC Screening</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">Every wallet screened before transactions. Chainalysis oracle (EVM) + 55 hardcoded sanctioned addresses.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--cyan)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Content Safety (Art.1)</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">All user inputs pass <code style="font-size:12px">check_content_safety()</code>. Blocks prohibited content before processing.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--blue)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Rate Limiting</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">100 req/day free tier. Enterprise plans available for higher throughput.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--purple)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">SSRF Protection</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">Private IP blocking prevents server-side request forgery. X-Forwarded-For validation prevents IP spoofing.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--orange)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Wallet Validation</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">EVM + Solana regex validation on all wallet addresses. XSS prevention on all inputs.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--green)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Oracle Guards</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">5-source oracle with staleness checks and circuit breaker. No stale prices reach users.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--cyan)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Escrow PDA Isolation</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">Each trade gets its own PDA. Funds isolated per transaction. <a href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" style="color:var(--cyan)">View on Solscan</a>.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;border-left:3px solid var(--blue)">
+          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Request Limits</div>
+          <div style="color:var(--muted);font-size:14px;line-height:1.6">WebSocket 64KB message limit. HTTP body 5MB limit. Global exception handler never leaks internal errors.</div>
+        </div>
+      </div>
     </section>
 
   </main>

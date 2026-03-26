@@ -128,3 +128,18 @@
 | Rate limiting | 100 req/day free tier, 429 on excess |
 | Price cache TTL | 60s (crypto), 180s (stocks) |
 | Chaos tests | 7/7 pass |
+
+---
+
+## Security Audit (March 2026)
+
+15 vulnerabilities fixed (5 critical, 5 high, 5 medium). Smart contract: 0 critical findings. Score: 50/90 improved to ~70/90 after fixes.
+
+| Severity | Count | Status |
+|----------|-------|--------|
+| Critical | 5 | Fixed |
+| High | 5 | Fixed |
+| Medium | 5 | Fixed |
+| Smart Contract | 0 critical | Audited |
+
+**Key fixes:** SSRF protection (private IP blocking), IP spoofing prevention (X-Forwarded-For validation), global exception handler (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation (EVM + Solana regex), Solana commitment `finalized` for payments, CORS origin restriction, multipart CVE mitigation.

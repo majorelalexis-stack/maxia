@@ -18,7 +18,8 @@ STOCK_DISCLAIMER = (
     "MAXIA is NOT a stock exchange. These tokens track stock prices via oracle "
     "(Pyth Network / Finnhub / Yahoo Finance) and are tradable 24/7 on-chain via "
     "3 providers: xStocks/Backed (Solana+ETH), Ondo (ETH), Dinari (Arbitrum). "
-    "MAXIA does not provide investment advice. Trade at your own risk."
+    "MAXIA does not provide investment advice. Trade at your own risk. "
+    "Settlement in USDC — subject to Circle's terms and regulatory freezing powers."
 )
 
 # ── Item 5: Audit trail des prix — schema lazy creation ──
