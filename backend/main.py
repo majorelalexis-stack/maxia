@@ -866,6 +866,13 @@ except Exception as e:
     print(f"[MAXIA] Billing router error: {e}")
 
 try:
+    from stripe_billing import router as stripe_router
+    app.include_router(stripe_router)
+    print("[Enterprise] Stripe Billing (checkout + webhooks + portal) monte")
+except Exception as e:
+    print(f"[MAXIA] Stripe billing router error: {e}")
+
+try:
     from enterprise_sso import router as sso_router
     app.include_router(sso_router)
     print("[Enterprise] SSO (OIDC/Google/Microsoft) monte")

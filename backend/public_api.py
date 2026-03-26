@@ -1185,6 +1185,10 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
         print(f"[PublicAPI] AI service error: {e}")
         raise HTTPException(502, "AI service temporarily unavailable")
 
+    # Isolation multi-tenant
+    from tenant_isolation import get_current_tenant
+    _tenant_id = get_current_tenant() or "default"
+
     # Enregistrer la transaction
     tx = {
         "tx_id": str(uuid.uuid4()),
@@ -1197,6 +1201,7 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
         "seller_gets_usdc": seller_gets,
         "payment_tx": payment_tx,
         "payment_verified": True,
+        "tenant_id": _tenant_id,
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)
@@ -1667,6 +1672,10 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
+    # Isolation multi-tenant
+    from tenant_isolation import get_current_tenant
+    _tenant_id = get_current_tenant() or "default"
+
     # Enregistrer la transaction
     tx = {
         "tx_id": str(uuid.uuid4()),
@@ -1678,6 +1687,7 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
         "seller_gets_usdc": seller_gets,
         "payment_tx": payment_tx,
         "payment_verified": True,
+        "tenant_id": _tenant_id,
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)
@@ -2296,11 +2306,17 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         commission_bps = get_commission_bps(price)
         commission = price * commission_bps / 10000
 
+        # Isolation multi-tenant
+        from tenant_isolation import get_current_tenant
+        _tenant_id = get_current_tenant() or "default"
+
         tx = {
             "tx_id": str(uuid.uuid4()), "buyer": buyer["name"],
             "seller": "MAXIA", "service": service_id,
             "price_usdc": price, "commission_usdc": commission,
-            "seller_gets_usdc": price - commission, "timestamp": int(time.time()),
+            "seller_gets_usdc": price - commission,
+            "tenant_id": _tenant_id,
+            "timestamp": int(time.time()),
             "payment_tx": payment_tx, "payment_verified": True,
         }
         _transactions.append(tx)
@@ -2363,12 +2379,18 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             payment_info["seller_paid"] = False
             payment_info["seller_error"] = "Seller payout pending — will retry"
 
+    # Isolation multi-tenant
+    from tenant_isolation import get_current_tenant
+    _tenant_id = get_current_tenant() or "default"
+
     # Record transaction
     tx = {
         "tx_id": str(uuid.uuid4()), "buyer": buyer["name"],
         "seller": service["agent_name"], "service": service["name"],
         "price_usdc": price, "commission_usdc": commission,
-        "seller_gets_usdc": seller_gets, "timestamp": int(time.time()),
+        "seller_gets_usdc": seller_gets,
+        "tenant_id": _tenant_id,
+        "timestamp": int(time.time()),
         "payment_tx": payment_tx, "payment_verified": True,
     }
     _transactions.append(tx)
@@ -2951,6 +2973,10 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
         print(f"[PublicAPI] RunPod provisioning error: {instance.get('error', 'indisponible')}")
         raise HTTPException(502, "GPU provisioning temporarily unavailable")
 
+    # Isolation multi-tenant
+    from tenant_isolation import get_current_tenant
+    _tenant_id = get_current_tenant() or "default"
+
     # Enregistrer la transaction
     import uuid
     instance_id = instance.get("instanceId", str(uuid.uuid4()))
@@ -2970,6 +2996,7 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
         "payment_tx": payment_tx,
         "instance_id": instance_id,
         "ssh_endpoint": instance.get("ssh_endpoint", ""),
+        "tenant_id": _tenant_id,
         "timestamp": int(time.time()),
     }
     _transactions.append(tx)

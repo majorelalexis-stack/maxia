@@ -760,6 +760,10 @@ class TokenizedStockExchange:
 
         print(f"[Stocks] {route_used} swap OK: {swap_result.get('signature', swap_result.get('tx_hash', ''))[:16]}...")
 
+        # Isolation multi-tenant
+        from tenant_isolation import get_current_tenant
+        _tenant_id = get_current_tenant() or "default"
+
         # Record trade ONLY after successful swap
         trade = {
             "trade_id": str(uuid.uuid4()),
@@ -776,6 +780,7 @@ class TokenizedStockExchange:
             "shares": shares,
             "tier": tier,
             "payment_tx": payment_tx,
+            "tenant_id": _tenant_id,
             "timestamp": int(time.time()),
             "route": route_used,
             "swap_signature": swap_result.get("signature", swap_result.get("tx_hash", "")),
@@ -875,6 +880,10 @@ class TokenizedStockExchange:
                 if not jupiter_result.get("success"):
                     return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}
 
+                # Isolation multi-tenant
+                from tenant_isolation import get_current_tenant
+                _tenant_id = get_current_tenant() or "default"
+
                 # Record trade ONLY after successful swap
                 trade = {
                     "trade_id": str(uuid.uuid4()),
@@ -890,6 +899,7 @@ class TokenizedStockExchange:
                     "commission_bps": commission_bps,
                     "net_usdc": net_usdc,
                     "tier": tier,
+                    "tenant_id": _tenant_id,
                     "timestamp": int(time.time()),
                     "route": "xStocks/Ondo -> Jupiter -> USDC",
                     "jupiter_signature": jupiter_result.get("signature", ""),

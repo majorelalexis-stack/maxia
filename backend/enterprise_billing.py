@@ -268,10 +268,34 @@ async def _get_tenant_tier(tenant_id: str) -> str:
     return "free"
 
 
+async def _check_stripe_subscription(tenant_id: str) -> dict:
+    """Verifie si le tenant a un abonnement Stripe actif.
+
+    Retourne {"active": bool, "plan": str, "stripe_covers_base": bool}.
+    Si stripe_billing n'est pas disponible, retourne inactive.
+    """
+    try:
+        from stripe_billing import has_active_stripe_subscription, get_subscription_status
+        if await has_active_stripe_subscription(tenant_id):
+            status = await get_subscription_status(tenant_id)
+            return {
+                "active": True,
+                "plan": status.get("plan", ""),
+                "stripe_covers_base": True,
+            }
+    except ImportError:
+        pass  # stripe_billing non installe/disponible
+    except Exception as e:
+        print(f"[Billing] Stripe check warning: {e}")
+    return {"active": False, "plan": "", "stripe_covers_base": False}
+
+
 async def generate_invoice(tenant_id: str, month: str) -> dict:
     """Genere une facture pour un tenant sur un mois donne.
 
     Calcule : prix de base du tier + depassements (overages) par metrique.
+    Si le tenant a un abonnement Stripe actif, le prix de base est couvert par Stripe
+    et la facture MAXIA ne contient que les depassements (overages).
     """
     from database import db
     await _ensure_schema()
@@ -293,6 +317,10 @@ async def generate_invoice(tenant_id: str, month: str) -> dict:
             "total_amount": total,
             "note": "Facture deja generee pour ce mois",
         }
+
+    # Verifier si Stripe couvre le prix de base
+    stripe_info = await _check_stripe_subscription(tenant_id)
+    stripe_covers_base = stripe_info["stripe_covers_base"]
 
     # Recuperer le tier et l'usage
     tier_name = await _get_tenant_tier(tenant_id)
@@ -355,10 +383,23 @@ async def generate_invoice(tenant_id: str, month: str) -> dict:
     })
     overage_total += llm_charge
 
-    # Total
+    # Total — si Stripe couvre le base_price, on ne facture que les overages
     base_price = tier["monthly_price"]
-    total_amount = round(base_price + overage_total, 2)
+    if stripe_covers_base:
+        # Le prix de base est deja paye via Stripe, seuls les overages restent
+        effective_base = 0.0
+    else:
+        effective_base = base_price
+
+    total_amount = round(effective_base + overage_total, 2)
     invoice_id = f"INV-{uuid.uuid4().hex[:12].upper()}"
+
+    # Statut : si Stripe actif et pas d'overages, la facture est deja payee
+    invoice_status = "draft"
+    if stripe_covers_base and overage_total == 0:
+        invoice_status = "paid_via_stripe"
+    elif stripe_covers_base:
+        invoice_status = "base_paid_via_stripe"
 
     # Sauvegarder en DB
     await db.raw_execute(
@@ -366,24 +407,35 @@ async def generate_invoice(tenant_id: str, month: str) -> dict:
         "overage_total, total_amount, line_items, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             invoice_id, tenant_id, month, tier_name,
-            base_price, round(overage_total, 4), total_amount,
-            json.dumps(line_items), "draft",
+            effective_base, round(overage_total, 4), total_amount,
+            json.dumps(line_items), invoice_status,
         ),
     )
 
-    return {
+    result = {
         "invoice_id": invoice_id,
         "tenant_id": tenant_id,
         "month": month,
         "tier": tier_name,
         "tier_name": tier["name"],
-        "base_price": base_price,
+        "base_price": effective_base,
         "overage_total": round(overage_total, 4),
         "total_amount": total_amount,
         "line_items": line_items,
-        "status": "draft",
+        "status": invoice_status,
         "generated_at": datetime.utcnow().isoformat(),
     }
+
+    # Ajouter les infos Stripe si actif
+    if stripe_covers_base:
+        result["stripe_subscription"] = {
+            "active": True,
+            "plan": stripe_info["plan"],
+            "base_price_covered": base_price,
+            "note": "Prix de base couvert par abonnement Stripe",
+        }
+
+    return result
 
 
 # ── Pydantic models ──

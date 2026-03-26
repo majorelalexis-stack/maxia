@@ -185,6 +185,10 @@ class EscrowClient:
         verified_amount = pay_ok.get("amount_usdc", amount_usdc)
         verified_raw = int(round(verified_amount * 1_000_000))
 
+        # Isolation multi-tenant
+        from tenant_isolation import get_current_tenant
+        _tenant_id = get_current_tenant() or "default"
+
         escrow = {
             "escrowId": escrow_id,
             "buyer": buyer_wallet,
@@ -194,6 +198,7 @@ class EscrowClient:
             "serviceId": service_id,
             "txSignature": tx_signature,
             "status": "locked",
+            "tenant_id": _tenant_id,
             "createdAt": int(time.time()),
             "timeoutAt": int(time.time()) + int(timeout_hours) * 3600,
             "timeoutHours": int(timeout_hours),

@@ -717,6 +717,11 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     # Enregistrer le swap
     swap_id = str(uuid.uuid4())
     jupiter_sig = jupiter_result.get("signature", "") if jupiter_success else ""
+
+    # Isolation multi-tenant
+    from tenant_isolation import get_current_tenant
+    _tenant_id = get_current_tenant() or "default"
+
     swap = {
         "swap_id": swap_id,
         "buyer": buyer_name,
@@ -731,6 +736,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         "payment_tx": payment_tx,
         "jupiter_signature": jupiter_sig,
         "on_chain": jupiter_success,
+        "tenant_id": _tenant_id,
         "timestamp": int(time.time()),
     }
     _swap_history.append(swap)
@@ -747,6 +753,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
             "commission": commission_usd,
             "payment_tx": payment_tx,
             "jupiter_tx": jupiter_sig,
+            "tenant_id": _tenant_id,
             "status": "completed",
         })
         await db.record_transaction(buyer_wallet, payment_tx, value_usd, "crypto_swap")

@@ -265,6 +265,21 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   .stats-row{grid-template-columns:1fr}
   .card{padding:16px}
 }
+/* ── Enterprise chart bars ── */
+.ent-bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;min-width:14px;max-width:28px;cursor:pointer;position:relative}
+.ent-bar .bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--cyan),var(--blue));transition:height .3s ease;min-height:2px}
+.ent-bar:hover .bar{background:linear-gradient(180deg,var(--green),var(--cyan))}
+.ent-bar .bar-label{font-size:9px;color:var(--muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32px;text-align:center}
+.ent-bar .bar-tooltip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 10px;font-size:11px;white-space:nowrap;z-index:10;color:var(--text);pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.ent-bar:hover .bar-tooltip{display:block}
+.ent-sla-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.ent-sla-dot.green{background:var(--green)}
+.ent-sla-dot.yellow{background:var(--orange)}
+.ent-sla-dot.red{background:var(--red)}
+@media(max-width:768px){
+  #ent-billing{grid-template-columns:1fr !important}
+}
+
 /* ── Swap status ── */
 .swap-status{margin-top:16px;padding:16px;border-radius:12px;font-size:14px;animation:fadeUp .3s ease}
 .swap-status.pending{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--blue)}
@@ -323,6 +338,9 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <button class="nav-link" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT</button>
   <button class="nav-link" onclick="showPage('agentid',this)"><span class="icon">&#129302;</span> Agent ID</button>
   <button class="nav-link" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</button>
+
+  <div class="sidebar-section">Manage</div>
+  <button class="nav-link" onclick="showPage('enterprise',this)"><span class="icon">&#127970;</span> Enterprise</button>
 
   <div class="sidebar-bottom">
     <!-- Multi-wallet display -->
@@ -884,6 +902,95 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     </div>
     <div id="app-alerts" style="font-size:13px;color:var(--muted)">No alerts yet</div>
   </div>
+</div>
+
+<!-- ─── PAGE: ENTERPRISE ─── -->
+<div class="page" id="page-enterprise">
+  <h2 class="page-title">Enterprise Dashboard</h2>
+  <p class="page-sub">Fleet management, SLA monitoring, revenue analytics &amp; billing for your AI agents.</p>
+
+  <!-- Gate: shown if not enterprise tier -->
+  <div id="ent-gate" style="display:none">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:48px;margin-bottom:16px">&#127970;</div>
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:8px">Enterprise Plan Required</h3>
+      <p style="color:var(--muted);margin-bottom:20px;max-width:420px;margin-left:auto;margin-right:auto">Unlock fleet analytics, SLA monitoring, revenue dashboards and priority billing. Upgrade to Enterprise ($299/mo) or Pro ($9.99/mo) to access this panel.</p>
+      <a href="mailto:contact@maxiaworld.app" class="btn btn-primary" style="display:inline-block;max-width:220px">Contact Sales</a>
+    </div>
+  </div>
+
+  <!-- Dashboard content -->
+  <div id="ent-content" style="display:none">
+
+    <!-- Quick Stats -->
+    <div class="stats-row" id="ent-stats">
+      <div class="stat-card"><div class="val" id="ent-total-agents">—</div><div class="lbl">Total Agents</div></div>
+      <div class="stat-card"><div class="val" id="ent-total-revenue">—</div><div class="lbl">Revenue (30d)</div></div>
+      <div class="stat-card"><div class="val" id="ent-uptime">—</div><div class="lbl">Avg Uptime</div></div>
+      <div class="stat-card"><div class="val" id="ent-active-services">—</div><div class="lbl">Active Agents</div></div>
+    </div>
+
+    <!-- Fleet Overview -->
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:16px;font-weight:600">Fleet Overview</h3>
+        <button class="btn-connect" onclick="loadEnterprise()" style="font-size:12px;padding:6px 14px">Refresh</button>
+      </div>
+      <div class="tw">
+        <table class="ct" id="ent-fleet-table">
+          <thead><tr><th>Agent</th><th>Status</th><th>Chain</th><th>Revenue (30d)</th><th>Calls</th><th>Uptime</th><th>Latency</th></tr></thead>
+          <tbody id="ent-fleet-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading fleet...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SLA Status -->
+    <div class="card" style="margin-bottom:24px">
+      <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">SLA Compliance</h3>
+      <div id="ent-sla-summary" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"></div>
+      <div class="tw">
+        <table class="ct" id="ent-sla-table">
+          <thead><tr><th>Agent</th><th>Tier</th><th>Target Uptime</th><th>Actual Uptime</th><th>Latency Target</th><th>Latency Actual</th><th>Status</th></tr></thead>
+          <tbody id="ent-sla-body"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading SLA data...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Revenue Chart -->
+    <div class="card" style="margin-bottom:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:16px;font-weight:600">Revenue — Last 30 Days</h3>
+        <div style="display:flex;gap:6px">
+          <button class="btn-outline ent-period active" onclick="loadEntRevenueChart('7d',this)">7d</button>
+          <button class="btn-outline ent-period" onclick="loadEntRevenueChart('30d',this)">30d</button>
+          <button class="btn-outline ent-period" onclick="loadEntRevenueChart('90d',this)">90d</button>
+        </div>
+      </div>
+      <div id="ent-chart" style="display:flex;align-items:flex-end;gap:3px;height:200px;padding:12px 0;overflow-x:auto"></div>
+      <div id="ent-chart-summary" style="display:flex;gap:24px;margin-top:12px;font-size:13px;flex-wrap:wrap"></div>
+    </div>
+
+    <!-- Billing -->
+    <div class="card" style="margin-bottom:24px">
+      <h3 style="font-size:16px;font-weight:600;margin-bottom:16px">Billing</h3>
+      <div id="ent-billing" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="background:var(--bg);border-radius:12px;padding:20px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace">CURRENT PLAN</div>
+          <div id="ent-plan-name" style="font-size:20px;font-weight:700;color:var(--cyan)">—</div>
+          <div id="ent-plan-price" style="font-size:14px;color:var(--muted);margin-top:4px">—</div>
+        </div>
+        <div style="background:var(--bg);border-radius:12px;padding:20px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-family:'JetBrains Mono',monospace">USAGE THIS MONTH</div>
+          <div id="ent-usage-summary" style="font-size:13px;color:var(--text);line-height:1.8">Loading...</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--bg);border-radius:12px;padding:20px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;font-family:'JetBrains Mono',monospace">INVOICE ESTIMATE</div>
+        <div id="ent-invoice" style="font-size:13px;color:var(--text)">Loading...</div>
+      </div>
+    </div>
+
+  </div><!-- /ent-content -->
 </div>
 
 </div><!-- /main -->
@@ -4817,6 +4924,296 @@ function showOnboarding() {
   renderStep();
   document.body.appendChild(overlay);
 }
+
+// ══════════════════════════════════════
+// ENTERPRISE DASHBOARD
+// ══════════════════════════════════════
+var _entLoaded = false;
+var _entPeriod = '7d';
+
+async function loadEnterprise() {
+  var gate = document.getElementById('ent-gate');
+  var content = document.getElementById('ent-content');
+  if (!gate || !content) return;
+
+  // Check if wallet connected
+  if (!wallet) {
+    gate.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+
+  // Try to fetch billing tier to decide access
+  var tierData = null;
+  try {
+    tierData = await api('/api/enterprise/billing/tiers');
+  } catch (e) { /* ignore */ }
+
+  // Show content (allow free tier users to see sample data)
+  gate.style.display = 'none';
+  content.style.display = 'block';
+
+  // Load all sections in parallel
+  await Promise.all([
+    loadEntOverview(),
+    loadEntSLA(),
+    loadEntRevenueChart(_entPeriod),
+    loadEntBilling(),
+  ]);
+  _entLoaded = true;
+}
+
+async function loadEntOverview() {
+  var tbody = document.getElementById('ent-fleet-body');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading fleet...</td></tr>';
+
+  var data = await api('/api/enterprise/dashboard/overview');
+  if (!data) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Could not load fleet data</td></tr>';
+    return;
+  }
+
+  // Update quick stats
+  var el;
+  el = document.getElementById('ent-total-agents');
+  if (el) el.textContent = data.agent_count || 0;
+  el = document.getElementById('ent-total-revenue');
+  if (el) el.textContent = '$' + (data.total_revenue_30d || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  el = document.getElementById('ent-uptime');
+  if (el) el.textContent = (data.avg_uptime_pct || 0).toFixed(2) + '%';
+  el = document.getElementById('ent-active-services');
+  if (el) el.textContent = data.active_count || 0;
+
+  var agents = data.agents || [];
+  if (agents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No agents registered yet</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = agents.map(function(a) {
+    var statusBadge = a.status === 'active'
+      ? '<span class="badge badge-green">' + esc(a.status) + '</span>'
+      : '<span class="badge badge-orange">' + esc(a.status) + '</span>';
+    var chain = esc(a.chain || a.tier || '—');
+    var rev = '$' + (a.revenue_30d || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    var calls = (a.calls_30d || 0).toLocaleString();
+    var uptime = (a.uptime_pct || 0).toFixed(2) + '%';
+    var uptimeColor = a.uptime_pct >= 99.5 ? 'var(--green)' : (a.uptime_pct >= 95 ? 'var(--orange)' : 'var(--red)');
+    var latency = (a.avg_latency_ms || 0) + 'ms';
+    return '<tr>' +
+      '<td style="font-weight:600">' + esc(a.name || a.agent_id) + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td>' + chain + '</td>' +
+      '<td style="font-family:JetBrains Mono,monospace">' + rev + '</td>' +
+      '<td>' + calls + '</td>' +
+      '<td style="color:' + uptimeColor + '">' + uptime + '</td>' +
+      '<td>' + latency + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+async function loadEntSLA() {
+  var tbody = document.getElementById('ent-sla-body');
+  var summary = document.getElementById('ent-sla-summary');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading SLA data...</td></tr>';
+
+  var data = await api('/api/enterprise/dashboard/sla');
+  if (!data) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Could not load SLA data</td></tr>';
+    return;
+  }
+
+  // Summary badges
+  if (summary) {
+    var comp = data.compliant_count || 0;
+    var nonComp = data.non_compliant_count || 0;
+    var rate = data.compliance_rate_pct || 0;
+    var rateColor = rate >= 100 ? 'var(--green)' : (rate >= 80 ? 'var(--orange)' : 'var(--red)');
+    summary.innerHTML =
+      '<div class="badge badge-green">' + comp + ' compliant</div>' +
+      (nonComp > 0 ? '<div class="badge badge-red">' + nonComp + ' non-compliant</div>' : '') +
+      '<div class="badge" style="color:' + rateColor + '">' + rate.toFixed(1) + '% compliance rate</div>';
+  }
+
+  var agents = data.agents || [];
+  if (agents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No SLA data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = agents.map(function(a) {
+    var dotClass = a.compliant ? 'green' : (a.actual_uptime_pct >= a.target_uptime_pct * 0.98 ? 'yellow' : 'red');
+    var statusLabel = a.compliant ? '<span class="badge badge-green">Compliant</span>' : '<span class="badge badge-red">Violation (' + (a.violations_30d || 0) + ')</span>';
+    var uptimeColor = a.actual_uptime_pct >= a.target_uptime_pct ? 'var(--green)' : 'var(--red)';
+    var latencyColor = a.actual_latency_p95_ms <= a.target_latency_ms ? 'var(--green)' : 'var(--red)';
+    return '<tr>' +
+      '<td><span class="ent-sla-dot ' + dotClass + '"></span>' + esc(a.name || a.agent_id) + '</td>' +
+      '<td><span class="badge">' + esc(a.sla_tier) + '</span></td>' +
+      '<td>' + (a.target_uptime_pct || 0).toFixed(1) + '%</td>' +
+      '<td style="color:' + uptimeColor + ';font-family:JetBrains Mono,monospace">' + (a.actual_uptime_pct || 0).toFixed(2) + '%</td>' +
+      '<td>' + (a.target_latency_ms || 0) + 'ms</td>' +
+      '<td style="color:' + latencyColor + ';font-family:JetBrains Mono,monospace">' + (a.actual_latency_p95_ms || 0) + 'ms</td>' +
+      '<td>' + statusLabel + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+async function loadEntRevenueChart(period, btnEl) {
+  if (period) _entPeriod = period;
+  if (btnEl) {
+    document.querySelectorAll('.ent-period').forEach(function(b) { b.classList.remove('active'); });
+    btnEl.classList.add('active');
+  }
+
+  var chart = document.getElementById('ent-chart');
+  var summaryEl = document.getElementById('ent-chart-summary');
+  if (!chart) return;
+  chart.innerHTML = '<span style="color:var(--muted);font-size:13px;margin:auto">Loading chart...</span>';
+
+  var data = await api('/api/enterprise/dashboard/analytics?period=' + _entPeriod);
+  if (!data || !data.charts) {
+    chart.innerHTML = '<span style="color:var(--muted);font-size:13px;margin:auto">Could not load analytics</span>';
+    return;
+  }
+
+  var revSeries = data.charts.revenue_per_day || [];
+  if (revSeries.length === 0) {
+    chart.innerHTML = '<span style="color:var(--muted);font-size:13px;margin:auto">No revenue data</span>';
+    return;
+  }
+
+  // Find max value for scaling
+  var maxVal = Math.max.apply(null, revSeries.map(function(d) { return d.value; }));
+  if (maxVal <= 0) maxVal = 1;
+  var chartHeight = 180; // px
+
+  chart.innerHTML = revSeries.map(function(d) {
+    var h = Math.max(2, Math.round((d.value / maxVal) * chartHeight));
+    var dateLabel = d.date ? d.date.slice(5) : '';
+    return '<div class="ent-bar">' +
+      '<div class="bar-tooltip">$' + d.value.toFixed(2) + '<br>' + esc(d.date) + '</div>' +
+      '<div class="bar" style="height:' + h + 'px"></div>' +
+      '<div class="bar-label">' + esc(dateLabel) + '</div>' +
+      '</div>';
+  }).join('');
+
+  // Summary
+  if (summaryEl && data.summary) {
+    var s = data.summary;
+    summaryEl.innerHTML =
+      '<span><strong style="color:var(--cyan)">$' + (s.total_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</strong> <span style="color:var(--muted)">total revenue</span></span>' +
+      '<span><strong style="color:var(--text)">' + (s.total_calls || 0).toLocaleString() + '</strong> <span style="color:var(--muted)">API calls</span></span>' +
+      '<span><strong style="color:var(--orange)">' + (s.total_errors || 0).toLocaleString() + '</strong> <span style="color:var(--muted)">errors</span></span>' +
+      '<span><strong style="color:var(--text)">' + (s.avg_latency_p50 || 0) + 'ms</strong> <span style="color:var(--muted)">p50 latency</span></span>';
+  }
+}
+
+async function loadEntBilling() {
+  var planNameEl = document.getElementById('ent-plan-name');
+  var planPriceEl = document.getElementById('ent-plan-price');
+  var usageSumEl = document.getElementById('ent-usage-summary');
+  var invoiceEl = document.getElementById('ent-invoice');
+
+  // Fetch billing tiers
+  var tiers = await api('/api/enterprise/billing/tiers');
+  var currentTier = 'free';
+  var tierInfo = null;
+
+  if (tiers && tiers.tiers) {
+    // Try to detect user tier from usage endpoint
+    var tenantId = wallet || 'anonymous';
+    var now = new Date();
+    var month = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    var usage = await api('/api/enterprise/billing/usage?tenant_id=' + encodeURIComponent(tenantId) + '&month=' + month);
+
+    if (usage && usage.tier) {
+      currentTier = usage.tier;
+    }
+    tierInfo = tiers.tiers[currentTier] || tiers.tiers['free'];
+
+    if (planNameEl) planNameEl.textContent = tierInfo.name || currentTier;
+    if (planPriceEl) {
+      planPriceEl.textContent = tierInfo.monthly_price > 0
+        ? '$' + tierInfo.monthly_price.toFixed(2) + '/month'
+        : 'Free tier';
+    }
+
+    // Show usage
+    if (usageSumEl && usage && usage.usage) {
+      var u = usage.usage;
+      var lim = usage.limits || {};
+      usageSumEl.innerHTML =
+        entUsageLine('API Calls', u.api_calls || 0, lim.api_calls || 0) +
+        entUsageLine('GPU Hours', (u.gpu_hours || 0).toFixed(1), lim.gpu_hours || 0) +
+        entUsageLine('Swap Volume', '$' + (u.swap_volume || 0).toLocaleString(undefined, {maximumFractionDigits: 0}), '$' + (lim.swap_volume || 0).toLocaleString()) +
+        entUsageLine('LLM Tokens', (u.llm_tokens || 0).toLocaleString(), (lim.llm_tokens || 0).toLocaleString());
+    } else if (usageSumEl) {
+      usageSumEl.innerHTML = '<span style="color:var(--muted)">No usage data for this month</span>';
+    }
+
+    // Invoice estimate
+    if (invoiceEl) {
+      var inv = await api('/api/enterprise/billing/invoice/' + month + '?tenant_id=' + encodeURIComponent(tenantId));
+      if (inv && inv.total_amount !== undefined) {
+        var items = inv.line_items || [];
+        var itemsHtml = items.map(function(li) {
+          return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03)">' +
+            '<span style="color:var(--muted)">' + esc(li.metric) + '</span>' +
+            '<span style="font-family:JetBrains Mono,monospace">$' + (li.charge || 0).toFixed(4) + '</span>' +
+            '</div>';
+        }).join('');
+        invoiceEl.innerHTML =
+          itemsHtml +
+          '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:8px;border-top:1px solid rgba(255,255,255,.08)">' +
+          '<span style="font-weight:600">Base price</span>' +
+          '<span style="font-family:JetBrains Mono,monospace">$' + (inv.base_price || 0).toFixed(2) + '</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;padding:4px 0">' +
+          '<span style="font-weight:600">Overages</span>' +
+          '<span style="font-family:JetBrains Mono,monospace">$' + (inv.overage_total || 0).toFixed(4) + '</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;padding:8px 0;margin-top:8px;border-top:1px solid var(--cyan);font-size:16px">' +
+          '<span style="font-weight:700;color:var(--cyan)">Estimated Total</span>' +
+          '<span style="font-weight:700;color:var(--cyan);font-family:JetBrains Mono,monospace">$' + (inv.total_amount || 0).toFixed(2) + '</span>' +
+          '</div>';
+      } else {
+        invoiceEl.innerHTML = '<span style="color:var(--muted)">No invoice data available</span>';
+      }
+    }
+  } else {
+    if (planNameEl) planNameEl.textContent = 'Free';
+    if (planPriceEl) planPriceEl.textContent = 'Billing not enabled';
+    if (usageSumEl) usageSumEl.innerHTML = '<span style="color:var(--muted)">Billing module not active</span>';
+    if (invoiceEl) invoiceEl.innerHTML = '<span style="color:var(--muted)">No invoice data</span>';
+  }
+}
+
+function entUsageLine(label, used, limit) {
+  var pct = 0;
+  var numUsed = parseFloat(String(used).replace(/[^0-9.]/g, ''));
+  var numLimit = parseFloat(String(limit).replace(/[^0-9.]/g, ''));
+  if (numLimit > 0) pct = Math.min(100, (numUsed / numLimit) * 100);
+  var barColor = pct >= 90 ? 'var(--red)' : (pct >= 70 ? 'var(--orange)' : 'var(--cyan)');
+  return '<div style="margin-bottom:8px">' +
+    '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">' +
+    '<span style="color:var(--muted)">' + esc(label) + '</span>' +
+    '<span><span style="color:var(--text)">' + used + '</span> / ' + limit + '</span>' +
+    '</div>' +
+    '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden">' +
+    '<div style="height:100%;width:' + pct.toFixed(1) + '%;background:' + barColor + ';border-radius:2px;transition:width .4s ease"></div>' +
+    '</div></div>';
+}
+
+// Auto-load enterprise data when page is shown
+var _origShowPage = showPage;
+showPage = function(name, btn) {
+  _origShowPage(name, btn);
+  if (name === 'enterprise' && !_entLoaded) {
+    loadEnterprise();
+  }
+};
 
 // Init
 initFromHash();
