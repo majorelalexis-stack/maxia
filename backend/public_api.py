@@ -1839,9 +1839,17 @@ async def marketplace_stats():
     mem_txs = len(_transactions)
 
     # Use the higher of DB or memory
+    # Compter les services natifs MAXIA (toujours disponibles)
+    native_count = 0
+    try:
+        from config import SERVICE_PRICES
+        native_count = len(SERVICE_PRICES)
+    except Exception:
+        native_count = 17  # fallback connu
+
     return {
-        "registered_agents": max(len(_registered_agents), db_stats.get("agents_registered", 0)),
-        "services_listed": max(len([s for s in _agent_services if s.get("status") == "active"]), db_stats.get("services_listed", 0)),
+        "registered_agents": max(len(_registered_agents), db_stats.get("agents_registered", 0), 1),  # MAXIA = au moins 1 agent
+        "services_listed": max(len([s for s in _agent_services if s.get("status") == "active"]) + native_count, db_stats.get("services_listed", 0)),
         "total_transactions": max(mem_txs, db_stats.get("total_transactions", 0)),
         "total_volume_usdc": max(mem_vol, db_stats.get("total_volume_usdc", 0)),
         "total_commission_usdc": max(mem_comm, db_stats.get("total_commission_usdc", 0)),

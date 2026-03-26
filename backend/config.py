@@ -182,7 +182,7 @@ def get_commission_tier_name(amount_usdc: float) -> str:
 # GPU_TIERS_FALLBACK = prix de dernier recours si l'API RunPod est down.
 # GPU_TIERS = liste dynamique mise a jour par gpu_pricing.refresh_gpu_prices()
 GPU_TIERS_FALLBACK = [
-    {"id": "local_7900xt", "label": "Local RX 7900XT", "vram_gb": 20, "base_price_per_hour": 0.35, "local": True},
+    # local_7900xt retire — GPU utilise par le CEO local (Ollama + Qwen)
     {"id": "rtx3090",     "label": "RTX 3090",       "vram_gb": 24,  "base_price_per_hour": 0.22},
     {"id": "rtx4090",     "label": "RTX 4090",       "vram_gb": 24,  "base_price_per_hour": 0.34},
     {"id": "rtx5090",     "label": "RTX 5090",       "vram_gb": 32,  "base_price_per_hour": 0.69},

@@ -339,21 +339,22 @@ _swap_history: list = []
 
 def get_swap_commission_bps(amount_usdc: float, volume_30d: float = 0, swap_count: int = -1) -> int:
     """Commission en BPS. Premier swap gratuit (0%) pour les nouveaux users.
-    Si volume_30d est fourni, utiliser le volume. Sinon, fallback sur le montant."""
+    Le tier est base sur le volume 30 jours CUMULE, pas sur le montant du trade."""
     if swap_count == 0:
         return 0  # Premier swap gratuit
-    ref = volume_30d if volume_30d > 0 else amount_usdc
+    # Utiliser UNIQUEMENT le volume 30j pour le tier (pas le montant du trade)
+    ref = volume_30d
     for tier_name, tier in SWAP_COMMISSION_TIERS.items():
         if tier["min_amount"] <= ref < tier["max_amount"]:
             return tier["bps"]
-    return 10
+    return 10  # BRONZE par defaut si volume inconnu
 
 
 def get_swap_tier_name(amount_usdc: float, volume_30d: float = 0, swap_count: int = -1) -> str:
-    """Tier name selon le volume 30 jours. FREE pour le premier swap."""
+    """Tier name selon le volume 30 jours cumule. FREE pour le premier swap."""
     if swap_count == 0:
         return "FREE"
-    ref = volume_30d if volume_30d > 0 else amount_usdc
+    ref = volume_30d
     for tier_name, tier in SWAP_COMMISSION_TIERS.items():
         if tier["min_amount"] <= ref < tier["max_amount"]:
             return tier_name
