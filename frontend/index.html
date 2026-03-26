@@ -766,7 +766,7 @@ body::before {
       </div>
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-title">📊 Stats Bourse</div>
+          <div class="panel-title">📊 Tokenized Stocks</div>
           <button class="panel-action" onclick="loadStockStats()">↺</button>
         </div>
         <div class="panel-body" id="stock-stats-body">
@@ -854,7 +854,7 @@ body::before {
           <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
             <div style="font-size:12px;color:var(--muted)">✓ 100 requêtes / jour</div>
             <div style="font-size:12px;color:var(--muted)">✓ Marketplace IA</div>
-            <div style="font-size:12px;color:var(--muted)">✓ Bourse SPL</div>
+            <div style="font-size:12px;color:var(--muted)">✓ Tokenized Stocks</div>
           </div>
           <button class="btn btn-sm" style="background:var(--border);color:var(--muted);border:none;padding:8px 20px;border-radius:8px;font-family:var(--font-mono);cursor:pointer;width:100%">Souscrire</button>
         </div>
@@ -2162,7 +2162,7 @@ async function loadTokens() {
         <td><button class="btn btn-cyan btn-sm" onclick="selectToken('${t.mint}','${t.symbol}')">Trader</button></td>
       </tr>`).join('');
   } else {
-    tb.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Aucun token listé sur la bourse</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No tokenized stocks listed</td></tr>`;
   }
 }
 

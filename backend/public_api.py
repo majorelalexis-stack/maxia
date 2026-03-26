@@ -3354,7 +3354,7 @@ async def stock_fees():
 
 @router.get("/stocks/stats")
 async def stock_stats():
-    """Statistiques de la bourse. Sans auth."""
+    """Statistiques des actions tokenisees on-chain. Sans auth."""
     from tokenized_stocks import stock_exchange
     return stock_exchange.get_stats()
 

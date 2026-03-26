@@ -1,9 +1,11 @@
-"""MAXIA Art.23 V11 — Bourse d'Actions Tokenisees (xStocks/Ondo via Jupiter)
+"""MAXIA Art.23 V11 — Actions Tokenisees On-Chain (xStocks/Ondo/Dinari)
 
-Agrege les actions tokenisees sur Solana :
-- Backed Finance xStocks (TSLAX, AAPLX, NVDAX, GOOGLX...)
-- Ondo Global Markets (AAPLon, TSLAon, NVDAon...)
-Commission dynamique la plus basse du marche.
+Achat/vente d'actions tokenisees on-chain (actifs synthetiques, PAS la bourse).
+Les tokens representent des actions reelles via 3 providers:
+- Backed Finance xStocks (Solana + Ethereum)
+- Ondo Global Markets (Ethereum)
+- Dinari dShares (Arbitrum)
+Tradables 24/7 on-chain. Commission dynamique.
 """
 import asyncio, time, uuid, json
 import httpx
@@ -12,8 +14,10 @@ from security import require_ofac_clear
 
 # ── Disclaimer legal (inclus dans les reponses API) ──
 STOCK_DISCLAIMER = (
-    "Tokenized stocks are synthetic assets backed by on-chain protocols "
-    "(xStocks/Ondo/Dinari). Prices sourced from Pyth Network and Yahoo Finance. "
+    "Tokenized stocks are synthetic on-chain assets — NOT traditional equities. "
+    "MAXIA is NOT a stock exchange. These tokens track stock prices via oracle "
+    "(Pyth Network / Finnhub / Yahoo Finance) and are tradable 24/7 on-chain via "
+    "3 providers: xStocks/Backed (Solana+ETH), Ondo (ETH), Dinari (Arbitrum). "
     "MAXIA does not provide investment advice. Trade at your own risk."
 )
 
@@ -640,11 +644,11 @@ async def fetch_stock_prices() -> dict:
 
 
 class TokenizedStockExchange:
-    """Bourse d'actions tokenisees MAXIA."""
+    """Actions tokenisees on-chain MAXIA."""
 
     def __init__(self):
         self._last_discovery = 0
-        print("[Stocks] Bourse d'actions tokenisees initialisee — "
+        print("[Stocks] Actions tokenisees on-chain initialisee — "
               f"{len(TOKENIZED_STOCKS)} actions disponibles")
 
     async def list_stocks(self) -> dict:
@@ -1112,7 +1116,7 @@ class TokenizedStockExchange:
         }
 
     def get_stats(self) -> dict:
-        """Statistiques de la bourse."""
+        """Statistiques des actions tokenisees."""
         buys = [t for t in _stock_trades if t["type"] == "buy"]
         sells = [t for t in _stock_trades if t["type"] == "sell"]
         total_volume = sum(t.get("amount_usdc", 0) for t in buys) + sum(t.get("gross_usdc", 0) for t in sells)

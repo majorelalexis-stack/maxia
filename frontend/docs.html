@@ -444,7 +444,7 @@ print(f<span style="color:#A5D6FF">"Jupyter: {result['jupyter']}"</span>)</div>
     <!-- TOKENIZED STOCKS -->
     <section id="stocks" style="margin-bottom:48px">
       <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Tokenized Stocks</h2>
-      <p style="color:var(--muted);margin-bottom:24px">25 stocks (AAPL, TSLA, NVDA, GOOGL, AMZN, META, MSFT, ...). Real-time prices via Pyth Oracle. Multi-chain: Solana, Ethereum, Arbitrum.</p>
+      <p style="color:var(--muted);margin-bottom:24px">25 on-chain synthetic assets tracking stock prices (NOT a stock exchange). Providers: xStocks, Ondo, Dinari. Prices via Pyth Oracle. Multi-chain: Solana, Ethereum, Arbitrum. Tradable 24/7.</p>
 
       <div class="endpoint">
         <div><span class="method method-get">GET</span><span class="endpoint-path">/api/public/stocks</span></div>
@@ -466,7 +466,7 @@ print(f<span style="color:#A5D6FF">"Jupyter: {result['jupyter']}"</span>)</div>
 
       <div class="endpoint">
         <div><span class="method method-post">POST</span><span class="endpoint-path">/api/public/stocks/buy</span></div>
-        <div class="endpoint-desc">Buy a tokenized stock. Payment in USDC. Settlement on-chain.</div>
+        <div class="endpoint-desc">Buy a tokenized stock (on-chain synthetic asset). Payment in USDC. Settlement on-chain. Not a stock exchange.</div>
         <div class="tabs">
           <div class="tab active" onclick="switchTab(this,'stocks-buy')">curl</div>
           <div class="tab" onclick="switchTab(this,'stocks-buy')">Python</div>

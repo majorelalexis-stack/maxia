@@ -4809,7 +4809,7 @@ async def stock_exchange_stats():
 
 @app.get("/api/stocks/market-status")
 async def stock_market_status():
-    """Check if US stock markets are open (NYSE/NASDAQ hours: 9:30-16:00 ET, Mon-Fri)."""
+    """Reference info: US stock market hours (for price feed context only). MAXIA tokenized stocks trade 24/7 on-chain."""
     from datetime import datetime, timezone, timedelta
     et_offset = timedelta(hours=-5)  # EST (simplified — DST would be -4)
     now_utc = datetime.now(timezone.utc)
@@ -4878,7 +4878,7 @@ async def stock_market_status():
         "nyse_session": session,
         "current_time_et": now_et.strftime("%Y-%m-%d %H:%M ET"),
         "nyse_next_open": next_open,
-        "note": "Prices track the underlying stock. During NYSE off-hours, prices may have wider spreads.",
+        "note": "Tokenized stocks are synthetic on-chain assets (NOT traditional equities). Trade 24/7. Prices reference the underlying stock via oracle. Off-hours = wider oracle spreads.",
         "providers": {
             "xStocks_Backed": {"chain": "Solana", "stocks": 11},
             "Ondo_GM": {"chain": "Ethereum", "stocks": 2},
