@@ -1387,12 +1387,12 @@ class BrowserAgent:
 
             followed = await self._find_and_click(page, [
                 '[data-testid$="-follow"]',
-                '[data-testid="placementTracking"] [role="button"]',
                 'button[aria-label*="Follow @" i]',
                 'button[aria-label*="Suivre @" i]',
-                'button[aria-label*="Follow" i]:not([aria-label*="Following"])',
-                'div[role="button"]:has-text("Follow"):not(:has-text("Following"))',
-                'div[role="button"]:has-text("Suivre"):not(:has-text("Suivi"))',
+                '[role="button"][aria-label*="Follow" i]:not([aria-label*="Following"]):not([aria-label*="Unfollow"])',
+                '[role="button"][aria-label*="Suivre" i]:not([aria-label*="Suivi"])',
+                'button[data-testid*="follow" i]:not([data-testid*="unfollow"])',
+                '[data-testid="placementTracking"] [role="button"]',
             ], "Follow button", timeout=3000)
 
             if not followed:
@@ -1698,10 +1698,24 @@ class BrowserAgent:
                     pass
             details["bio"] = bio[:200]
 
-            # Mots-cles pertinents dans la bio
-            keywords_high = ["AI agent", "solana", "web3", "developer", "dev", "builder", "python", "rust", "blockchain", "defi", "bot"]
-            keywords_mid = ["crypto", "nft", "ethereum", "coding", "software", "engineer", "startup", "founder"]
+            # Baseline: si le profil a une bio non-vide, il merite un minimum
             bio_lower = bio.lower()
+            if len(bio) > 10:
+                score += 10  # Bio presente = pas un bot vide
+
+            # Mots-cles pertinents dans la bio (elargis)
+            keywords_high = [
+                "ai agent", "solana", "web3", "developer", "dev", "builder",
+                "python", "rust", "blockchain", "defi", "bot", "llm", "gpt",
+                "machine learning", "ml", "data scientist", "api", "saas",
+                "autonomous", "fine-tune", "inference", "gpu", "cuda",
+            ]
+            keywords_mid = [
+                "crypto", "nft", "ethereum", "coding", "software", "engineer",
+                "startup", "founder", "cto", "tech", "open source", "oss",
+                "trading", "quant", "fintech", "protocol", "dapp", "smart contract",
+                "token", "chain", "node", "validator", "staking", "yield",
+            ]
             for kw in keywords_high:
                 if kw in bio_lower:
                     score += 15
@@ -1734,8 +1748,10 @@ class BrowserAgent:
             except Exception:
                 details["followers"] = 0
 
-            # "no revenue" signals dans la bio
-            frustration_kw = ["no revenue", "side project", "building", "shipping", "0 users", "looking for"]
+            # Signaux d'interet (quelqu'un qui construit = prospect chaud)
+            frustration_kw = ["no revenue", "side project", "building", "shipping", "0 users",
+                              "looking for", "need help", "hiring", "launching", "pre-seed",
+                              "bootstrapping", "indie", "solopreneur", "hacker"]
             for kw in frustration_kw:
                 if kw in bio_lower:
                     score += 10
@@ -1768,13 +1784,14 @@ class BrowserAgent:
             # Nouveau message
             clicked = await self._find_and_click(page, [
                 '[data-testid="NewDM_Button"]',
+                '[data-testid="DM_Fab_Button"]',
                 'a[href="/messages/compose"]',
-                'a[href="/messages/compose-message"]',
                 '[aria-label*="New message" i]',
                 '[aria-label*="Nouveau message" i]',
                 '[aria-label*="Compose" i]',
                 'button[aria-label*="message" i]',
-                '[data-testid="DM_Fab_Button"]',
+                '[data-testid="dmComposerButton"]',
+                'a[href*="/messages"]  [role="button"]',
             ], "New DM button")
             if not clicked:
                 # ── FALLBACK browser-use pour tout le flow DM ──
@@ -1794,9 +1811,11 @@ class BrowserAgent:
             # Chercher le destinataire
             filled = await self._find_and_fill(page, [
                 'input[data-testid="searchPeople"]',
+                'input[data-testid="searchBox"]',
                 'input[placeholder*="Search" i]',
                 'input[placeholder*="Rechercher" i]',
                 'input[aria-label*="Search" i]',
+                'input[role="combobox"]',
             ], clean, "DM search")
             if not filled:
                 return {"success": False, "error": "Champ recherche DM introuvable"}

@@ -638,8 +638,8 @@ def personality_filter(text: str) -> str | None:
     # 2. Informations confidentielles (chiffres business)
     confidential_patterns = [
         "0 client", "zero client", "no client", "no user", "no revenue",
-        "0 revenue", "zero revenue", "$0", "0 transaction",
-        "no customer", "zero customer",
+        "0 revenue", "zero revenue", "$0 revenue", "$0 profit", "0 transaction",
+        "no customer", "zero customer", "0 active",
     ]
     for pattern in confidential_patterns:
         if pattern.lower() in text_lower:
@@ -3514,10 +3514,11 @@ class CEOLocal:
         # ETAPE 1 : Le petit modele (2.5-VL 7B) navigue et extrait le texte
         # Instruction ultra-simple : navigue + utilise l'action "extract" (pas scroll)
         result = await browser._browser_use_task(
-            f"Navigate to {url} — once the page loads, immediately use the extract action "
-            f"to get the page text. Do NOT scroll. Do NOT click anything. "
-            f"Just extract the text content and call done with the extracted text.",
-            max_steps=4,
+            f"Navigate to {url} — once the page loads, use the extract action to get "
+            f"ONLY the main heading, first 3 items or paragraphs (max 300 words). "
+            f"Do NOT scroll. Do NOT extract the full page. Keep it SHORT. "
+            f"Call done immediately with the brief extracted text.",
+            max_steps=3,
         )
 
         raw_text = str(result.get("result", ""))[:2000] if result.get("success") else ""
@@ -3629,9 +3630,10 @@ class CEOLocal:
 
         # ETAPE 1 : Le petit (7B) extrait le texte brut
         result = await browser._browser_use_task(
-            f"Go to {target['url']} and extract ALL the visible text content on the page. "
-            f"Do NOT analyze — just copy the raw text you see.",
-            max_steps=5,
+            f"Go to {target['url']} and extract ONLY the title, main heading, "
+            f"and first 3 items or paragraphs (max 300 words). Keep it SHORT. "
+            f"Do NOT extract the full page. Call done with the brief text.",
+            max_steps=3,
         )
         raw_text = str(result.get("result", ""))[:2000] if result.get("success") else ""
 
