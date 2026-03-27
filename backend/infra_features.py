@@ -1,4 +1,5 @@
 """MAXIA V12 — Infrastructure Features: Webhooks, Escrow API, SLA, Revenue Sharing"""
+import logging
 import asyncio, time, uuid, json
 from fastapi import APIRouter, HTTPException, Header
 
@@ -211,7 +212,7 @@ async def webhook_test(req: dict, x_api_key: str = Header(None, alias="X-API-Key
             return {"success": resp.status_code in (200, 201, 202),
                     "status_code": resp.status_code, "callback_url": callback_url}
     except Exception as e:
-        return {"success": False, "error": str(e), "callback_url": callback_url}
+        return {"success": False, "error": "An error occurred", "callback_url": callback_url}
 
 
 @router.get("/webhooks/history")

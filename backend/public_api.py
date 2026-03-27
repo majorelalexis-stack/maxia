@@ -9,6 +9,7 @@ Permet aux IA externes de :
 
 Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
+import logging
 import uuid, time, hashlib, secrets, asyncio, json, datetime, re
 from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
@@ -601,7 +602,16 @@ async def register_agent(req: dict):
 _sandbox_balances: dict = {}  # api_key -> float
 _sandbox_trades: list = []
 _sandbox_portfolios: dict = {}  # api_key -> {symbol: shares}
+_sandbox_locks: dict = {}  # api_key -> asyncio.Lock (prevents TOCTOU race conditions)
 SANDBOX_STARTING_BALANCE = 10000.0  # $10,000 fake USDC
+
+
+def _get_sandbox_lock(api_key: str) -> "asyncio.Lock":
+    """Get or create an asyncio lock for a sandbox user to prevent race conditions."""
+    if api_key not in _sandbox_locks:
+        import asyncio
+        _sandbox_locks[api_key] = asyncio.Lock()
+    return _sandbox_locks[api_key]
 
 
 def _get_sandbox_balance(api_key: str) -> float:
@@ -704,15 +714,16 @@ async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-
     commission = round(price * commission_bps / 10000, 4)
     seller_gets = round(price - commission, 4)
 
-    balance = _get_sandbox_balance(x_api_key)
-    if balance < price:
-        return {
-            "sandbox": True, "tx_id": None,
-            "message": f"Insufficient balance: ${balance:,.2f} < ${price:,.2f}. Reset your sandbox.",
-            "balance_usdc": balance, "cost_usdc": price,
-        }
+    async with _get_sandbox_lock(x_api_key):
+        balance = _get_sandbox_balance(x_api_key)
+        if balance < price:
+            return {
+                "sandbox": True, "tx_id": None,
+                "message": f"Insufficient balance: ${balance:,.2f} < ${price:,.2f}. Reset your sandbox.",
+                "balance_usdc": balance, "cost_usdc": price,
+            }
 
-    _sandbox_balances[x_api_key] = balance - price
+        _sandbox_balances[x_api_key] = balance - price
     tx_id = f"sandbox_{uuid.uuid4()}"
     _sandbox_trades.append({
         "api_key": x_api_key, "tx_id": tx_id, "type": "execute",
@@ -745,8 +756,6 @@ async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     if amount <= 0:
         raise HTTPException(400, "amount must be > 0")
 
-    balance = _get_sandbox_balance(x_api_key)
-
     # Live prices from CoinGecko
     try:
         from price_oracle import get_price
@@ -772,15 +781,17 @@ async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         swap_tier = "BRONZE"
     fee = round(cost_usdc * swap_bps / 10000, 4)
 
-    if balance < cost_usdc:
-        return {
-            "sandbox": True, "tx_id": None,
-            "message": f"Insufficient balance: ${balance:,.2f} < ${cost_usdc:,.2f} ({amount} {from_token} @ ${from_price:,.2f}). Reset your sandbox.",
-            "balance_usdc": balance, "cost_usdc": cost_usdc,
-            "from_token": from_token, "from_price_usd": from_price,
-        }
+    async with _get_sandbox_lock(x_api_key):
+        balance = _get_sandbox_balance(x_api_key)
+        if balance < cost_usdc:
+            return {
+                "sandbox": True, "tx_id": None,
+                "message": f"Insufficient balance: ${balance:,.2f} < ${cost_usdc:,.2f} ({amount} {from_token} @ ${from_price:,.2f}). Reset your sandbox.",
+                "balance_usdc": balance, "cost_usdc": cost_usdc,
+                "from_token": from_token, "from_price_usd": from_price,
+            }
 
-    _sandbox_balances[x_api_key] = balance - cost_usdc
+        _sandbox_balances[x_api_key] = balance - cost_usdc
     tx_id = f"sandbox_swap_{uuid.uuid4()}"
     _sandbox_trades.append({
         "api_key": x_api_key, "tx_id": tx_id, "type": "swap",
@@ -846,14 +857,16 @@ async def sandbox_buy_stock(req: dict, x_api_key: str = Header(None, alias="X-AP
         stock_tier = "BRONZE"
     fee = round(amount_usdc * stock_bps / 10000, 4)
 
-    if balance < amount_usdc:
-        return {
-            "sandbox": True, "tx_id": None,
-            "message": f"Insufficient balance: ${balance:,.2f} < ${amount_usdc:,.2f}. Reset your sandbox.",
-            "balance_usdc": balance, "cost_usdc": amount_usdc,
-        }
+    async with _get_sandbox_lock(x_api_key):
+        balance = _get_sandbox_balance(x_api_key)
+        if balance < amount_usdc:
+            return {
+                "sandbox": True, "tx_id": None,
+                "message": f"Insufficient balance: ${balance:,.2f} < ${amount_usdc:,.2f}. Reset your sandbox.",
+                "balance_usdc": balance, "cost_usdc": amount_usdc,
+            }
 
-    _sandbox_balances[x_api_key] = balance - amount_usdc
+        _sandbox_balances[x_api_key] = balance - amount_usdc
     if x_api_key not in _sandbox_portfolios:
         _sandbox_portfolios[x_api_key] = {}
     _sandbox_portfolios[x_api_key][symbol] = _sandbox_portfolios[x_api_key].get(symbol, 0) + shares
@@ -2748,7 +2761,7 @@ async def defi_protocol(name: str = "aave"):
         from defi_scanner import get_protocol_stats
         return await get_protocol_stats(name)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @router.get("/defi/chains")
@@ -2758,7 +2771,7 @@ async def defi_chains():
         from defi_scanner import get_chain_tvl
         return await get_chain_tvl()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════
@@ -2776,7 +2789,7 @@ async def public_sentiment(token: str = "BTC"):
         from sentiment_analyzer import get_sentiment
         return await get_sentiment(token)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @router.get("/trending")
@@ -2786,7 +2799,7 @@ async def public_trending():
         from sentiment_analyzer import get_trending
         return {"trending": await get_trending()}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @router.get("/fear-greed")
@@ -2796,7 +2809,7 @@ async def public_fear_greed():
         from web3_services import get_fear_greed_index
         return await get_fear_greed_index()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════
@@ -2816,7 +2829,7 @@ async def public_token_risk(address: str = ""):
         from web3_services import analyze_token_risk
         return await analyze_token_risk(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @router.get("/wallet-analysis")
@@ -2828,7 +2841,7 @@ async def public_wallet_analysis(address: str = ""):
         from web3_services import analyze_wallet
         return await analyze_wallet(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════

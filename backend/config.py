@@ -341,3 +341,41 @@ CEO_LOCAL_MODE = os.getenv("CEO_LOCAL_MODE", "true").lower() == "true"
 # ── V12: CEO API (PC local <-> VPS) ──
 CEO_API_KEY = os.getenv("CEO_API_KEY", "")
 CEO_ALLOWED_IPS = os.getenv("CEO_ALLOWED_IPS", "")  # Comma-separated IP whitelist
+
+# ── Startup Validation ──
+import logging as _logging
+_cfg_log = _logging.getLogger("config")
+
+def validate_secrets():
+    """Valide que les secrets critiques sont definis. Appele au demarrage."""
+    _warnings = []
+    _errors = []
+
+    if not SANDBOX_MODE:
+        # En production, ces secrets sont OBLIGATOIRES
+        if not JWT_SECRET or len(JWT_SECRET) < 16:
+            _errors.append("JWT_SECRET absent ou trop court (<16 chars)")
+        if not ADMIN_KEY or len(ADMIN_KEY) < 16:
+            _warnings.append("ADMIN_KEY absent ou trop court — dashboard admin inaccessible")
+        if not TREASURY_ADDRESS:
+            _warnings.append("TREASURY_ADDRESS vide — paiements Solana impossibles")
+        if CEO_API_KEY and not CEO_ALLOWED_IPS:
+            _warnings.append("CEO_API_KEY defini sans CEO_ALLOWED_IPS — whitelist IP recommandee en prod")
+    else:
+        _cfg_log.info("SANDBOX_MODE=true — validation secrets allegee")
+
+    # Toujours verifier (sandbox ou prod)
+    if ESCROW_PRIVKEY_B58 and len(ESCROW_PRIVKEY_B58) < 32:
+        _errors.append("ESCROW_PRIVKEY_B58 semble invalide (trop court)")
+
+    for w in _warnings:
+        _cfg_log.warning(f"[Config] {w}")
+    for e in _errors:
+        _cfg_log.error(f"[Config] CRITIQUE: {e}")
+    if _errors and not SANDBOX_MODE:
+        raise RuntimeError(
+            f"Configuration invalide en production: {'; '.join(_errors)}. "
+            "Corrigez .env avant de demarrer."
+        )
+
+validate_secrets()

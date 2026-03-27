@@ -209,7 +209,7 @@ async def verify_near_transaction(
         return {"verified": False, "error": "NEAR RPC timeout"}
     except Exception as e:
         logger.error(f"NEAR verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 async def get_near_balance(account_id: str) -> dict:
@@ -253,7 +253,7 @@ async def get_near_balance(account_id: str) -> dict:
 
     except Exception as e:
         logger.error(f"NEAR balance error for {account_id}: {e}")
-        return {"account_id": account_id, "error": str(e)}
+        return {"account_id": account_id, "error": "An error occurred"}
 
 
 async def get_near_usdc_balance(account_id: str) -> dict:
@@ -307,4 +307,4 @@ async def get_near_usdc_balance(account_id: str) -> dict:
 
     except Exception as e:
         logger.error(f"NEAR USDC balance error for {account_id}: {e}")
-        return {"account_id": account_id, "error": str(e)}
+        return {"account_id": account_id, "error": "An error occurred"}

@@ -7,6 +7,7 @@ Types : tools, datasets, prompts, workflows, models.
 Inspire de : MCPize (85% rev share), Ocean Protocol (datatokens),
 ComfyUI (plugin registry), SuperAGI (toolkit marketplace).
 """
+import logging
 import time
 import uuid
 import json
@@ -101,7 +102,7 @@ async def update_tool_version(db, tool_id: str, creator_wallet: str, data: dict)
             (json.dumps(tool, default=str), tool_id))
         return tool
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def purchase_tool(db, tool_id: str, buyer_wallet: str) -> dict:
@@ -138,7 +139,7 @@ async def purchase_tool(db, tool_id: str, buyer_wallet: str) -> dict:
             "platform_gets": platform_share,
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def review_tool(db, tool_id: str, buyer_wallet: str, rating: int, review_text: str) -> dict:
@@ -180,7 +181,7 @@ async def review_tool(db, tool_id: str, buyer_wallet: str, rating: int, review_t
 
         return {"success": True, "rating": rating}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def get_tools(db, category: str = "", sort: str = "popular", limit: int = 20) -> list:
@@ -221,7 +222,7 @@ async def get_tool_detail(db, tool_id: str) -> dict:
         tool["reviews"] = [dict(r) for r in reviews]
         return tool
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def get_creator_stats(db, wallet: str) -> dict:
@@ -248,7 +249,7 @@ async def get_creator_stats(db, wallet: str) -> dict:
             "recent_purchases": [dict(p) for p in purchases[:20]],
         }
     except Exception as e:
-        return {"error": str(e), "wallet": wallet}
+        return {"error": "An error occurred", "wallet": wallet}
 
 
 async def search_tools(db, query: str, limit: int = 20) -> list:

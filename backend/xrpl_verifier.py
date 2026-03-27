@@ -3,6 +3,7 @@
 Verifie les transactions XRP et USDC sur XRPL mainnet.
 Pattern identique a solana_verifier.py et base_verifier.py.
 """
+import logging
 import asyncio
 from datetime import datetime
 
@@ -89,7 +90,7 @@ async def verify_xrpl_transaction(tx_hash: str, expected_dest: str = "",
     except ImportError:
         return {"verified": False, "error": "xrpl-py not installed (pip install xrpl-py)"}
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 async def get_xrpl_balance(address: str) -> dict:
@@ -138,7 +139,7 @@ async def get_xrpl_balance(address: str) -> dict:
     except ImportError:
         return {"address": address, "error": "xrpl-py not installed"}
     except Exception as e:
-        return {"address": address, "error": str(e)}
+        return {"address": address, "error": "An error occurred"}
 
 
 async def verify_usdc_transfer_xrpl(tx_hash: str, expected_dest: str,

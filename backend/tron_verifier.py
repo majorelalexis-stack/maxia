@@ -1,4 +1,5 @@
 """MAXIA V12 — TRON Blockchain Verifier (TRC-20 USDT/USDC + TRX natif)"""
+import logging
 import asyncio, logging, time
 import httpx
 
@@ -97,7 +98,7 @@ async def verify_tron_transaction(
 
     except Exception as e:
         logger.error(f"TRON verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 def _hex_to_base58(hex_addr: str) -> str:
@@ -131,7 +132,7 @@ async def get_tron_balance(address: str) -> dict:
             balance = data.get("balance", 0) / 1e6
             return {"address": address, "trx": balance}
     except Exception as e:
-        return {"address": address, "error": str(e)}
+        return {"address": address, "error": "An error occurred"}
 
 
 async def x402_verify_payment_tron(tx_id: str, expected_amount: float) -> dict:

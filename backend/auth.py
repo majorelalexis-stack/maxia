@@ -220,6 +220,57 @@ async def require_auth(
     return x_wallet
 
 
+# ── Flexible Auth: JWT session OR DID signature ──
+
+async def require_auth_flexible(
+    request: "Request" = None,
+    authorization: str = Header(None, alias="Authorization"),
+    x_wallet: str = Header(None, alias="X-Wallet"),
+    x_agent_did: str = Header(None, alias="X-Agent-DID"),
+    x_agent_sig: str = Header(None, alias="X-Agent-Sig"),
+    x_agent_ts: str = Header(None, alias="X-Agent-Ts"),
+    x_api_key: str = Header(None, alias="X-API-Key"),
+) -> dict:
+    """Auth flexible pour les endpoints publics.
+    Accepte (par ordre de priorite) :
+      1) DID signature (X-Agent-DID + X-Agent-Sig + X-Agent-Ts)
+      2) Bearer session token (Authorization: Bearer ...)
+      3) X-API-Key (sandbox/public API)
+      4) Wallet signature (X-Wallet + X-Signature + X-Nonce) [legacy]
+
+    Returns: {"wallet": str, "did": str|None, "auth_method": str}
+    """
+    # 1) DID signature auth
+    if x_agent_did and x_agent_sig and x_agent_ts:
+        agent_info = await require_agent_sig_auth(
+            x_agent_did=x_agent_did,
+            x_agent_sig=x_agent_sig,
+            x_agent_ts=x_agent_ts,
+        )
+        return {
+            "wallet": agent_info["wallet"],
+            "did": agent_info["did"],
+            "agent_id": agent_info["agent_id"],
+            "auth_method": "did_signature",
+        }
+
+    # 2) Bearer session token
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+        wallet = verify_session_token(token)
+        return {"wallet": wallet, "did": None, "auth_method": "session_token"}
+
+    # 3) X-API-Key (for public API / sandbox)
+    if x_api_key:
+        return {"wallet": x_api_key, "did": None, "auth_method": "api_key"}
+
+    raise HTTPException(401,
+        "Authentication required. Use one of: "
+        "Authorization: Bearer <token>, "
+        "X-Agent-DID + X-Agent-Sig + X-Agent-Ts, "
+        "or X-API-Key")
+
+
 # ── CEO API Auth (PC local <-> VPS) ──
 
 async def require_ceo_auth(

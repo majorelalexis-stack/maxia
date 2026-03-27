@@ -11,6 +11,7 @@ Spec: https://github.com/a2aproject/A2A
 import asyncio, json, time, uuid, logging
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
+from error_utils import safe_error
 
 log = logging.getLogger("a2a")
 
@@ -346,7 +347,7 @@ async def _route_request(text: str, metadata: dict) -> dict:
             }
 
         except Exception as e:
-            return {"error": str(e)}
+            return safe_error(e, "a2a_handle_message")
 
 
 # ── A2A JSON-RPC Dispatcher ──

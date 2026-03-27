@@ -1,4 +1,5 @@
 """MAXIA Art.18 V11 — Scale-Out Manager (auto-scaling workers)"""
+import logging
 import time, asyncio
 import httpx
 from config import SCALE_OUT_QUEUE_THRESHOLD, SCALE_OUT_COOLDOWN, RAILWAY_API_TOKEN
@@ -83,7 +84,7 @@ class ScaleOutManager:
 
             return {"success": False, "error": str(data.get("errors", "Unknown"))}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     def get_stats(self) -> dict:
         return {

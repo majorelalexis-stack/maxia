@@ -13,6 +13,7 @@ Strategie (chaine de fallback):
 4. Yahoo Finance via price_oracle
 5. Prix statique fallback
 """
+import logging
 import asyncio
 import os
 import time
@@ -31,8 +32,11 @@ HERMES_URL = "https://hermes.pyth.network"
 
 # ── Protection anti-staleness ──
 # Prix trop vieux = risque d'arbitrage. Seuils differents par asset class.
-MAX_STALENESS_STOCK_S = 30     # Actions: max 30s (marches volatils, bots rapides)
-MAX_STALENESS_CRYPTO_S = 120   # Crypto: max 120s (24/7 mais moins critique)
+# Staleness tiers — le client choisit son mode via ?mode=hft ou ?mode=normal
+MAX_STALENESS_STOCK_NORMAL_S = 600   # Actions tokenisees: max 10min (xStocks/Ondo/Dinari)
+MAX_STALENESS_STOCK_HFT_S = 5       # HFT/day-trading: max 5s
+MAX_STALENESS_CRYPTO_NORMAL_S = 120  # Crypto normal: max 120s
+MAX_STALENESS_CRYPTO_HFT_S = 3      # Crypto HFT: max 3s
 # Confidence interval: si > CONFIDENCE_WARN_PCT du prix, le prix est peu fiable
 CONFIDENCE_WARN_PCT = 2.0      # 2% = spread oracle trop large, flagge comme unreliable
 # Circuit breaker: si N lectures consecutives sont stale, pause les trades
@@ -86,8 +90,12 @@ ALL_FEEDS = {**EQUITY_FEEDS, **CRYPTO_FEEDS}
 # ── Cache en memoire (TTL 10s par feed) ──
 
 _price_cache: dict = {}  # {feed_id: {"data": {...}, "ts": float}}
-_CACHE_TTL = 10  # secondes — Pyth publie toutes les ~400ms, 10s suffit
-_CACHE_MAX = 100  # Limite max d'entrees en cache pour eviter fuite memoire
+_CACHE_TTL_NORMAL = 5   # secondes — mode normal (suffisant pour tokenized stocks)
+_CACHE_TTL_HFT = 1      # secondes — mode HFT (fetch quasi-live)
+_CACHE_MAX = 100         # Limite max d'entrees en cache pour eviter fuite memoire
+
+# Streaming: prix live Pyth via SSE (server-sent events) pour les clients HFT
+_streaming_prices: dict = {}  # {feed_id: {"price": float, "ts": float}} mis a jour par le stream
 
 # ── Client HTTP partage ──
 
@@ -115,20 +123,27 @@ async def close_http_client():
 
 # ── Fonctions principales ──
 
-async def get_pyth_price(feed_id: str) -> dict:
+async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
     """Recupere le prix d'un feed Pyth via Hermes API.
 
     Args:
         feed_id: ID du feed Pyth (hex, sans 0x)
+        hft: True pour mode HFT (cache 1s, staleness strict)
 
     Returns:
         {"price": float, "confidence": float, "publish_time": int, "source": "pyth"}
         ou {"error": "..."} en cas d'echec
     """
-    # Verifier le cache d'abord
+    # 1) Streaming price (si le stream background tourne, latence <1s)
     now = time.time()
+    streamed = _streaming_prices.get(feed_id)
+    if streamed and now - streamed["ts"] < 2:
+        return streamed["data"]
+
+    # 2) Cache HTTP (TTL selon mode)
+    cache_ttl = _CACHE_TTL_HFT if hft else _CACHE_TTL_NORMAL
     cached = _price_cache.get(feed_id)
-    if cached and now - cached["ts"] < _CACHE_TTL:
+    if cached and now - cached["ts"] < cache_ttl:
         return cached["data"]
 
     try:
@@ -159,10 +174,13 @@ async def get_pyth_price(feed_id: str) -> dict:
         price = raw_price * (10 ** exponent)
         confidence = raw_conf * (10 ** exponent)
 
-        # ── Staleness check ──
+        # ── Staleness check (dual-tier: normal vs HFT) ──
         age_s = int(now) - publish_time if publish_time > 0 else 0
         is_equity = feed_id in EQUITY_FEEDS.values()
-        max_staleness = MAX_STALENESS_STOCK_S if is_equity else MAX_STALENESS_CRYPTO_S
+        if hft:
+            max_staleness = MAX_STALENESS_STOCK_HFT_S if is_equity else MAX_STALENESS_CRYPTO_HFT_S
+        else:
+            max_staleness = MAX_STALENESS_STOCK_NORMAL_S if is_equity else MAX_STALENESS_CRYPTO_NORMAL_S
         is_stale = age_s > max_staleness if publish_time > 0 else False
 
         # ── Confidence interval check ──
@@ -627,9 +645,40 @@ async def api_list_feeds():
         "equity_feeds": {sym: f"0x{fid}" for sym, fid in EQUITY_FEEDS.items()},
         "crypto_feeds": {sym: f"0x{fid}" for sym, fid in CRYPTO_FEEDS.items()},
         "total": len(ALL_FEEDS),
-        "cache_ttl_s": _CACHE_TTL,
+        "cache_ttl_normal_s": _CACHE_TTL_NORMAL,
+        "cache_ttl_hft_s": _CACHE_TTL_HFT,
         "hermes_url": HERMES_URL,
+        "streaming": _sse_task is not None and not _sse_task.done() if _sse_task else False,
     }
+
+
+@router.get("/price/live/{symbol}")
+async def api_price_live(symbol: str, mode: str = Query("normal", regex="^(normal|hft)$")):
+    """Prix live — mode=hft pour latence <1s (streaming), mode=normal pour 5s cache.
+
+    Utilise le stream SSE Pyth si disponible, sinon HTTP polling.
+    Mode HFT: cache 1s, staleness 5s stocks / 3s crypto.
+    Mode normal: cache 5s, staleness 10min stocks / 120s crypto.
+    """
+    sym = symbol.upper()
+    hft = mode == "hft"
+
+    if hft:
+        # Demarrer le stream si pas encore actif
+        await start_pyth_stream()
+
+    # Chercher dans equity puis crypto
+    feed_id = EQUITY_FEEDS.get(sym) or CRYPTO_FEEDS.get(sym)
+    if not feed_id:
+        raise HTTPException(404, f"Symbol {sym} not found in Pyth feeds")
+
+    result = await get_pyth_price(feed_id, hft=hft)
+    if "error" in result:
+        raise HTTPException(502, result["error"])
+
+    result["symbol"] = sym
+    result["mode"] = mode
+    return result
 
 
 @router.get("/health")
@@ -659,8 +708,10 @@ async def api_oracle_health():
             "stale": result.get("stale", False),
             "cache_entries": len(_price_cache),
             "staleness_config": {
-                "max_stock_s": MAX_STALENESS_STOCK_S,
-                "max_crypto_s": MAX_STALENESS_CRYPTO_S,
+                "max_stock_normal_s": MAX_STALENESS_STOCK_NORMAL_S,
+                "max_stock_hft_s": MAX_STALENESS_STOCK_HFT_S,
+                "max_crypto_normal_s": MAX_STALENESS_CRYPTO_NORMAL_S,
+                "max_crypto_hft_s": MAX_STALENESS_CRYPTO_HFT_S,
                 "confidence_warn_pct": CONFIDENCE_WARN_PCT,
                 "circuit_threshold": STALE_CIRCUIT_THRESHOLD,
             },
@@ -668,20 +719,21 @@ async def api_oracle_health():
             "circuit_open_feeds": len(circuit_open),
         }
     except Exception as e:
-        return {"status": "error", "error": str(e)[:100]}
+        return {"status": "error", "error": "An error occurred"[:100]}
 
 
 # ── Item 7: Alerte Telegram quand oracle stale pendant market hours ──
 # Rate limit: max 1 alerte par symbole par heure
 _oracle_alert_last: dict[str, float] = {}  # {symbol: timestamp dernier alerte}
 _ORACLE_ALERT_COOLDOWN = 3600  # 1 heure entre chaque alerte par symbole
-_ORACLE_STALE_ALERT_THRESHOLD = 300  # 5 minutes = feed considere stale pour alerte
+_ORACLE_STALE_ALERT_THRESHOLD = 900  # 15 minutes = alerte uniquement si tres stale (> staleness normal de 600s)
 
 
 def _is_market_open() -> bool:
     """Verifie si le marche US est ouvert (NYSE/NASDAQ).
-    Lundi-Vendredi 9:30-16:00 ET = 14:30-21:00 UTC (hiver) / 13:30-20:00 UTC (ete).
-    On utilise une fourchette large 13:00-21:30 UTC pour couvrir pre/post market."""
+    Regular hours: Lun-Ven 9:30-16:00 ET.
+    En UTC: 13:30-20:00 (ete/EDT) ou 14:30-21:00 (hiver/EST).
+    On utilise 13:00-21:00 UTC pour couvrir pre-market mais PAS after-hours tardif."""
     from datetime import datetime, timezone
     utc_now = datetime.now(timezone.utc)
     # Weekend = pas de marche
@@ -690,8 +742,9 @@ def _is_market_open() -> bool:
     hour = utc_now.hour
     minute = utc_now.minute
     utc_minutes = hour * 60 + minute
-    # 13:00 UTC (780) a 21:30 UTC (1290) = fourchette large
-    return 780 <= utc_minutes <= 1290
+    # 13:00 UTC (780) a 20:30 UTC (1230) — regular close 20:00 UTC + 30min buffer
+    # Apres 20:30 UTC, les prix Pyth stocks sont normalement stale = pas d'alerte
+    return 780 <= utc_minutes <= 1230
 
 
 async def check_oracle_health_alert():
@@ -747,6 +800,129 @@ async def check_oracle_health_alert():
 
     if stale_count > 0:
         print(f"[PythOracle] Health check: {stale_count}/{len(EQUITY_FEEDS)} feeds stale (>{_ORACLE_STALE_ALERT_THRESHOLD}s)")
+
+
+# ══════════════════════════════════════════
+# Pyth SSE Streaming (prix live <1s latence)
+# ══════════════════════════════════════════
+
+_sse_task: Optional[asyncio.Task] = None
+_sse_subscribers: list = []  # list of asyncio.Queue for WebSocket push
+
+
+async def start_pyth_stream():
+    """Demarre le stream SSE Pyth Hermes pour tous les feeds crypto + equity.
+    Met a jour _streaming_prices en continu. Reconnexion auto."""
+    global _sse_task
+    if _sse_task and not _sse_task.done():
+        return  # Deja en cours
+
+    _sse_task = asyncio.create_task(_pyth_sse_loop())
+    logger.info("[PythStream] SSE streaming started")
+
+
+async def _pyth_sse_loop():
+    """Boucle SSE Pyth Hermes — reconnexion automatique avec backoff."""
+    feed_ids = list(set(EQUITY_FEEDS.values()) | set(CRYPTO_FEEDS.values()))
+    # Reverse lookup pour mapper feed_id -> symbol
+    feed_to_symbol = {}
+    for sym, fid in {**EQUITY_FEEDS, **CRYPTO_FEEDS}.items():
+        feed_to_symbol[fid] = sym
+
+    backoff = 1
+    while True:
+        try:
+            params = [("ids[]", f"0x{fid}") for fid in feed_ids]
+            client = await _get_http()
+            async with client.stream(
+                "GET", f"{HERMES_URL}/v2/updates/price/stream",
+                params=params, timeout=None,
+            ) as resp:
+                if resp.status_code != 200:
+                    logger.warning(f"[PythStream] HTTP {resp.status_code}, retrying in {backoff}s")
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 60)
+                    continue
+
+                backoff = 1  # Reset on success
+                buffer = ""
+                async for chunk in resp.aiter_text():
+                    buffer += chunk
+                    while "\n\n" in buffer:
+                        event_str, buffer = buffer.split("\n\n", 1)
+                        await _process_sse_event(event_str, feed_to_symbol)
+
+        except asyncio.CancelledError:
+            logger.info("[PythStream] SSE stream cancelled")
+            return
+        except Exception as e:
+            logger.warning(f"[PythStream] Connection lost: {e}, reconnecting in {backoff}s")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+
+async def _process_sse_event(event_str: str, feed_to_symbol: dict):
+    """Parse un event SSE Pyth et met a jour _streaming_prices."""
+    import json as _json
+    now = time.time()
+
+    for line in event_str.split("\n"):
+        if line.startswith("data:"):
+            try:
+                data = _json.loads(line[5:].strip())
+                for entry in data.get("parsed", []):
+                    feed_id = entry.get("id", "").replace("0x", "")
+                    price_data = entry.get("price", {})
+                    raw_price = int(price_data.get("price", "0"))
+                    exponent = int(price_data.get("expo", "0"))
+                    raw_conf = int(price_data.get("conf", "0"))
+                    publish_time = price_data.get("publish_time", 0)
+
+                    price = raw_price * (10 ** exponent)
+                    confidence = raw_conf * (10 ** exponent)
+
+                    if price <= 0:
+                        continue
+
+                    age_s = int(now) - publish_time if publish_time > 0 else 0
+                    symbol = feed_to_symbol.get(feed_id, "")
+
+                    result = {
+                        "price": round(price, 6),
+                        "confidence": round(confidence, 6),
+                        "confidence_pct": round((confidence / price * 100) if price > 0 else 0, 4),
+                        "publish_time": publish_time,
+                        "age_s": age_s,
+                        "stale": False,  # Stream = toujours frais
+                        "wide_confidence": False,
+                        "source": "pyth_stream",
+                        "symbol": symbol,
+                    }
+
+                    _streaming_prices[feed_id] = {"data": result, "ts": now}
+
+                    # Push aux subscribers WebSocket
+                    for q in list(_sse_subscribers):
+                        try:
+                            q.put_nowait({"symbol": symbol, **result})
+                        except asyncio.QueueFull:
+                            pass  # Client lent, skip
+
+            except Exception:
+                pass  # Malformed SSE event, skip
+
+
+async def stop_pyth_stream():
+    """Arrete le stream SSE."""
+    global _sse_task
+    if _sse_task and not _sse_task.done():
+        _sse_task.cancel()
+        try:
+            await _sse_task
+        except asyncio.CancelledError:
+            pass
+    _sse_task = None
+    logger.info("[PythStream] SSE streaming stopped")
 
 
 print(f"[PythOracle] Initialise — {len(EQUITY_FEEDS)} equity + {len(CRYPTO_FEEDS)} crypto feeds via Hermes")

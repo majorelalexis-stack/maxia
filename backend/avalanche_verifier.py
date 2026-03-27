@@ -7,6 +7,7 @@ from config import (
     AVALANCHE_RPC, AVALANCHE_CHAIN_ID, AVALANCHE_USDC_CONTRACT,
     X402_FACILITATOR_URL, TREASURY_ADDRESS_AVALANCHE,
 )
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.avalanche_verifier")
 
@@ -107,15 +108,17 @@ async def verify_avalanche_transaction(tx_hash: str, expected_to: str = None) ->
                 "chainId": AVALANCHE_CHAIN_ID,
             }
         except RuntimeError as e:
-            return {"valid": False, "error": str(e)}
+            result = safe_error(e, "avalanche_verify_tx")
+            result["valid"] = False
+            return result
         except httpx.TimeoutException as e:
-            logger.warning(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} timeout: {e}")
+            logger.warning(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} timeout")
             await asyncio.sleep(2 ** attempt)
         except httpx.ConnectError as e:
-            logger.warning(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} connect error: {e}")
+            logger.warning(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} connect error")
             await asyncio.sleep(2 ** attempt)
         except Exception as e:
-            logger.error(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} failed: {type(e).__name__}: {e}")
+            logger.error(f"[AvalancheVerifier] verify_avalanche_transaction attempt {attempt + 1} failed: {type(e).__name__}")
             await asyncio.sleep(2 ** attempt)
     return {"valid": False, "error": "Verification failed after retries"}
 
@@ -188,16 +191,21 @@ async def verify_usdc_transfer_avalanche(tx_hash: str, expected_amount_raw: int 
             return receipt
         return {"valid": False, "error": "No USDC transfer found in logs"}
     except RuntimeError as e:
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "avalanche_verify_usdc")
+        result["valid"] = False
+        return result
     except httpx.TimeoutException as e:
-        logger.error(f"[AvalancheVerifier] verify_usdc_transfer_avalanche timeout: {e}")
-        return {"valid": False, "error": f"RPC timeout: {e}"}
+        result = safe_error(e, "avalanche_verify_usdc_timeout")
+        result["valid"] = False
+        return result
     except httpx.ConnectError as e:
-        logger.error(f"[AvalancheVerifier] verify_usdc_transfer_avalanche connect error: {e}")
-        return {"valid": False, "error": f"RPC connection error: {e}"}
+        result = safe_error(e, "avalanche_verify_usdc_connect")
+        result["valid"] = False
+        return result
     except Exception as e:
-        logger.error(f"[AvalancheVerifier] verify_usdc_transfer_avalanche error: {type(e).__name__}: {e}")
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "avalanche_verify_usdc")
+        result["valid"] = False
+        return result
 
 
 async def x402_verify_payment_avalanche(payment_header: str, expected_amount_usdc: float) -> dict:

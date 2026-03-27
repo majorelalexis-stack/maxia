@@ -10,6 +10,7 @@ import logging
 import time
 
 import httpx
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.ton_verifier")
 
@@ -120,8 +121,9 @@ async def verify_ton_transaction(
         logger.error(f"TON verification timeout for {tx_hash[:16]}...")
         return {"verified": False, "error": "TON API timeout"}
     except Exception as e:
-        logger.error(f"TON verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        result = safe_error(e, "ton_verify_tx")
+        result["verified"] = False
+        return result
 
 
 async def verify_usdt_transfer_ton(
@@ -180,8 +182,9 @@ async def verify_usdt_transfer_ton(
             }
 
     except Exception as e:
-        logger.error(f"TON USDT verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        result = safe_error(e, "ton_verify_usdt")
+        result["verified"] = False
+        return result
 
 
 async def get_ton_balance(address: str) -> dict:
@@ -222,8 +225,9 @@ async def get_ton_balance(address: str) -> dict:
             return {"address": address, "error": "Failed to get balance"}
 
     except Exception as e:
-        logger.error(f"TON balance error for {address}: {e}")
-        return {"address": address, "error": str(e)}
+        result = safe_error(e, "ton_balance")
+        result["address"] = address
+        return result
 
 
 async def get_ton_address_info(address: str) -> dict:
@@ -259,5 +263,6 @@ async def get_ton_address_info(address: str) -> dict:
             return {"address": address, "error": "Failed to get address info"}
 
     except Exception as e:
-        logger.error(f"TON address info error: {e}")
-        return {"address": address, "error": str(e)}
+        result = safe_error(e, "ton_address_info")
+        result["address"] = address
+        return result

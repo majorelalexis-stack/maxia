@@ -2,6 +2,7 @@
 
 Permet a une entreprise de gerer tous ses agents depuis un seul endpoint.
 """
+import logging
 import time
 
 
@@ -53,7 +54,7 @@ async def get_fleet_overview(owner_wallet: str, db) -> dict:
             "agents": fleet,
         }
     except Exception as e:
-        return {"error": str(e), "owner": owner_wallet, "agents": []}
+        return {"error": "An error occurred", "owner": owner_wallet, "agents": []}
 
 
 async def toggle_agent(api_key: str, enabled: bool, db) -> dict:
@@ -65,4 +66,4 @@ async def toggle_agent(api_key: str, enabled: bool, db) -> dict:
             (status, api_key))
         return {"success": True, "api_key": api_key[:8] + "..." if api_key else "N/A", "status": status}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}

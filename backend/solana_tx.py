@@ -1,4 +1,5 @@
 """MAXIA Solana TX V11 — Transactions reelles via RPC HTTP (serialisation corrigee)"""
+import logging
 import asyncio, time, struct, base64
 import httpx
 import base58
@@ -173,7 +174,7 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
 
     except Exception as e:
         print(f"[SolanaTx] TX error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def verify_usdc_payment(tx_signature: str, expected_amount_usdc: float = 0,
@@ -341,4 +342,4 @@ async def send_usdc_transfer_real(to_address: str, amount_usdc: float,
 
     except Exception as e:
         print(f"[SolanaTx] USDC TX error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}

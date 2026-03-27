@@ -8,6 +8,7 @@ import asyncio, json, time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Query, Request
 from starlette.responses import StreamingResponse
+from error_utils import safe_error
 
 router = APIRouter(prefix="/api/feed", tags=["activity-feed"])
 
@@ -233,7 +234,8 @@ async def get_feed(
         return {"events": events, "count": len(events), "limit": limit, "offset": offset}
 
     except Exception as e:
-        return {"events": [], "count": 0, "error": str(e)}
+        err = safe_error(e, "activity_feed_list")
+        return {"events": [], "count": 0, "error": err["error"], "request_id": err["request_id"]}
 
 
 @router.get("/stream")
@@ -353,6 +355,7 @@ async def feed_stats():
         }
 
     except Exception as e:
+        err = safe_error(e, "activity_feed_stats")
         return {
             "total_events": 0,
             "total_volume_usdc": 0.0,
@@ -360,5 +363,6 @@ async def feed_stats():
             "active_chains": [],
             "most_active_agent": "",
             "connected_sse_clients": len(_sse_queues),
-            "error": str(e),
+            "error": err["error"],
+            "request_id": err["request_id"],
         }

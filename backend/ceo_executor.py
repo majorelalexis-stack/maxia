@@ -21,7 +21,7 @@ MAX_PROSPECTS_DAY = 10
 
 def _reset_if_new_day():
     global _daily_counts, _daily_date
-    today = date.today().isoformat()
+    today = datetime.utcnow().strftime("%Y-%m-%d")  # UTC pour coherence cross-timezone
     if _daily_date != today:
         _daily_counts = {}
         _daily_date = today

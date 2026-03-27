@@ -9,6 +9,7 @@ Pattern inspire de SingularityNET RFAI :
 Scoring multi-attribut pour eviter la course vers le bas :
   40% reputation + 25% SLA + 20% prix + 15% rapidite
 """
+import logging
 import uuid, time, json
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -694,7 +695,7 @@ async def expire_old_requests():
 
     except Exception as e:
         print(f"[ReverseAuction] Erreur expiration: {e}")
-        return {"expired": 0, "error": str(e)}
+        return {"expired": 0, "error": "An error occurred"}
 
 
 # ── Stats ──
@@ -737,4 +738,4 @@ async def auction_stats():
             },
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")

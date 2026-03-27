@@ -16,6 +16,7 @@ Each clone:
     - Pays a % royalty to the Queen (MAXIA Treasury)
     - Can be paused/resumed/stopped independently
 """
+import logging
 import asyncio, uuid, time, json, hashlib
 import httpx
 from config import (
@@ -396,7 +397,7 @@ class Swarm:
             }
         except Exception as e:
             print(f"[Swarm] ERROR in process_request: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     # ── Clone management ──
 

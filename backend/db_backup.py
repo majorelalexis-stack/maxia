@@ -1,4 +1,5 @@
 """MAXIA DB Backup — Automated SQLite backup"""
+import logging
 import asyncio, shutil, time, os
 from pathlib import Path
 
@@ -23,7 +24,7 @@ async def backup_db():
         return {"success": True, "file": str(dest), "size_kb": round(size_kb)}
     except Exception as e:
         print(f"[Backup] Error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def run_backup_scheduler():
@@ -61,7 +62,7 @@ async def restore_db(backup_name: str) -> dict:
         print(f"[Backup] RESTORED from {backup_name} ({size_kb:.0f} KB)")
         return {"success": True, "restored_from": backup_name, "size_kb": round(size_kb), "safety_backup": safety.name}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def verify_backup(backup_name: str) -> dict:
@@ -84,4 +85,4 @@ async def verify_backup(backup_name: str) -> dict:
                     counts[table] = row[0]
         return {"valid": True, "tables": len(tables), "rows": counts, "size_kb": round(backup_file.stat().st_size / 1024)}
     except Exception as e:
-        return {"valid": False, "error": str(e)}
+        return {"valid": False, "error": "An error occurred"}

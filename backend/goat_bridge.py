@@ -6,6 +6,7 @@ Sans goat-sdk, fonctionne comme un annuaire de protocoles avec liens directs.
 
 Install: pip install goat-sdk (optionnel — le catalogue fonctionne sans)
 """
+import logging
 import asyncio, time, json, logging
 from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
@@ -119,7 +120,7 @@ async def execute_protocol_action(request: dict, x_api_key: str = Header(alias="
             result = await _execute_via_goat(protocol, action, params)
             return {"protocol": protocol, "action": action, "result": result}
         except Exception as e:
-            return {"protocol": protocol, "action": action, "error": str(e),
+            return {"protocol": protocol, "action": action, "error": "An error occurred",
                     "hint": "Try using the protocol's native interface directly."}
 
     # Sans SDK — mode annuaire uniquement

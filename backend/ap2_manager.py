@@ -2,6 +2,7 @@
 import os, uuid, time, json, hashlib, hmac
 import httpx, asyncio
 from config import AP2_ENABLED, AP2_AGENT_ID, AP2_SIGNING_KEY
+from error_utils import safe_error
 
 
 class AP2Manager:
@@ -213,7 +214,9 @@ class AP2Manager:
                 data = resp.json()
             return {"success": resp.status_code in (200, 201), "txSignature": tx_signature, "response": data}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            result = safe_error(e, "ap2_submit_payment")
+            result["success"] = False
+            return result
 
     # ── Info / Stats ──
 
@@ -310,7 +313,9 @@ class AP2Manager:
                 return result
             return {"valid": False, "error": "Unsupported network"}
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            result = safe_error(e, "ap2_verify_payment")
+            result["valid"] = False
+            return result
 
 
 ap2_manager = AP2Manager()

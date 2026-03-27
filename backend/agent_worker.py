@@ -1,6 +1,7 @@
 """MAXIA AgentWorker V11 — Groq LLaMA 3.3 Multilingue"""
 import asyncio, json, os, time, hashlib
 from config import GROQ_API_KEY, GROQ_MODEL, AGENT_TIMEOUT_S
+from error_utils import safe_error
 
 groq_client = None
 if GROQ_API_KEY:
@@ -91,7 +92,8 @@ class AgentWorker:
                 })
         except Exception as e:
             print(f"[AgentWorker] {cid[:8]}...: {e}")
-            await self._save(cid, {"status": "failed", "error": str(e), "completedAt": int(time.time())})
+            err = safe_error(e, "agent_worker_execute")
+            await self._save(cid, {"status": "failed", "error": err["error"], "request_id": err["request_id"], "completedAt": int(time.time())})
         finally:
             self._active.discard(cid)
 

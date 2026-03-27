@@ -10,6 +10,7 @@ import logging
 import time
 
 import httpx
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.sui_verifier")
 
@@ -176,8 +177,9 @@ async def verify_sui_transaction(
         logger.error(f"SUI verification timeout for {tx_digest[:16]}...")
         return {"verified": False, "error": "SUI RPC timeout"}
     except Exception as e:
-        logger.error(f"SUI verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        result = safe_error(e, "sui_verify_tx")
+        result["verified"] = False
+        return result
 
 
 async def verify_usdc_transfer_sui(
@@ -268,8 +270,9 @@ async def verify_usdc_transfer_sui(
             }
 
     except Exception as e:
-        logger.error(f"SUI USDC verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        result = safe_error(e, "sui_verify_usdc")
+        result["verified"] = False
+        return result
 
 
 async def get_sui_balance(address: str) -> dict:
@@ -308,8 +311,9 @@ async def get_sui_balance(address: str) -> dict:
             }
 
     except Exception as e:
-        logger.error(f"SUI balance error for {address}: {e}")
-        return {"address": address, "error": str(e)}
+        result = safe_error(e, "sui_balance")
+        result["address"] = address
+        return result
 
 
 async def get_sui_usdc_balance(address: str) -> dict:
@@ -343,4 +347,4 @@ async def get_sui_usdc_balance(address: str) -> dict:
 
     except Exception as e:
         logger.error(f"SUI USDC balance error for {address}: {e}")
-        return {"address": address, "error": str(e)}
+        return {"address": address, "error": "An error occurred"}

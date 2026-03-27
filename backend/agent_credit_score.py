@@ -17,8 +17,18 @@ import json
 import hashlib
 import hmac
 import os
+from error_utils import safe_error
 
-CREDIT_SCORE_SECRET = os.getenv("CREDIT_SCORE_SECRET", "maxia-credit-2026")
+CREDIT_SCORE_SECRET = os.getenv("CREDIT_SCORE_SECRET", "")
+if not CREDIT_SCORE_SECRET:
+    import secrets as _secrets
+    CREDIT_SCORE_SECRET = _secrets.token_hex(32)
+    import logging
+    logging.getLogger(__name__).warning(
+        "CREDIT_SCORE_SECRET non defini — secret ephemere genere. "
+        "Les scores exportes ne seront pas verificables apres restart. "
+        "Ajoutez CREDIT_SCORE_SECRET=<64 chars hex> dans .env pour la persistance."
+    )
 VERIFICATION_FEE_USDC = 0.10
 
 # Grade thresholds (same as leaderboard but with credit score semantics)
@@ -163,7 +173,9 @@ async def compute_credit_score(wallet: str, db) -> dict:
 
         return score_data
     except Exception as e:
-        return {"error": str(e), "wallet": wallet, "score": 0, "grade": "C"}
+        result = safe_error(e, "compute_credit_score")
+        result.update({"wallet": wallet, "score": 0, "grade": "C"})
+        return result
 
 
 def _sign_score(score_data: dict) -> str:

@@ -6,6 +6,7 @@ Services that AI agents can buy:
 - Token Contract Scanner
 - Whale Alert Monitor
 """
+import logging
 import asyncio, time
 import httpx
 
@@ -89,7 +90,7 @@ async def analyze_token_risk(token_address: str) -> dict:
                         warnings.append(f"Top holder owns {top1_pct:.0f}% of supply")
 
     except Exception as e:
-        return {"error": str(e), "risk_score": -1}
+        return {"error": "An error occurred", "risk_score": -1}
 
     risk_score = min(100, risk_score)
     risk_level = "LOW" if risk_score < 30 else "MEDIUM" if risk_score < 60 else "HIGH"

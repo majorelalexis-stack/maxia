@@ -7,6 +7,7 @@ from config import (
     POLYGON_RPC, POLYGON_CHAIN_ID, POLYGON_USDC_CONTRACT,
     X402_FACILITATOR_URL, TREASURY_ADDRESS_POLYGON,
 )
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.polygon_verifier")
 
@@ -107,15 +108,17 @@ async def verify_polygon_transaction(tx_hash: str, expected_to: str = None) -> d
                 "chainId": POLYGON_CHAIN_ID,
             }
         except RuntimeError as e:
-            return {"valid": False, "error": str(e)}
+            result = safe_error(e, "polygon_verify_tx")
+            result["valid"] = False
+            return result
         except httpx.TimeoutException as e:
-            logger.warning(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} timeout: {e}")
+            logger.warning(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} timeout")
             await asyncio.sleep(2 ** attempt)
         except httpx.ConnectError as e:
-            logger.warning(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} connect error: {e}")
+            logger.warning(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} connect error")
             await asyncio.sleep(2 ** attempt)
         except Exception as e:
-            logger.error(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} failed: {type(e).__name__}: {e}")
+            logger.error(f"[PolygonVerifier] verify_polygon_transaction attempt {attempt + 1} failed: {type(e).__name__}")
             await asyncio.sleep(2 ** attempt)
     return {"valid": False, "error": "Verification failed after retries"}
 
@@ -188,16 +191,21 @@ async def verify_usdc_transfer_polygon(tx_hash: str, expected_amount_raw: int = 
             return receipt
         return {"valid": False, "error": "No USDC transfer found in logs"}
     except RuntimeError as e:
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "polygon_verify_usdc")
+        result["valid"] = False
+        return result
     except httpx.TimeoutException as e:
-        logger.error(f"[PolygonVerifier] verify_usdc_transfer_polygon timeout: {e}")
-        return {"valid": False, "error": f"RPC timeout: {e}"}
+        result = safe_error(e, "polygon_verify_usdc_timeout")
+        result["valid"] = False
+        return result
     except httpx.ConnectError as e:
-        logger.error(f"[PolygonVerifier] verify_usdc_transfer_polygon connect error: {e}")
-        return {"valid": False, "error": f"RPC connection error: {e}"}
+        result = safe_error(e, "polygon_verify_usdc_connect")
+        result["valid"] = False
+        return result
     except Exception as e:
-        logger.error(f"[PolygonVerifier] verify_usdc_transfer_polygon error: {type(e).__name__}: {e}")
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "polygon_verify_usdc")
+        result["valid"] = False
+        return result
 
 
 async def x402_verify_payment_polygon(payment_header: str, expected_amount_usdc: float) -> dict:

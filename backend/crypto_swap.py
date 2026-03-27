@@ -7,6 +7,7 @@ pour TOUJOURS offrir le meilleur prix.
 Token validation note (#9): All tokens are curated in SUPPORTED_TOKENS.
 This dict IS the whitelist — no user-submitted mints are accepted.
 """
+import logging
 import asyncio, math, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
@@ -697,7 +698,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
             return {"success": False, "error": f"Payment invalid: {tx_result.get('error', 'verification failed')}"}
     except Exception as e:
         _log_swap(f"Payment verification error: {e}")
-        return {"success": False, "error": f"Payment verification failed: {e}"}
+        return {"success": False, "error": "An error occurred"}
 
     # Router via Jupiter pour le swap reel
     jupiter_result = None

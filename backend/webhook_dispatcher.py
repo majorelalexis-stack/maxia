@@ -4,6 +4,7 @@ Buyers provide a callback_url when purchasing a service.
 When result is ready, MAXIA POSTs to the callback_url with HMAC-SHA256 signature.
 Retry with exponential backoff: 30s, 2m, 10m, 1h (max 5 attempts).
 """
+import logging
 import asyncio, hashlib, hmac, json, time, uuid
 from ipaddress import ip_address
 from typing import Optional
@@ -341,4 +342,4 @@ async def test_webhook(callback_url: str) -> dict:
     except httpx.TimeoutException:
         return {"url": validated_url, "status_code": 0, "ok": False, "error": "Timeout"}
     except Exception as e:
-        return {"url": validated_url, "status_code": 0, "ok": False, "error": str(e)}
+        return {"url": validated_url, "status_code": 0, "ok": False, "error": "An error occurred"}

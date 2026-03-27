@@ -4,17 +4,21 @@ Utilise aip-protocol pour la signature et verification d'intents.
 Fallback sur implementation maison si aip-protocol pas installe.
 
 AIP = Agent Identity Protocol (github.com/theaniketgiri/aip)
-- Enveloppe standard, framework-agnostic
-- ed25519 signatures
+- Enveloppe standard, framework-agnostic (LangChain, AutoGen, CrewAI)
+- ed25519 signatures via cryptography lib
+- Anti-replay nonce intégré (chaque envelope ne peut etre verifiee qu'une fois)
 - Verification sub-milliseconde
 
 Usage:
   Agent-side:  envelope = create_maxia_intent(passport, "swap", {"from":"USDC","to":"SOL","amount":100})
   Server-side: result = verify_maxia_intent(envelope, public_key)
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════
-# AIP Protocol integration
+# AIP Protocol integration (v0.3.0)
 # ══════════════════════════════════════════
 
 try:
@@ -24,39 +28,66 @@ try:
         sign_envelope as aip_sign_envelope,
         verify_intent as aip_verify_intent,
         AgentPassport, AgentIdentity, Principal, Boundaries, MonetaryLimit,
+        IntentEnvelope,
     )
     AIP_AVAILABLE = True
-    print("[AIP] aip-protocol v0.3.0 loaded — signed intents enabled")
+    logger.info("[AIP] aip-protocol v0.3.0 loaded — signed intents enabled")
 except ImportError:
     AIP_AVAILABLE = False
-    print("[AIP] aip-protocol not installed — using fallback. pip install aip-protocol")
+    logger.warning("[AIP] aip-protocol not installed — using fallback. pip install aip-protocol")
+
+
+# ══════════════════════════════════════════
+# AIP default actions for MAXIA agents
+# ══════════════════════════════════════════
+
+MAXIA_DEFAULT_ACTIONS = [
+    "swap", "gpu_rent", "gpu_terminate", "escrow_lock",
+    "escrow_confirm", "stocks_buy", "stocks_sell",
+    "marketplace_execute", "defi_deposit",
+]
 
 
 def create_agent_passport(agent_id: str, name: str, did: str,
-                          max_amount_usd: float = 1000,
+                          max_tx_usd: float = 1000,
+                          max_daily_usd: float = 5000,
                           allowed_actions: list = None,
                           private_key=None, public_key=None):
-    """Create an AIP AgentPassport for a MAXIA agent."""
+    """Create an AIP AgentPassport for a MAXIA agent.
+
+    Args:
+        agent_id: internal MAXIA agent ID
+        name: human-readable agent name
+        did: W3C DID (did:web:maxiaworld.app:agent:{agent_id})
+        max_tx_usd: max spend per transaction
+        max_daily_usd: max spend per day
+        allowed_actions: list of permitted actions
+        private_key: cryptography Ed25519PrivateKey
+        public_key: cryptography Ed25519PublicKey
+
+    Returns:
+        AgentPassport or None if AIP not available
+    """
     if not AIP_AVAILABLE:
         return None
 
-    identity = AgentIdentity(
-        agent_id=did,
-        name=name or agent_id,
-        version="1.0.0",
+    actions = allowed_actions or MAXIA_DEFAULT_ACTIONS
+
+    identity = AgentIdentity(id=did)
+    principal = Principal(type="agent", id=did)
+    boundaries = Boundaries(
+        allowed_actions=actions,
+        monetary_limit=MonetaryLimit(
+            per_transaction=max_tx_usd,
+            per_day=max_daily_usd,
+            currency="USDC",
+        ),
     )
-    actions = allowed_actions or [
-        "swap", "gpu_rent", "gpu_terminate", "escrow_lock",
-        "escrow_confirm", "stocks_buy", "stocks_sell",
-        "marketplace_execute", "defi_deposit",
-    ]
+
     return AgentPassport(
         identity=identity,
-        principal=Principal(id=did, name=name or agent_id, framework="maxia"),
-        boundaries=Boundaries(
-            monetary=MonetaryLimit(max_amount=max_amount_usd, currency="USDC"),
-            allowed_actions=actions,
-        ),
+        principal=principal,
+        boundaries=boundaries,
         private_key=private_key,
         public_key=public_key,
     )
@@ -94,34 +125,66 @@ def create_maxia_intent(passport, action: str, parameters: dict,
 def verify_maxia_intent(envelope, public_key) -> dict:
     """Verify a signed intent envelope using AIP protocol.
 
+    Note: AIP has built-in anti-replay protection. Each envelope
+    can only be verified ONCE (nonce is consumed on first verify).
+
     Args:
         envelope: AIP IntentEnvelope
-        public_key: ed25519 public key
+        public_key: cryptography Ed25519PublicKey
 
     Returns:
-        {"valid": True/False, "action": "...", "error": "..."}
+        {"valid": True/False, "action": str, "trust_score": float, ...}
     """
     if not AIP_AVAILABLE:
         return {"valid": False, "error": "aip-protocol not installed"}
 
     try:
         result = aip_verify_intent(envelope, public_key)
-        return {
+        response = {
             "valid": result.valid,
-            "action": envelope.intent.action if hasattr(envelope, 'intent') else "",
+            "action": envelope.intent.action,
+            "trust_score": result.trust_score,
             "protocol": "aip-protocol",
             "version": "0.3.0",
         }
+        if not result.valid:
+            response["errors"] = [e.value for e in result.errors]
+            response["detail"] = result.detail
+        return response
     except Exception as e:
-        return {"valid": False, "error": str(e)[:200]}
+        logger.error(f"[AIP] verify error: {e}", exc_info=True)
+        return {"valid": False, "error": "Verification failed"}
 
 
 def generate_aip_keypair():
-    """Generate an AIP-compatible ed25519 keypair.
-    Returns (private_key, public_key) objects."""
+    """Generate an AIP-compatible ed25519 keypair (cryptography lib).
+
+    Returns:
+        (Ed25519PrivateKey, Ed25519PublicKey) or (None, None) if AIP unavailable
+    """
     if not AIP_AVAILABLE:
         return None, None
     return aip_generate_keypair()
+
+
+def pub_key_to_base58(public_key) -> str:
+    """Convert a cryptography Ed25519PublicKey to base58 string for DB storage."""
+    import base58
+    return base58.b58encode(public_key.public_bytes_raw()).decode()
+
+
+def base58_to_pub_key(pub_b58: str):
+    """Convert a base58 string back to cryptography Ed25519PublicKey."""
+    import base58
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    return Ed25519PublicKey.from_public_bytes(base58.b58decode(pub_b58))
+
+
+def nacl_pub_to_crypto_pub(nacl_verify_key):
+    """Bridge: convert a nacl VerifyKey to cryptography Ed25519PublicKey.
+    Needed because auth.py uses PyNaCl but AIP uses cryptography."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    return Ed25519PublicKey.from_public_bytes(bytes(nacl_verify_key))
 
 
 # ══════════════════════════════════════════
@@ -129,23 +192,20 @@ def generate_aip_keypair():
 # ══════════════════════════════════════════
 
 async def verify_intent_from_request(intent_data: dict) -> dict:
-    """Verify an intent from an API request body.
-    Resolves the agent's public key from the DID in the envelope."""
+    """Verify an AIP intent from an API request body.
+    Resolves the agent's public key from the DID stored in the envelope."""
     if not AIP_AVAILABLE:
         return {"valid": False, "error": "aip-protocol not installed on server"}
 
     try:
-        # Reconstruct envelope from dict
-        from aip_protocol import IntentEnvelope
         envelope = IntentEnvelope(**intent_data)
 
         # Resolve public key from DID
-        did = envelope.agent.agent_id if hasattr(envelope, 'agent') else ""
+        did = envelope.agent.id
         if not did:
             return {"valid": False, "error": "No agent DID in envelope"}
 
-        from agent_permissions import _get_db
-        db = await _get_db()
+        from database import db
         rows = await db.raw_execute_fetchall(
             "SELECT public_key, status FROM agent_permissions WHERE did=?", (did,))
 
@@ -156,24 +216,25 @@ async def verify_intent_from_request(intent_data: dict) -> dict:
 
         pub_key_b58 = rows[0].get("public_key", "")
         if not pub_key_b58:
-            return {"valid": False, "error": "No public key registered"}
+            return {"valid": False, "error": "No public key registered for this DID"}
 
-        # Reconstruct public key from base58
-        import base58
-        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        pub_bytes = base58.b58decode(pub_key_b58)
-        public_key = Ed25519PublicKey.from_public_bytes(pub_bytes)
-
+        public_key = base58_to_pub_key(pub_key_b58)
         result = aip_verify_intent(envelope, public_key)
-        return {
+
+        response = {
             "valid": result.valid,
             "did": did,
-            "action": envelope.intent.action if hasattr(envelope, 'intent') else "",
+            "action": envelope.intent.action,
             "protocol": "aip-protocol",
         }
+        if not result.valid:
+            response["errors"] = [e.value for e in result.errors]
+            response["detail"] = result.detail
+        return response
 
     except Exception as e:
-        return {"valid": False, "error": f"Verification failed: {str(e)[:200]}"}
+        logger.error(f"[AIP] verify_from_request error: {e}", exc_info=True)
+        return {"valid": False, "error": "Verification failed"}
 
 
 # ══════════════════════════════════════════
@@ -241,4 +302,5 @@ def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
     except BadSignatureError:
         return {"valid": False, "error": "Invalid signature"}
     except Exception as e:
-        return {"valid": False, "error": str(e)[:100]}
+        logger.error(f"[Intent] Legacy verify error: {e}", exc_info=True)
+        return {"valid": False, "error": "Verification failed"}

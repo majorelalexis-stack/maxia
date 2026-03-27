@@ -7,6 +7,7 @@ Inclut:
 - Art.26: Rate limit tiers (free/pro/enterprise)
 - Burst protection anti-DDoS
 """
+import logging
 import re, time, json, os
 from collections import defaultdict
 from pathlib import Path
@@ -903,7 +904,7 @@ async def refresh_ofac_list() -> dict:
 
     except Exception as e:
         print(f"[OFAC] Refresh error: {e}")
-        return {"added": added, "total": len(_OFAC_SANCTIONED_ADDRESSES), "error": str(e)[:100]}
+        return {"added": added, "total": len(_OFAC_SANCTIONED_ADDRESSES), "error": "An error occurred"[:100]}
 
     # Persister les nouvelles adresses dans le fichier local
     if added > 0:

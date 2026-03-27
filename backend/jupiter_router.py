@@ -5,6 +5,7 @@ Permet d'executer de vrais swaps on-chain :
   Token -> USDC (vente action tokenisee)
 Via Jupiter, le plus gros agregateur DEX sur Solana.
 """
+import logging
 import asyncio, time, json, base64
 import httpx
 import base58
@@ -87,7 +88,7 @@ async def execute_swap(quote_response: dict, user_wallet: str) -> dict:
             else:
                 return {"success": False, "error": f"Jupiter swap error: {resp.text[:200]}"}
     except Exception as e:
-        return {"success": False, "error": f"Jupiter swap error: {e}"}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
@@ -145,7 +146,7 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
             return {"success": False, "error": error}
 
     except Exception as e:
-        return {"success": False, "error": f"Sign/send error: {e}"}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def buy_token_via_jupiter(token_mint: str, amount_usdc: float,

@@ -4,6 +4,7 @@ Production-hardened: RPC fallback, rate limiting, proper logging, min amount che
 import os, logging, asyncio, time
 import httpx
 from config import ETH_RPC, ETH_USDC_CONTRACT, ETH_CHAIN_ID, ETH_MIN_TX_USDC
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.eth_verifier")
 
@@ -107,15 +108,17 @@ async def verify_eth_transaction(tx_hash: str, expected_to: str = None) -> dict:
             }
         except RuntimeError as e:
             # Rate limit exceeded — don't retry
-            return {"valid": False, "error": str(e)}
+            result = safe_error(e, "eth_verify_tx")
+            result["valid"] = False
+            return result
         except httpx.TimeoutException as e:
-            logger.warning(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} timeout: {e}")
+            logger.warning(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} timeout")
             await asyncio.sleep(2 ** attempt)
         except httpx.ConnectError as e:
-            logger.warning(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} connect error: {e}")
+            logger.warning(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} connect error")
             await asyncio.sleep(2 ** attempt)
         except Exception as e:
-            logger.error(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} failed: {type(e).__name__}: {e}")
+            logger.error(f"[EthVerifier] verify_eth_transaction attempt {attempt + 1} failed: {type(e).__name__}")
             await asyncio.sleep(2 ** attempt)
     return {"valid": False, "error": "Verification failed after retries"}
 
@@ -198,16 +201,21 @@ async def verify_usdc_transfer_eth(tx_hash: str, expected_amount_raw: int = None
             return receipt
         return {"valid": False, "error": "No USDC transfer found in logs"}
     except RuntimeError as e:
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "eth_verify_usdc")
+        result["valid"] = False
+        return result
     except httpx.TimeoutException as e:
-        logger.error(f"[EthVerifier] verify_usdc_transfer_eth timeout: {e}")
-        return {"valid": False, "error": f"RPC timeout: {e}"}
+        result = safe_error(e, "eth_verify_usdc_timeout")
+        result["valid"] = False
+        return result
     except httpx.ConnectError as e:
-        logger.error(f"[EthVerifier] verify_usdc_transfer_eth connect error: {e}")
-        return {"valid": False, "error": f"RPC connection error: {e}"}
+        result = safe_error(e, "eth_verify_usdc_connect")
+        result["valid"] = False
+        return result
     except Exception as e:
-        logger.error(f"[EthVerifier] verify_usdc_transfer_eth error: {type(e).__name__}: {e}")
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "eth_verify_usdc")
+        result["valid"] = False
+        return result
 
 
 async def x402_verify_payment_eth(payment_header: str, expected_amount_usdc: float) -> dict:
@@ -275,16 +283,21 @@ async def verify_eth_value_transfer(tx_hash: str, expected_recipient: str = None
         logger.info(f"[EthVerifier] ETH transfer verified: {tx_hash[:16]}... {value_eth:.6f} ETH")
         return receipt
     except RuntimeError as e:
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "eth_verify_value_transfer")
+        result["valid"] = False
+        return result
     except httpx.TimeoutException as e:
-        logger.error(f"[EthVerifier] verify_eth_value_transfer timeout: {e}")
-        return {"valid": False, "error": f"RPC timeout: {e}"}
+        result = safe_error(e, "eth_verify_value_transfer_timeout")
+        result["valid"] = False
+        return result
     except httpx.ConnectError as e:
-        logger.error(f"[EthVerifier] verify_eth_value_transfer connect error: {e}")
-        return {"valid": False, "error": f"RPC connection error: {e}"}
+        result = safe_error(e, "eth_verify_value_transfer_connect")
+        result["valid"] = False
+        return result
     except Exception as e:
-        logger.error(f"[EthVerifier] verify_eth_value_transfer error: {type(e).__name__}: {e}")
-        return {"valid": False, "error": str(e)}
+        result = safe_error(e, "eth_verify_value_transfer")
+        result["valid"] = False
+        return result
 
 
 # ══════════════════════════════════════════

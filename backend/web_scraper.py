@@ -4,6 +4,7 @@ Les IA ne peuvent pas acceder au web. Ce service scrape une URL
 et retourne le contenu structure (texte, titres, liens, images).
 Utilise httpx + BeautifulSoup (ou regex fallback).
 """
+import logging
 import asyncio, re, time, hashlib, ipaddress
 from urllib.parse import urlparse
 import httpx
@@ -165,7 +166,7 @@ async def scrape_url(url: str, extract_links: bool = True,
         return {"success": False, "error": "URL bloquee par Art.1 (contenu interdit)"}
 
     # Cache
-    url_hash = hashlib.md5(url.encode()).hexdigest()
+    url_hash = hashlib.sha256(url.encode()).hexdigest()
     cached = _scrape_cache.get(url_hash)
     if cached and time.time() - cached["timestamp"] < _CACHE_TTL:
         _scrape_stats["cached"] += 1
@@ -234,7 +235,7 @@ async def scrape_url(url: str, extract_links: bool = True,
         return {"success": False, "error": "Timeout (15s)", "url": url}
     except Exception as e:
         _scrape_stats["errors"] += 1
-        return {"success": False, "error": str(e)[:200], "url": url}
+        return {"success": False, "error": "An error occurred"[:200], "url": url}
 
 
 async def scrape_multiple(urls: list, max_text_length: int = 5000) -> dict:

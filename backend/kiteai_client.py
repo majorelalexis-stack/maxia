@@ -1,4 +1,5 @@
 """MAXIA Art.14 — Kite AI Integration (Agent Identity + Payments + PoAI)"""
+import logging
 import os, time, hashlib
 import httpx, asyncio
 from config import KITE_API_URL, KITE_API_KEY, KITE_AGENT_ID, KITE_AIR_URL
@@ -55,7 +56,7 @@ class KiteAIClient:
                 return {"success": True, "agentId": self.agent_id, "passport": data.get("passport")}
             return {"success": False, "error": data.get("error", "Registration failed")}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     async def verify_agent(self, agent_id: str) -> dict:
         try:
@@ -73,7 +74,7 @@ class KiteAIClient:
                 "capabilities": data.get("capabilities", []),
             }
         except Exception as e:
-            return {"verified": False, "error": str(e)}
+            return {"verified": False, "error": "An error occurred"}
 
     # ── Payments ──
 
@@ -104,7 +105,7 @@ class KiteAIClient:
                 }
             return {"success": False, "error": data.get("error", "Payment failed")}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     async def verify_payment(self, payment_id: str) -> dict:
         try:
@@ -122,7 +123,7 @@ class KiteAIClient:
                 "network": "kite-mainnet",
             }
         except Exception as e:
-            return {"valid": False, "error": str(e)}
+            return {"valid": False, "error": "An error occurred"}
 
     # ── Service Discovery ──
 
@@ -165,7 +166,7 @@ class KiteAIClient:
                 data = resp.json()
             return {"success": resp.status_code in (200, 201), **data}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     # ── PoAI (Proof of Attributed Intelligence) ──
 
@@ -188,7 +189,7 @@ class KiteAIClient:
                 data = resp.json()
             return {"success": resp.status_code in (200, 201), **data}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
 
 kite_client = KiteAIClient()

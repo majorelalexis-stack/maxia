@@ -1,4 +1,5 @@
 """MAXIA Art.16 V11 — Cross-Chain Bridge Handler (via Li.Fi API)"""
+import logging
 import os, time, uuid, asyncio, logging
 import httpx
 from config import (
@@ -85,7 +86,7 @@ class CrossChainHandler:
                 return quote
             return {"error": data.get("message", "Quote echouee")}
         except Exception as e:
-            return {"error": f"Li.Fi erreur: {e}"}
+            return {"error": "An error occurred"}
 
     async def check_bridge_status(self, bridge_id: str) -> dict:
         """Verifie le statut d'un bridge en cours."""
@@ -208,7 +209,7 @@ class CrossChainHandler:
                 "status": "Li.Fi API connectee",
             }
         except Exception as e:
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": "An error occurred"}
 
     def get_supported_routes(self) -> dict:
         return {

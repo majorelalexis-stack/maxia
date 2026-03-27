@@ -14,6 +14,7 @@ Reddit API keys:
 IMPORTANT: Reddit account must be 30+ days old.
 Bot posts max 2x/week per subreddit to avoid bans.
 """
+import logging
 import asyncio, time, os, json, random
 import httpx
 
@@ -255,7 +256,7 @@ async def post_to_reddit(subreddit: str, title: str, body: str) -> dict:
                 url = result["json"]["data"]["url"]
             return {"success": success, "url": url, "subreddit": subreddit}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def run_reddit_bot():

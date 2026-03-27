@@ -8,6 +8,7 @@ import logging
 import time
 
 import httpx
+from error_utils import safe_error
 
 logger = logging.getLogger("maxia.aptos_verifier")
 
@@ -184,8 +185,9 @@ async def verify_aptos_transaction(
         logger.error(f"Aptos verification timeout for {tx_hash[:16]}...")
         return {"verified": False, "error": "Aptos API timeout"}
     except Exception as e:
-        logger.error(f"Aptos verification error: {e}")
-        return {"verified": False, "error": str(e)}
+        result = safe_error(e, "aptos_verify_tx")
+        result["verified"] = False
+        return result
 
 
 async def get_aptos_balance(address: str) -> dict:
@@ -222,8 +224,9 @@ async def get_aptos_balance(address: str) -> dict:
             }
 
     except Exception as e:
-        logger.error(f"Aptos balance error for {address}: {e}")
-        return {"address": address, "error": str(e)}
+        result = safe_error(e, "aptos_balance")
+        result["address"] = address
+        return result
 
 
 async def get_aptos_usdc_balance(address: str) -> dict:
@@ -262,5 +265,6 @@ async def get_aptos_usdc_balance(address: str) -> dict:
             }
 
     except Exception as e:
-        logger.error(f"Aptos USDC balance error for {address}: {e}")
-        return {"address": address, "error": str(e)}
+        result = safe_error(e, "aptos_usdc_balance")
+        result["address"] = address
+        return result

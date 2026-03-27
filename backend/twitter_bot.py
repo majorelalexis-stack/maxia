@@ -3,6 +3,7 @@
 Uses X API v2 Free tier (1500 tweets/month, 10000 reads/month).
 Controlled by CEO MAXIA via GHOST-WRITER and RESPONDER.
 """
+import logging
 import asyncio, os, time, json
 
 from config import GPU_TIERS
@@ -98,7 +99,7 @@ async def post_tweet(text: str) -> dict:
     except Exception as e:
         _stats["errors"] += 1
         print(f"[Twitter] Post error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 # ══════════════════════════════════════════
@@ -131,7 +132,7 @@ async def reply_to_tweet(tweet_id: str, text: str) -> dict:
     except Exception as e:
         _stats["errors"] += 1
         print(f"[Twitter] Reply error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 # ══════════════════════════════════════════
@@ -283,7 +284,7 @@ async def like_tweet(tweet_id: str) -> dict:
     except Exception as e:
         _stats["errors"] += 1
         print(f"[Twitter] Like error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 # ══════════════════════════════════════════

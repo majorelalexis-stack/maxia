@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
 <title>MAXIA — AI Trading Dashboard | Swap, GPU, DeFi, Stocks</title>
 <meta name="description" content="MAXIA Web3 Hub — Swap 65 tokens, buy 25 stocks, rent 13 GPU tiers, earn DeFi yields on 14 blockchains. Pay in USDC.">
 <meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
@@ -2288,7 +2290,7 @@ async function loadPortfolioStats() {
       var txShort = a.tx ? (a.tx.slice(0, 8) + '...' + a.tx.slice(-4)) : '';
       html += '<div class="activity-row">';
       html += '<div style="display:flex;align-items:center;gap:8px"><span class="activity-purpose ' + purposeClass + '">' + esc(purposeLabel) + '</span>';
-      if (txShort) html += '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--muted2)">' + txShort + '</span>';
+      if (txShort) html += '<span style="font-family:JetBrains Mono,monospace;font-size:11px;color:var(--muted2)">' + esc(txShort) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;align-items:center;gap:12px">';
       html += '<span style="font-family:JetBrains Mono,monospace;font-weight:600;color:var(--green)">$' + amount.toFixed(2) + '</span>';
@@ -2531,8 +2533,8 @@ function renderSwapTierProgress(tierInfo, currentTier, valueUsd) {
     div.style.cssText = 'flex:1;text-align:center;padding:6px 4px;border-radius:6px;' +
       'background:' + (active ? 'rgba(255,255,255,0.08)' : 'transparent') + ';' +
       'border:1px solid ' + (active ? color : 'rgba(255,255,255,.1)') + ';transition:all .2s';
-    div.innerHTML = '<div style="font-size:10px;color:' + color + ';font-weight:600">' + t.name + '</div>' +
-      '<div style="font-size:14px;color:' + (active ? color : 'var(--muted)') + ';font-weight:700">' + t.pct + '</div>' +
+    div.innerHTML = '<div style="font-size:10px;color:' + color + ';font-weight:600">' + esc(t.name) + '</div>' +
+      '<div style="font-size:14px;color:' + (active ? color : 'var(--muted)') + ';font-weight:700">' + esc(t.pct) + '</div>' +
       '<div style="font-size:9px;color:var(--muted)">' + rangeLabel + '</div>';
     bars.appendChild(div);
   });

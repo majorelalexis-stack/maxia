@@ -4,6 +4,7 @@ Les IA ne peuvent pas generer d'images elles-memes.
 Ce service utilise Together AI (si cle configuree) ou Pollinations.ai
 (gratuit, sans cle, illimite) pour generer des images a partir d'un prompt.
 """
+import logging
 import asyncio, time, uuid, base64, os
 import httpx
 
@@ -175,7 +176,7 @@ async def _generate_together(prompt: str, model_id: str,
         return {"success": False, "error": "Timeout (60s) — image trop complexe ou serveur surcharge"}
     except Exception as e:
         _gen_stats["errors"] += 1
-        return {"success": False, "error": str(e)[:200]}
+        return {"success": False, "error": "An error occurred"[:200]}
 
 
 async def _generate_pollinations(prompt: str, width: int, height: int, seed: int = 0) -> dict:

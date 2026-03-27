@@ -1,4 +1,5 @@
 """MAXIA Backend V12 — Art.1 to Art.15 + 47 features (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI + 17 AI Agents)"""
+import logging
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -13,7 +14,7 @@ load_dotenv()
 
 # ── Core imports ──
 from database import db, create_database
-from auth import router as auth_router, require_auth
+from auth import router as auth_router, require_auth, require_auth_flexible
 from auction_manager import AuctionManager
 from agent_worker import agent_worker
 from referral_manager import router as ref_router
@@ -408,6 +409,13 @@ async def lifespan(app: FastAPI):
         print(f"[MAXIA] Health monitor init error: {e}")
         t_health = None
 
+    # V12: Pyth SSE streaming (prix live <1s pour clients HFT)
+    try:
+        from pyth_oracle import start_pyth_stream
+        await start_pyth_stream()
+    except Exception as e:
+        print(f"[MAXIA] Pyth stream init error: {e} — HTTP polling fallback")
+
     # Enterprise: billing flush loop (persiste usage toutes les 60s)
     try:
         from enterprise_billing import billing_flush_loop
@@ -611,7 +619,15 @@ async def lifespan(app: FastAPI):
 
 # ── App ──
 
-app = FastAPI(title="MAXIA API V12", version="12.0.0", lifespan=lifespan)
+_is_sandbox = os.getenv("SANDBOX_MODE", "false").lower() == "true"
+app = FastAPI(
+    title="MAXIA API V12",
+    version="12.0.0",
+    lifespan=lifespan,
+    docs_url="/docs" if _is_sandbox else None,
+    redoc_url="/redoc" if _is_sandbox else None,
+    openapi_url="/openapi.json" if _is_sandbox else None,
+)
 
 
 # ── M2: Limite globale taille requete (5 MB max) — protection contre upload abusif ──
@@ -652,6 +668,30 @@ app.add_middleware(
     allow_credentials=True,
 )
 app.middleware("http")(x402_middleware)
+
+
+# ── Security Headers ──
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if os.getenv("FORCE_HTTPS", "false").lower() == "true":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' wss: ws: https:; "
+        "frame-ancestors 'none'"
+    )
+    return response
+
 
 # ── HTTPS redirect en production ──
 @app.middleware("http")
@@ -1412,6 +1452,24 @@ async def sitemap():
     return HTMLResponse("Not found", status_code=404)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
+_ADMIN_SESSIONS: dict = {}  # token_opaque -> expiry_timestamp
+
+
+def _verify_admin(request: Request) -> bool:
+    """Verifie l'auth admin via header X-Admin-Key OU cookie session opaque."""
+    import hmac as _hmac_check
+    # 1) Header direct (pour API calls)
+    header_key = request.headers.get("X-Admin-Key", "")
+    if header_key and ADMIN_KEY and _hmac_check.compare_digest(header_key, ADMIN_KEY):
+        return True
+    # 2) Cookie session opaque (pour dashboard browser)
+    cookie_token = request.cookies.get("maxia_admin", "")
+    if cookie_token and cookie_token in _ADMIN_SESSIONS:
+        if _ADMIN_SESSIONS[cookie_token] > time.time():
+            return True
+        else:
+            _ADMIN_SESSIONS.pop(cookie_token, None)  # Expire
+    return False
 
 @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
 async def admin_login_page():
@@ -1444,30 +1502,39 @@ button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3
 function doLogin(){
   var key=document.getElementById('admin-key').value;
   if(!key)return false;
-  window.location.href='/admin/login?key='+encodeURIComponent(key);
+  fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key})})
+  .then(function(r){if(r.redirected){window.location.href=r.url}else{return r.json().then(function(d){document.getElementById('err').style.display='block'})}})
+  .catch(function(){document.getElementById('err').style.display='block'});
   return false;
 }
 </script></body></html>""")
 
 
-@app.get("/admin/login", include_in_schema=False)
-async def admin_login(key: str = ""):
-    """Verifie la cle admin, pose un cookie httponly, redirige vers dashboard."""
+@app.post("/admin/login", include_in_schema=False)
+async def admin_login(req: Request):
+    """Verifie la cle admin via POST body, pose un cookie httponly avec token opaque."""
     import hmac as _hmac_v
     from fastapi.responses import RedirectResponse
+    try:
+        body = await req.json()
+        key = body.get("key", "")
+    except Exception:
+        key = ""
     if not key or not ADMIN_KEY or not _hmac_v.compare_digest(key, ADMIN_KEY):
-        return RedirectResponse(url="/admin?error=1", status_code=302)
+        raise HTTPException(401, "Invalid admin key")
+    # Token opaque au lieu de la cle en clair dans le cookie
+    import secrets as _s
+    token = _s.token_hex(32)
+    _ADMIN_SESSIONS[token] = time.time() + 86400  # 24h
     resp = RedirectResponse(url="/dashboard", status_code=302)
-    resp.set_cookie("maxia_admin", key, httponly=True, secure=True, samesite="lax", max_age=86400)
+    resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp
 
 
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
-    """Dashboard admin — authentification via header X-Admin-Key ou cookie."""
-    import hmac as _hmac_dash
-    key = request.headers.get("X-Admin-Key", "") or request.cookies.get("maxia_admin", "")
-    if not key or not ADMIN_KEY or not _hmac_dash.compare_digest(key, ADMIN_KEY):
+    """Dashboard admin — authentification via header X-Admin-Key ou cookie session opaque."""
+    if not _verify_admin(request):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/admin", status_code=302)
     if FRONTEND_INDEX.exists():
@@ -1945,12 +2012,8 @@ async def public_status():
 @app.get("/api/events/stream")
 async def event_stream(request: Request):
     """SSE endpoint — stream de donnees temps reel pour le dashboard."""
-    # Simple API key check — accept admin key via header or query param
-    _admin_key = os.getenv("ADMIN_KEY", "")
-    _provided = request.headers.get("X-Admin-Key", "") or request.query_params.get("key", "")
-    import hmac as _hmac_sse
-    if not _admin_key or not _hmac_sse.compare_digest(_provided, _admin_key):
-        raise HTTPException(403, "Unauthorized — provide X-Admin-Key header")
+    if not _verify_admin(request):
+        raise HTTPException(403, "Unauthorized — provide X-Admin-Key header or valid session cookie")
     from starlette.responses import StreamingResponse
 
     async def generate():
@@ -2071,7 +2134,7 @@ async def ceo_status(request: Request):
         from ceo_maxia import ceo
         return ceo.get_status()
     except Exception as e:
-        return {"error": str(e), "ceo": "not_loaded"}
+        return {"error": "An error occurred", "ceo": "not_loaded"}
 
 
 @app.post("/api/ceo/message")
@@ -2092,7 +2155,7 @@ async def ceo_message(request: Request):
         response = await ceo.handle_message(canal, user, message)
         return response
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/feedback")
@@ -2111,7 +2174,7 @@ async def ceo_feedback(request: Request):
             return {"error": "feedback required"}
         return await ceo.handle_feedback(user, feedback)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/ping")
@@ -2124,7 +2187,7 @@ async def ceo_ping(request: Request):
         ceo.fondateur_ping()
         return {"status": "ok", "message": "Fondateur ping recu"}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/admin/ceo-reset-emergency")
@@ -2137,7 +2200,7 @@ async def ceo_reset_emergency(request: Request):
         ceo.reset_emergency()
         return {"status": "ok", "emergency_stop": False}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════
@@ -2160,7 +2223,7 @@ async def ceo_negotiate(request: Request):
             float(body.get("proposed_price", 0)),
         )
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/negotiate/bundle")
@@ -2176,7 +2239,7 @@ async def ceo_negotiate_bundle(request: Request):
             body.get("services", []),
         )
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/compliance/wallet")
@@ -2189,7 +2252,7 @@ async def ceo_compliance_wallet(request: Request):
         from ceo_maxia import ceo
         return await ceo.check_wallet(body.get("wallet", ""))
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/compliance/transaction")
@@ -2206,7 +2269,7 @@ async def ceo_compliance_tx(request: Request):
             body.get("receiver", ""),
         )
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/partnerships")
@@ -2218,7 +2281,7 @@ async def ceo_partnerships(request: Request):
         from ceo_maxia import ceo
         return {"opportunities": await ceo.scan_partners()}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/analytics")
@@ -2230,7 +2293,7 @@ async def ceo_analytics(request: Request):
         from ceo_maxia import ceo
         return await ceo.get_analytics()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/analytics/weekly")
@@ -2242,7 +2305,7 @@ async def ceo_analytics_weekly(request: Request):
         from ceo_maxia import ceo
         return await ceo.weekly_report()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/crises")
@@ -2255,7 +2318,7 @@ async def ceo_crises(request: Request):
         crises = await ceo.detect_crises()
         return {"crises": crises, "count": len(crises)}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/agent-bus")
@@ -2267,7 +2330,7 @@ async def ceo_agent_bus(request: Request):
         from ceo_maxia import agent_bus
         return agent_bus.get_stats()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2333,7 +2396,7 @@ async def ceo_full_state(request: Request):
                                 if c.get("response") == "pending"][-10:],
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/execute")
@@ -2378,7 +2441,7 @@ async def ceo_execute_action(request: Request):
             audit_log("scout_contact", ip, f"{addr[:10]}... on {chain}", "ceo-local")
             return result
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     if action == "scout_scan":
         try:
@@ -2389,7 +2452,7 @@ async def ceo_execute_action(request: Request):
             audit_log("scout_scan", ip, f"{len(agents)} agents on {chain}", "ceo-local")
             return {"success": True, "agents": agents[:20]}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "An error occurred"}
 
     # Executer via ceo_executor
     try:
@@ -2410,7 +2473,7 @@ async def ceo_execute_action(request: Request):
         }
     except Exception as e:
         audit_log("ceo_execute_error", ip, str(e), "ceo-local")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 @app.post("/api/ceo/update-price")
@@ -2434,7 +2497,7 @@ async def ceo_update_price(request: Request):
         audit_log("ceo_update_price", ip, f"service={service_id} price={new_price} reason={reason}", "ceo-local")
         return {"success": True, "service_id": service_id, "new_price": new_price}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 @app.post("/api/ceo/toggle-agent")
@@ -2458,7 +2521,7 @@ async def ceo_toggle_agent(request: Request):
         audit_log("ceo_toggle_agent", ip, f"{agent_name} -> {'enabled' if enabled else 'disabled'}", "ceo-local")
         return {"success": True, "agent": agent_name, "enabled": enabled}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 @app.get("/api/ceo/transactions")
@@ -2470,7 +2533,7 @@ async def ceo_transactions(request: Request, limit: int = 50):
         rows = await db.get_activity(limit)
         return {"transactions": rows, "count": len(rows)}
     except Exception as e:
-        return {"error": str(e), "transactions": []}
+        return {"error": "An error occurred", "transactions": []}
 
 
 @app.get("/api/ceo/approval-result/{action_id}")
@@ -2707,7 +2770,7 @@ async def verify_signed_intent(request: Request):
                 return {"valid": False, "error": "No public key"}
             return verify_intent_legacy(intent, pub_key)
         except Exception as e:
-            return {"valid": False, "error": str(e)[:200]}
+            return {"valid": False, "error": "An error occurred"[:200]}
 
 
 @app.get("/api/ceo/health")
@@ -2739,7 +2802,7 @@ async def ceo_health_check(request: Request):
 
         return health
     except Exception as e:
-        return {"healthy": False, "error": str(e)}
+        return {"healthy": False, "error": "An error occurred"}
 
 
 @app.post("/api/ceo/emergency-stop")
@@ -2758,7 +2821,7 @@ async def ceo_emergency_stop(request: Request):
         await alert_system.send("CEO EMERGENCY STOP", "Activated by CEO local agent")
         return {"success": True, "emergency_stop": True}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 # ── Coordination locale ↔ VPS ──
@@ -2798,7 +2861,7 @@ async def ceo_sync(request: Request):
             "vps_marketing_paused": _local_ceo_state["active"],
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 def is_local_ceo_active() -> bool:
@@ -2835,7 +2898,7 @@ async def ceo_think(request: Request):
     import hashlib
     # Normaliser le prompt pour cache semantique
     normalized = _normalize_for_cache(prompt)
-    prompt_hash = hashlib.md5(normalized.encode()).hexdigest()[:12]
+    prompt_hash = hashlib.sha256(normalized.encode()).hexdigest()[:12]
     cache_key = f"ceo_think_{prompt_hash}"
     if hasattr(app.state, '_think_cache'):
         # Chercher aussi des prompts similaires (meme hash normalise)
@@ -2873,7 +2936,7 @@ async def ceo_think(request: Request):
         audit_log("ceo_think", ip, f"tier={tier} tokens~{len(result)//4} hash={prompt_hash}", "ceo-local")
         return {"result": result, "tier": tier, "cached": False, "cost_usd": round(cost, 4)}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 def _normalize_for_cache(prompt: str) -> str:
@@ -2935,7 +2998,7 @@ async def cache_stats():
         from price_oracle import get_cache_stats
         return get_cache_stats()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/admin/audit-log")
@@ -3028,7 +3091,7 @@ async def twitter_status():
         from twitter_bot import get_stats
         return get_stats()
     except Exception as e:
-        return {"error": str(e), "configured": False}
+        return {"error": "An error occurred", "configured": False}
 
 
 @app.get("/api/reddit/status")
@@ -3037,7 +3100,7 @@ async def reddit_status():
         from reddit_bot import get_stats
         return get_stats()
     except Exception as e:
-        return {"error": str(e), "configured": False}
+        return {"error": "An error occurred", "configured": False}
 
 
 @app.get("/api/outreach/status")
@@ -3047,7 +3110,7 @@ async def outreach_status():
         from agent_outreach import get_stats
         return get_stats()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/admin/outreach-now")
@@ -3093,7 +3156,7 @@ async def watchdog_health(request: Request):
         from ceo_maxia import watchdog_health_check
         return await watchdog_health_check()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.post("/api/ceo/ask")
@@ -3142,7 +3205,7 @@ async def ceo_ask(request: Request):
         raw = resp.choices[0].message.content
         return {"success": True, "from": "CEO MAXIA", "response": raw, "context": context}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/admin/backups")
@@ -3208,7 +3271,7 @@ async def ceo_memory_stats(request: Request):
         from ceo_vector_memory import vector_memory
         return vector_memory.stats()
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/ceo/memory/search")
@@ -3221,7 +3284,7 @@ async def ceo_memory_search(request: Request, q: str = "", collection: str = "")
         results = vector_memory.search(q, collection=collection or None, max_results=5)
         return {"query": q, "results": results}
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════
@@ -3314,7 +3377,7 @@ async def admin_post_tweet(request: Request):
         from twitter_bot import post_tweet
         return await post_tweet(text)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -3483,7 +3546,12 @@ _WS_MAX_PER_IP = 5
 
 @app.websocket("/ws/prices")
 async def ws_prices(websocket: WebSocket):
-    """WebSocket: real-time price updates every 10 seconds. Max 5 per IP."""
+    """WebSocket: real-time price updates. Max 5 per IP.
+
+    Modes (send JSON after connect):
+      {"mode": "hft"}     — Pyth SSE streaming, push on every price update (<1s)
+      {"mode": "normal"}  — polling every 5s (default si pas de message initial)
+    """
     ip = websocket.client.host if websocket.client else "unknown"
     _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
     if _ws_connections[ip] > _WS_MAX_PER_IP:
@@ -3491,15 +3559,38 @@ async def ws_prices(websocket: WebSocket):
         await websocket.close(code=1008, reason="Too many connections")
         return
     await websocket.accept()
+
+    # Detecter le mode (attente 2s pour un message optionnel)
+    mode = "normal"
     try:
-        while True:
+        msg = await asyncio.wait_for(websocket.receive_json(), timeout=2.0)
+        mode = msg.get("mode", "normal")
+    except (asyncio.TimeoutError, Exception):
+        pass  # Pas de message = mode normal
+
+    try:
+        if mode == "hft":
+            # Mode HFT: subscribe au stream Pyth SSE, push chaque update
+            from pyth_oracle import _sse_subscribers, start_pyth_stream
+            await start_pyth_stream()
+            q: asyncio.Queue = asyncio.Queue(maxsize=50)
+            _sse_subscribers.append(q)
             try:
-                from price_oracle import get_crypto_prices
-                prices = await get_crypto_prices()
-                await websocket.send_json({"type": "prices", "data": prices, "ts": int(time.time())})
-            except Exception as e:
-                print(f"[WS/prices] Error: {e}")
-            await asyncio.sleep(10)
+                while True:
+                    price_update = await q.get()
+                    await websocket.send_json({"type": "price_hft", "data": price_update, "ts": int(time.time())})
+            finally:
+                _sse_subscribers.remove(q)
+        else:
+            # Mode normal: polling toutes les 5s
+            while True:
+                try:
+                    from price_oracle import get_crypto_prices
+                    prices = await get_crypto_prices()
+                    await websocket.send_json({"type": "prices", "data": prices, "ts": int(time.time())})
+                except Exception as e:
+                    print(f"[WS/prices] Error: {e}")
+                await asyncio.sleep(5)
     except Exception as e:
         if "disconnect" not in str(e).lower():
             print(f"[WS/prices] Connection error: {e}")
@@ -3513,8 +3604,19 @@ async def ws_candles(websocket: WebSocket):
     try:
         # Get subscription params from first message (H5: controle taille)
         params = await _ws_receive_json_timeout(websocket, timeout=10.0)
-        symbol = params.get("symbol", "SOL").upper()
+        symbol = params.get("symbol", "SOL").upper()[:20]  # Max 20 chars
         interval = params.get("interval", "1m")
+        # Validate symbol format (alphanumeric only) and interval whitelist
+        import re as _re_ws
+        if not _re_ws.match(r'^[A-Z0-9_/]{1,20}$', symbol):
+            await websocket.send_json({"error": "Invalid symbol format"})
+            await websocket.close()
+            return
+        _VALID_INTERVALS = {"1m", "5m", "15m", "1h", "4h", "1d", "1w"}
+        if interval not in _VALID_INTERVALS:
+            await websocket.send_json({"error": f"Invalid interval. Valid: {', '.join(sorted(_VALID_INTERVALS))}"})
+            await websocket.close()
+            return
         while True:
             try:
                 rows = await db.raw_execute_fetchall(
@@ -3893,9 +3995,9 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
 
 
 @app.post("/api/public/gpu/rent")
-async def rent_gpu_public(req: dict):
-    """Public API endpoint for GPU rental (A2A agents). Same logic as /api/gpu/rent."""
-    return await rent_gpu_direct(req)
+async def rent_gpu_public(req: dict, auth_wallet: str = Depends(require_auth)):
+    """Public API endpoint for GPU rental (A2A agents). Requires auth like /api/gpu/rent."""
+    return await rent_gpu_direct(req, auth_wallet)
 
 
 @app.get("/api/gpu/status/{pod_id}")
@@ -4896,7 +4998,7 @@ async def analytics_agents(period: str = "7d"):
             "active_today": sum(1 for a in _registered_agents.values() if a.get("requests_today", 0) > 0),
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/analytics/agents/live")
@@ -4917,7 +5019,7 @@ async def analytics_agents_live():
             "with_services": sum(1 for a in agents if a.get("services_listed", 0) > 0),
         }
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -4939,7 +5041,7 @@ async def xrpl_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 @app.get("/api/xrpl/balance/{address}")
@@ -4949,7 +5051,7 @@ async def xrpl_balance(address: str):
         from xrpl_verifier import get_xrpl_balance
         return await get_xrpl_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 @app.get("/api/xrpl/info")
@@ -4982,7 +5084,7 @@ async def xrpl_verify_usdc(request: Request):
             min_amount=float(body.get("min_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 # ══════════════════════════════════════════════════════════
@@ -5022,7 +5124,7 @@ async def ton_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 @app.get("/api/ton/balance/{address}")
@@ -5032,7 +5134,7 @@ async def ton_balance(address: str):
         from ton_verifier import get_ton_balance
         return await get_ton_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -5071,7 +5173,7 @@ async def sui_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 @app.get("/api/sui/balance/{address}")
@@ -5081,7 +5183,7 @@ async def sui_balance(address: str):
         from sui_verifier import get_sui_balance
         return await get_sui_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -5122,7 +5224,7 @@ async def tron_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 
 @app.get("/api/tron/balance/{address}")
@@ -5132,7 +5234,7 @@ async def tron_balance(address: str):
         from tron_verifier import get_tron_balance
         return await get_tron_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -5167,7 +5269,7 @@ async def near_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 @app.get("/api/near/balance/{account_id}")
 async def near_balance(account_id: str):
@@ -5176,7 +5278,7 @@ async def near_balance(account_id: str):
         from near_verifier import get_near_balance
         return await get_near_balance(account_id)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 @app.get("/api/near/usdc-balance/{account_id}")
 async def near_usdc_balance(account_id: str):
@@ -5185,7 +5287,7 @@ async def near_usdc_balance(account_id: str):
         from near_verifier import get_near_usdc_balance
         return await get_near_usdc_balance(account_id)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -5219,7 +5321,7 @@ async def aptos_verify(request: Request):
             expected_amount=float(body.get("expected_amount", 0)),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 @app.get("/api/aptos/balance/{address}")
 async def aptos_balance(address: str):
@@ -5228,7 +5330,7 @@ async def aptos_balance(address: str):
         from aptos_verifier import get_aptos_balance
         return await get_aptos_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 @app.get("/api/aptos/usdc-balance/{address}")
 async def aptos_usdc_balance(address: str):
@@ -5237,7 +5339,7 @@ async def aptos_usdc_balance(address: str):
         from aptos_verifier import get_aptos_usdc_balance
         return await get_aptos_usdc_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════
@@ -5268,7 +5370,7 @@ async def sei_verify(request: Request):
         from sei_verifier import verify_sei_transaction
         return await verify_sei_transaction(tx_hash, expected_to=body.get("expected_to"))
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 @app.post("/api/sei/verify-usdc")
 async def sei_verify_usdc(request: Request):
@@ -5285,7 +5387,7 @@ async def sei_verify_usdc(request: Request):
             expected_recipient=body.get("expected_recipient"),
         )
     except Exception as e:
-        return {"verified": False, "error": str(e)}
+        return {"verified": False, "error": "An error occurred"}
 
 @app.get("/api/sei/balance/{address}")
 async def sei_balance(address: str):
@@ -5294,7 +5396,7 @@ async def sei_balance(address: str):
         from sei_verifier import get_sei_balance
         return await get_sei_balance(address)
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 # ══════════════════════════════════════════════════════════

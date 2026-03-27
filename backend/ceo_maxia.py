@@ -33,6 +33,7 @@ MECANISMES INTERNES :
   - Compaction memoire : Opus resume en lecons cles chaque dimanche
   - Gestion fondateur : adapte ton selon activite/inactivite
 """
+import logging
 import asyncio, json, time, os
 from datetime import datetime, date
 
@@ -2046,7 +2047,7 @@ async def deployer_push_github(filename: str, content: str, commit_msg: str) -> 
 
     except Exception as e:
         print(f"[DEPLOYER] Error: {e}")
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def deployer_create_and_deploy(page_type: str, data: dict, memory) -> dict:
@@ -3452,7 +3453,7 @@ class CEOMaxia:
                 self.memory.update_agent("CRISIS-MANAGER", {"status": "actif", "active_crises": len(crises)})
             except Exception as e:
                 print(f"[CEO] CRISIS-MANAGER error: {e}")
-                self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": str(e)[:80]})
+                self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": "An error occurred"[:80]})
             # Update pre-seed mode — exit it once revenue appears
             if self.memory._data.get("revenue_usd", 0) > 0:
                 self._pre_seed_mode = False

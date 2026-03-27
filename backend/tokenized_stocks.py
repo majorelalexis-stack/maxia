@@ -7,6 +7,7 @@ Les tokens representent des actions reelles via 3 providers:
 - Dinari dShares (Arbitrum)
 Tradables 24/7 on-chain. Commission dynamique.
 """
+import logging
 import asyncio, time, uuid, json
 import httpx
 from config import TREASURY_ADDRESS, get_rpc_url
@@ -415,7 +416,7 @@ async def _swap_evm_1inch(chain_id: int, token_address: str, amount_usdc: float,
                 "note": "EVM swap requires user wallet signature via MetaMask/WalletConnect",
             }
     except Exception as e:
-        return {"success": False, "error": f"1inch error: {e}"}
+        return {"success": False, "error": "An error occurred"}
 
 
 # ── Auto-decouverte des tokens xStocks/Ondo sur Solana ──
@@ -1066,7 +1067,7 @@ class TokenizedStockExchange:
                     "disclaimer": STOCK_DISCLAIMER,
                 }
             except Exception as e:
-                return {"success": False, "error": f"Jupiter error: {e}"}
+                return {"success": False, "error": "An error occurred"}
         else:
             return {"success": False, "error": f"Stock {symbol} not available for trading (no on-chain token)"}
 

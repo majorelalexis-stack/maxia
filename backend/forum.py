@@ -14,6 +14,7 @@ Protections anti-abus :
   - Report system (3 reports = auto-hide + alerte Telegram)
   - Content safety (Art.1 mots bloques)
 """
+import logging
 import time
 import math
 import uuid
@@ -80,7 +81,7 @@ def _record_action(wallet: str, action: str):
 def _check_spam(wallet: str, content: str) -> str | None:
     """Detecte le spam. Retourne un message d'erreur ou None si OK."""
     import hashlib
-    content_hash = hashlib.md5(content.encode()).hexdigest()
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
     now = time.time()
 
     # Verifier le contenu duplique dans la fenetre
@@ -365,7 +366,7 @@ async def get_post_with_replies(db, post_id: str) -> dict:
 
         return post
     except Exception as e:
-        return {"error": str(e)}
+        return safe_error(e, "operation")
 
 
 async def search_posts(db, query: str, limit: int = 20) -> list:
@@ -441,7 +442,7 @@ async def report_post(db, post_id: str, wallet: str, reason: str = "") -> dict:
 
         return {"success": True, "hidden": False, "report_count": count}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def admin_ban_agent(db, wallet: str) -> dict:
@@ -452,7 +453,7 @@ async def admin_ban_agent(db, wallet: str) -> dict:
             (f'%"author_wallet": "{wallet}"%',))
         return {"success": True, "wallet": wallet}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}
 
 
 async def admin_unban_agent(db, wallet: str) -> dict:
@@ -463,4 +464,4 @@ async def admin_unban_agent(db, wallet: str) -> dict:
             (f'%"author_wallet": "{wallet}"%',))
         return {"success": True, "wallet": wallet}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": "An error occurred"}

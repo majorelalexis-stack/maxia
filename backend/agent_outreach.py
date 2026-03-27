@@ -154,7 +154,7 @@ def _save_outreach_log(log: dict):
 
 
 def _agent_id(agent: dict) -> str:
-    return hashlib.md5(agent.get("url", agent.get("name", "")).encode()).hexdigest()
+    return hashlib.sha256(agent.get("url", agent.get("name", "")).encode()).hexdigest()
 
 
 async def contact_agent_via_a2a(agent: dict) -> dict:
