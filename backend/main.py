@@ -2675,15 +2675,37 @@ async def maxia_did_document():
 @app.post("/api/public/intent/verify")
 async def verify_signed_intent(request: Request):
     """Verify a signed intent envelope. Public endpoint.
-    Body: the intent JSON with sig field.
-    Returns verification result + agent status.
+    Supports both AIP protocol envelopes and legacy MAXIA format.
+    Body: the intent JSON.
     """
     try:
         intent = await request.json()
     except Exception:
         raise HTTPException(400, "Invalid JSON body")
-    from intent import verify_intent_with_did
-    return await verify_intent_with_did(intent)
+
+    # Detect format: AIP (has 'intent' field) vs legacy (has 'sig' field)
+    if "intent" in intent or "proof" in intent:
+        from intent import verify_intent_from_request
+        return await verify_intent_from_request(intent)
+    else:
+        # Legacy MAXIA format
+        from intent import verify_intent_legacy
+        did = intent.get("did", "")
+        if not did:
+            return {"valid": False, "error": "No DID in intent"}
+        try:
+            rows = await db.raw_execute_fetchall(
+                "SELECT public_key, status FROM agent_permissions WHERE did=?", (did,))
+            if not rows:
+                return {"valid": False, "error": f"DID not found: {did}"}
+            if rows[0].get("status") == "revoked":
+                return {"valid": False, "error": "Agent revoked"}
+            pub_key = rows[0].get("public_key", "")
+            if not pub_key:
+                return {"valid": False, "error": "No public key"}
+            return verify_intent_legacy(intent, pub_key)
+        except Exception as e:
+            return {"valid": False, "error": str(e)[:200]}
 
 
 @app.get("/api/ceo/health")

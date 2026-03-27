@@ -17,3 +17,4 @@ asyncpg>=0.29.0
 redis[hiredis]>=5.0.0
 xrpl-py>=2.0
 stripe>=5.0.0
+aip-protocol>=0.3.0
