@@ -231,67 +231,39 @@ def _get_agent(api_key: str, client_ip: str = "") -> dict:
 
 @router.get("/services")
 async def list_services():
-    """Liste tous les services disponibles. Priorité aux agents externes. MAXIA en fallback uniquement."""
+    """Liste tous les services disponibles. Native MAXIA + agents externes."""
     await _load_from_db()
 
+    native_services = []
     external_services = []
-    maxia_fallback = []
 
-    # Services d'IA externes (prioritaire)
     for s in _agent_services:
-        if s.get("status") == "active":
-            external_services.append({
-                "id": s["id"],
-                "name": s["name"],
-                "type": s["type"],
-                "description": s["description"],
-                "price_usdc": s["price_usdc"],
-                "provider": s["agent_name"],
-                "seller": s["agent_name"],
-                "rating": s.get("rating", 5.0),
-                "sales": s.get("sales", 0),
-                "source": "external_agent",
-            })
+        if s.get("status") != "active":
+            continue
+        is_native = s.get("agent_api_key") == "maxia_native" or s.get("agent_name") == "MAXIA"
+        entry = {
+            "id": s["id"],
+            "name": s["name"],
+            "type": s.get("type", "text"),
+            "description": s.get("description", ""),
+            "price_usdc": s.get("price_usdc", 0),
+            "provider": s.get("agent_name", "MAXIA"),
+            "seller": s.get("agent_name", "MAXIA"),
+            "rating": s.get("rating", 5.0),
+            "sales": s.get("sales", 0),
+            "source": "maxia_native" if is_native else "external_agent",
+        }
+        if is_native:
+            native_services.append(entry)
+        else:
+            external_services.append(entry)
 
-    # Capabilities with external coverage
-    external_caps = set()
-    for s in external_services:
-        for word in (s.get("name", "") + " " + s.get("type", "")).lower().split():
-            external_caps.add(word)
-
-    # MAXIA fallback — only shown if no external agent covers the capability
-    fallback_services = [
-        {"id": "maxia_audit", "name": "AI Security Audit", "type": "security", "description": "AI-powered code audit. Fallback — seeking external providers.", "price_usdc": 9.99, "capability": "audit"},
-        {"id": "maxia_code", "name": "Code Generation", "type": "code", "description": "Code generation via LLM. Fallback — seeking external providers.", "price_usdc": 3.99, "capability": "code"},
-        {"id": "maxia_data", "name": "Data Analysis", "type": "data", "description": "Crypto data analysis. Fallback — seeking external providers.", "price_usdc": 2.99, "capability": "data"},
-        {"id": "maxia_translate", "name": "Translation", "type": "text", "description": "Multi-language translation. Fallback — seeking external providers.", "price_usdc": 0.19, "capability": "translation"},
-        {"id": "maxia_image", "name": "Image Generation", "type": "media", "description": "HD image generation. Fallback — seeking external providers.", "price_usdc": 0.05, "capability": "image"},
-        {"id": "maxia_scraper", "name": "Web Scraper", "type": "data", "description": "Web page extraction. Fallback — seeking external providers.", "price_usdc": 0.02, "capability": "scraper"},
-    ]
-
-    for fb in fallback_services:
-        cap = fb["capability"]
-        has_external = any(cap in (s.get("name", "") + s.get("type", "")).lower() for s in external_services)
-        if not has_external:
-            maxia_fallback.append({
-                "id": fb["id"],
-                "name": fb["name"],
-                "type": fb["type"],
-                "description": fb["description"],
-                "price_usdc": fb["price_usdc"],
-                "provider": "MAXIA (fallback)",
-                "seller": "MAXIA",
-                "rating": 4.0,
-                "source": "maxia_fallback",
-                "note": "Seeking external providers. List your service: POST /sell",
-            })
-
-    all_services = external_services + maxia_fallback
+    all_services = external_services + native_services
 
     return {
         "total": len(all_services),
         "external_agents": len(external_services),
-        "maxia_fallback": len(maxia_fallback),
+        "native_services": len(native_services),
         "services": all_services,
         "message": "MAXIA is a pure marketplace. External agents are prioritized. List your service: POST /api/public/sell",
         "commission_info": {

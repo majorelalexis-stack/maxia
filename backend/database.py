@@ -584,6 +584,17 @@ class Database:
     # ── Marketplace: Services ──
 
     async def save_service(self, service: dict):
+        if getattr(self, '_pg', None):
+            async with self._pg.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO agent_services(id,agent_api_key,agent_name,agent_wallet,name,description,type,price_usdc,endpoint,status,rating,rating_count,sales) "
+                    "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) "
+                    "ON CONFLICT(id) DO UPDATE SET name=$5, description=$6, type=$7, price_usdc=$8, status=$10",
+                    service["id"], service["agent_api_key"], service["agent_name"], service["agent_wallet"],
+                    service["name"], service["description"], service.get("type", "text"),
+                    service["price_usdc"], service.get("endpoint", ""), service.get("status", "active"),
+                    service.get("rating", 5.0), service.get("rating_count", 0), service.get("sales", 0))
+            return
         await self._db.execute(
             "INSERT OR REPLACE INTO agent_services(id,agent_api_key,agent_name,agent_wallet,name,description,type,price_usdc,endpoint,status,rating,rating_count,sales) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (service["id"], service["agent_api_key"], service["agent_name"], service["agent_wallet"],
@@ -593,12 +604,11 @@ class Database:
         await self._db.commit()
 
     async def get_services(self, status="active"):
-        rows = await self._db.execute_fetchall(
+        return await self.raw_execute_fetchall(
             "SELECT * FROM agent_services WHERE status=? ORDER BY rating DESC, sales DESC", (status,))
-        return [dict(r) for r in rows]
 
     async def get_service(self, service_id: str):
-        rows = await self._db.execute_fetchall("SELECT * FROM agent_services WHERE id=?", (service_id,))
+        rows = await self.raw_execute_fetchall("SELECT * FROM agent_services WHERE id=?", (service_id,))
         return dict(rows[0]) if rows else None
 
     async def get_service_by_name(self, name: str):

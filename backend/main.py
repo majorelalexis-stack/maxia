@@ -1512,23 +1512,23 @@ async def verify_agent_identity(address: str):
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 107 tokens, 25 tokenized stocks, 7 GPU tiers, 46 MCP tools, 17 AI services. LLM fine-tuning, DeFi yields, cross-chain bridge. AWP agent staking.",
+    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 65 tokens, 25 tokenized stocks, 46 MCP tools, 17 AI services. DeFi yields, cross-chain bridge, escrow on Solana+Base.",
     "url": "https://maxiaworld.app",
     "version": "12.0.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [
         {"name": "marketplace", "description": "AI-to-AI service marketplace. Sell and buy AI services.", "endpoint": "/api/public/discover"},
-        {"name": "swap", "description": "Swap 107 tokens, 5000+ pairs. Live prices via Jupiter.", "endpoint": "/api/public/crypto/swap"},
+        {"name": "swap", "description": "Swap 65 tokens across 7 chains. Live prices via Jupiter + 0x.", "endpoint": "/api/public/crypto/swap"},
         {"name": "stocks", "description": "25 tokenized US stocks (xStocks/Ondo/Dinari). Live prices.", "endpoint": "/api/public/stocks"},
-        {"name": "gpu", "description": f"Rent GPU from {_gpu_cheapest}. 6 tiers: RTX4090, A6000, A100, H100, H200, 4xA100.", "endpoint": "/api/public/gpu/rent"},
+        {"name": "defi", "description": "DeFi yield scanner. Best APY across 60+ pools. DeFiLlama + native staking.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "audit", "description": "Smart contract security audit. $9.99.", "endpoint": "/api/public/execute"},
         {"name": "code", "description": "Code generation. Python, Rust, JS. $3.99.", "endpoint": "/api/public/execute"},
         {"name": "scraper", "description": "Web scraping. Structured JSON. $0.05/page.", "endpoint": "/api/public/scrape"},
         {"name": "image", "description": "Image generation. FLUX.1, up to 2048px. $0.10.", "endpoint": "/api/public/image/generate"},
         {"name": "defi", "description": "DeFi yield scanner. Best APY across all protocols. DeFiLlama data.", "endpoint": "/api/public/defi/best-yield"},
         {"name": "monitor", "description": "Wallet monitoring. Real-time alerts. $0.99/mo.", "endpoint": "/api/public/wallet-monitor/add"},
-        {"name": "candles", "description": "OHLCV historical price data. 107 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
+        {"name": "candles", "description": "OHLCV historical price data. 65 tokens, 6 intervals (1m to 1d). Free.", "endpoint": "/api/public/crypto/candles"},
         {"name": "whale-tracker", "description": "Monitor wallets for large transfers. Webhook alerts.", "endpoint": "/api/public/whale/track"},
         {"name": "copy-trading", "description": "Follow and auto-copy whale trades. 1% commission.", "endpoint": "/api/public/copy-trade/follow"},
         {"name": "leaderboard", "description": "Top agents and services by volume, trades, earnings. Free.", "endpoint": "/api/public/leaderboard"},
@@ -1724,7 +1724,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <div class="price free">$0</div>
     <div class="desc">No registration needed</div>
     <ul>
-      <li>Live crypto prices (107 tokens)</li>
+      <li>Live crypto prices (65 tokens)</li>
       <li>OHLCV candles (6 intervals)</li>
       <li>Sentiment analysis</li>
       <li>Fear &amp; Greed Index</li>
@@ -1745,7 +1745,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
     <ul>
       <li>Everything in Free Tier</li>
       <li>Buy &amp; sell AI services</li>
-      <li>Crypto swap (5000+ pairs)</li>
+      <li>Crypto swap (2000+ pairs)</li>
       <li>Buy/sell tokenized stocks</li>
       <li>Rent GPUs (0% markup)</li>
       <li>Whale tracker</li>

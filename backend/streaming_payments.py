@@ -415,11 +415,22 @@ async def _update_active_streams():
 
 async def stream_updater_loop():
     """Boucle de mise a jour des streams — a lancer en background task."""
+    # Attendre que le schema soit pret avant de commencer
+    for _ in range(10):
+        try:
+            await _ensure_schema()
+            if _schema_ready:
+                break
+        except Exception:
+            pass
+        await asyncio.sleep(10)
     while True:
         try:
-            await _update_active_streams()
+            if _schema_ready:
+                await _update_active_streams()
         except Exception as e:
-            print(f"[StreamPay] Erreur update loop: {e}")
+            if "does not exist" not in str(e):
+                print(f"[StreamPay] Erreur update loop: {e}")
         await asyncio.sleep(60)
 
 

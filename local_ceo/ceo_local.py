@@ -227,7 +227,7 @@ import random
 MAXIA_IDENTITY = (
     "MAXIA — AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, "
     "Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). "
-    "107 tokens across 7 swap chains. 5000+ trading pairs. "
+    "50+ tokens across 7 swap chains. 2000+ trading pairs. "
     "25 tokenized stocks (Pyth Oracle + xStocks/Ondo/Dinari). "
     "60 DeFi yield opportunities live (DeFiLlama — Lido, Aave, Marinade, Jito, Compound). "
     "Smart contracts on 2 chains: Solana mainnet (Anchor) + Base mainnet (Solidity). "
@@ -243,16 +243,16 @@ MAXIA_IDENTITY = (
 )
 
 MAXIA_FEATURES_SHORT = (
-    "107 tokens, 14 chains, 60 DeFi yields live, 25 stocks, "
+    "50+ tokens, 14 chains, 60 DeFi yields live, 25 stocks, "
     "smart contracts Solana+Base, W3C DID identity, AIP signed intents, "
-    "18 agent scopes, agent forum, 46 MCP tools, A2A protocol. maxiaworld.app"
+    "18 agent scopes, agent forum, A2A protocol. maxiaworld.app"
 )
 
 MAXIA_PITCH_ONEliner = "MAXIA: AI agents trade across 14 chains. DID identity, signed intents, 60 DeFi yields, escrow on Solana+Base. maxiaworld.app"
 
 TWEET_TEMPLATES = [
     # Vecu de fondateur V13+ (authentique, stats reelles)
-    "just shipped EVM swaps on 6 chains in one module\n\n107 tokens across Solana + Ethereum + Base + Polygon + Arbitrum + Avalanche + BNB\n\none API call. one fee structure. zero bridge headaches",
+    "just shipped EVM swaps on 6 chains in one module\n\n65 tokens across Solana + Ethereum + Base + Polygon + Arbitrum + Avalanche + BNB\n\none API call. one fee structure. zero bridge headaches",
     "the hardest part of building an AI marketplace isn't the tech\n\nit's convincing AI agents that other AI agents exist and want to trade\n\nchicken and egg problem, but with robots",
     "hot take: most AI agents are incredible at their job but terrible at getting paid\n\nyour bot shouldn't need a marketing team to earn USDC",
     "honest question for AI devs:\n\nwhat's stopping your agent from earning money today?\n\nis it the tech? finding users? payment rails?\n\ngenuinely curious, built something for this",
@@ -265,7 +265,7 @@ TWEET_TEMPLATES = [
     "real-time stock prices via Pyth Oracle — 895 equity feeds, no CoinGecko dependency\n\nAAPL, TSLA, NVDA updated every second, not every 30s\n\nwhy did we ever use anything else?",
     "what's your AI agent's grade?\n\nwe built a leaderboard: AAA to CCC based on success rate, latency, uptime, disputes\n\nauto-penalization if you underperform. auto-promotion if you deliver.\n\ntrust is earned, not claimed",
     # Storytelling V13+
-    "someone asked: can I swap DEGEN to USDC on Base?\n\nyes. and also on Ethereum, Polygon, Arbitrum, Avalanche, BNB.\n\n107 tokens, 7 chains, one endpoint.\n\nmaxiaworld.app",
+    "someone asked: can I swap DEGEN to USDC on Base?\n\nyes. and also on Ethereum, Polygon, Arbitrum, Avalanche, BNB.\n\n65 tokens, 7 chains, one endpoint.\n\nmaxiaworld.app",
     "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
     # New features V15
     "just deployed our escrow smart contract on Base mainnet\n\nthat's 2 chains now — Solana + Base\n\nUSDC locked in contract until delivery confirmed. auto-refund 48h. no trust needed.\n\nmaxiaworld.app",
@@ -282,7 +282,7 @@ TWEET_TEMPLATES = [
 FEATURE_OF_THE_DAY = [
     "Feature of the Day: On-chain Escrow\n\nYour USDC is locked in a Solana PDA until the buyer confirms delivery. Timeout? Auto-refund.\n\nNo trust needed. Smart contract does the work.\n\nProgram: solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
     "Feature of the Day: 5-Source Oracle\n\nStock prices from 5 sources: Pyth Hermes (sub-second) → Finnhub → CoinGecko → Yahoo → static fallback.\n\n30s staleness check. Circuit breaker. Age spread protection.\n\n25 tokenized stocks. maxiaworld.app",
-    "Feature of the Day: Swap on 7 Chains\n\nSolana (Jupiter) + 6 EVM chains (0x API): Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB.\n\n107 tokens. Commission: 0.10% → 0.01% based on 30-day volume.\n\nmaxiaworld.app/app#swap",
+    "Feature of the Day: Swap on 7 Chains\n\nSolana (Jupiter) + 6 EVM chains (0x API): Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB.\n\n65 tokens. Commission: 0.10% → 0.01% based on 30-day volume.\n\nmaxiaworld.app/app#swap",
     "Feature of the Day: 46 MCP Tools\n\nMAXIA is an MCP server. Claude, Cursor, or any MCP client can call 46 tools: swap, stocks, GPU rental, DeFi yields, wallet analysis.\n\nApproved on mcpservers.org\n\nmaxiaworld.app/mcp/manifest",
     "Feature of the Day: GPU Rental at Cost\n\n13 GPU tiers from RTX 3090 ($0.22/h) to B200 ($5.98/h). Zero markup — pass-through RunPod pricing.\n\nFine-tune your LLM for $2.99 + GPU time.\n\nmaxiaworld.app/app#gpu",
     "Feature of the Day: Enterprise Suite\n\nSSO (Google/Microsoft), Stripe billing, Prometheus /metrics, audit trail, multi-tenant isolation, fleet dashboard.\n\n30 enterprise endpoints. 559 total API routes.\n\nmaxiaworld.app/enterprise",
@@ -416,7 +416,7 @@ async def generate_conversation_reply(messages: list, contact: str, platform: st
     system = (
         "You are the community manager of MAXIA, a Web3 hub on 14 blockchains. "
         "You talk like a dev helping another dev — technical, direct, no marketing BS. "
-        "MAXIA features: swap 107 tokens on 7 chains, bridge 14 chains, DeFi yields, GPU $0.69/h, NFT, agent ID, 46 MCP tools, A2A protocol, leaderboard, AI disputes. "
+        "MAXIA features: swap 65 tokens on 7 chains, bridge 14 chains, DeFi yields, DeFi yields, NFT, agent ID, 46 MCP tools, A2A protocol, leaderboard, AI disputes. "
         "URL: maxiaworld.app. Free to use, pay per use only."
     )
     prompt = (
@@ -680,8 +680,8 @@ def personality_filter(text: str) -> str | None:
     import re
     # Pattern: "$X revenue" ou "X users" ou "X clients" ou "X customers"
     if re.search(r'\d+\s*(users?|clients?|customers?|revenue|profit|transactions?)', text_lower):
-        # Sauf si c'est des specs techniques (107 tokens, 14 chains, etc.)
-        tech_ok = ["107 tokens", "14 chain", "46 mcp", "25 stock", "71 token", "2682 pair"]
+        # Sauf si c'est des specs techniques (65 tokens, 14 chains, etc.)
+        tech_ok = ["65 tokens", "14 chain", "46 mcp", "25 stock", "65 token", "2000 pair"]
         if not any(t in text_lower for t in tech_ok):
             _log(f"[FILTER] Bloque — chiffre business detecte: {text[:60]}")
             return None
@@ -935,8 +935,8 @@ Toi tu DECIDES. Le scout EXECUTE la collecte.
 {MAXIA_IDENTITY}
 
 CHIFFRES CLES — TU CONNAIS TOUT CA PAR COEUR :
-- 107 tokens sur 7 chains (71 Solana Jupiter + 36 EVM 0x)
-- 2682 paires de trading
+- 65 tokens sur 7 chains (71 Solana Jupiter + 36 EVM 0x)
+- 2000 paires de trading
 - 25 actions tokenisees (prix Pyth real-time)
 - 8 tiers GPU ($0.35 local 7900XT a $4.74 H200, 0% markup)
 - 14 chains supportees (paiement USDC + escrow)
@@ -1068,7 +1068,7 @@ FORMAT REPONSE (JSON strict) :
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
 CEO_SYSTEM_SHORT = f"""CEO MAXIA — {MAXIA_FEATURES_SHORT}
 Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
-Key differentiators: 107 tokens 7 chains, AI dispute resolution, reverse auctions, GPU at cost, leaderboard grades, business marketplace.
+Key differentiators: 65 tokens 7 chains, AI dispute resolution, reverse auctions, escrow on Solana+Base, leaderboard grades, business marketplace.
 
 ACTIONS (all vert unless noted):
 - post_template_tweet: tweet from templates [VERT]
@@ -2108,7 +2108,7 @@ class CEOLocal:
         # Generate actual tweet text if it was deferred
         if not text or text == "__generate_later__":
             _log("[PENDING] Text is '__generate_later__' — generating now via CEO local")
-            clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
+            clean_context = "Focus on MAXIA features: 65 tokens, 14 chains, escrow on Solana+Base, AI agent marketplace"
             text = await self._generate_tweet_via_local(clean_context)
             _log(f"[PENDING] Generated: {text[:80]}...")
         if not text:
@@ -2471,7 +2471,7 @@ class CEOLocal:
     async def _generate_reddit_post(self, subreddit: str) -> dict:
         """Genere un post Reddit unique et educatif via CEO local (Qwen 3 14B sur 7900XT)."""
         _default = {"title": "How AI agents can earn USDC autonomously",
-                     "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+                     "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 65 tokens across 2000+ trading pairs\n- On-chain escrow on Solana + Base (smart contracts)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
         try:
             system = (
                 f"You write Reddit posts for r/{subreddit}. You are an AI developer sharing a project.\n"
@@ -2479,7 +2479,7 @@ class CEOLocal:
                 "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
                 "2. Body: minimum 600 characters. Be educational and genuine.\n"
                 "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
-                "4. MAXIA: AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h, 46 MCP tools, A2A protocol, leaderboard, AI disputes, USDC payments.\n"
+                "4. MAXIA: AI-to-AI marketplace, 14 chains, 65 tokens, DeFi yields, 46 MCP tools, A2A protocol, leaderboard, AI disputes, USDC payments.\n"
                 "5. End with a genuine question to the community.\n"
                 "6. Include maxiaworld.app at the end.\n"
                 "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
@@ -2502,7 +2502,7 @@ class CEOLocal:
 
     async def _generate_tweet_via_local(self, context: str = "") -> str:
         """Genere un tweet via CEO local (Qwen 3 14B sur 7900XT)."""
-        system = "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"
+        system = "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 65 tokens, DeFi yields). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"
         prompt = f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"
         result = await call_ceo(prompt, system, max_tokens=100, think=False)
         if result:
@@ -2525,7 +2525,7 @@ class CEOLocal:
         # Pour les tweets et reddit, generer le contenu via Groq (pas Ollama)
         for d in decisions:
             if d["action"] == "post_template_tweet":
-                clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
+                clean_context = "Focus on MAXIA features: 65 tokens, 14 chains, escrow on Solana+Base, AI agent marketplace"
                 tweet = await self._generate_tweet_via_local(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
@@ -2909,7 +2909,7 @@ class CEOLocal:
                 )
                 params["text"] = (msg or "").strip().strip('"').strip("'")
                 if not params["text"]:
-                    params["text"] = "Building in public: MAXIA lets AI agents swap 107 tokens on 7 chains, rent GPUs at cost, and trade with AI-powered dispute resolution. maxiaworld.app"
+                    params["text"] = "Building in public: MAXIA lets AI agents swap 65 tokens on 7 chains, rent GPUs at cost, and trade with AI-powered dispute resolution. maxiaworld.app"
             return await self._do_browser("post_solvr_feed", params)
         # Flippt.ai (AI Business Marketplace)
         elif action == "post_flippt":
@@ -2917,7 +2917,7 @@ class CEOLocal:
                 msg = await call_ollama(
                     "Write a short post for Flippt.ai (AI Business Marketplace on Solana).\n"
                     "You are Alexis, building MAXIA — AI-to-AI marketplace on 14 chains.\n"
-                    "MAXIA lets agents discover, buy, sell AI services with USDC. Swap 107 tokens on 7 chains.\n"
+                    "MAXIA lets agents discover, buy, sell AI services with USDC. Swap 65 tokens on 7 chains.\n"
                     "Tone: casual dev, helpful. Share a real insight about AI agent businesses.\n"
                     "Max 280 chars. Include maxiaworld.app. NEVER mention revenue or user counts.\n"
                     "Post only:",
@@ -2926,7 +2926,7 @@ class CEOLocal:
                 )
                 params["text"] = (msg or "").strip().strip('"').strip("'")
                 if not params["text"]:
-                    params["text"] = "If your AI agent can earn money, it's a business. MAXIA: 107 tokens, 7 chains, reverse auctions, AI disputes, leaderboard grades. maxiaworld.app"
+                    params["text"] = "If your AI agent can earn money, it's a business. MAXIA: 65 tokens, 7 chains, reverse auctions, AI disputes, leaderboard grades. maxiaworld.app"
             return await self._do_browser("post_flippt_feed", params)
         # GitHub (local)
         elif action == "star_github":
@@ -2955,7 +2955,7 @@ class CEOLocal:
                 )
                 params["text"] = (msg or "").strip().strip('"').strip("'")
                 if not params["text"]:
-                    params["text"] = "Hey! Building MAXIA — 107 tokens on 7 chains, reverse auctions, AI dispute resolution, leaderboard. Agents trade with USDC. maxiaworld.app"
+                    params["text"] = "Hey! Building MAXIA — 65 tokens on 7 chains, reverse auctions, AI dispute resolution, leaderboard. Agents trade with USDC. maxiaworld.app"
             # Methode 1 : API Discord Bot (plus fiable que Playwright)
             try:
                 from api_social import discord_send_message, discord_find_general_channel, discord_list_guilds
@@ -3465,7 +3465,7 @@ class CEOLocal:
                     # Truncate a 1500 chars pour eviter le timeout think
                     api_prompt = (
                         f"R&D Data:\n{formatted[:1500]}\n\n"
-                        f"For MAXIA (AI marketplace, 107 tokens, 14 chains, GPU at cost):\n"
+                        f"For MAXIA (AI marketplace, 65 tokens, 14 chains, escrow on Solana+Base):\n"
                         f"1. Top 3 relevant items\n"
                         f"2. Prospects who need MAXIA\n"
                         f"3. Features to add\n"
@@ -3650,7 +3650,7 @@ class CEOLocal:
         analysis_prompt = (
             f"Page: {target['name']}\n"
             f"Content extracted:\n{raw_text[:1500]}\n\n"
-            f"Tu es CEO de MAXIA (AI marketplace, 107 tokens, 7 chains, GPU rental, "
+            f"Tu es CEO de MAXIA (AI marketplace, 65 tokens, 7 chains, GPU rental, "
             f"reverse auctions, leaderboard, AI disputes, 14 chains, USDC escrow).\n"
             f"Analyse cette page pour trouver des ameliorations pour MAXIA:\n"
             f"1. RELEVANT ITEMS: 3 elements les plus pertinents (projets, posts, repos)\n"
@@ -3763,8 +3763,8 @@ class CEOLocal:
         analysis = await call_ceo(
             f"Deep research — {target['name']} ({target['category']}):\n"
             f"Page content:\n{raw_text[:1500]}\n\n"
-            f"Tu es CEO de MAXIA (AI marketplace, 107 tokens, 7 chains, "
-            f"GPU at cost, reverse auctions, leaderboard, AI disputes, business marketplace).\n"
+            f"Tu es CEO de MAXIA (AI marketplace, 65 tokens, 7 chains, "
+            f"escrow on Solana+Base, reverse auctions, leaderboard, AI disputes, business marketplace).\n"
             f"Category: {target['category']}\n\n"
             f"Answer:\n"
             f"1. What's NEW here? (releases, features, changes)\n"
@@ -4251,7 +4251,7 @@ class CEOLocal:
             f"- Each script max 80 words total\n"
             f"- Technical but accessible\n"
             f"- No hype words\n"
-            f"- Include specific numbers (107 tokens, 14 chains, etc.)\n"
+            f"- Include specific numbers (65 tokens, 14 chains, etc.)\n"
             f"- NEVER mention revenue or client numbers\n\n"
             f"Separate scripts with ===\n"
         )
