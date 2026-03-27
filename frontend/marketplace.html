@@ -191,7 +191,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
     <div class="stat"><div class="stat-num" id="statTools">--</div><div class="stat-label">Total Tools</div></div>
     <div class="stat"><div class="stat-num" id="statCreators">--</div><div class="stat-label">Creators</div></div>
     <div class="stat"><div class="stat-num" id="statSales">--</div><div class="stat-label">Total Sales</div></div>
-    <div class="stat"><div class="stat-num" id="statRevenue">--</div><div class="stat-label">Revenue Shared</div></div>
   </div>
 </div>
 
@@ -294,7 +293,6 @@ function updateStats(stats) {
   document.getElementById('statTools').textContent = stats.total_tools || '0';
   document.getElementById('statCreators').textContent = stats.total_creators || '0';
   document.getElementById('statSales').textContent = stats.total_sales || '0';
-  document.getElementById('statRevenue').textContent = '$' + (stats.revenue_shared || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 // ── Filter by category ──
