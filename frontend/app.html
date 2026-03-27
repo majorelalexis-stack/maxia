@@ -3659,6 +3659,14 @@ async function checkEvmApproval(tokenAddress, spenderAddress, amountRaw) {
 // ══════════════════════════════════════
 var _gpuTiersCache = [];
 
+// AWS/cloud reference prices for comparison
+var _cloudPrices = {
+  "rtx3090": 0.60, "rtx4090": 0.89, "rtx5090": 1.49, "a6000": 0.80,
+  "l4": 0.80, "l40s": 1.40, "rtx_pro6000": 2.80, "a100_80": 3.93,
+  "h100_sxm": 5.32, "h100_nvl": 4.98, "h200": 7.20, "b200": 9.99,
+  "4xa100": 15.72,
+};
+
 async function loadGPU() {
   var grid = document.getElementById('gpu-grid');
   try {
@@ -3667,22 +3675,37 @@ async function loadGPU() {
 
     if (Array.isArray(tiers) && tiers.length > 0) {
       _gpuTiersCache = tiers;
-      grid.innerHTML = tiers.map(function(g) {
-        var tierId = g.id || '';
-        var name = g.label || g.name || g.gpu || 'GPU';
-        var vram = g.vram_gb || g.vram || '—';
-        var price = g.price_per_hour_usdc || g.price_per_hour || g.price || 0;
-        var available = g.available !== false;
-        var isTrial = (tierId === 'rtx4090');
-        return '<div class="card gpu-card" data-tier="' + esc(tierId) + '">' +
-          '<div class="gpu-name">' + esc(name) + '</div>' +
-          '<div class="gpu-vram">' + esc(vram) + (String(vram).includes('GB') ? '' : ' GB') + ' VRAM</div>' +
-          '<div class="gpu-price">$' + Number(price).toFixed(2) + '/hr</div>' +
-          '<div class="gpu-status"><span class="badge ' + (available ? 'badge-green' : 'badge-red') + '">' + (available ? 'Available' : 'Unavailable') + '</span></div>' +
-          (isTrial ? '<div style="font-size:12px;color:var(--cyan);margin-bottom:8px">10 min free trial</div>' : '') +
-          '<button class="btn-green btn-sm" onclick="showRentDialog(\'' + esc(tierId) + '\', \'' + esc(name) + '\', ' + price + ')" ' + (available ? '' : 'disabled style="opacity:.5;cursor:not-allowed"') + '>Rent</button>' +
-        '</div>';
-      }).join('');
+      grid.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+        '<thead><tr style="background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">' +
+          '<th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">GPU</th>' +
+          '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">VRAM</th>' +
+          '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">MAXIA Price</th>' +
+          '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">vs Cloud</th>' +
+          '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Status</th>' +
+          '<th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase"></th>' +
+        '</tr></thead><tbody>' +
+        tiers.filter(function(g){return !g.local;}).map(function(g) {
+          var tierId = g.id || '';
+          var name = g.label || g.name || 'GPU';
+          var vram = g.vram_gb || g.vram || '—';
+          var price = g.price_per_hour_usdc || g.price_per_hour || g.price || 0;
+          var available = g.available !== false;
+          var cloudPrice = _cloudPrices[tierId] || 0;
+          var savings = cloudPrice > 0 ? Math.round((1 - price / cloudPrice) * 100) : 0;
+          var savingsStr = savings > 0 ? '<span style="color:var(--green);font-weight:600">-' + savings + '%</span>' : '—';
+          var cloudStr = cloudPrice > 0 ? '<span style="color:var(--muted2);text-decoration:line-through">$' + cloudPrice.toFixed(2) + '</span>' : '';
+          return '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s" onmouseenter="this.style.background=\'rgba(255,255,255,.03)\'" onmouseleave="this.style.background=\'\'">' +
+            '<td style="padding:14px 16px"><div style="font-weight:700;font-size:15px">' + esc(name) + '</div></td>' +
+            '<td style="padding:14px 8px;text-align:center;color:var(--cyan);font-family:\'JetBrains Mono\',monospace;font-size:13px">' + esc(String(vram)) + ' GB</td>' +
+            '<td style="padding:14px 8px;text-align:right"><span style="font-size:18px;font-weight:700;color:var(--green);font-family:\'JetBrains Mono\',monospace">$' + price.toFixed(2) + '</span><span style="color:var(--muted);font-size:11px">/hr</span></td>' +
+            '<td style="padding:14px 8px;text-align:right">' + cloudStr + ' ' + savingsStr + '</td>' +
+            '<td style="padding:14px 8px;text-align:center"><span class="badge ' + (available ? 'badge-green' : '') + '" style="font-size:10px;padding:2px 8px">' + (available ? 'Available' : 'Offline') + '</span></td>' +
+            '<td style="padding:14px 16px;text-align:right">' +
+              '<button class="btn-outline" onclick="showRentDialog(\'' + esc(tierId) + '\',\'' + esc(name) + '\',' + price + ')" style="padding:6px 16px;font-size:12px;color:var(--green);border-color:rgba(16,185,129,.3)"' + (available ? '' : ' disabled style="opacity:.4;cursor:not-allowed;padding:6px 16px;font-size:12px"') + '>Rent</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>';
     } else {
       renderFallbackGPU(grid);
     }

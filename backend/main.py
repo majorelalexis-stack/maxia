@@ -3857,8 +3857,8 @@ def _resolve_gpu_tier(gpu_input: str) -> str | None:
 
 @app.get("/api/public/gpu/tiers")
 async def get_gpu_tiers_public():
-    """Live GPU pricing + availability from RunPod. No auth required."""
-    return await get_gpu_tiers_live()
+    """Live GPU pricing via Akash Network. No auth required."""
+    return await get_tiers()
 
 
 @app.get("/api/public/prices")
@@ -3867,10 +3867,10 @@ async def get_all_prices():
     from crypto_swap import SWAP_COMMISSION_TIERS
     from tokenized_stocks import STOCK_COMMISSION_TIERS
 
-    # Try live GPU prices first, fall back to static
+    # GPU prices from Akash (primary) with markup
     gpu_tiers = GPU_TIERS
     try:
-        live = await get_gpu_tiers_live()
+        live = await get_tiers()
         if live and live.get("tiers"):
             gpu_tiers = live["tiers"]
     except Exception:
