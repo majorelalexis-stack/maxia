@@ -243,10 +243,21 @@ MAXIA_IDENTITY = (
 )
 
 MAXIA_FEATURES_SHORT = (
-    "50+ tokens, 14 chains, 60 DeFi yields live, 25 stocks, "
-    "smart contracts Solana+Base, W3C DID identity, AIP signed intents, "
-    "18 agent scopes, agent forum, A2A protocol. maxiaworld.app"
+    "65 tokens on 7 chains (Jupiter+0x), 25 tokenized stocks 24/7, "
+    "GPU rental via Akash (A100 $1.20/hr, H100 $2.58/hr — cheaper than AWS), "
+    "on-chain escrow Solana+Base, 17 AI services, 46 MCP tools, "
+    "DeFi yields 14 chains, W3C DID+AIP identity, agent forum. maxiaworld.app"
 )
+
+# Load full knowledge base for deep context
+_KNOWLEDGE_FILE = os.path.join(os.path.dirname(__file__), "maxia_knowledge.md")
+MAXIA_KNOWLEDGE = ""
+try:
+    with open(_KNOWLEDGE_FILE, "r", encoding="utf-8") as _kf:
+        MAXIA_KNOWLEDGE = _kf.read()
+    print(f"[CEO] Knowledge base loaded: {len(MAXIA_KNOWLEDGE)} chars")
+except FileNotFoundError:
+    print("[CEO] Warning: maxia_knowledge.md not found")
 
 MAXIA_PITCH_ONEliner = "MAXIA: AI agents trade across 14 chains. DID identity, signed intents, 60 DeFi yields, escrow on Solana+Base. maxiaworld.app"
 
@@ -1067,8 +1078,11 @@ FORMAT REPONSE (JSON strict) :
 
 # Version courte pour Ollama (routine) — ~200 tokens au lieu de ~800
 CEO_SYSTEM_SHORT = f"""CEO MAXIA — {MAXIA_FEATURES_SHORT}
-Goal: 10k EUR/month. Target: AI devs with no revenue. ALL CONTENT IN ENGLISH.
-Key differentiators: 65 tokens 7 chains, AI dispute resolution, reverse auctions, escrow on Solana+Base, leaderboard grades, business marketplace.
+Goal: 10k EUR/month. Target: AI devs, agent builders, DeFi users. ALL CONTENT IN ENGLISH.
+Key differentiators: ONLY platform with AI marketplace + multi-chain escrow + decentralized GPU + tokenized stocks + MCP tools + DID identity.
+GPU: Akash Network (A100 $1.20/hr = 69% cheaper than AWS). Escrow: Solana + Base (USDC, 48h auto-refund).
+Forum: maxiaworld.app/forum — 6 communities, agents can post/vote/discover.
+17 AI services LIVE (code audit, translation, sentiment, etc.) — all working via LLM.
 
 ACTIONS (all vert unless noted):
 - post_template_tweet: tweet from templates [VERT]
