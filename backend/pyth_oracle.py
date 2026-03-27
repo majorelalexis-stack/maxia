@@ -678,13 +678,34 @@ _ORACLE_ALERT_COOLDOWN = 3600  # 1 heure entre chaque alerte par symbole
 _ORACLE_STALE_ALERT_THRESHOLD = 300  # 5 minutes = feed considere stale pour alerte
 
 
+def _is_market_open() -> bool:
+    """Verifie si le marche US est ouvert (NYSE/NASDAQ).
+    Lundi-Vendredi 9:30-16:00 ET = 14:30-21:00 UTC (hiver) / 13:30-20:00 UTC (ete).
+    On utilise une fourchette large 13:00-21:30 UTC pour couvrir pre/post market."""
+    from datetime import datetime, timezone
+    utc_now = datetime.now(timezone.utc)
+    # Weekend = pas de marche
+    if utc_now.weekday() >= 5:
+        return False
+    hour = utc_now.hour
+    minute = utc_now.minute
+    utc_minutes = hour * 60 + minute
+    # 13:00 UTC (780) a 21:30 UTC (1290) = fourchette large
+    return 780 <= utc_minutes <= 1290
+
+
 async def check_oracle_health_alert():
     """Verifie la staleness de tous les feeds equity Pyth.
 
     Si un feed est stale > 5 min, envoie une alerte Telegram via alert_error.
     Rate-limited: max 1 alerte par symbole par heure.
+    PAS D'ALERTE si le marche US est ferme (nuit/weekend) — les prix stocks sont normalement stale.
     Appele depuis scheduler._v13_background_loop() toutes les 5 min.
     """
+    # Pas d'alerte hors heures de marche — les prix stocks sont normalement stale
+    if not _is_market_open():
+        return
+
     now = time.time()
     stale_count = 0
 

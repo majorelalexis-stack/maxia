@@ -118,111 +118,42 @@ async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
 
 
 async def _poll_telegram_approval(action_id: str, timeout_s: int) -> str:
-    """Poll Telegram pour les callback queries (boutons) et messages texte.
+    """Poll le VPS pour les resultats d'approbation Telegram.
+    Le VPS est le SEUL a poller getUpdates (evite le conflit de polling).
     Retourne 'approved', 'denied', ou 'timeout'."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return "timeout"
+    from config_local import VPS_URL, CEO_API_KEY
 
     start = time.time()
-    last_update_id = 0
+    vps_base = VPS_URL.rstrip("/")
 
     while time.time() - start < timeout_s:
-        # Check dashboard approval (dict) BEFORE polling Telegram
+        # 1. Check dashboard approval (dict local) AVANT le VPS
         entry = _pending_approvals.get(action_id)
         if entry and entry.get("approved") is not None:
             result = "approved" if entry["approved"] else "denied"
             print(f"[Notifier] Dashboard: {result.upper()} ({action_id})")
             return result
 
+        # 2. Interroger le VPS — seul poller Telegram
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                # Short polling (5s) — permet de checker le dict entre les polls
-                params = {"timeout": 5, "allowed_updates": ["callback_query", "message"]}
-                if last_update_id:
-                    params["offset"] = last_update_id + 1
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(
-                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
-                    params=params,
+                    f"{vps_base}/api/ceo/approval-result/{action_id}",
+                    headers={"X-CEO-Key": CEO_API_KEY},
                 )
-                updates = resp.json().get("result", [])
-
-                for update in updates:
-                    last_update_id = update.get("update_id", last_update_id)
-
-                    # Check callback query (bouton clique)
-                    cb = update.get("callback_query")
-                    if cb:
-                        data = cb.get("data", "")
-                        cb_id = cb.get("id", "")
-                        msg_id = cb.get("message", {}).get("message_id", 0)
-                        chat_id = cb.get("message", {}).get("chat", {}).get("id", "")
-
-                        if data == f"approve:{action_id}":
-                            # Confirmer visuellement : modifier le message + popup
-                            try:
-                                await client.post(
-                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                    json={"callback_query_id": cb_id, "text": "✅ Approuve!"},
-                                )
-                                if msg_id and chat_id:
-                                    await client.post(
-                                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
-                                        json={
-                                            "chat_id": chat_id,
-                                            "message_id": msg_id,
-                                            "text": f"✅ APPROUVE — {action_id}\n\nAction en cours...",
-                                        },
-                                    )
-                            except Exception:
-                                pass
-                            print(f"[Notifier] Telegram: APPROVED by button ({action_id})")
-                            return "approved"
-
-                        elif data == f"deny:{action_id}":
-                            try:
-                                await client.post(
-                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                    json={"callback_query_id": cb_id, "text": "❌ Refuse!"},
-                                )
-                                if msg_id and chat_id:
-                                    await client.post(
-                                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
-                                        json={
-                                            "chat_id": chat_id,
-                                            "message_id": msg_id,
-                                            "text": f"❌ REFUSE — {action_id}\n\nAction annulee.",
-                                        },
-                                    )
-                            except Exception:
-                                pass
-                            print(f"[Notifier] Telegram: DENIED by button ({action_id})")
-                            return "denied"
-
-                        else:
-                            # Bouton d'un autre action_id — ignorer
-                            try:
-                                await client.post(
-                                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                    json={"callback_query_id": cb_id},
-                                )
-                            except Exception:
-                                pass
-
-                    # Check text message (Go / No)
-                    msg = update.get("message", {})
-                    chat_id = str(msg.get("chat", {}).get("id", ""))
-                    text = msg.get("text", "").strip().lower()
-                    if chat_id == str(TELEGRAM_CHAT_ID) and text:
-                        if text in ("go", "yes", "oui", "ok", "approve", f"approve {action_id}"):
-                            print(f"[Notifier] Telegram: APPROVED by text ({action_id})")
-                            return "approved"
-                        elif text in ("no", "non", "stop", "deny", "refuse"):
-                            print(f"[Notifier] Telegram: DENIED by text ({action_id})")
-                            return "denied"
-
+                if resp.status_code == 200:
+                    data = resp.json()
+                    vps_result = data.get("result", "pending")
+                    if vps_result == "approved":
+                        print(f"[Notifier] VPS: APPROVED ({action_id})")
+                        return "approved"
+                    elif vps_result == "denied":
+                        print(f"[Notifier] VPS: DENIED ({action_id})")
+                        return "denied"
         except Exception as e:
-            print(f"[Notifier] Telegram poll error: {e}")
-            await asyncio.sleep(5)
+            print(f"[Notifier] VPS poll error: {e}")
+
+        await asyncio.sleep(5)
 
     return "timeout"
 

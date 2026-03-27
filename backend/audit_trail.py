@@ -205,6 +205,7 @@ async def audit_log(
     chain: str = "",
     result: str = "success",
     tenant_id: str = "",
+    agent_id: str = "",
     metadata: Optional[dict] = None,
     skip_policy: bool = False,
 ) -> dict:
@@ -236,6 +237,7 @@ async def audit_log(
         "result": result,
         "policy_check": policy_result,
         "tenant_id": tenant_id,
+        "agent_id": agent_id,
         "metadata": metadata or {},
     }
 

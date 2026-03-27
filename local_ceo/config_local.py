@@ -70,16 +70,24 @@ BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.ma
 # ══════════════════════════════════════════
 # Limites quotidiennes par plateforme
 # ══════════════════════════════════════════
-MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "3"))  # 2 regular + 1 Feature of the Day
-MAX_COMMENTS_TWITTER_DAY = int(os.getenv("MAX_COMMENTS_TWITTER_DAY", "25"))
-MAX_QUOTE_TWEETS_DAY = int(os.getenv("MAX_QUOTE_TWEETS_DAY", "7"))
-MAX_REDDIT_POSTS_DAY = int(os.getenv("MAX_REDDIT_POSTS_DAY", "5"))
-MAX_REDDIT_COMMENTS_DAY = int(os.getenv("MAX_REDDIT_COMMENTS_DAY", "10"))
-MAX_GITHUB_COMMENTS_DAY = int(os.getenv("MAX_GITHUB_COMMENTS_DAY", "10"))
-MAX_DISCORD_MESSAGES_DAY = int(os.getenv("MAX_DISCORD_MESSAGES_DAY", "10"))
-MAX_TELEGRAM_MESSAGES_DAY = int(os.getenv("MAX_TELEGRAM_MESSAGES_DAY", "10"))
-MAX_EMAILS_DAY = int(os.getenv("MAX_EMAILS_DAY", "5"))
-MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "300"))
+MAX_TWEETS_DAY = int(os.getenv("MAX_TWEETS_DAY", "2"))
+MAX_COMMENTS_TWITTER_DAY = int(os.getenv("MAX_COMMENTS_TWITTER_DAY", "8"))
+MAX_QUOTE_TWEETS_DAY = int(os.getenv("MAX_QUOTE_TWEETS_DAY", "3"))
+MAX_REDDIT_POSTS_DAY = int(os.getenv("MAX_REDDIT_POSTS_DAY", "3"))
+MAX_REDDIT_COMMENTS_DAY = int(os.getenv("MAX_REDDIT_COMMENTS_DAY", "6"))
+MAX_GITHUB_COMMENTS_DAY = int(os.getenv("MAX_GITHUB_COMMENTS_DAY", "5"))
+MAX_DISCORD_MESSAGES_DAY = int(os.getenv("MAX_DISCORD_MESSAGES_DAY", "6"))
+MAX_TELEGRAM_MESSAGES_DAY = int(os.getenv("MAX_TELEGRAM_MESSAGES_DAY", "6"))
+MAX_EMAILS_DAY = int(os.getenv("MAX_EMAILS_DAY", "3"))
+MAX_ACTIONS_DAY = int(os.getenv("MAX_ACTIONS_DAY", "150"))
+
+# ══════════════════════════════════════════
+# Espacement et jours off (anti-spam toutes plateformes)
+# ══════════════════════════════════════════
+MIN_ACTION_SPACING_S = int(os.getenv("MIN_ACTION_SPACING_S", "1800"))  # 30 min entre commentaires/posts
+MIN_TWEET_SPACING_S = int(os.getenv("MIN_TWEET_SPACING_S", "3600"))    # 60 min entre tweets originaux
+OFF_DAYS_PER_WEEK = int(os.getenv("OFF_DAYS_PER_WEEK", "1"))          # 1 jour off/semaine (likes OK)
+ACTIONS_TODAY_FILE = os.path.join(os.path.dirname(__file__), "actions_today.json")
 
 # Email CEO
 CEO_EMAIL = "ceo@maxiaworld.app"

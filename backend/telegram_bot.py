@@ -12,6 +12,16 @@ from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL, PORT
 
 _running = False
 
+# Dict partage pour stocker les resultats d'approbation du CEO Local
+# Le VPS gere les callbacks Telegram (seul poller) et stocke les resultats ici.
+# Le CEO Local interroge /api/ceo/approval-result/<action_id> pour recuperer le resultat.
+_local_approval_results: dict = {}  # {action_id: "approved"|"denied"}
+
+
+def get_approval_result(action_id: str) -> str | None:
+    """Retourne le resultat d'approbation pour un action_id, ou None si pas encore repondu."""
+    return _local_approval_results.pop(action_id, None)
+
 
 async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
     """Envoie un message sur le canal Telegram MAXIA."""
@@ -176,6 +186,30 @@ async def handle_telegram_updates():
                                 await _send_to_chat(cb_chat, f"\u274c NO-GO — Decision rejetee")
                                 await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
                                     json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
+
+                            # Handle CEO Local approval buttons (approve:/deny:)
+                            elif cb_data.startswith("approve:"):
+                                action_id = cb_data[8:]
+                                _local_approval_results[action_id] = "approved"
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                    json={"callback_query_id": cb_id, "text": "Approuve!"})
+                                if cb_msg_id and cb_chat:
+                                    await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                        json={"chat_id": cb_chat, "message_id": cb_msg_id,
+                                              "text": f"\u2705 APPROUVE — {action_id}"})
+                                print(f"[Telegram] CEO Local approve: {action_id}")
+
+                            elif cb_data.startswith("deny:"):
+                                action_id = cb_data[5:]
+                                _local_approval_results[action_id] = "denied"
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                    json={"callback_query_id": cb_id, "text": "Refuse!"})
+                                if cb_msg_id and cb_chat:
+                                    await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                        json={"chat_id": cb_chat, "message_id": cb_msg_id,
+                                              "text": f"\u274c REFUSE — {action_id}"})
+                                print(f"[Telegram] CEO Local deny: {action_id}")
+
                         except Exception as e:
                             print(f"[Telegram] Callback error: {e}")
                         continue

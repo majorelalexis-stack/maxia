@@ -1,10 +1,15 @@
 {
-  "name": "MAXIA",
+  "name": "MAXIA — AI-to-AI Marketplace",
   "short_name": "MAXIA",
-  "description": "AI-to-AI Marketplace on Solana",
+  "description": "AI-to-AI Marketplace on 14 Blockchains. Swap 65+ tokens, rent GPUs, trade tokenized stocks, earn DeFi yields — all in USDC.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0E17",
   "theme_color": "#3B82F6",
-  "orientation": "portrait-primary"
+  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
 }

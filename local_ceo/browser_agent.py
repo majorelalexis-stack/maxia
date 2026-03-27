@@ -10,19 +10,30 @@ import base64
 import os
 import time
 import httpx
-from config_local import BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY, OLLAMA_URL, OLLAMA_VISION_MODEL, OLLAMA_MODEL, OLLAMA_BROWSER_MODEL
+from config_local import (
+    BROWSER_PROFILE_DIR, MAX_TWEETS_DAY, MAX_REDDIT_POSTS_DAY,
+    MAX_COMMENTS_TWITTER_DAY, MAX_REDDIT_COMMENTS_DAY, MAX_GITHUB_COMMENTS_DAY,
+    MAX_DISCORD_MESSAGES_DAY, MAX_TELEGRAM_MESSAGES_DAY, MAX_EMAILS_DAY,
+    OLLAMA_URL, OLLAMA_VISION_MODEL, OLLAMA_MODEL, OLLAMA_BROWSER_MODEL,
+    MIN_ACTION_SPACING_S, MIN_TWEET_SPACING_S, ACTIONS_TODAY_FILE,
+)
+from vector_memory_local import vmem
 
 
 # Rate limits pour eviter les bans (actions par minute)
 _RATE_LIMITS = {
-    "tweet": {"per_min": 2, "per_day": MAX_TWEETS_DAY},
-    "like": {"per_min": 5, "per_day": 50},
-    "follow": {"per_min": 2, "per_day": 10},
-    "reply": {"per_min": 2, "per_day": 20},
+    "tweet": {"per_min": 1, "per_day": MAX_TWEETS_DAY},
+    "like": {"per_min": 3, "per_day": 30},
+    "follow": {"per_min": 1, "per_day": 5},
+    "reply": {"per_min": 1, "per_day": MAX_COMMENTS_TWITTER_DAY},
     "reddit_post": {"per_min": 1, "per_day": MAX_REDDIT_POSTS_DAY},
-    "reddit_comment": {"per_min": 1, "per_day": 15},
-    "reddit_upvote": {"per_min": 2, "per_day": 20},
-    "dm": {"per_min": 1, "per_day": 10},
+    "reddit_comment": {"per_min": 1, "per_day": MAX_REDDIT_COMMENTS_DAY},
+    "reddit_upvote": {"per_min": 2, "per_day": 15},
+    "github_comment": {"per_min": 1, "per_day": MAX_GITHUB_COMMENTS_DAY},
+    "discord_msg": {"per_min": 1, "per_day": MAX_DISCORD_MESSAGES_DAY},
+    "telegram_msg": {"per_min": 1, "per_day": MAX_TELEGRAM_MESSAGES_DAY},
+    "email": {"per_min": 1, "per_day": MAX_EMAILS_DAY},
+    "dm": {"per_min": 1, "per_day": 5},
     "solvr_post": {"per_min": 1, "per_day": 1},
 }
 
@@ -40,8 +51,10 @@ class BrowserAgent:
         self._action_history = []  # Deduplication: [{action, hash, ts}]
         self._profile_dir = BROWSER_PROFILE_DIR
         self._dedup_file = os.path.join(os.path.dirname(__file__), ".browser_dedup.json")
+        self._actions_today_file = ACTIONS_TODAY_FILE
         self._bu_llm = None  # LLM browser-use (lazy init)
         self._load_dedup()
+        self._load_daily_counts()
 
     def _get_bu_llm(self):
         """Initialise le LLM browser-use en lazy.
@@ -127,7 +140,7 @@ class BrowserAgent:
                 import json
                 with open(self._dedup_file, "r") as f:
                     data = json.load(f)
-                cutoff = time.time() - 86400 * 3  # Garder 3 jours
+                cutoff = time.time() - 86400 * 7  # Garder 7 jours
                 self._action_history = [a for a in data if a.get("ts", 0) > cutoff]
                 print(f"[BrowserAgent] Dedup loaded: {len(self._action_history)} actions")
         except Exception:
@@ -138,15 +151,76 @@ class BrowserAgent:
         try:
             import json
             with open(self._dedup_file, "w") as f:
-                json.dump(self._action_history[-500:], f)
+                json.dump(self._action_history[-1000:], f)
         except Exception:
             pass
+
+    def _load_daily_counts(self):
+        """Charge les compteurs du jour depuis le disque (survit aux restarts)."""
+        today = time.strftime("%Y-%m-%d")
+        try:
+            if os.path.exists(self._actions_today_file):
+                import json
+                with open(self._actions_today_file, "r") as f:
+                    data = json.load(f)
+                if data.get("date") == today:
+                    self._daily_counts = data
+                    # Reconstruire _minute_counts depuis les timestamps recents (<2 min)
+                    now = time.time()
+                    for entry in data.get("timestamps", []):
+                        ts = entry.get("ts", 0)
+                        if ts > now - 120:
+                            action = entry.get("action", "")
+                            self._minute_counts.setdefault(action, []).append(ts)
+                    loaded = {k: v for k, v in data.items() if k not in ("date", "timestamps")}
+                    print(f"[BrowserAgent] Daily counts restored: {loaded}")
+                    return
+                else:
+                    print(f"[BrowserAgent] actions_today.json is from {data.get('date')} — new day, resetting")
+        except Exception as e:
+            print(f"[BrowserAgent] Load daily counts error: {e}")
+        self._daily_counts = {"date": today, "timestamps": []}
+
+    def _save_daily_counts(self):
+        """Sauvegarde les compteurs du jour sur disque."""
+        try:
+            import json
+            with open(self._actions_today_file, "w") as f:
+                json.dump(self._daily_counts, f, indent=2)
+        except Exception:
+            pass
+
+    def check_spacing(self, action_type: str) -> str | None:
+        """Verifie l'espacement minimum entre actions. None si OK, sinon message."""
+        spacing = MIN_TWEET_SPACING_S if action_type == "tweet" else MIN_ACTION_SPACING_S
+        timestamps = self._daily_counts.get("timestamps", [])
+        # Grouper par famille : tweet/reply = Twitter, reddit_* = Reddit, etc.
+        families = {
+            "tweet": ("tweet",),
+            "reply": ("reply",),
+            "reddit_post": ("reddit_post", "reddit_comment"),
+            "reddit_comment": ("reddit_post", "reddit_comment"),
+            "github_comment": ("github_comment",),
+            "discord_msg": ("discord_msg",),
+            "telegram_msg": ("telegram_msg",),
+            "email": ("email",),
+            "dm": ("dm",),
+        }
+        family = families.get(action_type, (action_type,))
+        relevant = [e["ts"] for e in timestamps if e.get("action") in family]
+        if relevant:
+            elapsed = time.time() - max(relevant)
+            if elapsed < spacing:
+                remaining = int(spacing - elapsed)
+                return f"Spacing {action_type}: attendre {remaining}s (min {spacing}s)"
+        return None
 
     def _reset_if_new_day(self):
         today = time.strftime("%Y-%m-%d")
         if self._daily_counts.get("date") != today:
-            self._daily_counts = {"date": today}
-            self._action_history = [a for a in self._action_history if a["ts"] > time.time() - 86400]
+            self._daily_counts = {"date": today, "timestamps": []}
+            self._save_daily_counts()
+            self._action_history = [a for a in self._action_history if a["ts"] > time.time() - 86400 * 7]
 
     def _check_rate(self, action_type: str) -> str | None:
         """Verifie les rate limits. Retourne None si OK, sinon le message d'erreur."""
@@ -168,29 +242,48 @@ class BrowserAgent:
 
         return None
 
-    def _record_action(self, action_type: str, content_hash: str = ""):
-        """Enregistre une action pour rate limiting et deduplication."""
-        self._daily_counts[action_type] = self._daily_counts.get(action_type, 0) + 1
-        self._minute_counts.setdefault(action_type, []).append(time.time())
-        if content_hash:
-            self._action_history.append({"action": action_type, "hash": content_hash, "ts": time.time()})
-        # Cap action history to prevent memory leak
-        if len(self._action_history) > 500:
-            self._action_history = self._action_history[-500:]
-        # Persister sur disque (survit aux restarts)
-        self._save_dedup()
-        # Clean old timestamps from minute counts
+    def _record_action(self, action_type: str, content_hash: str = "", content_text: str = "", target: str = ""):
+        """Enregistre une action pour rate limiting, deduplication et memoire semantique."""
         now = time.time()
+        self._daily_counts[action_type] = self._daily_counts.get(action_type, 0) + 1
+        self._minute_counts.setdefault(action_type, []).append(now)
+        # Timestamp pour spacing enforcement
+        self._daily_counts.setdefault("timestamps", []).append({"action": action_type, "ts": now})
+        if len(self._daily_counts.get("timestamps", [])) > 300:
+            self._daily_counts["timestamps"] = self._daily_counts["timestamps"][-300:]
+        if content_hash:
+            self._action_history.append({"action": action_type, "hash": content_hash, "ts": now})
+        if len(self._action_history) > 1000:
+            self._action_history = self._action_history[-1000:]
+        # Persister sur disque (dedup + daily counts)
+        self._save_dedup()
+        self._save_daily_counts()
+        # Memoire semantique ChromaDB (non-bloquant)
+        if content_text:
+            try:
+                vmem.store_action(action_type, target, content_text)
+            except Exception:
+                pass
+        # Clean old timestamps from minute counts
         for key in list(self._minute_counts.keys()):
             self._minute_counts[key] = [t for t in self._minute_counts[key] if t > now - 120]
             if not self._minute_counts[key]:
                 del self._minute_counts[key]
 
     def _is_duplicate(self, action_type: str, content: str) -> bool:
-        """Verifie si cette action a deja ete faite (meme contenu)."""
+        """Verifie si cette action a deja ete faite (hash exact OU semantique)."""
         import hashlib
         h = hashlib.md5(f"{action_type}:{content}".encode()).hexdigest()[:12]
-        return any(a["hash"] == h for a in self._action_history)
+        # 1. Hash exact (rapide)
+        if any(a["hash"] == h for a in self._action_history):
+            return True
+        # 2. Dedup semantique ChromaDB (contenu similaire meme si pas identique)
+        try:
+            if vmem.has_similar(action_type, content, threshold=0.88):
+                return True
+        except Exception:
+            pass
+        return False
 
     def _content_hash(self, action_type: str, content: str) -> str:
         import hashlib
@@ -772,6 +865,14 @@ class BrowserAgent:
 
     async def reply_tweet(self, tweet_url: str, text: str) -> dict:
         """Repond a un tweet specifique."""
+        err = self._check_rate("reply")
+        if err:
+            return {"success": False, "error": err}
+        spacing_err = self.check_spacing("reply")
+        if spacing_err:
+            return {"success": False, "error": spacing_err}
+        if self._is_duplicate("reply", tweet_url):
+            return {"success": False, "error": "Reply deja fait pour ce tweet (doublon)"}
         await self._ensure_ready()
         page = self._page
 
@@ -813,6 +914,7 @@ class BrowserAgent:
                 return {"success": False, "error": "Bouton Reply introuvable"}
 
             await page.wait_for_timeout(5000)
+            self._record_action("reply", self._content_hash("reply", tweet_url))
             return {"success": True, "url": tweet_url, "reply": text[:100]}
 
         except Exception as e:

@@ -6,6 +6,11 @@ echo [CEO MAXIA] ========================================
 echo [CEO MAXIA] Demarrage automatique
 echo [CEO MAXIA] ========================================
 
+:: Config Ollama — 3 modeles en parallele, overflow 4GB RAM autorise
+set OLLAMA_MAX_LOADED_MODELS=3
+set OLLAMA_NUM_PARALLEL=1
+set OLLAMA_FLASH_ATTENTION=1
+
 echo [CEO MAXIA] Attente Ollama (15s)...
 timeout /t 15 /nobreak >nul
 

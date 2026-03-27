@@ -1,6 +1,20 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer, CloseAccount, Mint};
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "MAXIA Escrow",
+    project_url: "https://maxiaworld.app",
+    contacts: "email:ceo@maxiaworld.app",
+    policy: "https://maxiaworld.app/trust",
+    preferred_languages: "en,fr",
+    source_code: "https://github.com/maxiaworld/maxia-escrow",
+    auditors: "Internal audit V4"
+}
+
 // #1: Program ID — deployed on Solana mainnet 2026-03-26
 declare_id!("8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY");
 

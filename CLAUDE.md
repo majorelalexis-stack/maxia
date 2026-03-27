@@ -42,8 +42,10 @@ Python 3.12 FastAPI monolith (~130 modules, 559 routes). All modules are flat in
 - `config.py` — all env vars, commission tiers, GPU tiers, content safety lists, pricing config
 - `database.py` — PostgreSQL (prod via asyncpg) / SQLite (dev via aiosqlite), schema migrations via `schema_version` table
 - `models.py` — Pydantic request/response models
-- `auth.py` — JWT auth, `require_auth` dependency
+- `auth.py` — JWT auth, `require_auth` dependency, `require_agent_sig_auth` (ed25519 DID signature auth)
 - `security.py` — Art.1 content safety (`check_content_safety`), rate limiting (`check_rate_limit`)
+- `agent_permissions.py` — DID (W3C) + UAID (HCS-14) + ed25519 keypair, spend caps, 18 OAuth scopes, freeze/downgrade/revoke, key rotation
+- `intent.py` — Signed intent envelopes (AIP-inspired, ed25519 non-repudiable, expiring)
 
 **Blockchain (Solana):**
 - `solana_verifier.py` — on-chain USDC transfer verification via Helius/Solana RPC
@@ -109,7 +111,18 @@ Anchor (Solana) escrow program in Rust. Deployed on Solana **mainnet** (2026-03-
 - **Langue** : Alexis parle français. Répondre en français.
 - **Jamais hardcoder** de valeurs fausses — toujours calculer depuis la source réelle.
 - **Pas de lazy imports** inutiles, pas de port 8000 (toujours 8001), pas de `float('inf')`.
-- **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM). Modèle = Qwen 2.5 14B via Ollama (100% GPU, 9.7GB). Le 32B déborde sur la RAM, le 14B est le bon choix.
+- **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM) + 4GB RAM overflow. 3 modeles Ollama : Qwen 3 14B (CEO cerveau, 9.3GB), Qwen 3.5 9B (executeur, 6.6GB), Qwen 2.5-VL 7B (vision, 6GB). Groq supprime (rate-limite). 100% GPU local.
 - **GPU local** ajouté comme tier `local_7900xt` ($0.35/h, pure marge) dans config.py, runpod_client.py, finetune_service.py.
-- **Telegram** : approbations ORANGE/ROUGE via boutons Go/No sur @MAXIA_AI_bot (chat privé). Le channel @MAXIA_alerts est pour les rapports VPS.
-- **CEO Twitter** : commentaires avec lien maxiaworld.app, max 25 commentaires/jour, 7 quote tweets/jour, analyse profil avant commentaire, A/B test local sur les réponses.
+- **Telegram** : approbations ORANGE/ROUGE via boutons Go/No sur @MAXIA_AI_bot (chat privé). Le VPS est le SEUL poller Telegram. Le CEO local interroge le VPS via `/api/ceo/approval-result`. Le channel @MAXIA_alerts est pour les rapports VPS.
+- **CEO Twitter** : commentaires avec lien maxiaworld.app, max 8 commentaires/jour, 3 quote tweets/jour, spacing 30min, 1 jour off/semaine. Actions hard-bloquees : dm_prospect, send_discord, send_telegram_group.
+
+## Skills Workflow (OBLIGATOIRE)
+
+Voir `~/.claude/rules/common/skills-workflow.md` pour les regles detaillees. En resume :
+- `/context-budget` au debut de chaque session
+- `/verify` + `/code-review` + `/python-review` apres chaque modification
+- `/plan` avant toute feature complexe
+- `/security-reviewer` avant deploy VPS
+- `/save-session` + `/learn` en fin de session
+- `/seo-audit` quand on touche au frontend
+- `/twitter-algorithm-optimizer` quand on modifie les prompts CEO

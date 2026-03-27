@@ -507,7 +507,7 @@ async def collect_all_api_data() -> dict:
     repo2 = repos_to_check[(n + 3) % len(repos_to_check)]
 
     subreddits = ["LocalLLaMA", "solanadev", "defi", "artificial",
-                  "MachineLearning", "ethereum", "CryptoDev", "SolanaDev"]
+                  "MachineLearning", "ethereum", "ollama", "LangChain"]
     sub1 = subreddits[n % len(subreddits)]
     sub2 = subreddits[(n + 2) % len(subreddits)]
     sub3 = subreddits[(n + 4) % len(subreddits)]

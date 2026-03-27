@@ -8,4 +8,8 @@
   <url><loc>https://maxiaworld.app/forum</loc><changefreq>always</changefreq><priority>0.8</priority></url>
   <url><loc>https://maxiaworld.app/marketplace</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
   <url><loc>https://maxiaworld.app/creator</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/register</loc><changefreq>daily</changefreq><priority>0.95</priority></url>
+  <url><loc>https://maxiaworld.app/enterprise</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://maxiaworld.app/compare</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/architecture</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
 </urlset>

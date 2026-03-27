@@ -29,10 +29,12 @@ from config_local import (
     AUTO_EXECUTE_MAX_USD,
     PERSONALITY, CONFIDENTIAL,
     STRATEGY_FILE, LEARNINGS_FILE, RND_FINDINGS_FILE, PLATFORM_SCORES_FILE,
+    MAX_COMMENTS_TWITTER_DAY, MAX_QUOTE_TWEETS_DAY, OFF_DAYS_PER_WEEK,
 )
 from audit_local import audit
 from notifier import notify_all, request_approval, get_pending_approvals
 from browser_agent import browser
+from vector_memory_local import vmem
 from conversion_tracker import track_action, get_failing_actions, generate_learned_rules, get_action_report
 from self_updater import check_for_updates, apply_updates, needs_check
 from email_manager import process_inbox, send_outbound, read_inbox, reply_email, generate_email_reply, get_stats as email_stats
@@ -445,10 +447,8 @@ async def generate_smart_reply(mention_text: str, username: str) -> str:
         f"- ALWAYS end with maxiaworld.app regardless of language\n"
         f"Reply text ONLY, no quotes."
     )
-    # Groq pour les replies publiques (qualite critique), CEO 14B fallback
-    reply = await call_groq_local(prompt, system, max_tokens=80)
-    if not reply:
-        reply = await call_ceo(prompt, system, max_tokens=80, think=False)
+    # CEO 14B local (7900XT) — qualite critique pour replies publiques
+    reply = await call_ceo(prompt, system, max_tokens=80, think=False)
     # Nettoyer + filtre personnalite
     reply = reply.strip().strip('"').strip("'")
     if len(reply) > 280:
@@ -621,21 +621,17 @@ async def call_mistral(prompt: str, system: str = "", max_tokens: int = 500) -> 
 
 
 async def call_local_llm(prompt: str, system: str = "", max_tokens: int = 500) -> str:
-    """Router principal : Groq (cloud) > CEO local (14B) > Executeur (9B) > Mistral.
-    Pour contenu public, utiliser call_groq_local ou call_ceo directement."""
-    # 1. Groq — meilleur modele cloud (Llama 3.3 70B)
-    result = await call_groq_local(prompt, system, max_tokens)
-    if result:
-        return result
-    # 2. CEO local — Qwen 3 14B (gratuit, illimite)
+    """Router principal : CEO local (14B) > Executeur (9B) > Mistral.
+    100% GPU local (7900XT) — pas de cloud (Groq rate-limite en continu)."""
+    # 1. CEO local — Qwen 3 14B (raisonnement, qualite)
     result = await call_ceo(prompt, system, max_tokens, think=False)
     if result:
         return result
-    # 3. Executeur — Qwen 3.5 9B (plus rapide)
+    # 2. Executeur — Qwen 3.5 9B (plus rapide)
     result = await call_executor(prompt, system, max_tokens)
     if result:
         return result
-    # 4. Mistral — dernier recours cloud
+    # 3. Mistral — dernier recours cloud
     return await call_mistral(prompt, system, max_tokens)
 
 
@@ -1520,7 +1516,14 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[REPORT] Error: {e}")
 
-                # 10b. EVOLUTION STRATEGIQUE (toutes les 100 cycles = ~8h)
+                # 10b. SEO AUTO-AUDIT (1x par jour, toutes les 288 cycles = ~24h)
+                if self._cycle % 288 == 0 and self._cycle > 0:
+                    try:
+                        await self._seo_auto_audit()
+                    except Exception as e:
+                        _log(f"[SEO-AUDIT] Error: {e}")
+
+                # 10c. EVOLUTION STRATEGIQUE (toutes les 100 cycles = ~8h)
                 # Le CEO analyse TOUT (surf, actions, engagement, prospects) et ajuste sa strategie
                 if self._cycle % 100 == 0 and self._cycle > 0:
                     try:
@@ -1997,6 +2000,12 @@ class CEOLocal:
             self.learnings.append(learning_entry)
             _save_learnings(self.learnings)
             _log("[EVOLVE] learnings.json mis a jour")
+            # Memoire semantique
+            try:
+                summary = f"Focus: {learning_entry.get('focus','')}, best: {learning_entry.get('best_platform','')}, stop: {learning_entry.get('stop_doing','')}"
+                vmem.store_learning(summary, source="self_learning")
+            except Exception:
+                pass
 
             # ═══ METTRE A JOUR platform_scores ═══
             for platform, scores in self.platform_scores.items():
@@ -2017,6 +2026,21 @@ class CEOLocal:
 
         else:
             _log("[EVOLVE] Pas de synthese (LLM vide)")
+
+    def _is_off_day(self) -> bool:
+        """Determine si aujourd'hui est un jour off (pas de posts/comments, likes OK).
+        Deterministe par semaine — meme seed pour toute la semaine."""
+        import datetime, hashlib
+        if OFF_DAYS_PER_WEEK <= 0:
+            return False
+        today = datetime.date.today()
+        week_seed = f"maxia_off_{today.isocalendar()[0]}_{today.isocalendar()[1]}"
+        rng = random.Random(hashlib.md5(week_seed.encode()).hexdigest())
+        off_days = sorted(rng.sample(range(7), min(OFF_DAYS_PER_WEEK, 7)))
+        is_off = today.weekday() in off_days
+        if is_off:
+            _log(f"[OFF-DAY] Jour off (weekday={today.weekday()}, off={off_days}) — likes uniquement")
+        return is_off
 
     def _is_good_hour(self) -> dict:
         """Calendrier de publication 24/7 — cible la bonne region selon l'heure UTC."""
@@ -2070,9 +2094,9 @@ class CEOLocal:
         text = pending.get("text", "")
         # Generate actual tweet text if it was deferred
         if not text or text == "__generate_later__":
-            _log("[PENDING] Text is '__generate_later__' — generating now via Groq")
+            _log("[PENDING] Text is '__generate_later__' — generating now via CEO local")
             clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
-            text = await self._generate_tweet_via_groq(clean_context)
+            text = await self._generate_tweet_via_local(clean_context)
             _log(f"[PENDING] Generated: {text[:80]}...")
         if not text:
             _log("[PENDING] Could not generate tweet text — discarding pending tweet")
@@ -2241,9 +2265,10 @@ class CEOLocal:
             "where to sell AI services crypto",
             "AI freelance marketplace decentralized",
         ]
-        subreddits = ["LocalLLaMA", "cryptocurrency", "solana", "ethereum",
-                      "MachineLearning", "artificial", "ChatGPT", "singularity",
-                      "defi", "CryptoTechnology", "SolanaDev"]
+        subreddits = ["LocalLLaMA", "solana", "ethereum",
+                      "MachineLearning", "artificial", "ChatGPT",
+                      "defi", "SolanaDev", "LangChain", "ollama"]
+        # Retires: CryptoDev (403 banni), cryptocurrency (strict), singularity (hors sujet), CryptoTechnology (mort)
 
         # Discord servers (invite links)
         discord_servers = [
@@ -2273,6 +2298,14 @@ class CEOLocal:
             "VRSEN/agency-swarm",
             "goat-sdk/goat",
             "microsoft/autogen",
+            "crewAIInc/crewAI",
+            "valory-xyz/open-autonomy",
+            "fetchai/uAgents",
+            "e2b-dev/E2B",
+            "browser-use/browser-use",
+            "jup-ag/jupiter-quote-api-node",
+            "anthropics/anthropic-cookbook",
+            "openai/swarm",
         ]
 
         # Enrichir les listes avec les communautes decouvertes automatiquement
@@ -2352,9 +2385,18 @@ class CEOLocal:
 
         chosen = routines[cycle % len(routines)]
 
+        # ── HARD BLOCK: actions 100% cassees — ne JAMAIS executer ──
+        _hard_blocked = {
+            "dm_prospect",          # 0/12 — cherche par display name, 100% echec
+            "send_discord",         # 0/31 — casse depuis session 6
+            "send_telegram_group",  # 0/21 — 100% echec
+            "search_and_comment_reddit",  # 0/29 — 100% echec
+            "post_solvr",           # 0/1 — endpoint inexistant
+        }
+
         # ── LEARN STOP: remplacer les actions qui echouent systematiquement ──
         from conversion_tracker import get_failing_actions
-        failing = get_failing_actions(min_attempts=5)
+        failing = get_failing_actions(min_attempts=3)
         # success_rate peut etre "0%" (string) ou un float — normaliser
         def _parse_rate(f):
             r = f.get("success_rate", 100)
@@ -2362,6 +2404,7 @@ class CEOLocal:
                 r = float(r.replace("%", "")) if r.replace("%", "").replace(".", "").isdigit() else 100
             return float(r)
         failing_names = {f["action"] for f in failing if _parse_rate(f) < 10}
+        failing_names.update(_hard_blocked)
         # Actions de remplacement quand une action est stoppee
         _replacements = {
             "send_discord": {"action": "search_twitter", "agent": "SCOUT", "params": {"query": "AI agent marketplace"}},
@@ -2419,74 +2462,45 @@ class CEOLocal:
         return chosen
 
     async def _generate_reddit_post(self, subreddit: str) -> dict:
-        """Genere un post Reddit unique et educatif via Groq. Min 600 chars pour les subreddits stricts."""
+        """Genere un post Reddit unique et educatif via CEO local (Qwen 3 14B sur 7900XT)."""
+        _default = {"title": "How AI agents can earn USDC autonomously",
+                     "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
         try:
-            from groq import Groq
-            groq_key = os.getenv("GROQ_API_KEY", "")
-            if not groq_key:
-                return {"title": "How AI agents can earn USDC autonomously",
-                        "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
-
-            def _gen():
-                c = Groq(api_key=groq_key)
-                resp = c.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": (
-                            f"You write Reddit posts for r/{subreddit}. You are an AI developer sharing a project.\n"
-                            "RULES:\n"
-                            "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
-                            "2. Body: minimum 600 characters. Be educational and genuine.\n"
-                            "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
-                            "4. MAXIA: AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h, 46 MCP tools, A2A protocol, leaderboard, AI disputes, USDC payments.\n"
-                            "5. End with a genuine question to the community.\n"
-                            "6. Include maxiaworld.app at the end.\n"
-                            "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
-                            "8. NEVER mention revenue numbers, user counts, or stats.\n"
-                            "9. English only.\n"
-                            "JSON output: {\"title\": \"...\", \"body\": \"...\"}"
-                        )},
-                        {"role": "user", "content": f"Write a Reddit post for r/{subreddit} about MAXIA. Make it unique and educational."},
-                    ],
-                    max_tokens=500,
-                    temperature=0.9,
-                )
-                text = resp.choices[0].message.content.strip()
+            system = (
+                f"You write Reddit posts for r/{subreddit}. You are an AI developer sharing a project.\n"
+                "RULES:\n"
+                "1. Title: engaging question or insight (not promotional). Max 100 chars.\n"
+                "2. Body: minimum 600 characters. Be educational and genuine.\n"
+                "3. Explain the PROBLEM you solved, then how MAXIA works.\n"
+                "4. MAXIA: AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h, 46 MCP tools, A2A protocol, leaderboard, AI disputes, USDC payments.\n"
+                "5. End with a genuine question to the community.\n"
+                "6. Include maxiaworld.app at the end.\n"
+                "7. Tone: dev sharing a side project, NOT marketing. No hype words.\n"
+                "8. NEVER mention revenue numbers, user counts, or stats.\n"
+                "9. English only.\n"
+                "JSON output: {\"title\": \"...\", \"body\": \"...\"}"
+            )
+            prompt = f"Write a Reddit post for r/{subreddit} about MAXIA. Make it unique and educational."
+            result = await call_ceo(prompt, system, max_tokens=500, think=False)
+            if result:
                 import json as _json
-                # Extraire le JSON
+                text = result.strip()
                 if "{" in text:
                     text = text[text.index("{"):text.rindex("}") + 1]
                 return _json.loads(text)
-            return await asyncio.to_thread(_gen)
+            return _default
         except Exception as e:
-            _log(f"  [REDDIT] Groq gen error: {e}")
-            return {"title": "How AI agents can earn USDC autonomously",
-                    "body": "I built an open-source AI-to-AI marketplace where autonomous agents can discover, negotiate, and trade services using USDC on 14 blockchains.\n\nThe problem I was trying to solve: most AI agent developers build amazing bots but have no way to monetize them. You can't easily charge for API calls in crypto without building your own payment infrastructure.\n\nMAXIA handles the hard parts:\n- On-chain escrow with dispute resolution\n- 107 tokens across 2450 trading pairs\n- GPU rental at cost ($0.69/h, 0% markup)\n- 46 MCP tools, A2A protocol, leaderboard, AI disputes for agent integration\n- One API call to list your agent as a service\n\nSupported chains: Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON.\n\nWould love feedback from devs who have experience building agents. What's the biggest pain point you face when trying to monetize your bot?\n\nmaxiaworld.app?utm_source=reddit&utm_medium=post | GitHub: github.com/MAXIAWORLD"}
+            _log(f"  [REDDIT] Local gen error: {e}")
+            return _default
 
-    async def _generate_tweet_via_groq(self, context: str = "") -> str:
-        """Genere un tweet via Groq (gratuit, rapide, anglais)."""
-        try:
-            from groq import Groq
-            groq_key = os.getenv("GROQ_API_KEY", "")
-            if not groq_key:
-                return pick_tweet_template()
-
-            def _gen():
-                c = Groq(api_key=groq_key)
-                resp = c.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"},
-                        {"role": "user", "content": f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"},
-                    ],
-                    max_tokens=100,
-                    temperature=0.9,
-                )
-                return resp.choices[0].message.content.strip().strip('"')
-            return await asyncio.to_thread(_gen)
-        except Exception as e:
-            _log(f"  [GROQ] Tweet gen error: {e}")
-            return pick_tweet_template()
+    async def _generate_tweet_via_local(self, context: str = "") -> str:
+        """Genere un tweet via CEO local (Qwen 3 14B sur 7900XT)."""
+        system = "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 107 tokens, GPU $0.69/h). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"
+        prompt = f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"
+        result = await call_ceo(prompt, system, max_tokens=100, think=False)
+        if result:
+            return result.strip().strip('"')
+        return pick_tweet_template()
 
     async def _decide(self, analysis: str, state: dict) -> list:
         """DECIDE — Routine predefinie + Groq pour le contenu."""
@@ -2505,7 +2519,7 @@ class CEOLocal:
         for d in decisions:
             if d["action"] == "post_template_tweet":
                 clean_context = "Focus on MAXIA features: 107 tokens, 14 chains, GPU at cost, AI agent marketplace"
-                tweet = await self._generate_tweet_via_groq(clean_context)
+                tweet = await self._generate_tweet_via_local(clean_context)
                 d["action"] = "post_tweet"
                 d["params"] = {"text": tweet}
                 _log(f"  [TWEET] {tweet[:80]}...")
@@ -2524,6 +2538,12 @@ class CEOLocal:
 
         # Sauvegarder en memoire
         self.memory.setdefault("decisions", []).extend(decisions)
+        # Memoire semantique ChromaDB
+        for d in decisions:
+            try:
+                vmem.store_decision(d.get("summary", d.get("action", "")), self._cycle)
+            except Exception:
+                pass
         return decisions
 
     async def _act(self, decisions: list):
@@ -2776,7 +2796,7 @@ class CEOLocal:
                     )
                     comment = await call_ollama(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only.", max_tokens=80)
                     if not comment:
-                        comment = await call_groq_local(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only.", max_tokens=80)
+                        comment = await call_executor(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only.", max_tokens=80)
                     comment = (comment or "").strip().strip('"').strip("'")
                     if not comment or len(comment) < 20:
                         continue
@@ -3337,9 +3357,9 @@ class CEOLocal:
 
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.post(
-                    f"{self._base}/api/public/forum/post",
+                    f"{self.vps._base}/api/public/forum/post",
                     json=payload,
-                    headers={"X-CEO-Key": CEO_API_KEY, "Content-Type": "application/json"},
+                    headers=self.vps._headers,
                 )
                 if resp.status_code in (200, 201):
                     _log(f"[FORUM] Posted: {title[:80]}")
@@ -3352,6 +3372,69 @@ class CEOLocal:
 
         except Exception as e:
             _log(f"[FORUM] Generation/post error: {e}")
+
+    async def _seo_auto_audit(self):
+        """Auto-audit SEO de maxiaworld.app — 1x par jour.
+        Verifie meta tags, schema, headers, vitesse. Log les problemes."""
+        # Check si deja fait aujourd'hui
+        today = time.strftime("%Y-%m-%d")
+        if self.memory.get("last_seo_audit", "") == today:
+            return
+        _log("[SEO-AUDIT] Audit quotidien de maxiaworld.app...")
+        pages = ["/", "/register", "/app", "/docs", "/trust", "/marketplace",
+                 "/enterprise", "/creator", "/compare"]
+        issues = []
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                for path in pages:
+                    url = f"https://maxiaworld.app{path}"
+                    try:
+                        resp = await client.get(url, follow_redirects=True)
+                        html = resp.text
+                        checks = {
+                            "og:title": 'og:title' in html,
+                            "canonical": 'rel="canonical"' in html,
+                            "description": 'name="description"' in html,
+                            "schema": 'application/ld+json' in html,
+                            "h1": '<h1' in html.lower(),
+                        }
+                        missing = [k for k, v in checks.items() if not v]
+                        if missing:
+                            issues.append(f"{path}: missing {', '.join(missing)}")
+                        if resp.status_code != 200:
+                            issues.append(f"{path}: HTTP {resp.status_code}")
+                    except Exception as e:
+                        issues.append(f"{path}: error {str(e)[:60]}")
+            # Checker robots.txt et sitemap
+            for f in ["/robots.txt", "/sitemap.xml"]:
+                try:
+                    r = await client.get(f"https://maxiaworld.app{f}")
+                    if r.status_code != 200:
+                        issues.append(f"{f}: HTTP {r.status_code}")
+                except Exception:
+                    issues.append(f"{f}: unreachable")
+        except Exception as e:
+            _log(f"[SEO-AUDIT] Error: {e}")
+            return
+        self.memory["last_seo_audit"] = today
+        if issues:
+            report = f"SEO Audit {today} — {len(issues)} issues:\n" + "\n".join(f"  - {i}" for i in issues)
+            _log(f"[SEO-AUDIT] {len(issues)} issues found")
+            # Log dans rnd_findings
+            try:
+                with open(os.path.join(os.path.dirname(__file__), "rnd_findings.md"), "a") as f:
+                    f.write(f"\n\n## SEO Auto-Audit — {today}\n{report}\n")
+            except Exception:
+                pass
+            # Alerte Telegram si > 3 issues
+            if len(issues) > 3:
+                try:
+                    from notifier import notify_all
+                    await notify_all(f"SEO Audit: {len(issues)} issues on maxiaworld.app", "orange")
+                except Exception:
+                    pass
+        else:
+            _log("[SEO-AUDIT] All pages OK")
 
     async def _autonomous_surf(self, analysis: str, state: dict):
         """R&D en temps mort — le CEO surfe pour ameliorer MAXIA.
@@ -3488,8 +3571,8 @@ class CEOLocal:
                 "task": "Go to https://www.reddit.com/r/LocalLLaMA/new/ and extract the titles of the 5 most recent posts. Note any about GPU, cost, hosting, or monetization.",
             },
             {
-                "name": "Reddit CryptoDev",
-                "task": "Go to https://www.reddit.com/r/CryptoDev/new/ and extract the titles of the 5 most recent posts. Note any about agent monetization, token swaps, or APIs.",
+                "name": "Reddit DeFi",
+                "task": "Go to https://www.reddit.com/r/defi/new/ and extract the titles of the 5 most recent posts. Note any about AI agents, yield optimization, or cross-chain.",
             },
             {
                 "name": "Reddit SolanaDev",
@@ -3722,7 +3805,7 @@ class CEOLocal:
         tweet_text = FEATURE_OF_THE_DAY[day_index]
         _log(f"[TWEET] Feature of the Day #{day_index + 1}: {tweet_text[:60]}...")
 
-        result = await self._do_browser("tweet", {"text": tweet_text})
+        result = await self._do_browser("post_tweet", {"text": tweet_text})
         if result.get("success"):
             self.memory.setdefault("tweets_posted", []).append({
                 "text": f"Feature of the Day: {tweet_text[:40]}", "ts": today,
@@ -3733,7 +3816,13 @@ class CEOLocal:
         """Lit le forum MAXIA et remonte les remarques/suggestions au fondateur."""
         _log("[FORUM] Lecture du forum MAXIA...")
         try:
-            result = await self.vps.get("/api/public/forum/posts?sort=hot&limit=10")
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    f"{self.vps._base}/api/public/forum/posts?sort=hot&limit=10",
+                    headers=self.vps._headers,
+                )
+                resp.raise_for_status()
+                result = resp.json()
             posts = result.get("posts", []) if isinstance(result, dict) else []
 
             if not posts:
@@ -4306,13 +4395,14 @@ class CEOLocal:
                 if result.get("success"):
                     liked += 1
 
-            # Commenter plusieurs fois par cycle, max 25 commentaires/jour (GPU local = gratuit)
-            today = time.strftime("%Y-%m-%d")
-            comments_today = sum(1 for c in self.memory.get("conversations", [])
-                                 if c.get("type") == "comment" and c.get("ts", "").startswith(today))
+            # Commenter max 1 par cycle, quotas stricts (anti-spam)
+            comments_today = browser._daily_counts.get("reply", 0)
+            spacing_err = browser.check_spacing("reply")
             can_comment = (
-                commented < 3
-                and comments_today < 25
+                not self._is_off_day()
+                and commented < 1
+                and comments_today < MAX_COMMENTS_TWITTER_DAY
+                and not spacing_err
                 and text and len(text) > 30
                 and not browser._is_duplicate("reply", url)
             )
@@ -4350,8 +4440,9 @@ class CEOLocal:
                     if result.get("success"):
                         commented += 1
                         comments_today += 1
-                        browser._record_action("reply", browser._content_hash("reply", url))
-                        _log(f"[ENGAGE] Commented ({comments_today}/25 today): {comment[:60]}")
+                        browser._record_action("reply", browser._content_hash("reply", url),
+                                               content_text=comment[:200], target=username or url)
+                        _log(f"[ENGAGE] Commented ({comments_today + 1}/{MAX_COMMENTS_TWITTER_DAY} today): {comment[:60]}")
                         if username:
                             self.memory.setdefault("conversations", []).append({
                                 "user": username, "message": text[:80],
@@ -4363,9 +4454,8 @@ class CEOLocal:
             _log(f"[ENGAGE] {liked} likes, {commented} comments for '{query[:50]}'")
 
         # Quote tweet max 5/jour, tous les 3 cycles (~30min)
-        qt_today = sum(1 for a in self.memory.get("actions_done", [])
-                       if a.get("action") == "quote_tweet" and a.get("ts", "").startswith(time.strftime("%Y-%m-%d")))
-        if self._cycle % 3 == 0 and qt_today < 7 and tweets:
+        qt_today = browser._daily_counts.get("tweet", 0)
+        if self._cycle % 3 == 0 and qt_today < MAX_QUOTE_TWEETS_DAY and not self._is_off_day() and tweets:
             best_tweet = None
             for t in tweets:
                 if t.get("url") and t.get("text") and len(t.get("text", "")) > 50:
@@ -4456,23 +4546,35 @@ class CEOLocal:
         return {"worth_it": True, "context": context, "score": profile_score, "bio": bio[:100]}
 
     async def _generate_smart_comment(self, tweet_text: str, profile_context: str = "") -> str:
-        """Point 2: Commentaire personnalise avec A/B test local (GPU gratuit). Multi-langue."""
+        """Commentaire personnalise avec A/B test local + marketing psychology. Multi-langue."""
         # Detecter la langue du tweet pour repondre dans la meme langue
         lang_code = detect_language(tweet_text)
         lang_name = LANG_NAMES.get(lang_code, "English")
         context_line = f"\nProfile insight: {profile_context}\n" if profile_context else "\n"
+        # Memoire semantique : verifier si on a deja couvert ce sujet
+        similar_context = ""
+        try:
+            similar = vmem.search_context(tweet_text[:100], n=2)
+            if similar and "(Aucun" not in similar:
+                similar_context = f"\nPrevious related interactions:\n{similar}\nAvoid repeating the same points.\n"
+        except Exception:
+            pass
         prompt = (
             f"Tweet: \"{tweet_text[:200]}\"\n"
-            f"{context_line}"
+            f"{context_line}{similar_context}"
             f"Reply in {lang_name} to match the tweet's language.\n"
             f"Write a helpful reply (<250 chars) as Alexis, founder of MAXIA:\n"
-            f"- First: be genuinely helpful — answer their problem, share a tip, or relate to their experience\n"
+            f"- HOOK: Start with something that grabs attention (a surprising fact, a question, or direct value)\n"
+            f"- VALUE FIRST: be genuinely helpful — answer their problem, share a tip, or relate to their experience\n"
+            f"- SOCIAL PROOF: mention specifics (14 chains, 65 tokens, on-chain escrow) not vague claims\n"
+            f"- RECIPROCITY: give something useful BEFORE mentioning MAXIA\n"
             f"- Then: naturally mention MAXIA as a solution IF relevant (AI agents, crypto, swaps, GPU, multi-chain, DeFi)\n"
             f"- If the person is building an AI tool/API/dataset, suggest they can publish and sell it on MAXIA's Creator Marketplace (90% revenue share). Link: maxiaworld.app/marketplace\n"
-            f"- ALWAYS end with the link: maxiaworld.app (regardless of language)\n"
+            f"- CTA: end with maxiaworld.app (regardless of language)\n"
             f"- Tone: dev-to-dev, NOT salesy. Example: 'we actually built something for this — maxiaworld.app'\n"
             f"- NEVER criticize, disagree, or be negative. If you can't be positive, say nothing.\n"
             f"- NEVER mention revenue numbers, client count, or business stats.\n"
+            f"- VARY your style — don't always use the same structure. Be unpredictable.\n"
             f"Reply text ONLY. No quotes."
         )
         system = f"Supportive senior developer and founder. Always positive and helpful. Never mention revenue or client numbers. If the person is building an AI tool/API/dataset, suggest they can publish and sell it on MAXIA's Creator Marketplace (90% revenue share). Link: maxiaworld.app/marketplace. Multi-language: reply in {lang_name}."
@@ -4484,14 +4586,19 @@ class CEOLocal:
             system=system, max_tokens=150,
         )
 
-        # Choisir la meilleure via 7B rapide (analyse interne)
+        # Choisir la meilleure via scoring marketing psychology
         best = variant_a
         if variant_a and variant_b:
             pick = await call_ollama(
-                f"Which reply is better for Twitter engagement? Reply A or B only.\n\n"
+                f"Score these replies for Twitter engagement. Consider:\n"
+                f"1. Has a HOOK (attention-grabbing opener)?\n"
+                f"2. Gives VALUE before promoting?\n"
+                f"3. Uses SOCIAL PROOF (specific numbers/facts)?\n"
+                f"4. Has a clear CTA?\n"
+                f"5. Feels NATURAL (not template-like)?\n\n"
                 f"A: \"{variant_a.strip()[:250]}\"\n"
-                f"B: \"{variant_b.strip()[:250]}\"\n\nBetter:",
-                system="Pick the more engaging, natural reply. Answer A or B only.",
+                f"B: \"{variant_b.strip()[:250]}\"\n\nBetter (A or B):",
+                system="Marketing expert. Pick the reply with better engagement potential. Answer A or B only.",
                 max_tokens=5,
             )
             if pick and "b" in pick.strip().lower()[:3]:
@@ -4501,7 +4608,7 @@ class CEOLocal:
 
         if not best:
             # Fallback Groq
-            best = await call_groq_local(prompt, system=system, max_tokens=150)
+            best = await call_executor(prompt, system=system, max_tokens=150)
 
         comment = (best or "").strip().strip('"').strip("'")
         if len(comment) > 250:
@@ -4520,18 +4627,21 @@ class CEOLocal:
             f"Someone tweeted: \"{original_text[:200]}\"\n\n"
             f"Reply in {lang_name} to match the tweet's language.\n"
             f"Write a short supportive quote tweet as Alexis, founder of MAXIA (<220 chars).\n"
+            f"- HOOK: Start with something that stops the scroll (hot take, surprising stat, bold claim)\n"
             f"- Be POSITIVE and SUPPORTIVE — celebrate what they built or shared\n"
+            f"- AUTHORITY: position yourself as someone who's built this (14 chains, on-chain escrow, 559 API routes)\n"
             f"- Add value: share your experience, a useful tip, or genuine excitement\n"
             f"- Naturally connect to MAXIA if relevant (AI agents, crypto, multi-chain, swaps, GPU)\n"
-            f"- ALWAYS end with: maxiaworld.app (regardless of language)\n"
+            f"- CTA: end with maxiaworld.app (regardless of language)\n"
             f"- Tone: 'love this — we're solving something similar at maxiaworld.app'\n"
+            f"- VARY your structure — don't start every quote the same way\n"
             f"- NEVER disagree, criticize, or be negative.\n"
             f"- NEVER mention revenue numbers, client count, or business stats.\n"
             f"Text ONLY:"
         )
         system_qt = f"Supportive solo dev. Always positive, never confrontational. Multi-language: reply in {lang_name}."
-        # Groq pour le contenu public, Ollama fallback
-        text = await call_groq_local(prompt, system=system_qt, max_tokens=40)
+        # Executeur local (Qwen 3.5 9B) pour le contenu public
+        text = await call_executor(prompt, system=system_qt, max_tokens=40)
         if not text:
             text = await call_ollama(prompt, system=system_qt, max_tokens=40)
         text = text.strip().strip('"').strip("'")
@@ -4585,7 +4695,7 @@ class CEOLocal:
             # Ollama 14B pour Reddit (gratuit, qualite suffisante)
             comment = await call_ollama(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=80)
             if not comment:
-                comment = await call_groq_local(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=80)
+                comment = await call_executor(prompt, system="You are a solo dev on Reddit. Casual, helpful, English only. No marketing.", max_tokens=80)
             comment = comment.strip().strip('"').strip("'")
             if not comment or len(comment) < 20:
                 continue
@@ -4751,7 +4861,9 @@ class CEOLocal:
                 result = await browser.follow_user(username)
             except Exception:
                 result = None
-            if result and result.get("success") and not result.get("already"):
+            if not isinstance(result, dict):
+                result = {"success": False}
+            if result.get("success") and not result.get("already"):
                 _log(f"[CRM] Follow-up: followed @{username} (prospect chaud)")
                 self.memory.setdefault("follows", []).append(
                     {"username": username, "ts": time.strftime("%Y-%m-%d"), "source": "crm"}
@@ -4845,7 +4957,7 @@ class CEOLocal:
         )
         dm_text = await call_ollama(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
         if not dm_text:
-            dm_text = await call_groq_local(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
+            dm_text = await call_executor(prompt, system="You are Alexis, founder of MAXIA. Friendly, casual, English only.", max_tokens=60)
         dm_text = (dm_text or "").strip().strip('"').strip("'")
         if not dm_text or len(dm_text) < 10:
             return {"success": False, "detail": "Echec generation DM"}
@@ -5123,6 +5235,13 @@ class CEOLocal:
     async def _engage_competitor_threads(self):
         """Engage with competitor tweets by adding constructive, value-adding comments.
         Max 1 comment per cycle. Positive tone, no attacks."""
+        if self._is_off_day():
+            _log("[COMPETE] Jour off — skip competitor engagement")
+            return
+        spacing_err = browser.check_spacing("reply")
+        if spacing_err:
+            _log(f"[COMPETE] {spacing_err}")
+            return
         competitor_accounts = ["@virtikiprotocol", "@Fetch_ai", "@SingularityNET", "@autonaborolas", "@myshell_ai"]
 
         # Rotate through competitors across cycles
@@ -5243,6 +5362,16 @@ class CEOLocal:
             text = m.get("text", "")
             user = m.get("username", "")
             if not url or not text:
+                continue
+            # Spacing check — stop si trop rapproche
+            spacing_err = browser.check_spacing("reply")
+            if spacing_err:
+                _log(f"[MENTIONS] {spacing_err} — arret replies")
+                break
+            # Off-day — likes seulement
+            if self._is_off_day():
+                if url and not browser._is_duplicate("like", url):
+                    await browser.like_tweet(url)
                 continue
             # Dedup par URL (deja repondu a ce tweet exact)
             if browser._is_duplicate("reply", url):

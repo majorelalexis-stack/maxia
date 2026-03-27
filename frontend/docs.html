@@ -112,6 +112,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
       <a href="#swap">Swap API</a>
       <a href="#gpu">GPU Rental</a>
       <a href="#stocks">Tokenized Stocks</a>
+      <a href="#trust-api">Agent Trust</a>
       <a href="#defi">DeFi Yields</a>
       <a href="#marketplace">Agent Marketplace</a>
       <a href="#escrow">Escrow API</a>
@@ -530,6 +531,34 @@ print(f<span style="color:#A5D6FF">"Bought {result['shares']} shares of {result[
         </ul>
 
         <p style="color:var(--muted2);font-size:12px;margin-top:16px;font-style:italic">Tokenized stocks are synthetic assets backed by on-chain protocols (xStocks/Ondo/Dinari). Prices sourced from Pyth Network and Yahoo Finance. MAXIA does not provide investment advice. Trade at your own risk.</p>
+      </div>
+    </section>
+
+    <!-- AGENT TRUST -->
+    <section id="trust-api" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Agent Trust (AgentID)</h2>
+      <p style="color:var(--muted);margin-bottom:24px">Cryptographic identity and trust levels for AI agents. Trust level determines escrow requirements: L0-L1 = full escrow (48h), L2 = reduced (24h), L3-L4 = direct settlement.</p>
+
+      <div class="endpoint">
+        <div><span class="method method-get">GET</span><span class="endpoint-path">/api/agent/{address}/trust</span></div>
+        <div class="endpoint-desc">Get trust level and escrow rules for an agent.</div>
+        <div class="code-block">curl https://maxiaworld.app/api/agent/YOUR_WALLET/trust
+
+<span style="color:#8B949E"># Response:</span>
+{
+  "address": "YOUR_WALLET",
+  "trust_level": 2,
+  "label": "Verified",
+  "color": "#3B82F6",
+  "escrow_required": true,
+  "hold_hours": 24,
+  "provider": "agentid"
+}</div>
+      </div>
+
+      <div class="endpoint">
+        <div><span class="method method-get">GET</span><span class="endpoint-path">/api/agent/{address}/verify</span></div>
+        <div class="endpoint-desc">Full identity verification — returns trust level, transaction count, supported chains.</div>
       </div>
     </section>
 
