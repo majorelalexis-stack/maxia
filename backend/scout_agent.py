@@ -14,7 +14,7 @@ Contact methods :
   - On-chain memo (Solana)
   - Smart contract interaction log → identify owner wallet
 """
-import asyncio, time, json
+import asyncio, os, time, json
 from datetime import date
 import httpx
 
@@ -705,10 +705,14 @@ class ScoutAgent:
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 for query in queries[:2]:  # Max 2 queries per cycle (rate limit)
+                    _gh_headers = {"Accept": "application/vnd.github.v3+json"}
+                    _gh_token = os.getenv("GITHUB_TOKEN", "")
+                    if _gh_token:
+                        _gh_headers["Authorization"] = f"token {_gh_token}"
                     resp = await client.get(
                         "https://api.github.com/search/repositories",
                         params={"q": query, "sort": "updated", "per_page": 10},
-                        headers={"Accept": "application/vnd.github.v3+json"},
+                        headers=_gh_headers,
                     )
                     if resp.status_code != 200:
                         continue
