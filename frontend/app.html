@@ -728,18 +728,90 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: STOCKS ─── -->
 <div class="page" id="page-stocks">
-  <h2 class="page-title">Tokenized Stocks</h2>
-  <p class="page-sub">Trade US equities 24/7 on Solana via <a href="https://backed.fi" target="_blank">Backed Finance</a> xStocks &amp; <a href="https://ondo.finance" target="_blank">Ondo Finance</a></p>
 
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
-    <span class="badge badge-green" id="stocks-commission-badge">Loading commission...</span>
-    <span class="badge badge-purple">Fractional from $1</span>
-    <span class="badge">25 Tokenized Stocks &amp; ETFs</span>
-    <span class="badge" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:var(--orange)">USDC on Solana</span>
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div>
+      <h2 style="font-size:26px;font-weight:700;margin-bottom:4px">Tokenized Stocks</h2>
+      <p style="color:var(--muted);font-size:13px">Trade 25 US equities 24/7 on-chain — fractional from $1 USDC</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="badge badge-green">Live on Solana</span>
+      <span class="badge" id="stocks-commission-badge">BRONZE 1%</span>
+    </div>
   </div>
 
-  <div class="grid-3" id="stocks-grid">
-    <div class="card" style="text-align:center;padding:40px"><span style="color:var(--muted)">Loading stocks...</span></div>
+  <!-- Portfolio Summary -->
+  <div class="card" style="margin-bottom:20px;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Stock Portfolio Value</div>
+        <div id="stk-portfolio-val" style="font-size:28px;font-weight:800;font-family:'JetBrains Mono',monospace">$0.00</div>
+      </div>
+      <div style="display:flex;gap:20px">
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--muted)">P&L Today</div>
+          <div id="stk-pnl-today" style="font-size:16px;font-weight:600;color:var(--green)">$0.00</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--muted)">Positions</div>
+          <div id="stk-positions-count" style="font-size:16px;font-weight:600">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <button class="btn-outline stk-filter active" onclick="filterStocks('all',this)" style="padding:6px 14px;font-size:12px">All</button>
+    <button class="btn-outline stk-filter" onclick="filterStocks('Technology',this)" style="padding:6px 14px;font-size:12px">Tech</button>
+    <button class="btn-outline stk-filter" onclick="filterStocks('ETF',this)" style="padding:6px 14px;font-size:12px">ETFs</button>
+    <button class="btn-outline stk-filter" onclick="filterStocks('Automotive',this)" style="padding:6px 14px;font-size:12px">Auto</button>
+    <button class="btn-outline stk-filter" onclick="filterStocks('Consumer',this)" style="padding:6px 14px;font-size:12px">Consumer</button>
+    <div style="flex:1"></div>
+    <select id="stk-sort" onchange="sortStocks(this.value)" class="form-input" style="width:140px;padding:6px 10px;font-size:12px">
+      <option value="name">Sort: Name</option>
+      <option value="price_desc">Price: High→Low</option>
+      <option value="price_asc">Price: Low→High</option>
+      <option value="change_desc">Change: Best</option>
+      <option value="change_asc">Change: Worst</option>
+    </select>
+  </div>
+
+  <!-- Main: Stock List + Detail Panel -->
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:16px" id="stk-layout">
+
+    <!-- Stock List -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">
+            <th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Stock</th>
+            <th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">Price</th>
+            <th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">24h</th>
+            <th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Provider</th>
+            <th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">Trade</th>
+          </tr>
+        </thead>
+        <tbody id="stocks-tbody">
+          <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted)">Loading stocks...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Detail Panel (shown when a stock is selected) -->
+    <div id="stk-detail-panel" class="card" style="padding:16px;position:sticky;top:20px;align-self:start">
+      <div id="stk-detail-content" style="text-align:center;padding:40px 16px;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:12px">&#128200;</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Select a stock</div>
+        <div style="font-size:12px">Click any row to view chart and trade</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div style="margin-top:16px;padding:12px 16px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.1);border-radius:8px;font-size:11px;color:var(--muted)">
+    Tokenized stocks are synthetic on-chain assets (SPL tokens), NOT traditional equities. Backed 1:1 by real shares via <a href="https://backed.fi" target="_blank" style="color:var(--cyan)">Backed Finance</a>, <a href="https://ondo.finance" target="_blank" style="color:var(--cyan)">Ondo</a>, <a href="https://dinari.com" target="_blank" style="color:var(--cyan)">Dinari</a>. MAXIA is not a stock exchange. Trade at your own risk.
   </div>
 </div>
 
@@ -4312,54 +4384,241 @@ var USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 // Cache loaded prices from API
 var _stockPriceCache = {};
+var _stocksData = [];
+var _stockFilter = 'all';
+var _selectedStock = null;
 
 async function loadStocks() {
-  var grid = document.getElementById('stocks-grid');
+  var tbody = document.getElementById('stocks-tbody');
   try {
     var data = await api('/api/public/stocks');
     var stocks = (data && data.stocks) || (Array.isArray(data) ? data : []);
 
-    if (Array.isArray(stocks) && stocks.length > 0) {
-      // Cache prices for modal use
-      stocks.forEach(function(s) {
-        var sym = (s.symbol || '').replace(/^x/, '').toUpperCase();
-        _stockPriceCache[sym] = {
-          price: s.price_usd || s.price || 0,
-          change: s.change_24h_pct || 0,
-          source: s.price_source || 'live'
-        };
+    if (!Array.isArray(stocks) || stocks.length === 0) {
+      // Fallback: build from catalog
+      stocks = Object.keys(STOCK_CATALOG).map(function(sym) {
+        var cat = STOCK_CATALOG[sym];
+        return {symbol: sym, name: cat.name, price_usd: 0, change_24h_pct: 0, sector: cat.sector, xstock: cat.xstock};
       });
-      grid.innerHTML = stocks.map(function(s) {
-        var rawSym = s.symbol || s.ticker || '—';
-        var sym = rawSym.replace(/^x/, '').toUpperCase();
-        var cat = STOCK_CATALOG[sym] || {};
-        var name = s.name || s.company || cat.name || '—';
-        var price = s.price_usd || s.price || 0;
-        var change = s.change_24h_pct || 0;
-        var sector = s.sector || cat.sector || 'Tech';
-        var xstock = s.xstock || cat.xstock || sym + 'X';
-        var changeClass = change >= 0 ? 'color:var(--green)' : 'color:var(--red)';
-        var changeStr = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
-        var hasMint = cat.mint && cat.mint.length > 20;
-        return '<div class="card stock-card">' +
-          '<div class="stock-symbol">' + esc(xstock) + '</div>' +
-          '<div class="stock-name">' + esc(name) + '</div>' +
-          '<div class="stock-price">$' + Number(price).toFixed(2) + '</div>' +
-          '<div class="stock-change" style="' + changeClass + '">' + changeStr + '</div>' +
-          '<div class="stock-sector"><span class="badge badge-purple">' + esc(sector) + '</span></div>' +
-          '<div class="stock-actions">' +
-            '<button class="btn-green btn-sm" onclick="openStockModal(\'' + esc(sym) + '\',\'buy\')">Buy</button>' +
-            '<button class="btn-red btn-sm" onclick="openStockModal(\'' + esc(sym) + '\',\'sell\')">Sell</button>' +
-          '</div>' +
-          '<div class="stock-provider">' + (hasMint ? 'Backed Finance' : 'Coming soon') + '</div>' +
-        '</div>';
-      }).join('');
-    } else {
-      await renderFallbackStocks(grid);
+      // Try to fetch live prices
+      try {
+        var priceData = await api('/api/oracle/stocks/prices');
+        if (priceData && priceData.prices) {
+          priceData.prices.forEach(function(p) {
+            var s = (p.symbol||'').replace(/^x/,'').toUpperCase();
+            var match = stocks.find(function(st) { return st.symbol === s; });
+            if (match) { match.price_usd = p.price_usd || p.price || 0; match.change_24h_pct = p.change_24h_pct || 0; }
+          });
+        }
+      } catch(e) {}
     }
+
+    // Normalize and cache
+    _stocksData = stocks.map(function(s) {
+      var sym = (s.symbol||'').replace(/^x/,'').toUpperCase();
+      var cat = STOCK_CATALOG[sym] || {};
+      var price = s.price_usd || s.price || 0;
+      var change = s.change_24h_pct || 0;
+      var obj = {
+        symbol: sym, name: s.name || cat.name || sym, price: price, change: change,
+        sector: s.sector || cat.sector || 'Technology', xstock: cat.xstock || sym+'X',
+        mint: cat.mint || '', logo: cat.logo || '', provider: cat.mint && cat.mint.length > 20 ? 'Backed' : '—'
+      };
+      _stockPriceCache[sym] = {price: price, change: change, source: price > 0 ? 'live' : 'unavailable'};
+      return obj;
+    });
+
+    renderStockRows();
   } catch (e) {
-    await renderFallbackStocks(grid);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red)">Failed to load stocks</td></tr>';
   }
+}
+
+function renderStockRows() {
+  var tbody = document.getElementById('stocks-tbody');
+  var filtered = _stocksData.filter(function(s) {
+    if (_stockFilter === 'all') return true;
+    return s.sector === _stockFilter || (s.sector||'').indexOf(_stockFilter) >= 0;
+  });
+
+  // Sort
+  var sortVal = (document.getElementById('stk-sort')||{}).value || 'name';
+  if (sortVal === 'price_desc') filtered.sort(function(a,b){return b.price-a.price;});
+  else if (sortVal === 'price_asc') filtered.sort(function(a,b){return a.price-b.price;});
+  else if (sortVal === 'change_desc') filtered.sort(function(a,b){return b.change-a.change;});
+  else if (sortVal === 'change_asc') filtered.sort(function(a,b){return a.change-b.change;});
+  else filtered.sort(function(a,b){return a.name.localeCompare(b.name);});
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">No stocks in this category</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(function(s) {
+    var changeColor = s.change >= 0 ? 'var(--green)' : 'var(--red)';
+    var changeStr = (s.change >= 0 ? '+' : '') + s.change.toFixed(2) + '%';
+    var priceStr = s.price > 0 ? '$' + s.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+    var isSelected = _selectedStock === s.symbol;
+    var rowBg = isSelected ? 'background:rgba(59,130,246,.08)' : '';
+    var available = s.mint && s.mint.length > 20;
+    return '<tr onclick="selectStock(\'' + esc(s.symbol) + '\')" style="cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s;' + rowBg + '" onmouseenter="this.style.background=\'rgba(255,255,255,.03)\'" onmouseleave="this.style.background=\'' + (isSelected?'rgba(59,130,246,.08)':'') + '\'">' +
+      '<td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px">' +
+        (s.logo ? '<img src="'+esc(s.logo)+'" width="28" height="28" style="border-radius:50%;background:var(--bg2)" onerror="this.style.display=\'none\'">' : '<div style="width:28px;height:28px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--cyan)">'+s.symbol.charAt(0)+'</div>') +
+        '<div><div style="font-weight:600;font-size:14px">' + esc(s.xstock) + '</div><div style="font-size:11px;color:var(--muted)">' + esc(s.name) + '</div></div>' +
+      '</div></td>' +
+      '<td style="padding:12px 8px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:600;font-size:14px">' + priceStr + '</td>' +
+      '<td style="padding:12px 8px;text-align:right;font-weight:600;color:' + changeColor + '">' + changeStr + '</td>' +
+      '<td style="padding:12px 8px;text-align:center"><span class="badge" style="font-size:10px;padding:2px 8px">' + (available ? esc(s.provider) : '<span style="color:var(--muted2)">Soon</span>') + '</span></td>' +
+      '<td style="padding:12px 16px;text-align:right">' +
+        (available ?
+          '<button class="btn-outline" onclick="event.stopPropagation();quickStockTrade(\'' + esc(s.symbol) + '\',\'buy\')" style="padding:4px 12px;font-size:11px;color:var(--green);border-color:rgba(16,185,129,.3);margin-right:4px">Buy</button>' +
+          '<button class="btn-outline" onclick="event.stopPropagation();quickStockTrade(\'' + esc(s.symbol) + '\',\'sell\')" style="padding:4px 12px;font-size:11px;color:var(--red);border-color:rgba(239,68,68,.3)">Sell</button>'
+          : '<span style="font-size:11px;color:var(--muted2)">Coming Q2</span>') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function filterStocks(sector, btn) {
+  _stockFilter = sector;
+  document.querySelectorAll('.stk-filter').forEach(function(b){b.classList.remove('active');});
+  if (btn) btn.classList.add('active');
+  renderStockRows();
+}
+
+function sortStocks(val) { renderStockRows(); }
+
+function selectStock(symbol) {
+  _selectedStock = symbol;
+  renderStockRows();
+  renderStockDetail(symbol);
+}
+
+function renderStockDetail(symbol) {
+  var panel = document.getElementById('stk-detail-content');
+  var cat = STOCK_CATALOG[symbol] || {};
+  var cached = _stockPriceCache[symbol] || {};
+  var price = cached.price || 0;
+  var change = cached.change || 0;
+  var changeColor = change >= 0 ? 'var(--green)' : 'var(--red)';
+  var changeStr = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+  var hasMint = cat.mint && cat.mint.length > 20;
+  var jupUrl = hasMint ? 'https://jup.ag/swap/USDC-' + cat.mint : '';
+  var birdeyeUrl = hasMint ? 'https://birdeye.so/token/' + cat.mint + '?chain=solana' : '';
+
+  panel.innerHTML =
+    // Header
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">' +
+      (cat.logo ? '<img src="'+esc(cat.logo)+'" width="36" height="36" style="border-radius:50%;background:var(--bg2)" onerror="this.style.display=\'none\'">' : '') +
+      '<div><div style="font-size:18px;font-weight:700">' + esc(cat.xstock||symbol) + '</div><div style="font-size:12px;color:var(--muted)">' + esc(cat.name||symbol) + '</div></div>' +
+    '</div>' +
+
+    // Price
+    '<div style="margin-bottom:16px">' +
+      '<div style="font-size:28px;font-weight:800;font-family:\'JetBrains Mono\',monospace">' + (price > 0 ? '$'+price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : 'Loading...') + '</div>' +
+      '<div style="font-size:14px;font-weight:600;color:' + changeColor + '">' + changeStr + ' today</div>' +
+    '</div>' +
+
+    // Mini chart placeholder
+    '<div id="stk-mini-chart" style="width:100%;height:120px;background:var(--bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">Loading chart...</div>' +
+
+    // Info row
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:12px">' +
+      '<div style="background:var(--bg);border-radius:8px;padding:10px"><div style="color:var(--muted);margin-bottom:2px">Sector</div><div style="font-weight:600">' + esc(cat.sector||'Tech') + '</div></div>' +
+      '<div style="background:var(--bg);border-radius:8px;padding:10px"><div style="color:var(--muted);margin-bottom:2px">Provider</div><div style="font-weight:600">' + (hasMint ? 'Backed Finance' : 'Not yet listed') + '</div></div>' +
+    '</div>' +
+
+    // Trade form
+    (hasMint ?
+      '<div style="margin-bottom:12px">' +
+        '<label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Amount (USDC)</label>' +
+        '<input type="number" id="stk-trade-amount" class="form-input" placeholder="100.00" value="100" step="any" style="width:100%;padding:10px;font-size:14px;font-family:\'JetBrains Mono\',monospace" oninput="updateStkSummary(\'' + esc(symbol) + '\')">' +
+        '<div style="display:flex;gap:4px;margin-top:6px">' +
+          '<button class="btn-outline" onclick="document.getElementById(\'stk-trade-amount\').value=10;updateStkSummary(\'' + esc(symbol) + '\')" style="flex:1;padding:3px;font-size:10px">$10</button>' +
+          '<button class="btn-outline" onclick="document.getElementById(\'stk-trade-amount\').value=50;updateStkSummary(\'' + esc(symbol) + '\')" style="flex:1;padding:3px;font-size:10px">$50</button>' +
+          '<button class="btn-outline" onclick="document.getElementById(\'stk-trade-amount\').value=100;updateStkSummary(\'' + esc(symbol) + '\')" style="flex:1;padding:3px;font-size:10px">$100</button>' +
+          '<button class="btn-outline" onclick="document.getElementById(\'stk-trade-amount\').value=500;updateStkSummary(\'' + esc(symbol) + '\')" style="flex:1;padding:3px;font-size:10px">$500</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div id="stk-trade-summary" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Est. shares</span><span style="font-family:\'JetBrains Mono\',monospace">' + (price > 0 ? (99/price).toFixed(4) : '—') + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Fee (1%)</span><span style="font-family:\'JetBrains Mono\',monospace">$1.00</span></div>' +
+        '<div style="display:flex;justify-content:space-between"><span style="font-weight:600">You receive</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600">' + (price > 0 ? (99/price).toFixed(4)+' '+esc(cat.xstock||symbol) : '—') + '</span></div>' +
+      '</div>' +
+
+      '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+        '<button class="btn btn-primary" onclick="executeStockSwap(\'' + esc(symbol) + '\')" style="flex:1;padding:12px;font-size:14px;font-weight:700;border-radius:8px;background:linear-gradient(135deg,#10B981,#059669)">Buy ' + esc(cat.xstock||symbol) + '</button>' +
+        '<button class="btn" onclick="executeStockSwap(\'' + esc(symbol) + '\')" style="flex:1;padding:12px;font-size:14px;font-weight:700;border-radius:8px;background:linear-gradient(135deg,#EF4444,#DC2626);color:#fff;border:none;cursor:pointer">Sell</button>' +
+      '</div>' +
+
+      '<div style="display:flex;gap:6px;justify-content:center">' +
+        '<a href="' + jupUrl + '" target="_blank" class="btn-outline" style="padding:4px 10px;font-size:10px;text-decoration:none">Jupiter</a>' +
+        '<a href="' + birdeyeUrl + '" target="_blank" class="btn-outline" style="padding:4px 10px;font-size:10px;text-decoration:none">Birdeye</a>' +
+        '<a href="https://solscan.io/token/' + esc(cat.mint) + '" target="_blank" class="btn-outline" style="padding:4px 10px;font-size:10px;text-decoration:none">Solscan</a>' +
+      '</div>'
+      :
+      '<div style="text-align:center;padding:20px;background:var(--bg);border-radius:8px">' +
+        '<div style="font-size:14px;font-weight:600;margin-bottom:4px">Not yet tokenized</div>' +
+        '<div style="font-size:12px;color:var(--muted)">This stock will be available when a provider lists it on-chain.</div>' +
+      '</div>'
+    ) +
+
+    '<div id="stk-trade-result" style="margin-top:8px;font-size:12px;display:none"></div>';
+
+  // Load mini chart
+  loadStockMiniChart(symbol);
+}
+
+function updateStkSummary(symbol) {
+  var amount = parseFloat((document.getElementById('stk-trade-amount')||{}).value) || 0;
+  var cached = _stockPriceCache[symbol] || {};
+  var price = cached.price || 1;
+  var cat = STOCK_CATALOG[symbol] || {};
+  var bps = amount >= 5000 ? 10 : amount >= 500 ? 50 : 100;
+  var fee = amount * bps / 10000;
+  var net = amount - fee;
+  var shares = price > 0 ? net / price : 0;
+  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 50 ? 'GOLD 0.5%' : 'BRONZE 1%';
+  var el = document.getElementById('stk-trade-summary');
+  if (el) el.innerHTML =
+    '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Est. shares</span><span style="font-family:\'JetBrains Mono\',monospace">' + shares.toFixed(4) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Fee (' + tierName + ')</span><span style="font-family:\'JetBrains Mono\',monospace">$' + fee.toFixed(2) + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between"><span style="font-weight:600">You receive</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600">' + shares.toFixed(4) + ' ' + esc(cat.xstock||symbol) + '</span></div>';
+}
+
+async function loadStockMiniChart(symbol) {
+  var container = document.getElementById('stk-mini-chart');
+  if (!container || typeof LightweightCharts === 'undefined') return;
+  container.innerHTML = '';
+  try {
+    var data = await api('/api/oracle/stock/' + symbol + '/candles?interval=1d&limit=30');
+    var candles = data.candles || data || [];
+    if (!candles.length) { container.innerHTML = '<span style="color:var(--muted);font-size:11px">No chart data</span>'; return; }
+    var miniChart = LightweightCharts.createChart(container, {
+      width: container.clientWidth, height: 120,
+      layout: {background:{color:'transparent'},textColor:'#94a3b8',fontSize:10},
+      grid: {vertLines:{visible:false},horzLines:{color:'rgba(255,255,255,.03)'}},
+      rightPriceScale:{borderVisible:false},timeScale:{borderVisible:false,timeVisible:false},
+      crosshair:{mode:0},handleScroll:false,handleScale:false,
+    });
+    var series = miniChart.addAreaSeries({
+      lineColor: candles[candles.length-1].close >= candles[0].open ? '#10B981' : '#EF4444',
+      topColor: candles[candles.length-1].close >= candles[0].open ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)',
+      bottomColor: 'transparent', lineWidth: 2,
+    });
+    series.setData(candles.map(function(c){return{time:c.timestamp||c.time,value:c.close};}));
+    miniChart.timeScale().fitContent();
+  } catch(e) {
+    container.innerHTML = '<span style="color:var(--muted);font-size:11px">Chart unavailable</span>';
+  }
+}
+
+function quickStockTrade(symbol, side) {
+  selectStock(symbol);
+  // Scroll to detail panel
+  var panel = document.getElementById('stk-detail-panel');
+  if (panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 async function renderFallbackStocks(grid) {
