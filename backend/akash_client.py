@@ -32,11 +32,15 @@ AKASH_GPU_MAP = {
     "rtx4090":     {"model": "rtx4090",     "vram": 24,  "cpu": 8,  "ram": 16,  "disk": 50},
     "rtx5090":     {"model": "rtx5090",     "vram": 32,  "cpu": 8,  "ram": 32,  "disk": 100},
     "a6000":       {"model": "a6000",       "vram": 48,  "cpu": 8,  "ram": 32,  "disk": 100},
+    "l4":          {"model": "t4",          "vram": 16,  "cpu": 4,  "ram": 16,  "disk": 50},
     "l40s":        {"model": "l40s",        "vram": 48,  "cpu": 8,  "ram": 32,  "disk": 100},
     "rtx_pro6000": {"model": "pro6000se",   "vram": 96,  "cpu": 8,  "ram": 64,  "disk": 200},
     "a100_80":     {"model": "a100",        "vram": 80,  "cpu": 16, "ram": 64,  "disk": 200},
     "h100_sxm":    {"model": "h100",        "vram": 80,  "cpu": 16, "ram": 64,  "disk": 200},
+    "h100_nvl":    {"model": "h100",        "vram": 94,  "cpu": 16, "ram": 64,  "disk": 200},
     "h200":        {"model": "h200",        "vram": 141, "cpu": 16, "ram": 128, "disk": 200},
+    "b200":        {"model": "h200",        "vram": 180, "cpu": 32, "ram": 256, "disk": 400},
+    "4xa100":      {"model": "a100",        "vram": 320, "cpu": 64, "ram": 256, "disk": 400},
 }
 
 # Prix plafond par tier — on n'accepte pas de bid au-dessus
@@ -45,11 +49,15 @@ AKASH_MAX_PRICE = {
     "rtx4090":     0.50,
     "rtx5090":     0.80,
     "a6000":       0.40,
+    "l4":          0.50,
     "l40s":        0.85,
     "rtx_pro6000": 1.80,
     "a100_80":     1.30,
     "h100_sxm":    2.80,
+    "h100_nvl":    2.70,
     "h200":        3.80,
+    "b200":        6.00,
+    "4xa100":      5.00,
 }
 
 # Deployments actifs
