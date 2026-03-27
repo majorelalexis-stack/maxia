@@ -148,11 +148,11 @@ SEI_AI_CONTRACTS = {
     "0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1": {"name": "SEI USDC", "type": "token", "scan_method": "transfers"},
 }
 
-# Known AI agent registries (HTTP APIs)
+# Known AI agent registries (HTTP APIs) — verified working March 2026
 AI_REGISTRIES = [
     {
-        "name": "Autonolas Registry",
-        "url": "https://registry.olas.network/api/services",
+        "name": "Olas Registry",
+        "url": "https://registry.olas.network/api/v1/services?limit=50",
         "type": "olas",
         "chain": "ethereum",
     },
@@ -709,55 +709,127 @@ class ScoutAgent:
             print(f"[SCOUT] Memo contact error: {e}")
 
     async def _contact_via_api(self, agent_info: dict):
-        """Try to contact an AI agent via its public API or registry."""
+        """Try to contact an AI agent via its public API, A2A, or well-known endpoint."""
         address = agent_info.get("address", "")
         protocol = agent_info.get("protocol", "")
         chain = agent_info.get("chain", "")
 
-        # Try known API patterns for agent protocols
         api_endpoints = self._get_api_endpoints(agent_info)
+        if not api_endpoints:
+            self._unreachable_count += 1
+            return
 
+        # A2A-compatible payload (works with any agent that accepts JSON)
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "agent/discover",
+            "params": {
+                "from": "MAXIA",
+                "from_url": f"https://{MAXIA_URL}",
+                "type": "marketplace_invitation",
+                "message": f"MAXIA AI Marketplace on 14 chains — list your {chain} service, earn USDC. Free. 65 tokens, escrow, GPU rental.",
+                "register_url": f"https://{MAXIA_URL}/api/public/register",
+                "api_docs": f"https://{MAXIA_URL}/api/public/docs",
+                "mcp_manifest": f"https://{MAXIA_URL}/mcp/manifest",
+                "chain": chain,
+            },
+            "id": 1,
+        }
+
+        # Also try simple POST format for non-A2A agents
+        simple_payload = {
+            "from": "MAXIA",
+            "type": "marketplace_invitation",
+            "message": f"Your {protocol} agent can sell services on MAXIA. 14 chains, USDC payments, 1% fee. Register: https://{MAXIA_URL}/api/public/register",
+            "register_url": f"https://{MAXIA_URL}/api/public/register",
+        }
+
+        contacted = False
         for endpoint in api_endpoints:
             try:
-                payload = {
-                    "from": "MAXIA",
-                    "type": "marketplace_invitation",
-                    "message": f"MAXIA AI Marketplace — sell your services, earn USDC. Free registration.",
-                    "register_url": f"https://{MAXIA_URL}/api/public/register",
-                    "docs_url": f"https://{MAXIA_URL}/api/public/docs",
-                    "chain": chain,
-                    "benefits": [
-                        "Sell any AI service to other agents",
-                        "Get paid in USDC automatically",
-                        "1% marketplace commission (Bronze), 0.10% swap fee",
-                        "One API call to register",
-                    ],
-                }
-                async with httpx.AsyncClient(timeout=10) as client:
+                async with httpx.AsyncClient(timeout=8) as client:
+                    # Try A2A format first
                     resp = await client.post(endpoint, json=payload)
                     if resp.status_code in (200, 201, 202):
-                        self._contacted_today.append(address)
-                        self._total_contacted += 1
-                        print(f"[SCOUT] API contact -> {address[:12]}... ({protocol}) via {endpoint}")
-                        return
+                        contacted = True
+                        break
+                    # Try simple format
+                    if resp.status_code in (400, 405, 415):
+                        resp2 = await client.post(endpoint, json=simple_payload)
+                        if resp2.status_code in (200, 201, 202):
+                            contacted = True
+                            break
+                    # Try GET (for discovery endpoints like .well-known)
+                    if resp.status_code >= 400:
+                        resp3 = await client.get(endpoint)
+                        if resp3.status_code == 200:
+                            # Agent exists — log as discoverable
+                            self._register_discovery(address, chain, protocol, contacted=False)
+                            try:
+                                agent_data = resp3.json()
+                                domain = agent_data.get("url", agent_data.get("api_url", ""))
+                                if domain:
+                                    # Try to register on their API
+                                    resp4 = await client.post(f"{domain}/api/register", json=simple_payload)
+                                    if resp4.status_code in (200, 201, 202):
+                                        contacted = True
+                                        break
+                            except Exception:
+                                pass
+            except (httpx.TimeoutException, httpx.ConnectError):
+                continue
             except Exception:
                 continue
 
-        # If no API worked, count silently (throttle log spam)
-        self._unreachable_count += 1
-        if self._unreachable_count <= 3:
-            print(f"[SCOUT] No API reachable for {address[:12]}... ({protocol})")
+        if contacted:
+            self._contacted_today.append(address)
+            self._total_contacted += 1
+            print(f"[SCOUT] API contact SUCCESS -> {address[:12]}... ({protocol}) on {chain}")
+            try:
+                await alert_system(f"SCOUT: contacted {protocol} agent {address[:16]}... on {chain}")
+            except Exception:
+                pass
+        else:
+            self._unreachable_count += 1
+            if self._unreachable_count <= 3:
+                print(f"[SCOUT] No API reachable for {address[:12]}... ({protocol})")
 
     def _get_api_endpoints(self, agent_info: dict) -> list:
         """Determine possible API endpoints for an agent."""
         endpoints = []
-        protocol = agent_info.get("protocol", "")
+        protocol = (agent_info.get("protocol", "") or "").lower()
+        address = agent_info.get("address", "")
+        chain = agent_info.get("chain", "")
 
-        # Olas agents often have endpoints in their service metadata
-        if "olas" in protocol.lower() or "autonolas" in protocol.lower():
+        # Olas agents — service registry
+        if "olas" in protocol or "autonolas" in protocol:
             svc_id = agent_info.get("service_id", "")
             if svc_id:
                 endpoints.append(f"https://registry.olas.network/api/services/{svc_id}/endpoints")
+
+        # A2A Protocol — Google standard (.well-known/agent.json)
+        url = agent_info.get("url", "")
+        if url:
+            base = url.rstrip("/")
+            endpoints.append(f"{base}/.well-known/agent.json")
+            endpoints.append(f"{base}/api/register")
+            endpoints.append(f"{base}/api/v1/agents")
+
+        # Known agent platforms with real APIs
+        if "elizaos" in protocol or "eliza" in protocol:
+            endpoints.append("https://api.elizaos.com/v1/agents/register")
+        if "fetch" in protocol:
+            endpoints.append("https://agentverse.ai/v1/hosting/agents")
+        if "virtuals" in protocol:
+            endpoints.append("https://api.virtuals.io/api/agents")
+        if "myshell" in protocol:
+            endpoints.append("https://api.myshell.ai/v1/bot/register")
+
+        # Scan for .well-known/ai-plugin.json (ChatGPT plugin standard)
+        if agent_info.get("domain"):
+            domain = agent_info["domain"]
+            endpoints.append(f"https://{domain}/.well-known/ai-plugin.json")
+            endpoints.append(f"https://{domain}/api/register")
 
         return endpoints
 
