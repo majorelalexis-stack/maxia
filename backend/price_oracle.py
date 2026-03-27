@@ -134,6 +134,12 @@ TOKEN_MINTS = {
     "AAVE": "aave",
     "LDO": "lido-dao",
     "VIRTUAL": "virtual-protocol",
+    # V12.1: Tokens multi-chain ajoutes (prix via CoinGecko)
+    "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
+    "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
+    "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
+    "APT": "aptos", "SEI": "sei-network", "NEAR": "near",
+    "FIL": "filecoin", "AR": "arweave", "ONDO": "ondo-finance",
     "OLAS": "autonolas",
     "FET": "artificial-superintelligence-alliance",
     "PEPE": "pepe",
