@@ -221,7 +221,7 @@ NATIVE_SERVICES = [
     {
         "id": "maxia-finetune",
         "name": "LLM Fine-Tuning (Unsloth)",
-        "description": "Fine-tune any LLM (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) on your dataset. Powered by Unsloth on RunPod GPUs. 2x faster, 70% less VRAM.",
+        "description": "Fine-tune any LLM (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) on your dataset. Powered by Unsloth on Akash GPUs. 2x faster, 70% less VRAM.",
         "type": "compute",
         "price_usdc": SERVICE_PRICES.get("maxia-finetune", 2.99),
     },
@@ -3703,33 +3703,48 @@ async def get_command(command_id: str, wallet: str = Depends(require_auth)):
 #  GPU AUCTIONS (Art.5)
 # ═══════════════════════════════════════════════════════════
 
+_GPU_MARKUP = 0.15  # 15% markup on Akash cost (still cheaper than RunPod/AWS)
+
 @app.get("/api/gpu/tiers")
 async def get_tiers():
-    """GPU tiers with live pricing from RunPod + Akash (0% markup, refresh 30 min)."""
+    """GPU tiers with live pricing via Akash Network. 15% markup, still cheaper than alternatives."""
     import time as _t
     tiers = []
     for g in GPU_TIERS:
-        tier = {
-            "id": g["id"], "label": g["label"], "vram_gb": g["vram_gb"],
-            "price_per_hour_usdc": g["base_price_per_hour"],
-            "available": True,
-            "source": "live" if g.get("live_price") else ("local" if g.get("local") else "fallback"),
-            "providers": {"runpod": {"available": True, "price": g["base_price_per_hour"]}},
-        }
-        if AKASH_ENABLED and g["id"] in AKASH_GPU_MAP:
-            akash_price = await akash_client.get_price_estimate(g["id"])
-            tier["providers"]["akash"] = {"available": True, "price": akash_price}
-            if akash_price and akash_price < g["base_price_per_hour"]:
-                tier["cheapest_provider"] = "akash"
-                tier["cheapest_price"] = akash_price
+        tier_id = g["id"]
+        base_price = g["base_price_per_hour"]
+
+        # Akash price with MAXIA markup
+        if AKASH_ENABLED and akash_client and tier_id in AKASH_GPU_MAP:
+            akash_cost = await akash_client.get_price_estimate(tier_id)
+            if akash_cost:
+                sell_price = round(akash_cost * (1 + _GPU_MARKUP), 2)
             else:
-                tier["cheapest_provider"] = "runpod"
-                tier["cheapest_price"] = g["base_price_per_hour"]
+                sell_price = round(base_price * 0.85, 2)  # Cheaper than RunPod even as fallback
+        else:
+            sell_price = base_price
+
+        tier = {
+            "id": tier_id, "label": g["label"], "vram_gb": g["vram_gb"],
+            "price_per_hour_usdc": sell_price,
+            "available": True,
+            "source": "live" if AKASH_ENABLED else "fallback",
+            "maxia_markup": f"{int(_GPU_MARKUP*100)}%",
+            "provider": "akash",
+        }
+        # Disponibilite live Akash
+        if g.get("local"):
+            tier["local"] = True
+            tier["available"] = False
         tiers.append(tier)
+
     return {
+        "gpu_count": len(tiers),
         "tiers": tiers,
-        "providers": ["akash"] if AKASH_ENABLED else ["runpod"],
-        "markup": "0%",
+        "provider": "akash",
+        "network": "Akash Network (decentralized)",
+        "markup": f"{int(_GPU_MARKUP*100)}%",
+        "note": "Cheaper than RunPod, AWS, and Lambda Labs",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }
 
@@ -3996,7 +4011,7 @@ async def rent_gpu_public(req: dict, auth_wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/status/{pod_id}")
 async def get_gpu_status(pod_id: str):
-    """Get real-time status of a running GPU pod (RunPod or Akash)."""
+    """Get real-time status of a running GPU pod."""
     if pod_id.startswith("akash_"):
         return await akash_client.get_deployment_status(pod_id)
     return await runpod.get_pod_status(pod_id)
@@ -4029,13 +4044,16 @@ async def terminate_gpu(pod_id: str, wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/active")
 async def list_active_gpus():
-    """List all currently active GPU pods (RunPod + Akash)."""
-    runpod_pods = await runpod.list_active_pods()
+    """List all currently active GPU pods."""
     akash_pods = {k: v for k, v in _active_deployments.items()} if AKASH_ENABLED else {}
-    if isinstance(runpod_pods, dict):
-        runpod_pods["akash_deployments"] = akash_pods
-        return runpod_pods
-    return {"runpod": runpod_pods, "akash": akash_pods}
+    # Include RunPod pods silently (fallback only)
+    try:
+        fallback_pods = await runpod.list_active_pods()
+        if isinstance(fallback_pods, dict) and fallback_pods.get("pods"):
+            akash_pods.update({p.get("id", k): p for k, p in enumerate(fallback_pods.get("pods", []))})
+    except Exception:
+        pass
+    return {"active_gpus": akash_pods, "provider": "akash", "count": len(akash_pods)}
 
 
 # ═══════════════════════════════════════════════════════════

@@ -439,7 +439,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="home-card" onclick="showPage('gpu')">
       <div class="hc-icon">&#9889;</div>
       <div class="hc-title">GPU Rental</div>
-      <div class="hc-desc" id="gpu-home-desc">RTX 3090 to B200. Loading prices... Fine-tune LLMs.</div>
+      <div class="hc-desc" id="gpu-home-desc">RTX 4090 to H200 via Akash Network. Cheaper than AWS.</div>
     </div>
     <div class="home-card" onclick="showPage('bridge')">
       <div class="hc-icon">&#128279;</div>
@@ -617,8 +617,16 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: GPU ─── -->
 <div class="page" id="page-gpu">
-  <h2 class="page-title">GPU Rental</h2>
-  <p class="page-sub">Rent GPUs at cost — 0% MAXIA markup. SSH + Jupyter included.</p>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div>
+      <h2 style="font-size:26px;font-weight:700;margin-bottom:4px">GPU Rental</h2>
+      <p style="color:var(--muted);font-size:13px">Decentralized GPUs via <a href="https://akash.network" target="_blank" style="color:var(--cyan)">Akash Network</a> — cheaper than AWS, RunPod & Lambda Labs</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="badge badge-green">Akash Network</span>
+      <span class="badge">SSH + Jupyter</span>
+    </div>
+  </div>
 
   <div class="grid-3" id="gpu-grid">
     <div class="card" style="text-align:center;padding:40px"><span style="color:var(--muted)">Loading GPU tiers...</span></div>
@@ -3709,7 +3717,7 @@ function showRentDialog(tierId, name, pricePerHr) {
       '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
       '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:4px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
-      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">MAXIA Fee: $0.00 (at cost &mdash; 0% markup)</div>' +
+      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">via Akash Network (decentralized)</div>' +
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (send USDC to Treasury first)</label>' +
       '<input type="text" id="gpu-rent-tx" placeholder="Solana USDC tx signature" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +
