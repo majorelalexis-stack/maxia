@@ -3675,6 +3675,9 @@ async function loadGPU() {
 
     if (Array.isArray(tiers) && tiers.length > 0) {
       _gpuTiersCache = tiers;
+      // Only show GPUs actually available on Akash Network
+      var _akashReal = ['rtx4090','rtx5090','rtx_pro6000','a100_80','h100_sxm','h200'];
+      var realTiers = tiers.filter(function(g){return !g.local && _akashReal.indexOf(g.id) >= 0;});
       grid.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
         '<thead><tr style="background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">' +
           '<th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">GPU</th>' +
@@ -3684,9 +3687,7 @@ async function loadGPU() {
           '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Status</th>' +
           '<th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase"></th>' +
         '</tr></thead><tbody>' +
-        // Only show GPUs actually available on Akash Network
-        var _akashReal = ['rtx4090','rtx5090','rtx_pro6000','a100_80','h100_sxm','h200'];
-        tiers.filter(function(g){return !g.local && _akashReal.indexOf(g.id) >= 0;}).map(function(g) {
+        realTiers.map(function(g) {
           var tierId = g.id || '';
           var name = g.label || g.name || 'GPU';
           var vram = g.vram_gb || g.vram || '—';
