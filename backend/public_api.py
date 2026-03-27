@@ -2863,13 +2863,36 @@ async def public_wallet_analysis(address: str = ""):
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():
-    """Liste les GPU disponibles avec prix live RunPod (0% markup).
+    """Liste les GPU disponibles avec prix live RunPod + Akash (0% markup).
     GPU_TIERS est mis a jour toutes les 30 min par gpu_pricing.py."""
     import time as _t
-    from config import GPU_TIERS, BROKER_MARGIN
+    from config import GPU_TIERS, BROKER_MARGIN, AKASH_ENABLED
     tiers = []
+
+    # Akash GPU map (if available)
+    akash_map = {}
+    akash_ok = False
+    if AKASH_ENABLED:
+        try:
+            from akash_client import akash as _akash, AKASH_GPU_MAP
+            akash_map = AKASH_GPU_MAP
+            akash_ok = True
+        except Exception:
+            pass
+
     for gpu in GPU_TIERS:
         price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
+        providers = {"runpod": {"available": True, "price": price}}
+
+        # Add Akash provider if available for this tier
+        if akash_ok and gpu["id"] in akash_map:
+            try:
+                akash_price = await _akash.get_price_estimate(gpu["id"])
+                if akash_price:
+                    providers["akash"] = {"available": True, "price": round(akash_price, 4)}
+            except Exception:
+                providers["akash"] = {"available": True, "price": None}
+
         tiers.append({
             "id": gpu["id"],
             "label": gpu["label"],
@@ -2879,11 +2902,12 @@ async def public_gpu_tiers():
             "source": "live" if gpu.get("live_price") else ("local" if gpu.get("local") else "fallback"),
             "maxia_markup": "0%",
             "local": gpu.get("local", False),
+            "providers": providers,
         })
     return {
         "gpu_count": len(tiers),
         "tiers": tiers,
-        "provider": "RunPod (via MAXIA)",
+        "providers": ["runpod"] + (["akash"] if akash_ok else []),
         "markup": "0%",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }

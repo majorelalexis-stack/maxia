@@ -26,7 +26,9 @@ from models import (
 from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
 try:
     from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
-except ImportError:
+    print(f"[Akash] Module charge OK — {len(AKASH_GPU_MAP)} GPU mappings")
+except Exception as e:
+    print(f"[Akash] Import echoue: {e} — mode RunPod only")
     akash_client = None
     AKASH_GPU_MAP = {}
     AKASH_MAX_PRICE = 10.0
