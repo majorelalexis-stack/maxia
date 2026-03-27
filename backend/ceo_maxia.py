@@ -2036,7 +2036,12 @@ async def deployer_push_github(filename: str, content: str, commit_msg: str) -> 
                 return {"success": True, "url": page_url, "filename": filename}
             else:
                 error = resp.json().get("message", resp.text[:200])
-                print(f"[DEPLOYER] GitHub error: {error}")
+                if "Bad credentials" in error:
+                    if not getattr(deployer_push_github, '_cred_warned', False):
+                        print(f"[DEPLOYER] GitHub token expired/invalid — blog deploy disabled until token is renewed")
+                        deployer_push_github._cred_warned = True
+                else:
+                    print(f"[DEPLOYER] GitHub error: {error}")
                 return {"success": False, "error": error}
 
     except Exception as e:

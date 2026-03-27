@@ -212,6 +212,7 @@ class ScoutAgent:
         self._running: bool = False
         self._total_discovered = 0
         self._total_contacted = 0
+        self._unreachable_count: int = 0  # throttle "No API reachable" logs
         self._max_contacts_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_agent = 2
         print("[SCOUT] Agent IA-to-IA prospection initialise (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)")
@@ -229,12 +230,15 @@ class ScoutAgent:
         while self._running:
             try:
                 self._reset_daily()
+                self._unreachable_count = 0
                 agents = await self.scan_all_chains()
                 for agent_info in agents:
                     if not self._can_contact():
                         break
                     await self._contact_agent(agent_info)
                     await asyncio.sleep(2)  # 2s entre chaque contact (pas de spam)
+                if self._unreachable_count > 3:
+                    print(f"[SCOUT] {self._unreachable_count} agents unreachable this cycle (suppressed {self._unreachable_count - 3} logs)")
             except Exception as e:
                 print(f"[SCOUT] Erreur boucle: {e}")
                 await alert_error("SCOUT", str(e))
@@ -739,8 +743,10 @@ class ScoutAgent:
             except Exception:
                 continue
 
-        # If no API worked, log as discovered but not contacted
-        print(f"[SCOUT] No API reachable for {address[:12]}... ({protocol}), logged for manual follow-up")
+        # If no API worked, count silently (throttle log spam)
+        self._unreachable_count += 1
+        if self._unreachable_count <= 3:
+            print(f"[SCOUT] No API reachable for {address[:12]}... ({protocol})")
 
     def _get_api_endpoints(self, agent_info: dict) -> list:
         """Determine possible API endpoints for an agent."""
