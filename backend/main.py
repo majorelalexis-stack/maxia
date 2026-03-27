@@ -33,7 +33,10 @@ except ImportError:
     _active_deployments = {}
     class AkashClient:
         pass
-from agentid_client import agentid as agentid_client
+try:
+    from agentid_client import agentid as agentid_client
+except ImportError:
+    agentid_client = None
 from config import AKASH_ENABLED
 from solana_verifier import verify_transaction
 from security import check_content_safety, check_rate_limit, set_redis_client
