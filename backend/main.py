@@ -379,6 +379,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Forum] Seed error: {e}")
 
+    # Marketplace tables + seed native services
+    try:
+        from creator_marketplace import ensure_marketplace_tables
+        await ensure_marketplace_tables(db)
+    except Exception as e:
+        print(f"[Marketplace] Init error: {e}")
+
     # V12: Ensure referred_by column exists in agents table
     try:
         await db.raw_execute(

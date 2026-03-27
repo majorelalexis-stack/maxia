@@ -24,6 +24,76 @@ REVENUE_SPLIT = {"creator": 0.90, "platform": 0.10}
 
 PRICING_MODELS = ["per_call", "monthly", "one_time", "free"]
 
+_marketplace_ready = False
+
+async def ensure_marketplace_tables(db):
+    """Cree les tables marketplace + seed les services natifs MAXIA."""
+    global _marketplace_ready
+    if _marketplace_ready:
+        return
+    try:
+        await db.raw_executescript(
+            "CREATE TABLE IF NOT EXISTS creator_tools("
+            "id TEXT PRIMARY KEY, data TEXT NOT NULL, category TEXT, "
+            "creator_wallet TEXT, status TEXT DEFAULT 'active', created_at INTEGER);"
+            "CREATE TABLE IF NOT EXISTS creator_reviews("
+            "id TEXT PRIMARY KEY, tool_id TEXT, buyer_wallet TEXT, "
+            "rating INTEGER, review TEXT, created_at INTEGER);"
+            "CREATE TABLE IF NOT EXISTS creator_purchases("
+            "id TEXT PRIMARY KEY, tool_id TEXT, buyer_wallet TEXT, "
+            "amount_usdc REAL, creator_share REAL, platform_share REAL, created_at INTEGER);"
+            "CREATE INDEX IF NOT EXISTS idx_tools_category ON creator_tools(category);"
+            "CREATE INDEX IF NOT EXISTS idx_tools_creator ON creator_tools(creator_wallet);")
+        _marketplace_ready = True
+
+        # Seed with native MAXIA services if empty
+        rows = await db.raw_execute_fetchall("SELECT COUNT(*) as c FROM creator_tools")
+        count = rows[0]["c"] if isinstance(rows[0], dict) else rows[0][0]
+        if count == 0:
+            await _seed_native_services(db)
+    except Exception as e:
+        logging.getLogger(__name__).error(f"[Marketplace] Schema error: {e}")
+
+
+async def _seed_native_services(db):
+    """Seed le marketplace avec les services natifs MAXIA."""
+    now = int(time.time())
+    services = [
+        {"id": "maxia-audit", "name": "AI Code Audit", "description": "Automated security + quality audit of your codebase by AI. Finds vulnerabilities, bad patterns, and suggests fixes.", "category": "tools", "price_usdc": 4.99, "tags": ["security", "code", "audit"]},
+        {"id": "maxia-code-review", "name": "AI Code Review", "description": "Comprehensive code review — style, bugs, performance, security. Like a senior engineer reviewing your PR.", "category": "tools", "price_usdc": 2.99, "tags": ["code", "review", "quality"]},
+        {"id": "maxia-translate", "name": "AI Translation", "description": "Translate text between 100+ languages. Context-aware, preserves formatting.", "category": "tools", "price_usdc": 0.05, "tags": ["translation", "language", "text"]},
+        {"id": "maxia-summary", "name": "AI Summarizer", "description": "Summarize long documents, articles, papers into concise key points.", "category": "tools", "price_usdc": 0.49, "tags": ["summary", "text", "nlp"]},
+        {"id": "maxia-wallet-analysis", "name": "Wallet Analysis", "description": "Deep analysis of any Solana/EVM wallet — holdings, history, risk score, whale detection.", "category": "tools", "price_usdc": 1.99, "tags": ["wallet", "analysis", "onchain"]},
+        {"id": "maxia-marketing", "name": "AI Marketing Copy", "description": "Generate marketing copy, social posts, ad text, landing page content.", "category": "prompts", "price_usdc": 0.99, "tags": ["marketing", "copy", "content"]},
+        {"id": "maxia-image", "name": "AI Image Generation", "description": "Generate images from text prompts via Pollinations.ai. Free, no GPU needed.", "category": "tools", "price_usdc": 0.10, "tags": ["image", "generation", "ai"]},
+        {"id": "maxia-scraper", "name": "Web Scraper", "description": "Scrape any URL and get structured text, links, images. SSRF-protected.", "category": "tools", "price_usdc": 0.02, "tags": ["scraper", "web", "data"]},
+        {"id": "maxia-sentiment", "name": "Sentiment Analysis", "description": "Analyze sentiment of text, tweets, reviews. Returns score + confidence.", "category": "tools", "price_usdc": 0.005, "tags": ["sentiment", "nlp", "analysis"]},
+        {"id": "maxia-wallet-risk", "name": "Wallet Risk Score", "description": "Risk assessment for any wallet — fraud detection, suspicious patterns.", "category": "tools", "price_usdc": 0.10, "tags": ["risk", "wallet", "security"]},
+        {"id": "maxia-airdrop-scanner", "name": "Airdrop Scanner", "description": "Scan your wallet for unclaimed airdrops across Solana + EVM chains.", "category": "tools", "price_usdc": 0.50, "tags": ["airdrop", "scanner", "defi"]},
+        {"id": "maxia-smart-money", "name": "Smart Money Tracker", "description": "Track whale wallets and smart money flows in real-time.", "category": "datasets", "price_usdc": 0.25, "tags": ["whale", "tracking", "alpha"]},
+        {"id": "maxia-transcription", "name": "Audio Transcription", "description": "Transcribe audio/video to text. Supports 50+ languages.", "category": "tools", "price_usdc": 0.01, "tags": ["transcription", "audio", "speech"]},
+        {"id": "maxia-embedding", "name": "Text Embeddings", "description": "Generate vector embeddings for text. Useful for RAG, search, similarity.", "category": "models", "price_usdc": 0.001, "tags": ["embedding", "vector", "rag"]},
+        {"id": "maxia-nft-rarity", "name": "NFT Rarity Checker", "description": "Check rarity score for any NFT collection on Solana.", "category": "tools", "price_usdc": 0.05, "tags": ["nft", "rarity", "solana"]},
+        {"id": "maxia-finetune", "name": "LLM Fine-Tuning", "description": "Fine-tune Llama, Qwen, Mistral on your data. Powered by Unsloth on Akash GPUs.", "category": "models", "price_usdc": 2.99, "tags": ["finetune", "llm", "training"]},
+        {"id": "maxia-defi-yields", "name": "DeFi Yield Finder", "description": "Find the best APY across lending, staking, LP on 14 chains.", "category": "datasets", "price_usdc": 0.00, "tags": ["defi", "yields", "apy"]},
+    ]
+    for svc in services:
+        tool = {
+            "id": svc["id"], "name": svc["name"], "description": svc["description"],
+            "category": svc["category"], "creator_wallet": "MAXIA_NATIVE",
+            "creator_name": "MAXIA", "pricing_model": "per_call",
+            "price_usdc": svc["price_usdc"], "tags": svc["tags"],
+            "version": "1.0.0", "status": "active", "downloads": 0,
+            "avg_rating": 5.0, "rating_count": 0, "created_at": now,
+        }
+        try:
+            await db.raw_execute(
+                "INSERT INTO creator_tools(id, data, category, creator_wallet, status, created_at) VALUES(?,?,?,?,?,?)",
+                (svc["id"], json.dumps(tool, default=str), svc["category"], "MAXIA_NATIVE", "active", now))
+        except Exception:
+            pass  # Already exists
+    logging.getLogger(__name__).info(f"[Marketplace] Seeded {len(services)} native services")
+
 
 async def publish_tool(db, data: dict) -> dict:
     """Publish a new tool/dataset/prompt/workflow/model on the marketplace."""
