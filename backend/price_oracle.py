@@ -9,7 +9,7 @@ Strategie:
 3. Fallback mars 2026 si echec
 
 Optimisations V12:
-- Parallel fetch (107 tokens en ~1s au lieu de 7.5s)
+- Parallel fetch (65 tokens en ~1s au lieu de 7.5s)
 - Circuit breaker (coupe apres 3 echecs, retry apres 60s)
 - Connection pool HTTP partage
 """
@@ -163,6 +163,9 @@ FALLBACK_PRICES = {
     "SLERF": 0.1, "MPLX": 0.03, "INF": 150, "PNUT": 0.2, "GOAT": 0.1,
     "LINK": 15.0, "UNI": 7.5, "AAVE": 200.0, "LDO": 1.5, "VIRTUAL": 0.50,
     "OLAS": 1.0, "FET": 0.60, "PEPE": 0.000012, "DOGE": 0.15, "SHIB": 0.000015,
+    "TAO": 300, "AKT": 2.5, "AIOZ": 0.04, "ARB": 0.35, "OP": 0.80,
+    "TIA": 3.0, "INJ": 8.0, "STX": 0.50, "SUI": 2.0, "APT": 5.0,
+    "SEI": 0.18, "NEAR": 2.5, "FIL": 3.0, "AR": 8.0, "ONDO": 0.90,
     "AAPL": 257, "TSLA": 397, "NVDA": 178, "GOOGL": 299,
     "MSFT": 403, "AMZN": 213, "META": 614, "MSTR": 340,
     "SPY": 672, "QQQ": 515,
@@ -171,6 +174,7 @@ FALLBACK_PRICES = {
     "AVGO": 330, "DIA": 495, "IWM": 262, "GLD": 450,
     "ARKK": 55, "RIOT": 12, "SHOP": 100, "SQ": 80,
     "PYPL": 70, "ORCL": 170,
+    "DIS": 93, "V": 295, "MA": 482,
 }
 
 _price_cache: dict = {}
@@ -357,6 +361,12 @@ async def get_prices(symbols: list = None) -> dict:
             "LDO": "lido-dao", "VIRTUAL": "virtual-protocol", "OLAS": "autonolas",
             "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
             "DOGE": "dogecoin", "SHIB": "shiba-inu",
+            # Tokens multi-chain ajoutes V12.1 (etaient sans prix)
+            "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
+            "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
+            "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
+            "APT": "aptos", "SEI": "sei-network", "NEAR": "near",
+            "FIL": "filecoin", "AR": "arweave", "ONDO": "ondo-finance",
         }
         cg_ids = [SYM_TO_COINGECKO[s] for s in missing_crypto if s in SYM_TO_COINGECKO]
         if cg_ids and not _cb_coingecko.is_open:

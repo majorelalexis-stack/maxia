@@ -384,7 +384,10 @@ async def get_forum_stats(db) -> dict:
     try:
         posts = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM forum_posts WHERE status='active'")
         replies = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM forum_replies WHERE status='active'")
-        agents = await db.raw_execute_fetchall("SELECT COUNT(DISTINCT json_extract(data,'$.author_wallet')) as cnt FROM forum_posts")
+        try:
+            agents = await db.raw_execute_fetchall("SELECT COUNT(DISTINCT data::json->>'author_wallet') as cnt FROM forum_posts")
+        except Exception:
+            agents = await db.raw_execute_fetchall("SELECT COUNT(DISTINCT json_extract(data,'$.author_wallet')) as cnt FROM forum_posts")
         return {
             "total_posts": posts[0]["cnt"] if posts else 0,
             "total_replies": replies[0]["cnt"] if replies else 0,
