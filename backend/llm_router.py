@@ -153,10 +153,20 @@ class LLMRouter:
             resp.raise_for_status()
             return resp.json().get("response", "")
 
+    _groq_last_call: float = 0
+    _GROQ_MIN_INTERVAL: float = 10.0  # Max 1 req per 10s to avoid rate limits
+
     async def _call_groq(self, system: str, prompt: str, max_tokens: int) -> str:
-        """Appel Groq (gratuit mais rate limited)."""
+        """Appel Groq (gratuit mais rate limited — 1 req/10s max)."""
         if not self._groq_key:
             raise RuntimeError("No Groq API key")
+        # Rate limit: wait if too fast
+        now = time.time()
+        elapsed = now - LLMRouter._groq_last_call
+        if elapsed < self._GROQ_MIN_INTERVAL:
+            await asyncio.sleep(self._GROQ_MIN_INTERVAL - elapsed)
+        LLMRouter._groq_last_call = time.time()
+
         from groq import Groq
         c = Groq(api_key=self._groq_key)
         def _c():

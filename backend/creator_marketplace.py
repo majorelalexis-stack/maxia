@@ -75,7 +75,7 @@ async def _seed_native_services(db):
         {"id": "maxia-embedding", "name": "Text Embeddings", "description": "Generate vector embeddings for text. Useful for RAG, search, similarity.", "category": "models", "price_usdc": 0.001, "tags": ["embedding", "vector", "rag"]},
         {"id": "maxia-nft-rarity", "name": "NFT Rarity Checker", "description": "Check rarity score for any NFT collection on Solana.", "category": "tools", "price_usdc": 0.05, "tags": ["nft", "rarity", "solana"]},
         {"id": "maxia-finetune", "name": "LLM Fine-Tuning", "description": "Fine-tune Llama, Qwen, Mistral on your data. Powered by Unsloth on Akash GPUs.", "category": "models", "price_usdc": 2.99, "tags": ["finetune", "llm", "training"]},
-        {"id": "maxia-defi-yields", "name": "DeFi Yield Finder", "description": "Find the best APY across lending, staking, LP on 14 chains.", "category": "datasets", "price_usdc": 0.00, "tags": ["defi", "yields", "apy"]},
+        {"id": "maxia-defi-yields", "name": "DeFi Yield Finder", "description": "Find the best APY across lending, staking, LP on 14 chains.", "category": "datasets", "price_usdc": 0.10, "tags": ["defi", "yields", "apy"]},
     ]
     for svc in services:
         tool = {

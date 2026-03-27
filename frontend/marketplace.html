@@ -378,7 +378,7 @@ function renderTools(tools) {
     const catIcon = CAT_ICONS[tool.category] || '&#128295;';
     const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
     const stars = renderStars(tool.rating || 0);
-    const priceText = (tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+    const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
     const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
     const reviewCount = tool.review_count || 0;
 
@@ -398,7 +398,7 @@ function renderTools(tools) {
           '<span class="tool-sales">' + (tool.sales || 0) + ' sales</span>' +
         '</div>' +
       '</div>' +
-      '<button class="btn-buy" onclick="event.stopPropagation();buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price || 0) + ')">Buy Tool</button>';
+      '<button class="btn-buy" onclick="event.stopPropagation();buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price_usdc || tool.price || 0) + ')">Buy Tool</button>';
 
     grid.appendChild(card);
   });
@@ -428,7 +428,7 @@ function renderToolDetail(tool) {
   const catIcon = CAT_ICONS[tool.category] || '&#128295;';
   const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
   const stars = renderStars(tool.rating || 0);
-  const priceText = (tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+  const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
   const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
   const reviews = tool.reviews || [];
 
@@ -496,7 +496,7 @@ function renderToolDetail(tool) {
   html += '  <div><div class="modal-price">' + priceText + '</div>';
   if (pricingLabel && priceText !== 'Free') html += '<div class="modal-price-sub">' + pricingLabel + '</div>';
   html += '  </div>';
-  html += '  <button class="btn-buy-large" onclick="buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price || 0) + ')">Buy Now</button>';
+  html += '  <button class="btn-buy-large" onclick="buyTool(\'' + escAttr(tool.id) + '\',\'' + escAttr(tool.name) + '\',' + (tool.price_usdc || tool.price || 0) + ')">Buy Now</button>';
   html += '</div>';
 
   html += '</div>'; // modal-body

@@ -1369,9 +1369,21 @@ async def forum_admin_unban(request: Request):
 # ── Creator Marketplace ──
 @app.get("/api/public/marketplace")
 async def marketplace_home():
-    from creator_marketplace import TOOL_CATEGORIES, get_tools
-    tools = await get_tools(db, sort="popular", limit=20)
-    return {"categories": TOOL_CATEGORIES, "tools": tools, "total": len(tools), "revenue_split": {"creator": "90%", "platform": "10%"}}
+    from creator_marketplace import TOOL_CATEGORIES, get_tools, ensure_marketplace_tables
+    await ensure_marketplace_tables(db)
+    tools = await get_tools(db, sort="popular", limit=50)
+    total_value = sum(t.get("price_usdc", 0) for t in tools)
+    return {
+        "categories": TOOL_CATEGORIES,
+        "tools": tools,
+        "total": len(tools),
+        "revenue_split": {"creator": "90%", "platform": "10%"},
+        "stats": {
+            "total_tools": len(tools),
+            "total_creators": len(set(t.get("creator_wallet", "") for t in tools)),
+            "revenue_shared": round(total_value * 0.9, 2),
+        },
+    }
 
 @app.get("/api/public/marketplace/category/{category}")
 async def marketplace_category(category: str, sort: str = "popular", limit: int = 20):
