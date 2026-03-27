@@ -2788,9 +2788,28 @@ async def scout_scan_onchain_agents(memory) -> list:
                 if r.get("name") and not r.get("archived", False)
             ],
         },
+        {
+            # 8004scan — registre ERC-8004 agents autonomes (EVM)
+            "name": "8004scan",
+            "url": "https://www.8004scan.io/api/agents?limit=20&sort=latest",
+            "chain": "ethereum",
+            "parse": lambda data: [
+                {
+                    "address": a.get("address", a.get("contractAddress", a.get("id", ""))),
+                    "behavior": f"erc8004 agent: {a.get('name', a.get('title', 'unnamed'))[:60]}",
+                    "metadata": {
+                        "url": a.get("url", a.get("endpoint", "")),
+                        "description": a.get("description", "")[:100],
+                        "owner": a.get("owner", a.get("creator", "")),
+                    },
+                }
+                for a in (data if isinstance(data, list) else data.get("agents", data.get("data", data.get("results", []))))
+                if a.get("address") or a.get("contractAddress") or a.get("id")
+            ],
+        },
     ]
 
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
         # Lancer toutes les requetes en parallele
         tasks = []
         for reg in registry_configs:
@@ -2865,7 +2884,82 @@ async def scout_scan_onchain_agents(memory) -> list:
     except Exception as e:
         print(f"[SCOUT] Memory scan error: {e}")
 
-    print(f"[SCOUT] Scan termine: {len(detected)} agents detectes")
+    # ── 5. AUTO-CONTACT — contacter les nouveaux agents avec endpoint A2A ──
+    already_contacted = set()
+    try:
+        already_contacted = {c.get("address", "") for c in memory._data.get("contacts_log", [])}
+    except Exception:
+        pass
+
+    contacted = 0
+    for agent in detected:
+        if contacted >= 3:  # Max 3 contacts par scan (anti-spam)
+            break
+        addr = agent.get("address", "")
+        reg = agent.get("registry", "")
+        if not addr or addr in already_contacted:
+            continue
+        # Prioriser les agents de registres riches (8004scan, olas, fetch, virtuals)
+        if reg not in ("8004scan", "olas", "fetch.ai", "virtuals"):
+            continue
+        # Generer un pitch adapte au registre
+        pitch = (
+            f"Hi! MAXIA is an AI-to-AI marketplace on 14 blockchains. "
+            f"107 tokens, GPU rental at cost, DeFi yields, tokenized stocks, "
+            f"46 MCP tools, W3C DID identity + signed intents. "
+            f"Your agent ({agent.get('behavior', '')[:60]}) "
+            f"could use our services or list on our marketplace. "
+            f"Join our agent forum: https://maxiaworld.app/forum "
+            f"| API: https://maxiaworld.app/a2a"
+        )
+        try:
+            result = await scout_first_contact_a2a(addr, agent.get("chain", "ethereum"), pitch)
+            if result.get("success"):
+                contacted += 1
+                method = result.get("method", "?")
+                print(f"[SCOUT] Auto-contacted {addr[:20]}... via {method}")
+                # Notification Telegram — alerter le fondateur
+                try:
+                    await alert_info(
+                        f"SCOUT: contact A2A reussi\n"
+                        f"Agent: {addr[:20]}... ({agent.get('chain', '?')})\n"
+                        f"Registre: {reg}\n"
+                        f"Methode: {method}\n"
+                        f"Behavior: {agent.get('behavior', '')[:80]}"
+                    )
+                except Exception:
+                    pass
+                # Log le contact
+                try:
+                    memory._data.setdefault("contacts_log", []).append({
+                        "address": addr, "chain": agent.get("chain", ""),
+                        "registry": reg, "method": result.get("method", ""),
+                        "ts": now, "response": result.get("response", "pending"),
+                    })
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[SCOUT] Auto-contact error {addr[:20]}: {e}")
+
+    print(f"[SCOUT] Scan termine: {len(detected)} agents detectes, {contacted} auto-contacted")
+
+    # Notification Telegram — rapport de scan (meme si 0 contacts)
+    if detected:
+        registries = {}
+        for a in detected:
+            r = a.get("registry", "unknown")
+            registries[r] = registries.get(r, 0) + 1
+        reg_summary = ", ".join(f"{v} {k}" for k, v in registries.items())
+        try:
+            await alert_info(
+                f"SCOUT scan: {len(detected)} agents detectes\n"
+                f"Registres: {reg_summary}\n"
+                f"Contacts: {contacted}/{min(3, len(detected))}\n"
+                f"Echecs: {min(3, len(detected)) - contacted}"
+            )
+        except Exception:
+            pass
+
     return detected
 
 
@@ -2889,13 +2983,17 @@ async def _scout_fetch_registry(client, reg_config: dict, seen: set, now: str) -
                 addr = str(agent.get("address", ""))
                 if addr and addr not in seen:
                     seen.add(addr)
-                    results.append({
+                    entry = {
                         "address": addr,
                         "chain": reg_config["chain"],
                         "behavior": agent.get("behavior", f"registered on {name}"),
                         "registry": name,
                         "detected_at": now,
-                    })
+                    }
+                    # Conserver les metadonnees (URL, description) pour le contact A2A
+                    if agent.get("metadata"):
+                        entry["metadata"] = agent["metadata"]
+                    results.append(entry)
             print(f"[SCOUT] {name}: {len(results)} agents trouves")
         else:
             print(f"[SCOUT] {name}: HTTP {resp.status_code}")
@@ -2962,7 +3060,7 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
 
     # Tenter la decouverte et le contact A2A
     a2a_success = False
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
         for endpoint in a2a_endpoints[:5]:  # Limiter a 5 tentatives
             try:
                 # 1a. Decouverte — verifier si l'agent expose un agent card
