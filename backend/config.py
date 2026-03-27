@@ -49,6 +49,13 @@ GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # ── GPU ──
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")
+AKASH_API_KEY = os.getenv("AKASH_API_KEY", "")
+AKASH_WALLET = os.getenv("AKASH_WALLET", "")
+AKASH_ENABLED = os.getenv("AKASH_ENABLED", "false").lower() == "true"
+
+# ── AgentID (trust levels) ──
+AGENTID_API_KEY = os.getenv("AGENTID_API_KEY", "")
+AGENTID_ENABLED = os.getenv("AGENTID_ENABLED", "false").lower() == "true"
 
 # ── Agent Marketing ──
 MARKETING_WALLET_ADDRESS = os.getenv("MARKETING_WALLET_ADDRESS", "")
