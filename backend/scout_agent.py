@@ -252,7 +252,7 @@ class ScoutAgent:
     # ══════════════════════════════════════════
 
     async def scan_all_chains(self) -> list:
-        """Scan les 14 chains en parallele pour trouver des agents IA."""
+        """Scan les 14 chains + registries + GitHub pour trouver des agents IA."""
         results = await asyncio.gather(
             self._scan_solana(),
             self._scan_ethereum(),
@@ -269,6 +269,8 @@ class ScoutAgent:
             self._scan_xrp(),
             self._scan_tron(),
             self._scan_registries(),
+            self._scan_elizaos_registry(),
+            self._scan_github_agents(),
             return_exceptions=True,
         )
         agents = []
@@ -637,6 +639,125 @@ class ScoutAgent:
         print(f"[SCOUT] TRON: {len(agents)} agents trouves")
         return agents
 
+    async def _scan_elizaos_registry(self) -> list:
+        """Scan ElizaOS plugin registry — 95+ real agent plugins with GitHub repos."""
+        agents = []
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get("https://elizaos.github.io/registry/index.json")
+                if resp.status_code != 200:
+                    print(f"[SCOUT] ElizaOS registry: HTTP {resp.status_code}")
+                    return agents
+                data = resp.json()
+
+                # Each entry is "package-name": "github:owner/repo"
+                for pkg_name, source in data.items():
+                    if pkg_name.startswith("__"):  # Skip metadata
+                        continue
+                    if not isinstance(source, str) or "github:" not in source:
+                        continue
+
+                    # Extract github owner/repo
+                    repo_path = source.replace("github:", "")
+                    owner = repo_path.split("/")[0] if "/" in repo_path else ""
+                    repo = repo_path.split("/")[1] if "/" in repo_path else repo_path
+
+                    if not owner or not repo:
+                        continue
+
+                    # Determine what kind of agent/plugin this is
+                    is_agent_plugin = any(kw in pkg_name.lower() for kw in [
+                        "plugin-solana", "plugin-evm", "plugin-near", "plugin-sui",
+                        "plugin-ton", "plugin-aptos", "plugin-binance", "plugin-coinbase",
+                        "plugin-hyperliquid", "plugin-goat", "plugin-rabbi-trader",
+                        "plugin-depin", "plugin-flow", "plugin-starknet",
+                        "client-telegram", "client-discord", "client-twitter",
+                    ])
+
+                    if is_agent_plugin:
+                        agents.append({
+                            "address": f"github:{repo_path}",
+                            "chain": "multi",
+                            "protocol": "ElizaOS",
+                            "type": "plugin_developer",
+                            "service_name": pkg_name,
+                            "contact_method": "github",
+                            "github_owner": owner,
+                            "github_repo": repo,
+                            "url": f"https://github.com/{repo_path}",
+                        })
+
+            print(f"[SCOUT] ElizaOS: {len(agents)} agent plugins trouves")
+        except Exception as e:
+            print(f"[SCOUT] ElizaOS registry error: {e}")
+        return agents
+
+    async def _scan_github_agents(self) -> list:
+        """Scan GitHub for recently active AI agent repos that could list on MAXIA."""
+        agents = []
+        # Search terms that indicate real deployed agents
+        queries = [
+            "ai agent solana deployed",
+            "autonomous agent blockchain",
+            "ai agent marketplace",
+            "agent DeFi bot",
+        ]
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                for query in queries[:2]:  # Max 2 queries per cycle (rate limit)
+                    resp = await client.get(
+                        "https://api.github.com/search/repositories",
+                        params={"q": query, "sort": "updated", "per_page": 10},
+                        headers={"Accept": "application/vnd.github.v3+json"},
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    for repo in data.get("items", []):
+                        owner = repo.get("owner", {}).get("login", "")
+                        name = repo.get("name", "")
+                        url = repo.get("html_url", "")
+                        homepage = repo.get("homepage", "")
+                        desc = repo.get("description", "") or ""
+                        stars = repo.get("stargazers_count", 0)
+
+                        # Skip low-quality repos
+                        if stars < 5:
+                            continue
+                        # Skip MAXIA itself
+                        if "maxia" in name.lower():
+                            continue
+
+                        agents.append({
+                            "address": f"github:{owner}/{name}",
+                            "chain": "multi",
+                            "protocol": "GitHub",
+                            "type": "agent_developer",
+                            "service_name": name,
+                            "contact_method": "github",
+                            "github_owner": owner,
+                            "github_repo": name,
+                            "url": url,
+                            "domain": homepage.replace("https://", "").replace("http://", "").split("/")[0] if homepage else "",
+                            "stars": stars,
+                            "description": desc[:200],
+                        })
+                    await asyncio.sleep(2)  # GitHub rate limit courtesy
+
+            # Deduplicate by owner/repo
+            seen = set()
+            unique = []
+            for a in agents:
+                key = f"{a['github_owner']}/{a['github_repo']}"
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(a)
+            agents = unique
+            print(f"[SCOUT] GitHub: {len(agents)} agent repos trouves")
+        except Exception as e:
+            print(f"[SCOUT] GitHub scan error: {e}")
+        return agents
+
     async def _scan_registries(self) -> list:
         """Scan les registries HTTP d'agents IA (Autonolas, etc)."""
         agents = []
@@ -682,17 +803,84 @@ class ScoutAgent:
             return
 
         method = agent_info.get("contact_method", "")
+        contacted = False
 
         if method == "solana_memo" and chain == "solana":
             await self._contact_via_solana_memo(address, protocol)
+            contacted = True
+        elif method == "github":
+            contacted = await self._contact_via_github(agent_info)
         elif method in ("api", "api_or_onchain"):
             await self._contact_via_api(agent_info)
+            contacted = address in self._contacted_today
         else:
-            # Fallback: log discovery for manual follow-up
             self._register_discovery(address, chain, protocol, contacted=False)
             return
 
-        self._register_discovery(address, chain, protocol, contacted=True)
+        self._register_discovery(address, chain, protocol, contacted=contacted)
+
+    async def _contact_via_github(self, agent_info: dict) -> bool:
+        """Contact an agent developer via their GitHub repo or homepage."""
+        owner = agent_info.get("github_owner", "")
+        repo = agent_info.get("github_repo", "")
+        domain = agent_info.get("domain", "")
+        url = agent_info.get("url", "")
+        protocol = agent_info.get("protocol", "")
+
+        # Strategy 1: If agent has a homepage/domain, try API contact
+        if domain:
+            try:
+                endpoints = [
+                    f"https://{domain}/.well-known/agent.json",
+                    f"https://{domain}/.well-known/ai-plugin.json",
+                    f"https://{domain}/api/register",
+                    f"https://{domain}/api/v1/agents",
+                ]
+                async with httpx.AsyncClient(timeout=8) as client:
+                    for ep in endpoints:
+                        try:
+                            resp = await client.get(ep)
+                            if resp.status_code == 200:
+                                # Agent has a live API — try to register MAXIA
+                                try:
+                                    await client.post(f"https://{domain}/api/register", json={
+                                        "from": "MAXIA",
+                                        "type": "marketplace_invitation",
+                                        "message": f"List your agent on MAXIA marketplace. 14 chains, USDC payments.",
+                                        "register_url": f"https://{MAXIA_URL}/api/public/register",
+                                    })
+                                except Exception:
+                                    pass
+                                self._contacted_today.append(agent_info.get("address", ""))
+                                self._total_contacted += 1
+                                print(f"[SCOUT] GitHub+API contact -> {owner}/{repo} via {domain}")
+                                return True
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+        # Strategy 2: Log for CEO local to follow up on GitHub/Twitter
+        # (We don't create GitHub issues automatically — too spammy, would get flagged)
+        self._register_discovery(
+            agent_info.get("address", f"github:{owner}/{repo}"),
+            agent_info.get("chain", "multi"),
+            protocol,
+            contacted=False,
+        )
+        # Store as prospect for CEO to follow up manually via social media
+        try:
+            from database import db
+            import uuid as _uuid
+            await db.raw_execute(
+                "INSERT OR IGNORE INTO agent_prospects (id, wallet, chain, source, status, contacted_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (_uuid.uuid4().hex[:16], f"github:{owner}/{repo}", "multi",
+                 f"scout_{protocol}", "discovered", int(time.time()))
+            )
+        except Exception:
+            pass
+
+        return False
 
     async def _contact_via_solana_memo(self, wallet: str, protocol: str):
         """Contact un agent Solana via memo transfer."""
