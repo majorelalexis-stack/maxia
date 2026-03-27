@@ -3684,7 +3684,9 @@ async function loadGPU() {
           '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Status</th>' +
           '<th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase"></th>' +
         '</tr></thead><tbody>' +
-        tiers.filter(function(g){return !g.local;}).map(function(g) {
+        // Only show GPUs actually available on Akash Network
+        var _akashReal = ['rtx4090','rtx5090','rtx_pro6000','a100_80','h100_sxm','h200'];
+        tiers.filter(function(g){return !g.local && _akashReal.indexOf(g.id) >= 0;}).map(function(g) {
           var tierId = g.id || '';
           var name = g.label || g.name || 'GPU';
           var vram = g.vram_gb || g.vram || '—';
