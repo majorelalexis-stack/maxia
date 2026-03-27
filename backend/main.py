@@ -4730,17 +4730,70 @@ async def swarm_stop(clone_id: str, request: Request):
 
 @app.get("/api/escrow/info")
 async def escrow_public_info():
-    """Escrow public info — program ID et stats sans wallets. No auth."""
-    from config import ESCROW_PROGRAM_ID
+    """Escrow public info — Solana + Base contracts, stats. No auth."""
+    from config import ESCROW_PROGRAM_ID, ESCROW_CONTRACT_BASE
     stats = escrow_client.get_stats()
+
+    # Base escrow stats (on-chain)
+    base_stats = {}
+    try:
+        from base_escrow_client import get_stats as base_get_stats, get_contract_info
+        base_stats = await base_get_stats()
+    except Exception:
+        pass
+
     return {
-        "program_id": ESCROW_PROGRAM_ID,
-        "solscan": f"https://solscan.io/account/{ESCROW_PROGRAM_ID}",
-        "network": "mainnet-beta",
-        "active_escrows": stats.get("active", 0) if isinstance(stats, dict) else 0,
-        "total_escrows": stats.get("total", 0) if isinstance(stats, dict) else 0,
-        "escrow_enabled": not getattr(escrow_client, '_disabled', False),
+        "solana": {
+            "program_id": ESCROW_PROGRAM_ID,
+            "explorer": f"https://solscan.io/account/{ESCROW_PROGRAM_ID}",
+            "network": "mainnet-beta",
+            "active_escrows": stats.get("active", 0) if isinstance(stats, dict) else 0,
+            "total_escrows": stats.get("total", 0) if isinstance(stats, dict) else 0,
+        },
+        "base": {
+            "contract": ESCROW_CONTRACT_BASE,
+            "explorer": f"https://basescan.org/address/{ESCROW_CONTRACT_BASE}",
+            "network": "base-mainnet",
+            "total_escrows": base_stats.get("total_escrows", 0),
+            "total_volume_usdc": base_stats.get("total_volume_usdc", 0),
+            "total_commissions_usdc": base_stats.get("total_commissions_usdc", 0),
+        },
+        "chains": ["solana", "base"],
+        "escrow_enabled": True,
     }
+
+@app.get("/api/escrow/base/stats")
+async def escrow_base_stats():
+    """Base escrow on-chain stats. Public endpoint."""
+    from base_escrow_client import get_stats
+    return await get_stats()
+
+
+@app.get("/api/escrow/base/contract")
+async def escrow_base_contract():
+    """Base escrow contract info — address, ABI, explorer link."""
+    from base_escrow_client import get_contract_info
+    return get_contract_info()
+
+
+@app.post("/api/escrow/base/verify")
+async def escrow_base_verify(req: dict):
+    """Verify a Base escrow transaction by tx hash."""
+    tx_hash = req.get("tx_hash", "")
+    if not tx_hash or not tx_hash.startswith("0x"):
+        raise HTTPException(400, "tx_hash required (0x...)")
+    from base_escrow_client import verify_escrow_tx
+    return await verify_escrow_tx(tx_hash)
+
+
+@app.get("/api/escrow/base/{escrow_id}")
+async def escrow_base_get(escrow_id: str):
+    """Get Base escrow details by ID."""
+    if not escrow_id.startswith("0x"):
+        escrow_id = "0x" + escrow_id
+    from base_escrow_client import get_escrow
+    return await get_escrow(escrow_id)
+
 
 @app.get("/api/escrow/stats")
 async def escrow_stats(request: Request):
