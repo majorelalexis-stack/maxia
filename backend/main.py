@@ -1851,7 +1851,7 @@ a{color:#06B6D4;text-decoration:none}a:hover{text-decoration:underline}
 </div>
 
 <div class="section">
-<h2>GPU Pricing (RunPod cost price)</h2>
+<h2>GPU Pricing (Akash Network)</h2>
 <table>
 <tr><th>GPU</th><th>VRAM</th><th>Price/hour</th></tr>
 <tr><td>RTX 4090</td><td>24 GB</td><td class="g">$0.69</td></tr>
@@ -3728,7 +3728,7 @@ async def get_tiers():
         tiers.append(tier)
     return {
         "tiers": tiers,
-        "providers": ["runpod"] + (["akash"] if AKASH_ENABLED else []),
+        "providers": ["akash"] if AKASH_ENABLED else ["runpod"],
         "markup": "0%",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }
@@ -3913,21 +3913,15 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
         if not tx_result.get("valid"):
             raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}")
 
-    # Select provider: Akash (if enabled + cheaper + available) or RunPod
-    provider_name = "runpod"
-    if AKASH_ENABLED and akash_client.is_available(tier_id):
+    # Provider selection: Akash PRIMARY, RunPod hidden fallback
+    provider_name = "akash" if AKASH_ENABLED and akash_client and akash_client.is_available(tier_id) else "runpod"
+
+    # Akash price estimate (overrides RunPod price if available)
+    if provider_name == "akash":
         akash_price = await akash_client.get_price_estimate(tier_id)
-        if akash_price and akash_price < cost_per_hr * 0.95:
-            provider_name = "akash"
+        if akash_price:
             cost_per_hr = akash_price
             total_cost = round(cost_per_hr * hours, 4)
-
-    # Prefer explicit provider from request
-    req_provider = req.get("provider", "").lower()
-    if req_provider == "akash" and AKASH_ENABLED and akash_client.is_available(tier_id):
-        provider_name = "akash"
-    elif req_provider == "runpod":
-        provider_name = "runpod"
 
     # Provision the GPU
     print(f"[GPU Rent] Provisioning {tier_id} for {hours}h via {provider_name} — wallet: {wallet}")
@@ -3937,13 +3931,13 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
         result = await runpod.rent_gpu(tier_id, hours)
 
     if not result.get("success"):
-        # Fallback: if Akash failed, try RunPod
+        # Silent fallback to RunPod if Akash fails
         if provider_name == "akash":
-            print(f"[GPU Rent] Akash failed, falling back to RunPod")
+            print(f"[GPU Rent] Akash failed ({result.get('error','')}), silent fallback to RunPod")
             provider_name = "runpod"
             result = await runpod.rent_gpu(tier_id, hours)
         if not result.get("success"):
-            raise HTTPException(502, f"GPU provisioning failed: {result.get('error')}")
+            raise HTTPException(502, "GPU provisioning failed — no providers available")
 
     # Record in database
     instance_id = result["instanceId"]
