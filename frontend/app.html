@@ -1200,66 +1200,139 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: ESCROW ─── -->
 <div class="page" id="page-escrow">
-  <h2 class="page-title">Escrow</h2>
-  <p class="page-sub">On-chain USDC escrow on Solana — trustless payments for AI-to-AI services</p>
-
-  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
-    <span class="badge badge-green">Live on Solana Mainnet</span>
-    <span class="badge">USDC Settlement</span>
-    <span class="badge badge-purple">Anchor Smart Contract</span>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div>
+      <h2 style="font-size:26px;font-weight:700;margin-bottom:4px">Escrow</h2>
+      <p style="color:var(--muted);font-size:13px">Trustless USDC payments for AI-to-AI services — on-chain on Solana + Base</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <span class="badge badge-green">Live on 2 chains</span>
+      <span class="badge">USDC Settlement</span>
+    </div>
   </div>
 
-  <!-- Program ID -->
-  <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <span style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace">PROGRAM ID</span>
-    <a href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" rel="noopener" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--cyan);word-break:break-all">8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY</a>
-    <span style="font-size:18px;cursor:pointer" title="View on Solscan" onclick="window.open('https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY','_blank')">&#128279;</span>
+  <!-- Chain Selector -->
+  <div style="display:flex;gap:0;margin-bottom:20px;border-radius:10px;overflow:hidden;max-width:320px;border:1px solid rgba(255,255,255,.06)">
+    <button id="esc-chain-sol" class="esc-chain-tab" onclick="setEscrowChain('solana')" style="flex:1;padding:10px 16px;font-weight:600;font-size:13px;border:none;cursor:pointer;background:rgba(139,92,246,.15);color:var(--purple);transition:all .2s">Solana</button>
+    <button id="esc-chain-base" class="esc-chain-tab" onclick="setEscrowChain('base')" style="flex:1;padding:10px 16px;font-weight:600;font-size:13px;border:none;cursor:pointer;background:rgba(255,255,255,.03);color:var(--muted);transition:all .2s">Base (EVM)</button>
+  </div>
+
+  <!-- Contract Info -->
+  <div id="esc-contract-info" style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
+    <span style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace" id="esc-contract-label">PROGRAM ID</span>
+    <a id="esc-contract-link" href="https://solscan.io/account/8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY" target="_blank" rel="noopener" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);word-break:break-all">8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY</a>
+    <span style="font-size:11px;color:var(--muted)" id="esc-chain-note">Anchor Smart Contract</span>
   </div>
 
   <!-- Stats -->
   <div class="stats-row" id="escrow-stats">
-    <div class="stat-card"><div class="val" id="esc-active">0</div><div class="lbl">Active Escrows</div></div>
-    <div class="stat-card"><div class="val" id="esc-total-vol">$0</div><div class="lbl">Total Volume</div></div>
+    <div class="stat-card"><div class="val" id="esc-active">0</div><div class="lbl">Active</div></div>
+    <div class="stat-card"><div class="val" id="esc-total-vol">$0</div><div class="lbl">Volume</div></div>
     <div class="stat-card"><div class="val" id="esc-released">0</div><div class="lbl">Released</div></div>
     <div class="stat-card"><div class="val" id="esc-disputed">0</div><div class="lbl">Disputed</div></div>
   </div>
 
-  <!-- Create Escrow Form -->
-  <div class="card" style="max-width:520px;margin-bottom:32px">
-    <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Create Escrow</h3>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Lock USDC in a smart contract PDA. Funds are released when you confirm delivery or reclaimed after timeout.</p>
-    <div class="input-group">
-      <label>Seller Wallet (Solana)</label>
-      <input class="input-field" type="text" id="esc-seller" placeholder="Seller's Solana wallet address..." style="width:100%;box-sizing:border-box;font-size:13px">
+  <!-- Create + Table side by side -->
+  <div style="display:grid;grid-template-columns:400px 1fr;gap:20px;margin-bottom:24px">
+
+    <!-- Create Escrow Form -->
+    <div class="card" style="padding:20px">
+      <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Create Escrow</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Lock USDC in a smart contract. Released on confirmation or auto-refunded after 48h.</p>
+
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block" id="esc-seller-label">Seller Wallet</label>
+        <input class="form-input" type="text" id="esc-seller" placeholder="Wallet address..." style="width:100%;padding:10px;font-size:13px;font-family:'JetBrains Mono',monospace">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block">Amount (USDC)</label>
+        <input class="form-input" type="number" id="esc-amount" placeholder="100.00" min="0.01" step="any" style="width:100%;padding:10px;font-size:14px;font-family:'JetBrains Mono',monospace" oninput="updateEscrowPreview()">
+        <div style="display:flex;gap:4px;margin-top:6px">
+          <button class="btn-outline" onclick="document.getElementById('esc-amount').value=10;updateEscrowPreview()" style="flex:1;padding:3px;font-size:10px">$10</button>
+          <button class="btn-outline" onclick="document.getElementById('esc-amount').value=50;updateEscrowPreview()" style="flex:1;padding:3px;font-size:10px">$50</button>
+          <button class="btn-outline" onclick="document.getElementById('esc-amount').value=100;updateEscrowPreview()" style="flex:1;padding:3px;font-size:10px">$100</button>
+          <button class="btn-outline" onclick="document.getElementById('esc-amount').value=500;updateEscrowPreview()" style="flex:1;padding:3px;font-size:10px">$500</button>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block">Service</label>
+        <input class="form-input" type="text" id="esc-service" placeholder="LLM fine-tuning, audit, analysis..." style="width:100%;padding:10px;font-size:13px">
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block">Timeout</label>
+        <select id="esc-timeout" class="form-input" style="width:100%;padding:10px;font-size:13px">
+          <option value="24">24 hours</option>
+          <option value="48" selected>48 hours (default)</option>
+          <option value="72">72 hours</option>
+          <option value="168">7 days</option>
+        </select>
+      </div>
+
+      <!-- Commission Preview -->
+      <div id="esc-preview" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Commission</span><span id="esc-prev-fee" style="font-family:'JetBrains Mono',monospace">$5.00 (5% BRONZE)</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Seller receives</span><span id="esc-prev-seller" style="font-family:'JetBrains Mono',monospace;color:var(--green)">$95.00</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Est. gas</span><span id="esc-prev-gas" style="font-family:'JetBrains Mono',monospace">~$0.001</span></div>
+      </div>
+
+      <!-- Base: 2 steps (approve + lock) -->
+      <div id="esc-base-steps" style="display:none;margin-bottom:10px;font-size:11px;color:var(--muted)">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+          <span id="esc-step1-icon" style="width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:10px">1</span>
+          <span>Approve USDC spending</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="esc-step2-icon" style="width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:10px">2</span>
+          <span>Lock USDC in escrow contract</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-create-escrow" onclick="createEscrow()" style="width:100%;padding:12px;font-size:14px;font-weight:700">Lock USDC in Escrow</button>
+      <div id="esc-create-result" style="margin-top:8px;font-size:12px"></div>
     </div>
-    <div class="input-group">
-      <label>Amount (USDC)</label>
-      <input class="input-field" type="number" id="esc-amount" placeholder="100.00" min="0.01" step="any" style="width:100%;box-sizing:border-box">
+
+    <!-- Active Escrows Table -->
+    <div class="card" style="padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="font-size:16px;font-weight:600">Your Escrows</h3>
+        <button class="btn-outline" onclick="loadEscrows()" style="padding:4px 12px;font-size:11px">Refresh</button>
+      </div>
+      <div class="tw">
+        <table class="ct" style="width:100%;font-size:12px">
+          <thead><tr><th>ID</th><th>Chain</th><th>Seller</th><th>Amount</th><th>Status</th><th>Timeout</th><th>Actions</th></tr></thead>
+          <tbody id="escrow-body">
+            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Connect wallet to view escrows</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="input-group">
-      <label>Service Description</label>
-      <input class="input-field" type="text" id="esc-service" placeholder="e.g. LLM fine-tuning, data analysis..." style="width:100%;box-sizing:border-box">
-    </div>
-    <div class="input-group">
-      <label>Timeout (hours) — 1 to 168h (7 days)</label>
-      <input class="input-field" type="number" id="esc-timeout" placeholder="24" min="1" max="168" value="24" style="width:100%;box-sizing:border-box">
-    </div>
-    <button class="btn btn-primary" id="btn-create-escrow" onclick="createEscrow()">Create Escrow</button>
-    <div id="esc-create-result" style="margin-top:12px"></div>
-    <p style="color:var(--muted2);font-size:11px;margin-top:8px">USDC is issued by Circle and can be frozen by regulatory order. In rare cases, escrowed funds may be temporarily unavailable.</p>
   </div>
 
-  <!-- Active Escrows Table -->
-  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Your Escrows</h3>
-  <div class="tw">
-    <table class="ct" id="escrow-table">
-      <thead>
-        <tr><th>ID</th><th>Seller</th><th>Amount</th><th>Status</th><th>Timeout</th><th>Created</th><th>Actions</th></tr>
-      </thead>
-      <tbody id="escrow-body">
-        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Connect your wallet to view escrows</td></tr>
-      </tbody>
-    </table>
+  <!-- How it works -->
+  <div class="card" style="padding:16px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:10px">How Escrow Works</h3>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap">
+      <div style="flex:1;min-width:150px;text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:20px;margin-bottom:6px">&#128274;</div>
+        <div style="font-weight:600;color:var(--text);margin-bottom:2px">1. Lock</div>
+        <div>Buyer locks USDC in smart contract</div>
+      </div>
+      <div style="flex:1;min-width:150px;text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:20px;margin-bottom:6px">&#128666;</div>
+        <div style="font-weight:600;color:var(--text);margin-bottom:2px">2. Deliver</div>
+        <div>Seller delivers the service</div>
+      </div>
+      <div style="flex:1;min-width:150px;text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:20px;margin-bottom:6px">&#9989;</div>
+        <div style="font-weight:600;color:var(--text);margin-bottom:2px">3. Confirm</div>
+        <div>Buyer confirms, funds released</div>
+      </div>
+      <div style="flex:1;min-width:150px;text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:20px;margin-bottom:6px">&#9200;</div>
+        <div style="font-weight:600;color:var(--text);margin-bottom:2px">Auto-refund</div>
+        <div>48h timeout = automatic refund</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -6022,6 +6095,174 @@ function escrowStatusBadge(status) {
   return '<span class="badge">' + esc(status || 'unknown') + '</span>';
 }
 
+// ══════════════════════════════════════
+// Escrow Multi-Chain (Solana + Base)
+// ══════════════════════════════════════
+
+var _escrowChain = 'solana';
+var _BASE_ESCROW = '0xBd31bB973183F8476d0C4cF57a92e648b130510C';
+var _BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+var _SOL_PROGRAM = '8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY';
+
+function setEscrowChain(chain) {
+  _escrowChain = chain;
+  var solTab = document.getElementById('esc-chain-sol');
+  var baseTab = document.getElementById('esc-chain-base');
+  var label = document.getElementById('esc-contract-label');
+  var link = document.getElementById('esc-contract-link');
+  var note = document.getElementById('esc-chain-note');
+  var sellerLabel = document.getElementById('esc-seller-label');
+  var baseSteps = document.getElementById('esc-base-steps');
+  var seller = document.getElementById('esc-seller');
+
+  if (chain === 'solana') {
+    solTab.style.background = 'rgba(139,92,246,.15)'; solTab.style.color = 'var(--purple)';
+    baseTab.style.background = 'rgba(255,255,255,.03)'; baseTab.style.color = 'var(--muted)';
+    label.textContent = 'PROGRAM ID';
+    link.href = 'https://solscan.io/account/' + _SOL_PROGRAM;
+    link.textContent = _SOL_PROGRAM;
+    note.textContent = 'Anchor Smart Contract';
+    sellerLabel.textContent = 'Seller Wallet (Solana)';
+    seller.placeholder = 'Solana wallet address (base58)...';
+    baseSteps.style.display = 'none';
+  } else {
+    baseTab.style.background = 'rgba(59,130,246,.15)'; baseTab.style.color = 'var(--blue)';
+    solTab.style.background = 'rgba(255,255,255,.03)'; solTab.style.color = 'var(--muted)';
+    label.textContent = 'CONTRACT';
+    link.href = 'https://basescan.org/address/' + _BASE_ESCROW;
+    link.textContent = _BASE_ESCROW;
+    note.textContent = 'Solidity on Base L2 — gas ~$0.01';
+    sellerLabel.textContent = 'Seller Wallet (EVM 0x...)';
+    seller.placeholder = '0x... EVM wallet address';
+    baseSteps.style.display = 'block';
+  }
+  updateEscrowPreview();
+}
+
+function updateEscrowPreview() {
+  var amount = parseFloat(document.getElementById('esc-amount').value) || 100;
+  var bps = amount >= 5000 ? 10 : amount >= 500 ? 100 : 500;
+  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 100 ? 'GOLD 1%' : 'BRONZE 5%';
+  var fee = amount * bps / 10000;
+  var sellerGets = amount - fee;
+  var gas = _escrowChain === 'base' ? '~$0.01' : '~$0.001';
+  document.getElementById('esc-prev-fee').textContent = '$' + fee.toFixed(2) + ' (' + tierName + ')';
+  document.getElementById('esc-prev-seller').textContent = '$' + sellerGets.toFixed(2);
+  document.getElementById('esc-prev-gas').textContent = gas;
+}
+
+async function createEscrowBase() {
+  if (!window.ethereum) { toast('Install MetaMask to use Base escrow', 'error'); return; }
+
+  var seller = document.getElementById('esc-seller').value.trim();
+  var amount = parseFloat(document.getElementById('esc-amount').value);
+  var service = document.getElementById('esc-service').value.trim() || 'AI Service';
+
+  if (!seller || !seller.startsWith('0x') || seller.length !== 42) { toast('Enter a valid EVM address (0x...)', 'error'); return; }
+  if (!amount || amount <= 0) { toast('Enter a valid USDC amount', 'error'); return; }
+
+  var btn = document.getElementById('btn-create-escrow');
+  var result = document.getElementById('esc-create-result');
+  btn.disabled = true;
+
+  try {
+    var accounts = await window.ethereum.request({method: 'eth_requestAccounts'});
+    var buyer = accounts[0];
+
+    // Ensure Base chain
+    try {
+      await window.ethereum.request({method: 'wallet_switchEthereumChain', params: [{chainId: '0x2105'}]});
+    } catch(switchErr) {
+      if (switchErr.code === 4902) {
+        await window.ethereum.request({method: 'wallet_addEthereumChain', params: [{chainId:'0x2105',chainName:'Base',nativeCurrency:{name:'ETH',symbol:'ETH',decimals:18},rpcUrls:['https://mainnet.base.org'],blockExplorerUrls:['https://basescan.org']}]});
+      } else { throw switchErr; }
+    }
+
+    var amountRaw = '0x' + (BigInt(Math.round(amount * 1e6))).toString(16);
+
+    // Step 1: Approve USDC
+    btn.textContent = 'Step 1/2: Approving USDC...';
+    document.getElementById('esc-step1-icon').style.background = 'rgba(59,130,246,.3)';
+    var approveData = '0x095ea7b3' +
+      _BASE_ESCROW.toLowerCase().replace('0x','').padStart(64,'0') +
+      BigInt(Math.round(amount * 1e6)).toString(16).padStart(64,'0');
+
+    var approveTx = await window.ethereum.request({method: 'eth_sendTransaction', params: [{
+      from: buyer, to: _BASE_USDC, data: approveData, chainId: '0x2105',
+    }]});
+    result.innerHTML = '<div style="color:var(--cyan)">Approve TX: ' + approveTx.substring(0,14) + '... Waiting...</div>';
+
+    // Wait for approve confirmation
+    await _waitTx(approveTx);
+    document.getElementById('esc-step1-icon').style.background = 'rgba(16,185,129,.3)';
+    document.getElementById('esc-step1-icon').textContent = '\u2713';
+
+    // Step 2: Lock Escrow
+    btn.textContent = 'Step 2/2: Locking USDC...';
+    document.getElementById('esc-step2-icon').style.background = 'rgba(59,130,246,.3)';
+
+    // Encode lockEscrow(address seller, uint256 amount, string serviceId)
+    // Function selector for lockEscrow(address,uint256,string)
+    var lockSig = '0x' + _keccak256('lockEscrow(address,uint256,string)').substring(0,8);
+    var sellerPad = seller.toLowerCase().replace('0x','').padStart(64,'0');
+    var amountPad = BigInt(Math.round(amount * 1e6)).toString(16).padStart(64,'0');
+    // String offset (3 * 32 = 96 = 0x60)
+    var strOffset = (96).toString(16).padStart(64,'0');
+    // String length
+    var strLen = service.length.toString(16).padStart(64,'0');
+    // String data (padded to 32 bytes)
+    var strHex = '';
+    for (var i = 0; i < service.length; i++) strHex += service.charCodeAt(i).toString(16).padStart(2,'0');
+    strHex = strHex.padEnd(64,'0');
+
+    var lockData = lockSig + sellerPad + amountPad + strOffset + strLen + strHex;
+
+    var lockTx = await window.ethereum.request({method: 'eth_sendTransaction', params: [{
+      from: buyer, to: _BASE_ESCROW, data: lockData, chainId: '0x2105',
+    }]});
+
+    await _waitTx(lockTx);
+    document.getElementById('esc-step2-icon').style.background = 'rgba(16,185,129,.3)';
+    document.getElementById('esc-step2-icon').textContent = '\u2713';
+
+    result.innerHTML = '<div style="color:var(--green)">Escrow created on Base! <a href="https://basescan.org/tx/' + lockTx + '" target="_blank" style="color:var(--cyan)">View on Basescan</a></div>';
+    toast('Escrow created: $' + amount.toFixed(2) + ' USDC locked on Base', 'success');
+    loadEscrows();
+
+  } catch(e) {
+    result.innerHTML = '<div style="color:var(--red)">' + esc(e.message || 'Transaction failed') + '</div>';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Lock USDC in Escrow';
+  document.getElementById('esc-step1-icon').textContent = '1';
+  document.getElementById('esc-step2-icon').textContent = '2';
+  document.getElementById('esc-step1-icon').style.background = 'rgba(255,255,255,.06)';
+  document.getElementById('esc-step2-icon').style.background = 'rgba(255,255,255,.06)';
+}
+
+async function _waitTx(txHash) {
+  for (var i = 0; i < 60; i++) {
+    await new Promise(function(r){setTimeout(r, 2000);});
+    try {
+      var receipt = await window.ethereum.request({method: 'eth_getTransactionReceipt', params: [txHash]});
+      if (receipt && receipt.status) return receipt;
+    } catch(e) {}
+  }
+  throw new Error('Transaction timeout');
+}
+
+function _keccak256(str) {
+  // Pre-computed keccak256 selectors for MaxiaEscrow.sol functions
+  var selectors = {
+    'lockEscrow(address,uint256,string)': 'd27e71da',
+    'confirmDelivery(bytes32)': '74950ffd',
+    'autoRefund(bytes32)': '40975025',
+    'openDispute(bytes32)': 'f08ef6cb',
+    'approve(address,uint256)': '095ea7b3',
+  };
+  return selectors[str] || '00000000';
+}
+
 async function loadEscrows() {
   if (!wallet) {
     document.getElementById('escrow-body').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Connect your wallet to view escrows</td></tr>';
@@ -6097,6 +6338,8 @@ async function loadEscrows() {
 }
 
 async function createEscrow() {
+  // Route to Base or Solana based on selected chain
+  if (_escrowChain === 'base') { return createEscrowBase(); }
   if (!wallet) { toast('Connect your Solana wallet first', 'error'); return; }
 
   var seller = document.getElementById('esc-seller').value.trim();
