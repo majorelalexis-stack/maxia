@@ -227,30 +227,28 @@ import random
 MAXIA_IDENTITY = (
     "MAXIA — AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, "
     "Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). "
-    "107 tokens across 7 swap chains (71 Solana + 36 EVM via 0x). 2682 trading pairs. "
-    "25 tokenized stocks (real-time Pyth Oracle). GPU rental at cost ($0.69-4.74/h, 0% markup). "
-    "LLM fine-tuning (Unsloth + QLoRA). DeFi yield scanner 14 chains. "
-    "Reverse auctions (buyers post requests, agents bid). "
-    "Proof of Delivery with AI dispute resolution (auto-refund on SLA breach). "
-    "Agent leaderboard (Beta-Bayesian scoring, grades AAA to CCC). "
-    "3-tier SLA enforcement (basic/standard/premium, auto-penalization). "
-    "Activity feed with real-time SSE. Referral program (10% commission lifetime). "
-    "7 achievement badges. Business marketplace (buy/sell entire AI businesses, 5% commission). "
-    "Circuit breaker monitoring on all 14 chains with /status endpoint. "
-    "46 MCP tools, A2A protocol, leaderboard, AI disputes + A2A Protocol (Google/Linux Foundation). "
-    "EVM swap on Ethereum/Base/Polygon/Arbitrum/Avalanche/BNB via 0x. "
-    "OFAC sanctions screening (Chainalysis Oracle + 55 local addresses). "
-    "Creator Marketplace where humans and agents publish and sell tools, datasets, prompts, workflows (90% creator / 10% MAXIA). "
-    "USDC payments. Escrow on-chain (Solana Anchor). maxiaworld.app"
+    "107 tokens across 7 swap chains. 5000+ trading pairs. "
+    "25 tokenized stocks (Pyth Oracle + xStocks/Ondo/Dinari). "
+    "60 DeFi yield opportunities live (DeFiLlama — Lido, Aave, Marinade, Jito, Compound). "
+    "Smart contracts on 2 chains: Solana mainnet (Anchor) + Base mainnet (Solidity). "
+    "Agent Identity: W3C DID + HCS-14 UAID + ed25519 keypair per agent. "
+    "AIP Protocol integration (pip install aip-protocol) — signed intents on every transaction. "
+    "18 OAuth scopes per agent, spend caps L0-L4, freeze/downgrade/revoke. "
+    "Key rotation without losing identity. Public verification: GET /api/public/agent/{did_or_uaid}. "
+    "Agent Forum: community for AI agents and creators (maxiaworld.app/forum). "
+    "46 MCP tools, A2A Protocol (Google/Linux Foundation). "
+    "Proof of Delivery with AI dispute resolution. Leaderboard (AAA to CCC). "
+    "Enterprise: SSO, Stripe billing, Prometheus /metrics, audit trail, fleet dashboard. "
+    "USDC payments. maxiaworld.app"
 )
 
 MAXIA_FEATURES_SHORT = (
-    "107 tokens, 7 swap chains, 25 stocks, GPU at cost, LLM fine-tuning, "
-    "reverse auctions, AI disputes, leaderboard, SLA tiers, referral program, "
-    "business marketplace, 46 MCP tools, A2A protocol, leaderboard, AI disputes, A2A protocol. maxiaworld.app"
+    "107 tokens, 14 chains, 60 DeFi yields live, 25 stocks, "
+    "smart contracts Solana+Base, W3C DID identity, AIP signed intents, "
+    "18 agent scopes, agent forum, 46 MCP tools, A2A protocol. maxiaworld.app"
 )
 
-MAXIA_PITCH_ONEliner = "MAXIA: AI agents trade services across 14 chains with USDC. 107 tokens, GPU at cost, AI disputes, leaderboard. maxiaworld.app"
+MAXIA_PITCH_ONEliner = "MAXIA: AI agents trade across 14 chains. DID identity, signed intents, 60 DeFi yields, escrow on Solana+Base. maxiaworld.app"
 
 TWEET_TEMPLATES = [
     # Vecu de fondateur V13+ (authentique, stats reelles)
@@ -269,6 +267,14 @@ TWEET_TEMPLATES = [
     # Storytelling V13+
     "someone asked: can I swap DEGEN to USDC on Base?\n\nyes. and also on Ethereum, Polygon, Arbitrum, Avalanche, BNB.\n\n107 tokens, 7 chains, one endpoint.\n\nmaxiaworld.app",
     "a dev DMed me: \"my bot makes great trading signals but I can't sell them\"\n\n5 minutes later his bot was listed on MAXIA, discoverable by other AI agents on 14 chains\n\nthat's the whole point",
+    # New features V15
+    "just deployed our escrow smart contract on Base mainnet\n\nthat's 2 chains now — Solana + Base\n\nUSDC locked in contract until delivery confirmed. auto-refund 48h. no trust needed.\n\nmaxiaworld.app",
+    "every MAXIA agent now gets a W3C DID + ed25519 keypair at registration\n\ndid:web:maxiaworld.app:agent:{id}\n\nverifiable by anyone, no auth needed. portable identity for AI agents.\n\nmaxiaworld.app/.well-known/did.json",
+    "integrated aip-protocol today — every swap is now cryptographically signed\n\nthe agent proves it wanted THIS specific trade before we execute\n\nnon-repudiable. expiring. tamper-proof.\n\npip install aip-protocol",
+    "60 DeFi yield opportunities. live. from DeFiLlama.\n\nLido 2.46%, Aave 2.20%, Marinade, Jito, Compound — real APY, real TVL\n\none API call: /api/public/yield/all\n\nno more stale hardcoded rates",
+    "your AI agent now has 18 OAuth-like scopes\n\nswap:execute, gpu:rent, stocks:trade, escrow:lock...\n\nspend caps by trust level. freeze/revoke without stopping other agents.\n\nenterprise-grade permissions for autonomous AI",
+    "launched the MAXIA agent forum\n\na space for AI agents and their creators to discuss, share strategies, debug together\n\nthe CEO posts R&D findings weekly\n\nmaxiaworld.app/forum",
+    "hot take: in 2 years, every AI agent will need a DID\n\nnot an API key. not a password. a cryptographic identity that travels with the agent across platforms.\n\nwe just built it. maxiaworld.app",
 ]
 
 # ── Feature of the Day — 1 tweet/jour presentant une feature MAXIA ──
@@ -283,7 +289,14 @@ FEATURE_OF_THE_DAY = [
     "Feature of the Day: A2A Protocol\n\nGoogle's Agent-to-Agent standard. 11 skills: discover, execute, swap, stocks, GPU, DeFi, wallet analysis.\n\nYour AI agent finds and buys services from other agents. Automatically.\n\nmaxiaworld.app/.well-known/agent.json",
     "Feature of the Day: DeFi Yield Aggregator\n\nFind the best APY across 14 chains. Live data from DeFiLlama.\n\nAave, Marinade, Jito, Compound, Aerodrome — one API call.\n\nmaxiaworld.app/app#defi",
     "Feature of the Day: Tokenized Stocks\n\n25 on-chain synthetic assets: AAPL, TSLA, NVDA, GOOGL... via xStocks, Ondo, and Dinari.\n\nNot a stock exchange — these are on-chain tokens that track stock prices. Trade 24/7 with USDC.\n\nmaxiaworld.app/app#stocks",
-    "Feature of the Day: Chain Resilience\n\n14 chains, 2-3 RPC providers each. Circuit breaker (3 fails → open). Auto-failover. Timeout per chain.\n\n/status/chain/solana shows it all live.\n\nmaxiaworld.app/status/chain/solana",
+    "Feature of the Day: Chain Resilience\n\n14 chains, 2-3 RPC providers each. Circuit breaker (3 fails -> open). Auto-failover. Timeout per chain.\n\n/status/chain/solana shows it all live.\n\nmaxiaworld.app/status/chain/solana",
+    "Feature of the Day: Agent Forum\n\nA community where AI agents and their creators discuss, share strategies, and collaborate.\n\nPost questions, showcase your agent, get feedback. CEO MAXIA posts R&D findings.\n\nmaxiaworld.app/forum",
+    "Feature of the Day: DID Identity\n\nEvery MAXIA agent gets a W3C DID (did:web:maxiaworld.app:agent:{id}) + HCS-14 UAID.\n\ned25519 keypair, public verification, key rotation without losing trust.\n\nVerify any agent: maxiaworld.app/api/public/agent/{id}",
+    "Feature of the Day: Signed Intents (AIP Protocol)\n\nEvery swap, GPU rental, and escrow is cryptographically signed before execution.\n\nNon-repudiable, expiring, tamper-proof. pip install aip-protocol\n\nVerify: POST maxiaworld.app/api/public/intent/verify",
+    "Feature of the Day: Agent Permissions\n\n18 OAuth scopes per agent. Spend caps: L0=$50/day, L4=$500K/day.\n\nFreeze, downgrade, or revoke any agent without stopping the system.\n\nEnterprise-grade. maxiaworld.app",
+    "Feature of the Day: Escrow on Base\n\nSmart contract deployed on Base mainnet. USDC locked until buyer confirms.\n\nAuto-refund 48h. On-chain commissions (5% -> 0.1% by volume).\n\nSolana + Base = 2 chains with on-chain escrow. maxiaworld.app",
+    "Feature of the Day: 60 DeFi Yields Live\n\nReal-time from DeFiLlama. Lido 2.46%, Aave 2.20%, Marinade, Jito, Compound.\n\nRisk scoring, TVL, one API call. No more stale data.\n\nmaxiaworld.app/api/public/yield/all",
+    "Feature of the Day: Cross-Chain Bridge\n\nSolana <-> Base <-> Ethereum. Wormhole routing, $0.25 fee, 20min.\n\nYour agent bridges USDC between chains without leaving MAXIA.\n\nmaxiaworld.app",
     "Feature of the Day: Autonomous CEO Agent\n\n17 sub-agents running 24/7. OODA loop. Learns what works, stops what doesn't.\n\nSearches Twitter, GitHub, Reddit. Engages prospects. Reports daily.\n\nFully autonomous. No human needed.",
     "Feature of the Day: Reverse Auctions\n\nBuyers post what they need → agents compete on price + quality + speed.\n\nScoring: 40% reputation, 25% SLA, 20% price, 15% speed.\n\nBest agent wins. maxiaworld.app",
     "Feature of the Day: Cross-Chain Bridge\n\nTransfer tokens between 14 chains. Wormhole, LayerZero, Portal.\n\nZero MAXIA fee. Only pay gas.\n\nmaxiaworld.app/app#bridge",
@@ -2321,65 +2334,59 @@ class CEOLocal:
         # Telegram: 2 cycles
         # GitHub: 2 cycles
         # DMs/emails: 2 cycles
+        # ── STRATEGIE V15 : CONVERSION > VOLUME ──
+        # Priorite 1: REPONDRE (mentions, DMs, emails) — chaque cycle
+        # Priorite 2: ENGAGER avec valeur (comment technique, pas pitch)
+        # Priorite 3: CHERCHER des gens avec un PROBLEME que MAXIA resout
+        # Priorite 4: PUBLIER du contenu (feature of day, forum)
         routines = [
 
-            # ── Cycle 0 : DISCORD — rejoindre et poster ──
+            # ── Cycle 0 : TWITTER ENGAGE + FORUM ──
             [
-                {"action": "join_discord", "agent": "SCOUT", "params": {"invite_link": all_discord[cycle % len(all_discord)]}, "priority": "vert"},
-                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[cycle % len(all_discord)], "text": ""}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "read_forum", "agent": "SCOUT", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 1 : REDDIT — commenter ──
-            [
-                {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[cycle % len(subreddits)]}, "priority": "vert"},
-            ],
-
-            # ── Cycle 2 : TELEGRAM — rejoindre et poster ──
-            [
-                {"action": "join_telegram", "agent": "SCOUT", "params": {"group_link": all_telegram[cycle % len(all_telegram)]}, "priority": "vert"},
-                {"action": "send_telegram_group", "agent": "GHOST-WRITER", "params": {"target": all_telegram[cycle % len(all_telegram)], "text": ""}, "priority": "vert"},
-            ],
-
-            # ── Cycle 3 : GITHUB — star + comment issues ──
+            # ── Cycle 1 : GITHUB (comment technique sur repo varie) + EMAILS ──
             [
                 {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[cycle % len(all_github)]}, "priority": "vert"},
-                {"action": "star_github", "agent": "SCOUT", "params": {"repo_url": f"https://github.com/{all_github[cycle % len(all_github)]}"}, "priority": "vert"},
-            ],
-
-            # ── Cycle 4 : TWITTER — Feature of the Day + DMs ──
-            [
-                {"action": "post_feature_of_day", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
-                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
-            ],
-
-            # ── Cycle 5 : DISCORD #2 + EMAILS ──
-            [
-                {"action": "send_discord", "agent": "GHOST-WRITER", "params": {"server": all_discord[(cycle + 3) % len(all_discord)], "text": ""}, "priority": "vert"},
                 {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 6 : REDDIT #2 + DM prospect ──
+            # ── Cycle 2 : TWITTER ENGAGE #2 + MANAGE DMs ──
             [
-                {"action": "search_and_comment_reddit", "agent": "GHOST-WRITER", "params": {"subreddit": subreddits[(cycle + 5) % len(subreddits)]}, "priority": "vert"},
-                {"action": "dm_prospect", "agent": "CLOSER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 7) % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 7 : TELEGRAM #2 + CRM ──
+            # ── Cycle 3 : FEATURE OF THE DAY + TELEGRAM join ──
             [
-                {"action": "send_telegram_group", "agent": "GHOST-WRITER", "params": {"target": all_telegram[(cycle + 2) % len(all_telegram)], "text": ""}, "priority": "vert"},
+                {"action": "post_feature_of_day", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "join_telegram", "agent": "SCOUT", "params": {"group_link": all_telegram[cycle % len(all_telegram)]}, "priority": "vert"},
+            ],
+
+            # ── Cycle 4 : TWITTER ENGAGE #3 + CRM followup ──
+            [
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 14) % len(prospect_queries)]}, "priority": "vert"},
                 {"action": "crm_followup", "agent": "CLOSER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 8 : GITHUB #2 + TWITTER search ──
+            # ── Cycle 5 : GITHUB #2 (different repo) + EMAILS ──
             [
-                {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[(cycle + 3) % len(all_github)]}, "priority": "vert"},
-                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[cycle % len(prospect_queries)]}, "priority": "vert"},
+                {"action": "comment_github_ai", "agent": "SCOUT", "params": {"repo": all_github[(cycle + 5) % len(all_github)]}, "priority": "vert"},
+                {"action": "check_emails", "agent": "RESPONDER", "params": {}, "priority": "vert"},
             ],
 
-            # ── Cycle 9 : SOLVR + FORUM ──
+            # ── Cycle 6 : TWITTER ENGAGE #4 + FORUM ──
             [
-                {"action": "post_solvr", "agent": "GHOST-WRITER", "params": {}, "priority": "vert"},
+                {"action": "search_twitter", "agent": "SCOUT", "params": {"query": prospect_queries[(cycle + 21) % len(prospect_queries)]}, "priority": "vert"},
                 {"action": "read_forum", "agent": "SCOUT", "params": {}, "priority": "vert"},
+            ],
+
+            # ── Cycle 7 : MANAGE DMs + STAR GITHUB ──
+            [
+                {"action": "manage_dms", "agent": "RESPONDER", "params": {}, "priority": "vert"},
+                {"action": "star_github", "agent": "SCOUT", "params": {"repo_url": f"https://github.com/{all_github[(cycle + 3) % len(all_github)]}"}, "priority": "vert"},
             ],
         ]
 
