@@ -10,7 +10,7 @@ from pathlib import Path
 ALLOWED_AGENT_COLUMNS = frozenset({
     "name", "wallet", "description", "tier",
     "volume_30d", "total_spent", "total_earned", "services_listed",
-    "referred_by",
+    "referred_by", "agent_id",
 })
 ALLOWED_SERVICE_COLUMNS = frozenset({
     "agent_api_key", "agent_name", "agent_wallet",
@@ -286,6 +286,36 @@ class Database:
     MIGRATIONS: dict[int, tuple[str, str]] = {
         # version: (description, SQL)
         1: ("Initial schema — baseline V12", ""),  # Schema actuel = version 1
+        2: ("Agent permissions — spend caps, scopes, status, trust level, audit agent_id", (
+            "CREATE TABLE IF NOT EXISTS agent_permissions ("
+            "agent_id TEXT PRIMARY KEY,"
+            "api_key TEXT NOT NULL,"
+            "wallet TEXT NOT NULL,"
+            "trust_level INTEGER NOT NULL DEFAULT 0,"
+            "status TEXT NOT NULL DEFAULT 'active',"
+            "scopes TEXT NOT NULL DEFAULT '*',"
+            "max_daily_spend_usd REAL NOT NULL DEFAULT 50,"
+            "max_single_tx_usd REAL NOT NULL DEFAULT 10,"
+            "daily_spent_usd REAL NOT NULL DEFAULT 0,"
+            "daily_spent_date TEXT NOT NULL DEFAULT '',"
+            "frozen_at TEXT,"
+            "revoked_at TEXT,"
+            "downgraded_from INTEGER,"
+            "created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),"
+            "updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')));"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_wallet ON agent_permissions(wallet);"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_api_key ON agent_permissions(api_key);"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_status ON agent_permissions(status);"
+        )),
+        3: ("Agent identity — DID (W3C) + UAID (HCS-14 Hedera)", (
+            "ALTER TABLE agent_permissions ADD COLUMN did TEXT DEFAULT '';"
+            "ALTER TABLE agent_permissions ADD COLUMN uaid TEXT DEFAULT '';"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_did ON agent_permissions(did);"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_uaid ON agent_permissions(uaid);"
+        )),
+        4: ("Agent keypair — ed25519 public key for DID Document + signed intents", (
+            "ALTER TABLE agent_permissions ADD COLUMN public_key TEXT DEFAULT '';"
+        )),
     }
 
     async def _run_migrations(self):
@@ -308,7 +338,7 @@ class Database:
             desc, sql = self.MIGRATIONS[version]
             if sql:
                 try:
-                    await self.executescript(sql)
+                    await self.raw_executescript(sql)
                 except Exception as e:
                     print(f"[DB] MIGRATION {version} ECHOUEE: {e}")
                     break

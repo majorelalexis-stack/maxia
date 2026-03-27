@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -24,6 +24,9 @@ from models import (
     GpuRentRequest, GpuRentPublicRequest,
 )
 from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
+from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
+from agentid_client import agentid as agentid_client
+from config import AKASH_ENABLED
 from solana_verifier import verify_transaction
 from security import check_content_safety, check_rate_limit, set_redis_client
 from redis_client import redis_client
@@ -1381,6 +1384,13 @@ async def serve_og_image():
         return FileResponse(str(og_path), media_type="image/png")
     return HTMLResponse("Not found", status_code=404)
 
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    robots_path = FRONTEND_DIR / "robots.txt"
+    if robots_path.exists():
+        return FileResponse(str(robots_path), media_type="text/plain")
+    return HTMLResponse("User-agent: *\nAllow: /\nSitemap: https://maxiaworld.app/sitemap.xml", media_type="text/plain")
+
 @app.get("/sitemap.xml", include_in_schema=False)
 async def sitemap():
     sitemap_path = FRONTEND_DIR / "sitemap.xml"
@@ -1418,35 +1428,33 @@ button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3
 <div class="err" id="err">Invalid key. Try again.</div>
 </div>
 <script>
-async function doLogin(){
+function doLogin(){
   var key=document.getElementById('admin-key').value;
   if(!key)return false;
-  try{
-    var r=await fetch('/dashboard',{headers:{'X-Admin-Key':key}});
-    if(r.ok){
-      sessionStorage.setItem('maxia_admin_key',key);
-      window.location.href='/dashboard';
-      return false;
-    }
-    document.getElementById('err').style.display='block';
-  }catch(e){document.getElementById('err').style.display='block'}
+  window.location.href='/admin/login?key='+encodeURIComponent(key);
   return false;
-}
-// Si deja connecte, rediriger
-if(sessionStorage.getItem('maxia_admin_key')){
-  fetch('/dashboard',{headers:{'X-Admin-Key':sessionStorage.getItem('maxia_admin_key')}})
-    .then(r=>{if(r.ok)window.location.href='/dashboard'});
 }
 </script></body></html>""")
 
 
+@app.get("/admin/login", include_in_schema=False)
+async def admin_login(key: str = ""):
+    """Verifie la cle admin, pose un cookie httponly, redirige vers dashboard."""
+    import hmac as _hmac_v
+    from fastapi.responses import RedirectResponse
+    if not key or not ADMIN_KEY or not _hmac_v.compare_digest(key, ADMIN_KEY):
+        return RedirectResponse(url="/admin?error=1", status_code=302)
+    resp = RedirectResponse(url="/dashboard", status_code=302)
+    resp.set_cookie("maxia_admin", key, httponly=True, secure=True, samesite="lax", max_age=86400)
+    return resp
+
+
 @app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
-    """Dashboard admin — authentification via header X-Admin-Key."""
-    key = request.headers.get("X-Admin-Key", "")
+    """Dashboard admin — authentification via header X-Admin-Key ou cookie."""
     import hmac as _hmac_dash
-    if not key or not _hmac_dash.compare_digest(key, ADMIN_KEY):
-        # Rediriger vers la page de login
+    key = request.headers.get("X-Admin-Key", "") or request.cookies.get("maxia_admin", "")
+    if not key or not ADMIN_KEY or not _hmac_dash.compare_digest(key, ADMIN_KEY):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/admin", status_code=302)
     if FRONTEND_INDEX.exists():
@@ -1459,6 +1467,30 @@ async def serve_dashboard(request: Request):
         if p.exists():
             return HTMLResponse(p.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>MAXIA</h1><p>Dashboard introuvable.</p>")
+
+
+# ═══════════════════════════════════════════════════════════
+#  AGENT TRUST — AgentID Integration
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/agent/{address}/trust")
+async def get_agent_trust(address: str):
+    """Get trust level and escrow rules for an agent (via AgentID)."""
+    badge = await agentid_client.get_agent_badge(address)
+    return {
+        "address": address,
+        "trust_level": badge["level"],
+        "label": badge["label"],
+        "color": badge["color"],
+        "escrow_required": badge["escrow_required"],
+        "hold_hours": badge["hold_hours"],
+        "provider": "agentid" if agentid_client.enabled else "default",
+    }
+
+@app.get("/api/agent/{address}/verify")
+async def verify_agent_identity(address: str):
+    """Full agent identity verification via AgentID."""
+    return await agentid_client.verify_agent(address)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -2428,6 +2460,221 @@ async def ceo_transactions(request: Request, limit: int = 50):
         return {"error": str(e), "transactions": []}
 
 
+@app.get("/api/ceo/approval-result/{action_id}")
+async def ceo_approval_result(action_id: str, request: Request):
+    """Resultat d'approbation Telegram pour le CEO Local. Retourne approved/denied/pending."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from telegram_bot import get_approval_result
+    result = get_approval_result(action_id)
+    return {"action_id": action_id, "result": result or "pending"}
+
+
+# ══════════════════════════════════════════
+#  AGENT PERMISSIONS — Admin endpoints (freeze/unfreeze/downgrade/revoke/scopes)
+# ══════════════════════════════════════════
+
+@app.get("/api/agents/permissions")
+async def agents_list_permissions(request: Request):
+    """Liste tous les agents et leurs permissions. Admin only."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import list_all_agents
+    return {"agents": await list_all_agents()}
+
+
+@app.get("/api/agents/{agent_id}/permissions")
+async def agent_get_permissions(agent_id: str, request: Request):
+    """Permissions d'un agent specifique. Admin only."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import get_agent_perms_by_id
+    return await get_agent_perms_by_id(agent_id)
+
+
+@app.post("/api/agents/{agent_id}/freeze")
+async def agent_freeze(agent_id: str, request: Request):
+    """Freeze un agent — lectures OK, ecritures bloquees."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import freeze_agent
+    result = await freeze_agent(agent_id)
+    # Audit
+    try:
+        from audit_trail import audit_log
+        await audit_log("admin", "agent_freeze", agent_id, db=db,
+                       agent_id=agent_id, metadata={"action": "freeze"})
+    except Exception:
+        pass
+    return result
+
+
+@app.post("/api/agents/{agent_id}/unfreeze")
+async def agent_unfreeze(agent_id: str, request: Request):
+    """Unfreeze un agent — retour a active."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import unfreeze_agent
+    result = await unfreeze_agent(agent_id)
+    try:
+        from audit_trail import audit_log
+        await audit_log("admin", "agent_unfreeze", agent_id, db=db,
+                       agent_id=agent_id, metadata={"action": "unfreeze"})
+    except Exception:
+        pass
+    return result
+
+
+@app.post("/api/agents/{agent_id}/downgrade")
+async def agent_downgrade(agent_id: str, level: int, request: Request):
+    """Downgrade le trust level. Les caps s'ajustent automatiquement."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import downgrade_agent
+    result = await downgrade_agent(agent_id, level)
+    try:
+        from audit_trail import audit_log
+        await audit_log("admin", "agent_downgrade", agent_id, db=db,
+                       agent_id=agent_id, metadata=result)
+    except Exception:
+        pass
+    return result
+
+
+@app.post("/api/agents/{agent_id}/revoke")
+async def agent_revoke(agent_id: str, request: Request):
+    """Revoke definitivement un agent. Tout bloque."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import revoke_agent
+    result = await revoke_agent(agent_id)
+    try:
+        from audit_trail import audit_log
+        await audit_log("admin", "agent_revoke", agent_id, db=db,
+                       agent_id=agent_id, metadata={"action": "revoke"})
+    except Exception:
+        pass
+    return result
+
+
+@app.post("/api/agents/{agent_id}/scopes")
+async def agent_update_scopes(agent_id: str, request: Request):
+    """Met a jour les scopes d'un agent. Body: {"scopes": ["swap:*", "gpu:read"]}"""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    body = await request.json()
+    scopes = body.get("scopes", [])
+    if not isinstance(scopes, list):
+        raise HTTPException(400, "scopes must be a list")
+    from agent_permissions import update_agent_scopes
+    return await update_agent_scopes(agent_id, scopes)
+
+
+@app.get("/api/agents/scopes/available")
+async def agents_available_scopes():
+    """Liste tous les scopes disponibles."""
+    from agent_permissions import ALL_SCOPES, DEFAULT_SCOPES, TRUST_LEVEL_DEFAULTS
+    return {
+        "available_scopes": ALL_SCOPES,
+        "defaults_by_trust_level": {
+            k: {"scopes": v, **TRUST_LEVEL_DEFAULTS[k]}
+            for k, v in DEFAULT_SCOPES.items()
+        },
+    }
+
+
+@app.post("/api/agents/{agent_id}/rotate-key")
+async def agent_rotate_key(agent_id: str, request: Request):
+    """Rotate l'API key d'un agent. Garde DID, UAID, trust, historique. Admin only."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from agent_permissions import rotate_agent_key
+    result = await rotate_agent_key(agent_id)
+    try:
+        from audit_trail import audit_log
+        await audit_log("admin", "agent_key_rotation", agent_id, db=db,
+                       agent_id=agent_id, metadata={"old_prefix": result.get("old_key_prefix", "")})
+    except Exception:
+        pass
+    return result
+
+
+@app.get("/api/public/agent/{identifier}")
+async def public_agent_lookup(identifier: str):
+    """Resolve un agent par DID ou UAID. Public, sans auth.
+    N'importe quel marketplace peut verifier le statut d'un agent MAXIA.
+
+    Examples:
+    - GET /api/public/agent/did:web:maxiaworld.app:agent:agent_abc123
+    - GET /api/public/agent/7Kj9mN2pQ4rS8tV...  (UAID)
+    - GET /api/public/agent/agent_abc123  (agent_id)
+    """
+    from agent_permissions import resolve_agent_public
+    return await resolve_agent_public(identifier)
+
+
+@app.get("/agent/{agent_id}/did.json")
+async def agent_did_document(agent_id: str):
+    """W3C DID Document for an agent. Standard did:web resolution.
+    did:web:maxiaworld.app:agent:abc123 resolves to GET https://maxiaworld.app/agent/abc123/did.json
+    """
+    from agent_permissions import generate_did_document
+    try:
+        rows = await db.raw_execute_fetchall(
+            "SELECT agent_id, wallet, public_key, uaid, status, trust_level "
+            "FROM agent_permissions WHERE agent_id=?", (agent_id,))
+        if not rows:
+            raise HTTPException(404, "Agent not found")
+        a = dict(rows[0])
+        doc = generate_did_document(
+            a["agent_id"], a.get("public_key", ""), a["wallet"],
+            a.get("uaid", ""), a.get("status", "active"), a.get("trust_level", 0))
+        return JSONResponse(doc, headers={"Content-Type": "application/did+json"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"DID document error: {e}")
+
+
+@app.get("/.well-known/did.json")
+async def maxia_did_document():
+    """W3C DID Document for MAXIA itself (the marketplace).
+    did:web:maxiaworld.app resolves to GET https://maxiaworld.app/.well-known/did.json
+    """
+    return JSONResponse({
+        "@context": ["https://www.w3.org/ns/did/v1"],
+        "id": "did:web:maxiaworld.app",
+        "verificationMethod": [{
+            "id": "did:web:maxiaworld.app#treasury",
+            "type": "Ed25519VerificationKey2020",
+            "controller": "did:web:maxiaworld.app",
+            "publicKeyBase58": "7RtCpikgfd6xiFQyVoxjV51HN14XXRrQJiJ3KrzUdQsW",
+        }],
+        "service": [
+            {"id": "#marketplace", "type": "AIMarketplace", "serviceEndpoint": "https://maxiaworld.app/api/public"},
+            {"id": "#a2a", "type": "AgentToAgent", "serviceEndpoint": "https://maxiaworld.app/a2a"},
+            {"id": "#mcp", "type": "ModelContextProtocol", "serviceEndpoint": "https://maxiaworld.app/mcp/manifest"},
+        ],
+        "maxia:chains": 14,
+        "maxia:tokens": 107,
+        "maxia:escrow": "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
+    })
+
+
+@app.post("/api/public/intent/verify")
+async def verify_signed_intent(request: Request):
+    """Verify a signed intent envelope. Public endpoint.
+    Body: the intent JSON with sig field.
+    Returns verification result + agent status.
+    """
+    try:
+        intent = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    from intent import verify_intent_with_did
+    return await verify_intent_with_did(intent)
+
+
 @app.get("/api/ceo/health")
 async def ceo_health_check(request: Request):
     """Sante de tous les composants."""
@@ -3321,19 +3568,30 @@ async def get_command(command_id: str, wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/tiers")
 async def get_tiers():
-    """GPU tiers with live pricing from RunPod (0% markup, refresh 30 min)."""
+    """GPU tiers with live pricing from RunPod + Akash (0% markup, refresh 30 min)."""
     import time as _t
+    tiers = []
+    for g in GPU_TIERS:
+        tier = {
+            "id": g["id"], "label": g["label"], "vram_gb": g["vram_gb"],
+            "price_per_hour_usdc": g["base_price_per_hour"],
+            "available": True,
+            "source": "live" if g.get("live_price") else ("local" if g.get("local") else "fallback"),
+            "providers": {"runpod": {"available": True, "price": g["base_price_per_hour"]}},
+        }
+        if AKASH_ENABLED and g["id"] in AKASH_GPU_MAP:
+            akash_price = await akash_client.get_price_estimate(g["id"])
+            tier["providers"]["akash"] = {"available": True, "price": akash_price}
+            if akash_price and akash_price < g["base_price_per_hour"]:
+                tier["cheapest_provider"] = "akash"
+                tier["cheapest_price"] = akash_price
+            else:
+                tier["cheapest_provider"] = "runpod"
+                tier["cheapest_price"] = g["base_price_per_hour"]
+        tiers.append(tier)
     return {
-        "tiers": [
-            {
-                "id": g["id"], "label": g["label"], "vram_gb": g["vram_gb"],
-                "price_per_hour_usdc": g["base_price_per_hour"],
-                "available": True,
-                "source": "live" if g.get("live_price") else ("local" if g.get("local") else "fallback"),
-            }
-            for g in GPU_TIERS
-        ],
-        "provider": "RunPod (via MAXIA)",
+        "tiers": tiers,
+        "providers": ["runpod"] + (["akash"] if AKASH_ENABLED else []),
         "markup": "0%",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }
@@ -3518,12 +3776,37 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
         if not tx_result.get("valid"):
             raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}")
 
-    # Provision the GPU on RunPod
-    print(f"[GPU Rent] Provisioning {tier_id} for {hours}h — wallet: {wallet}")
-    result = await runpod.rent_gpu(tier_id, hours)
+    # Select provider: Akash (if enabled + cheaper + available) or RunPod
+    provider_name = "runpod"
+    if AKASH_ENABLED and akash_client.is_available(tier_id):
+        akash_price = await akash_client.get_price_estimate(tier_id)
+        if akash_price and akash_price < cost_per_hr * 0.95:
+            provider_name = "akash"
+            cost_per_hr = akash_price
+            total_cost = round(cost_per_hr * hours, 4)
+
+    # Prefer explicit provider from request
+    req_provider = req.get("provider", "").lower()
+    if req_provider == "akash" and AKASH_ENABLED and akash_client.is_available(tier_id):
+        provider_name = "akash"
+    elif req_provider == "runpod":
+        provider_name = "runpod"
+
+    # Provision the GPU
+    print(f"[GPU Rent] Provisioning {tier_id} for {hours}h via {provider_name} — wallet: {wallet}")
+    if provider_name == "akash":
+        result = await akash_client.rent_gpu(tier_id, hours)
+    else:
+        result = await runpod.rent_gpu(tier_id, hours)
 
     if not result.get("success"):
-        raise HTTPException(502, f"RunPod provisioning failed: {result.get('error')}")
+        # Fallback: if Akash failed, try RunPod
+        if provider_name == "akash":
+            print(f"[GPU Rent] Akash failed, falling back to RunPod")
+            provider_name = "runpod"
+            result = await runpod.rent_gpu(tier_id, hours)
+        if not result.get("success"):
+            raise HTTPException(502, f"GPU provisioning failed: {result.get('error')}")
 
     # Record in database
     instance_id = result["instanceId"]
@@ -3568,7 +3851,8 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
         "duration_hours": hours,
         "auto_terminate_at": result.get("auto_terminate_at", 0),
         "is_free_trial": is_free_trial,
-        "provider": "runpod",
+        "provider": provider_name,
+        "akash_deployment_id": result.get("akash_deployment_id", ""),
         "instructions": result.get("instructions", ""),
     }
 
@@ -3581,21 +3865,25 @@ async def rent_gpu_public(req: dict):
 
 @app.get("/api/gpu/status/{pod_id}")
 async def get_gpu_status(pod_id: str):
-    """Get real-time status of a running GPU pod."""
+    """Get real-time status of a running GPU pod (RunPod or Akash)."""
+    if pod_id.startswith("akash_"):
+        return await akash_client.get_deployment_status(pod_id)
     return await runpod.get_pod_status(pod_id)
 
 
 @app.post("/api/gpu/terminate/{pod_id}")
 async def terminate_gpu(pod_id: str, wallet: str = Depends(require_auth)):
     """Terminate a GPU pod early. Only the renter can terminate."""
-    # Verify ownership
     instance = await db.get_gpu_instance(pod_id)
     if not instance:
         raise HTTPException(404, "GPU instance not found")
     if instance.get("agent_wallet") != wallet:
         raise HTTPException(403, "Only the renter can terminate this pod")
 
-    result = await runpod.terminate_pod(pod_id)
+    if pod_id.startswith("akash_"):
+        result = await akash_client.terminate_deployment(pod_id)
+    else:
+        result = await runpod.terminate_pod(pod_id)
     if result.get("success"):
         try:
             await db.update_gpu_instance(pod_id, {
@@ -3610,8 +3898,13 @@ async def terminate_gpu(pod_id: str, wallet: str = Depends(require_auth)):
 
 @app.get("/api/gpu/active")
 async def list_active_gpus():
-    """List all currently active GPU pods."""
-    return await runpod.list_active_pods()
+    """List all currently active GPU pods (RunPod + Akash)."""
+    runpod_pods = await runpod.list_active_pods()
+    akash_pods = {k: v for k, v in _active_deployments.items()} if AKASH_ENABLED else {}
+    if isinstance(runpod_pods, dict):
+        runpod_pods["akash_deployments"] = akash_pods
+        return runpod_pods
+    return {"runpod": runpod_pods, "akash": akash_pods}
 
 
 # ═══════════════════════════════════════════════════════════

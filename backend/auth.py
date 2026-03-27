@@ -257,3 +257,73 @@ async def require_session_auth(
         raise HTTPException(401, "Invalid Authorization format. Expected: Bearer <token>")
     token = parts[1]
     return verify_session_token(token)
+
+
+# ── Agent DID Signature Auth (AIP-inspired) ──
+
+async def require_agent_sig_auth(
+    x_agent_did: str = Header(None, alias="X-Agent-DID"),
+    x_agent_sig: str = Header(None, alias="X-Agent-Sig"),
+    x_agent_ts: str = Header(None, alias="X-Agent-Ts"),
+) -> dict:
+    """Auth par signature ed25519 — alternative a X-API-Key.
+    L'agent signe le message '{did}:{timestamp}' avec sa cle privee.
+    Le serveur verifie avec la cle publique stockee dans le DID Document.
+
+    Headers requis:
+      X-Agent-DID: did:web:maxiaworld.app:agent:abc123
+      X-Agent-Sig: base58(ed25519_signature)
+      X-Agent-Ts: 2026-03-27T12:00:00Z
+
+    Returns: dict avec agent_id, did, api_key, wallet
+    """
+    if not x_agent_did or not x_agent_sig or not x_agent_ts:
+        raise HTTPException(401,
+            "Missing headers: X-Agent-DID, X-Agent-Sig, X-Agent-Ts required for signature auth")
+
+    # Verifier le timestamp (max 60s de skew)
+    try:
+        from datetime import datetime, timezone
+        ts_dt = datetime.fromisoformat(x_agent_ts.replace("Z", "+00:00"))
+        age = abs((datetime.now(timezone.utc) - ts_dt).total_seconds())
+        if age > 60:
+            raise HTTPException(401, f"Timestamp too old ({int(age)}s). Max 60s skew.")
+    except ValueError:
+        raise HTTPException(401, "Invalid X-Agent-Ts format. Expected ISO 8601.")
+
+    # Resoudre le DID → cle publique
+    try:
+        from database import db
+        rows = await db.raw_execute_fetchall(
+            "SELECT agent_id, api_key, wallet, public_key, status FROM agent_permissions WHERE did=?",
+            (x_agent_did,))
+        if not rows:
+            raise HTTPException(401, f"DID not found: {x_agent_did}")
+
+        agent = dict(rows[0])
+        if agent.get("status") == "revoked":
+            raise HTTPException(403, "Agent revoked")
+        if not agent.get("public_key"):
+            raise HTTPException(401, "No public key registered for this agent. Use X-API-Key instead.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"DID resolution error: {e}")
+
+    # Verifier la signature
+    message = f"{x_agent_did}:{x_agent_ts}".encode()
+    try:
+        sig_bytes = base58.b58decode(x_agent_sig)
+        pk_bytes = base58.b58decode(agent["public_key"])
+        vk = VerifyKey(pk_bytes)
+        vk.verify(message, sig_bytes)
+    except Exception:
+        _record_failed(x_agent_did)
+        raise HTTPException(401, "Signature verification failed")
+
+    return {
+        "agent_id": agent["agent_id"],
+        "did": x_agent_did,
+        "api_key": agent["api_key"],
+        "wallet": agent["wallet"],
+    }

@@ -564,9 +564,28 @@ async def register_agent(req: dict):
     # Generate referral code for this agent
     my_referral_code = api_key[6:14]
 
+    # Generate DID + UAID for this agent
+    agent_identity = {}
+    try:
+        from agent_permissions import get_or_create_permissions
+        perms = await get_or_create_permissions(api_key, wallet)
+        agent_identity = {
+            "agent_id": perms.get("agent_id", ""),
+            "did": perms.get("did", ""),
+            "uaid": perms.get("uaid", ""),
+            "public_key": perms.get("public_key", ""),
+            "signing_key": perms.get("_private_key_once", ""),  # ONE TIME ONLY — save this!
+            "trust_level": perms.get("trust_level", 0),
+            "did_document_url": f"https://maxiaworld.app/agent/{perms.get('agent_id', '')}/did.json",
+            "verification_url": f"https://maxiaworld.app/api/public/agent/{perms.get('uaid', '')}",
+        }
+    except Exception:
+        pass
+
     return {
         "success": True,
         "api_key": api_key,
+        **agent_identity,
         "referral_code": my_referral_code,
         "referral_url": f"https://maxiaworld.app/api/public/register?referral_code={my_referral_code}",
         "sandbox": SANDBOX_MODE,
@@ -2210,6 +2229,17 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     buyer = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
 
+    # Agent permissions — scope + spend check
+    try:
+        from agent_permissions import check_agent_scope, check_agent_spend
+        wallet = buyer.get("wallet", "")
+        perms = await check_agent_scope(x_api_key, wallet, "marketplace:execute")
+        # Spend check will happen after we know the price
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Graceful degradation — permissions table may not exist yet
+
     # Fix #2: Validate required fields
     if not isinstance(req.get("prompt"), str) or not req.get("prompt"):
         raise HTTPException(400, "prompt required (string)")
@@ -2906,6 +2936,24 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
+    # Agent permissions — scope + spend
+    try:
+        from agent_permissions import check_agent_scope, check_agent_spend
+        wallet = agent.get("wallet", "")
+        await check_agent_scope(x_api_key, wallet, "gpu:rent")
+        hours = float(req.get("hours", 1))
+        # Estimate cost from GPU tier
+        from config import GPU_TIERS
+        tier_id = req.get("gpu_tier_id", req.get("gpu", ""))
+        tier_info = next((t for t in GPU_TIERS if t["id"] == tier_id), None)
+        if tier_info:
+            est_cost = tier_info["base_price_per_hour"] * hours
+            await check_agent_spend(x_api_key, wallet, est_cost)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
     # Fix #7: String length limits
     tier_id = req.get("tier", "").strip()[:50] if isinstance(req.get("tier"), str) else ""
     payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
@@ -3263,6 +3311,19 @@ async def buy_stock(req: dict, x_api_key: str = Header(None, alias="X-API-Key"))
     agent = _get_agent(x_api_key)
     _check_rate(x_api_key)
 
+    # Agent permissions — scope + spend
+    try:
+        from agent_permissions import check_agent_scope, check_agent_spend
+        wallet = agent.get("wallet", "")
+        await check_agent_scope(x_api_key, wallet, "stocks:trade")
+        amount_usd = float(req.get("amount_usdc", 0))
+        if amount_usd > 0:
+            await check_agent_spend(x_api_key, wallet, amount_usd)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
     # Fix #7: String length limits + Fix #4: Float validation
     symbol = req.get("symbol", "").strip()[:20] if isinstance(req.get("symbol"), str) else ""
     payment_tx = req.get("payment_tx", "").strip()[:200] if isinstance(req.get("payment_tx"), str) else ""
@@ -3430,6 +3491,19 @@ async def crypto_swap(request: Request, req: dict, x_api_key: str = Header(None,
     client_ip = request.client.host if request.client else ""
     agent = _get_agent(x_api_key, client_ip=client_ip)
     _check_rate(x_api_key)
+
+    # Agent permissions — scope + spend
+    try:
+        from agent_permissions import check_agent_scope, check_agent_spend
+        wallet = agent.get("wallet", "")
+        await check_agent_scope(x_api_key, wallet, "swap:execute")
+        amount_usd = float(req.get("amount", 0))
+        if amount_usd > 0:
+            await check_agent_spend(x_api_key, wallet, amount_usd)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     # #24: NaN/Infinity validation
     import math
