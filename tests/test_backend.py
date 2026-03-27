@@ -349,15 +349,23 @@ class TestGetAllChainStatus:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TestPythOracleStaleness:
-    """Verify staleness thresholds: 30s for stocks, 120s for crypto."""
+    """Verify staleness thresholds: dual-tier (normal + HFT)."""
 
-    def test_stock_staleness_30s(self):
-        from pyth_oracle import MAX_STALENESS_STOCK_S
-        assert MAX_STALENESS_STOCK_S == 30
+    def test_stock_staleness_normal(self):
+        from pyth_oracle import MAX_STALENESS_STOCK_NORMAL_S
+        assert MAX_STALENESS_STOCK_NORMAL_S == 600  # 10min for tokenized stocks
 
-    def test_crypto_staleness_120s(self):
-        from pyth_oracle import MAX_STALENESS_CRYPTO_S
-        assert MAX_STALENESS_CRYPTO_S == 120
+    def test_stock_staleness_hft(self):
+        from pyth_oracle import MAX_STALENESS_STOCK_HFT_S
+        assert MAX_STALENESS_STOCK_HFT_S == 5
+
+    def test_crypto_staleness_normal(self):
+        from pyth_oracle import MAX_STALENESS_CRYPTO_NORMAL_S
+        assert MAX_STALENESS_CRYPTO_NORMAL_S == 120
+
+    def test_crypto_staleness_hft(self):
+        from pyth_oracle import MAX_STALENESS_CRYPTO_HFT_S
+        assert MAX_STALENESS_CRYPTO_HFT_S == 3
 
     def test_confidence_warn_pct(self):
         from pyth_oracle import CONFIDENCE_WARN_PCT
