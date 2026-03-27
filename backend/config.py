@@ -346,6 +346,9 @@ CEO_ALLOWED_IPS = os.getenv("CEO_ALLOWED_IPS", "")  # Comma-separated IP whiteli
 import logging as _logging
 _cfg_log = _logging.getLogger("config")
 
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+
+
 def validate_secrets():
     """Valide que les secrets critiques sont definis. Appele au demarrage."""
     _warnings = []
