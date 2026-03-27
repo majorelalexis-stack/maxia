@@ -282,19 +282,19 @@ TOKENIZED_STOCKS = {
     "DIS": {
         "name": "Walt Disney Co.", "symbol": "DIS", "sector": "Entertainment", "provider": "dinari",
         "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
-        "mint_dinari_arb": "",
+        "mint_dinari_arb": "", "fallback_price": 93,
         "logo": "https://logo.clearbit.com/disney.com",
     },
     "V": {
         "name": "Visa Inc.", "symbol": "V", "sector": "Payments", "provider": "dinari",
         "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
-        "mint_dinari_arb": "",
+        "mint_dinari_arb": "", "fallback_price": 295,
         "logo": "https://logo.clearbit.com/visa.com",
     },
     "MA": {
         "name": "Mastercard Inc.", "symbol": "MA", "sector": "Payments", "provider": "dinari",
         "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
-        "mint_dinari_arb": "",
+        "mint_dinari_arb": "", "fallback_price": 482,
         "logo": "https://logo.clearbit.com/mastercard.com",
     },
     "UBER": {
