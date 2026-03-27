@@ -294,7 +294,7 @@ function updateStats(stats) {
   document.getElementById('statTools').textContent = stats.total_tools || '0';
   document.getElementById('statCreators').textContent = stats.total_creators || '0';
   document.getElementById('statSales').textContent = stats.total_sales || '0';
-  document.getElementById('statRevenue').textContent = '$' + (stats.revenue_shared || 0).toLocaleString();
+  document.getElementById('statRevenue').textContent = '$' + (stats.revenue_shared || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 }
 
 // ── Filter by category ──
@@ -378,7 +378,7 @@ function renderTools(tools) {
     const catIcon = CAT_ICONS[tool.category] || '&#128295;';
     const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
     const stars = renderStars(tool.rating || 0);
-    const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+    const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price_usdc || tool.price || 0).toFixed(2) : 'Free';
     const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
     const reviewCount = tool.review_count || 0;
 
@@ -428,7 +428,7 @@ function renderToolDetail(tool) {
   const catIcon = CAT_ICONS[tool.category] || '&#128295;';
   const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
   const stars = renderStars(tool.rating || 0);
-  const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+  const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price_usdc || tool.price || 0).toFixed(2) : 'Free';
   const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
   const reviews = tool.reviews || [];
 
