@@ -475,41 +475,82 @@ async def _fetch_all_yields() -> list[dict]:
     all_yields: list[dict] = []
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
+    # ── PRIMARY: DeFiLlama (18K+ pools, all protocols, all chains) ──
+    target_protocols = {
+        "lido", "marinade-finance", "jito", "aave-v3", "compound-v3",
+        "rocket-pool", "ref-finance", "raydium", "orca", "kamino",
+        "drift", "solend", "morpho", "spark", "maker", "frax-ether",
+        "benqi", "trader-joe", "stargate", "yearn",
+    }
+    target_chains = {
+        "Ethereum", "Solana", "Base", "Polygon", "Arbitrum",
+        "Avalanche", "BSC", "Optimism", "Near",
+    }
+
     async with httpx.AsyncClient(
         headers={"User-Agent": "MAXIA-YieldAggregator/1.0"},
         follow_redirects=True,
+        timeout=20,
     ) as client:
-        # Run all fetchers concurrently
-        results = await asyncio.gather(
-            _fetch_marinade(client),
-            _fetch_jito(client),
-            _fetch_aave(client),
-            _fetch_compound(client),
-            _fetch_ref_finance(client),
-            return_exceptions=True,
-        )
+        # 1. DeFiLlama — universal source
+        try:
+            resp = await client.get("https://yields.llama.fi/pools")
+            resp.raise_for_status()
+            pools = resp.json().get("data", [])
+            seen = set()
+            for p in pools:
+                proj = p.get("project", "")
+                chain = p.get("chain", "")
+                apy = p.get("apy", 0)
+                tvl = p.get("tvlUsd", 0)
+                symbol = p.get("symbol", "")
+                if (proj in target_protocols and chain in target_chains
+                        and apy and apy > 0.1 and tvl and tvl > 100_000):
+                    key = f"{proj}_{chain}_{symbol}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    risk = RISK_LOW if apy < 10 else (RISK_MEDIUM if apy < 50 else RISK_HIGH)
+                    all_yields.append({
+                        "protocol": proj.replace("-", " ").title(),
+                        "chain": chain.lower(),
+                        "asset": symbol,
+                        "apy_pct": round(apy, 2),
+                        "tvl_usd": round(tvl, 0),
+                        "risk": risk,
+                        "type": p.get("category", "yield"),
+                        "url": p.get("url", ""),
+                        "pool": p.get("pool", ""),
+                        "source": "defillama",
+                        "is_fallback": False,
+                        "updated_at": now,
+                    })
+            print(f"[Yield] DeFiLlama: {len(all_yields)} live yields fetched")
+        except Exception as e:
+            print(f"[Yield] DeFiLlama error: {e}")
 
-        fetched_protocols: set[str] = set()
-        for result in results:
-            if isinstance(result, Exception):
-                logger.warning(f"[Yield] Fetcher exception: {result}")
-                continue
-            if isinstance(result, list):
-                for item in result:
-                    item["updated_at"] = now
-                    all_yields.append(item)
-                    fetched_protocols.add(item["protocol"])
+        # 2. Marinade direct (more accurate for Solana staking)
+        try:
+            results = await asyncio.gather(
+                _fetch_marinade(client),
+                return_exceptions=True,
+            )
+            for result in results:
+                if isinstance(result, list):
+                    for item in result:
+                        item["updated_at"] = now
+                        item["source"] = "direct"
+                        item["is_fallback"] = False
+                        all_yields.append(item)
+        except Exception:
+            pass
 
-    # Fill in fallbacks for any protocols that returned nothing
-    for fb in _FALLBACK_YIELDS:
-        key = f"{fb['protocol']}_{fb['chain']}_{fb.get('asset','')}"
-        already_have = any(
-            f"{y['protocol']}_{y['chain']}_{y.get('asset','')}" == key for y in all_yields
-        )
-        if not already_have:
+    # Fill in fallbacks ONLY if nothing was fetched
+    if not all_yields:
+        print("[Yield] ALL fetchers failed — using hardcoded fallbacks")
+        for fb in _FALLBACK_YIELDS:
             entry = {**fb, "updated_at": now, "source": "fallback", "is_fallback": True}
             all_yields.append(entry)
-            print(f"[Yield] {fb.get('protocol','?')} on {fb.get('chain','?')}: using fallback data (API unavailable)")
 
     # ── Post-processing: clean data for humans ──
 
