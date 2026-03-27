@@ -2848,52 +2848,60 @@ async def public_wallet_analysis(address: str = ""):
 
 @router.get("/gpu/tiers")
 async def public_gpu_tiers():
-    """Liste les GPU disponibles avec prix live RunPod + Akash (0% markup).
-    GPU_TIERS est mis a jour toutes les 30 min par gpu_pricing.py."""
+    """GPU tiers with live Akash pricing + 15% MAXIA markup. Cheaper than cloud alternatives."""
     import time as _t
-    from config import GPU_TIERS, BROKER_MARGIN, AKASH_ENABLED
-    tiers = []
+    from config import GPU_TIERS, AKASH_ENABLED
+    _MARKUP = 0.15
 
-    # Akash GPU map (if available)
-    akash_map = {}
+    tiers = []
     akash_ok = False
+    _akash = None
+    akash_map = {}
     if AKASH_ENABLED:
         try:
-            from akash_client import akash as _akash, AKASH_GPU_MAP
+            from akash_client import akash as _akash_inst, AKASH_GPU_MAP
+            _akash = _akash_inst
             akash_map = AKASH_GPU_MAP
             akash_ok = True
         except Exception:
             pass
 
     for gpu in GPU_TIERS:
-        price = round(gpu["base_price_per_hour"] * BROKER_MARGIN, 4)
-        providers = {"runpod": {"available": True, "price": price}}
+        tier_id = gpu["id"]
+        base_price = gpu["base_price_per_hour"]
 
-        # Add Akash provider if available for this tier
-        if akash_ok and gpu["id"] in akash_map:
-            try:
-                akash_price = await _akash.get_price_estimate(gpu["id"])
-                if akash_price:
-                    providers["akash"] = {"available": True, "price": round(akash_price, 4)}
-            except Exception:
-                providers["akash"] = {"available": True, "price": None}
+        # Akash price with MAXIA markup
+        if akash_ok and tier_id in akash_map and _akash:
+            akash_cost = await _akash.get_price_estimate(tier_id)
+            if akash_cost:
+                sell_price = round(akash_cost * (1 + _MARKUP), 2)
+            else:
+                sell_price = round(base_price * 0.85, 2)
+        else:
+            sell_price = base_price
 
-        tiers.append({
-            "id": gpu["id"],
+        tier = {
+            "id": tier_id,
             "label": gpu["label"],
             "vram_gb": gpu["vram_gb"],
-            "price_per_hour_usdc": price,
+            "price_per_hour_usdc": sell_price,
             "available": True,
-            "source": "live" if gpu.get("live_price") else ("local" if gpu.get("local") else "fallback"),
-            "maxia_markup": "0%",
-            "local": gpu.get("local", False),
-            "providers": providers,
-        })
+            "source": "live" if akash_ok else "fallback",
+            "maxia_markup": f"{int(_MARKUP*100)}%",
+            "provider": "akash",
+        }
+        if gpu.get("local"):
+            tier["local"] = True
+            tier["available"] = False
+        tiers.append(tier)
+
     return {
         "gpu_count": len(tiers),
         "tiers": tiers,
-        "providers": ["runpod"] + (["akash"] if akash_ok else []),
-        "markup": "0%",
+        "provider": "akash",
+        "network": "Akash Network (decentralized)",
+        "markup": f"{int(_MARKUP*100)}%",
+        "note": "Cheaper than RunPod, AWS, and Lambda Labs",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }
 
