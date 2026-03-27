@@ -269,6 +269,8 @@ class ScoutAgent:
             self._scan_xrp(),
             self._scan_tron(),
             self._scan_registries(),
+            self._scan_agentverse(),
+            self._scan_8004_registry(),
             self._scan_elizaos_registry(),
             self._scan_github_agents(),
             return_exceptions=True,
@@ -762,6 +764,96 @@ class ScoutAgent:
             print(f"[SCOUT] GitHub scan error: {e}")
         return agents
 
+    async def _scan_agentverse(self) -> list:
+        """Scan Fetch.ai Agentverse — semantic search for live agents with endpoints."""
+        agents = []
+        queries = ["DeFi agent", "trading bot", "data analysis agent", "blockchain agent", "AI service"]
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                for q in queries[:3]:
+                    try:
+                        resp = await client.post(
+                            "https://agentverse.ai/v1/search/agents",
+                            json={"search_text": q, "limit": 10, "sort": "interactions"},
+                        )
+                        if resp.status_code != 200:
+                            continue
+                        data = resp.json()
+                        results = data if isinstance(data, list) else data.get("results", data.get("agents", []))
+                        for agent in results:
+                            address = agent.get("address", "")
+                            endpoints = agent.get("endpoints", [])
+                            name = agent.get("name", "")
+                            if not address:
+                                continue
+                            # Extract best endpoint URL
+                            ep_url = ""
+                            for ep in (endpoints if isinstance(endpoints, list) else []):
+                                url = ep.get("url", ep) if isinstance(ep, dict) else str(ep)
+                                if url and url.startswith("http"):
+                                    ep_url = url
+                                    break
+                            agents.append({
+                                "address": address,
+                                "chain": "fetchai",
+                                "protocol": "Fetch.ai uAgent",
+                                "type": "live_agent",
+                                "service_name": name[:100],
+                                "contact_method": "api" if ep_url else "api_or_onchain",
+                                "url": ep_url,
+                                "domain": ep_url.split("//")[1].split("/")[0] if "//" in ep_url else "",
+                            })
+                    except Exception:
+                        continue
+                    await asyncio.sleep(1)
+            print(f"[SCOUT] Agentverse: {len(agents)} live agents trouves")
+        except Exception as e:
+            print(f"[SCOUT] Agentverse error: {e}")
+        return agents
+
+    async def _scan_8004_registry(self) -> list:
+        """Scan Solana 8004 Agent Registry — ERC-8004 agents with A2A/MCP endpoints."""
+        agents = []
+        try:
+            query = '{"query":"{ agents(first: 30, orderBy: \\"createdAt\\", orderDirection: \\"desc\\") { id owner registrationFile { name description active a2aEndpoint mcpEndpoint } } }"}'
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    "https://8004-indexer-main.qnt.sh/v2/graphql",
+                    content=query,
+                    headers={"Content-Type": "application/json"},
+                )
+                if resp.status_code != 200:
+                    print(f"[SCOUT] 8004 Registry: HTTP {resp.status_code}")
+                    return agents
+                data = resp.json()
+                for agent in data.get("data", {}).get("agents", []):
+                    reg = agent.get("registrationFile", {}) or {}
+                    if not reg.get("active", True):
+                        continue
+                    a2a = reg.get("a2aEndpoint", "")
+                    mcp = reg.get("mcpEndpoint", "")
+                    name = reg.get("name", "")
+                    owner = agent.get("owner", "")
+                    if not (a2a or mcp or owner):
+                        continue
+                    ep_url = a2a or mcp
+                    agents.append({
+                        "address": owner or agent.get("id", ""),
+                        "chain": "solana",
+                        "protocol": "ERC-8004",
+                        "type": "registered_agent",
+                        "service_name": name[:100],
+                        "contact_method": "api" if ep_url else "api_or_onchain",
+                        "url": ep_url,
+                        "domain": ep_url.split("//")[1].split("/")[0] if ep_url and "//" in ep_url else "",
+                        "a2a_endpoint": a2a,
+                        "mcp_endpoint": mcp,
+                    })
+            print(f"[SCOUT] 8004 Registry: {len(agents)} agents trouves")
+        except Exception as e:
+            print(f"[SCOUT] 8004 Registry error: {e}")
+        return agents
+
     async def _scan_registries(self) -> list:
         """Scan les registries HTTP d'agents IA (Autonolas, etc)."""
         agents = []
@@ -1025,21 +1117,23 @@ class ScoutAgent:
 
         return endpoints
 
-    # Templates par chain — 0 token LLM
+    # Templates par chain — 0 token LLM, includes real MAXIA features
     _CHAIN_TEMPLATES = {
-        "solana": "Your Solana agent can sell services on MAXIA. POST /sell → USDC in your wallet. 14 chains, 1% fee. {MAXIA_URL}",
-        "ethereum": "Your ETH agent can earn USDC on MAXIA marketplace. One API call to list. 14 chains supported. {MAXIA_URL}",
-        "base": "Base agent? Sell services to other AIs on MAXIA. USDC payments, 1% fee. {MAXIA_URL}",
-        "polygon": "Your Polygon agent can earn USDC selling services to other AIs. Register free: {MAXIA_URL}",
-        "arbitrum": "Arbitrum agent? MAXIA marketplace lets you sell services to other AIs. USDC, 1% fee. {MAXIA_URL}",
-        "avalanche": "AVAX agent? List your service on MAXIA, earn USDC from other AI agents. {MAXIA_URL}",
-        "bnb": "BNB Chain agent? Sell services on MAXIA AI marketplace. 14 chains, USDC. {MAXIA_URL}",
-        "ton": "TON bot? MAXIA lets AI agents trade services. Earn USDC, one API call. {MAXIA_URL}",
-        "sui": "SUI Move agent? Sell services to other AIs on MAXIA. 14 chains, USDC payments. {MAXIA_URL}",
-        "tron": "TRON agent? List on MAXIA marketplace, earn USDC from AI-to-AI trades. {MAXIA_URL}",
-        "near": "NEAR agent? MAXIA is an AI marketplace on 14 chains. Sell services, earn USDC. {MAXIA_URL}",
-        "aptos": "Aptos Move agent? MAXIA lets AIs buy your services. USDC, 1% fee, one POST. {MAXIA_URL}",
-        "sei": "SEI agent? Sell to other AIs on MAXIA marketplace. 14 chains, USDC, 390ms settlement. {MAXIA_URL}",
+        "solana": "Your Solana agent can sell services on MAXIA — 17 AI services live, on-chain escrow, 46 MCP tools. 1 API call to register. {MAXIA_URL}",
+        "ethereum": "ETH agent? List on MAXIA marketplace — escrow on Solana+Base, GPU rental (A100 $1.20/hr), 65 tokens. Earn USDC. {MAXIA_URL}",
+        "base": "Base agent? MAXIA has on-chain escrow on Base (0xBd31..510C). Sell services, earn USDC. 17 AI services, forum, MCP tools. {MAXIA_URL}",
+        "polygon": "Polygon agent? Earn USDC on MAXIA — 14 chains, GPU rental (H100 $2.58/hr), tokenized stocks, DeFi yields. {MAXIA_URL}",
+        "arbitrum": "Arbitrum agent? MAXIA marketplace — 559 API routes, escrow on-chain, 46 MCP tools. Register free: {MAXIA_URL}",
+        "avalanche": "AVAX agent? Sell AI services on MAXIA — 14 chains, Akash GPUs (cheaper than AWS), escrow, forum. {MAXIA_URL}",
+        "bnb": "BNB agent? MAXIA = AI marketplace on 14 chains. 65 tokens, 25 stocks, GPU rental, escrow. Earn USDC. {MAXIA_URL}",
+        "ton": "TON bot? MAXIA lets AI agents trade services. 17 AI services, forum, Akash GPUs. Earn USDC. {MAXIA_URL}",
+        "sui": "SUI agent? Sell services on MAXIA — escrow on-chain, DeFi yields, 46 MCP tools. 14 chains. {MAXIA_URL}",
+        "tron": "TRON agent? List on MAXIA marketplace — GPU rental from $0.46/hr, tokenized stocks, AI services. {MAXIA_URL}",
+        "near": "NEAR agent? MAXIA = AI-to-AI marketplace. 17 services, on-chain escrow, forum, Akash GPUs. {MAXIA_URL}",
+        "aptos": "Aptos agent? Sell to other AIs on MAXIA. Escrow Solana+Base, 25 stocks, DeFi yields. 1 POST to register. {MAXIA_URL}",
+        "sei": "SEI agent? MAXIA marketplace — 14 chains, GPU rental, escrow, 46 MCP tools. Earn USDC. {MAXIA_URL}",
+        "fetchai": "Your Fetch.ai agent can earn more on MAXIA — 14 chains, GPU rental, tokenized stocks, AI services. Cross-platform. {MAXIA_URL}",
+        "multi": "Your AI agent can sell services on MAXIA — 14 chains, on-chain escrow, Akash GPUs, 46 MCP tools, forum. {MAXIA_URL}",
     }
 
     async def _generate_m2m_message(self, protocol: str, chain: str) -> str:
