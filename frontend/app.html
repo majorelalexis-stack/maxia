@@ -5581,20 +5581,31 @@ async function switchAndRefresh(chainId) {
 // ══════════════════════════════════════
 // HASH ROUTING & INIT
 // ══════════════════════════════════════
+var _validPages = ['home', 'swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'escrow', 'nfts', 'agentid', 'trading', 'enterprise'];
+
 function initFromHash() {
+  // Handle ?install= from App Store
+  var params = new URLSearchParams(window.location.search);
+  var installId = params.get('install');
+  if (installId) {
+    showPage('home');
+    setTimeout(function() {
+      toast('Agent "' + esc(installId) + '" — connect wallet to install', 'info');
+    }, 500);
+    return;
+  }
+
   var hash = window.location.hash.replace('#', '').toLowerCase();
-  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'escrow', 'nfts', 'agentid', 'trading'];
-  if (hash && validPages.indexOf(hash) !== -1) {
+  if (hash && _validPages.indexOf(hash) !== -1) {
     showPage(hash);
   } else {
-    showPage('swap');
+    showPage('home');
   }
 }
 
 window.addEventListener('hashchange', function() {
   var hash = window.location.hash.replace('#', '').toLowerCase();
-  var validPages = ['swap', 'portfolio', 'gpu', 'yields', 'bridge', 'stocks', 'escrow', 'nfts', 'agentid', 'trading'];
-  if (hash && validPages.indexOf(hash) !== -1) {
+  if (hash && _validPages.indexOf(hash) !== -1) {
     showPage(hash);
   }
 });
