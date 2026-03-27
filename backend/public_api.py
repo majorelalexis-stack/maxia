@@ -738,7 +738,7 @@ async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-
         "commission_usdc": commission, "seller_gets_usdc": seller_gets,
         "tier": tier, "commission_pct": f"{commission_bps/100}%",
         "balance_after": round(_sandbox_balances[x_api_key], 4),
-        "result": f"[SANDBOX] {service_name} — ${price} (fee: ${commission} {tier}). Prompt: {prompt[:100]}",
+        "result": await _execute_native_service(service_id, prompt) if service_id.startswith("maxia-") else f"[SANDBOX] {service_name} — executed. Prompt: {prompt[:100]}",
     }
 
 
@@ -2574,44 +2574,54 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     }
 
 
-async def _execute_native_service(service_id: str, prompt: str) -> str:
-    """Execute a MAXIA native service via Groq."""
-    if not groq_client:
-        return "Service temporarily unavailable (no LLM)"
+_SERVICE_PROMPTS = {
+    "maxia-audit": "You are a smart contract security auditor. Analyze the code for vulnerabilities: reentrancy, overflow, access control, flash loan attacks. Structure: [CRITICAL][MAJOR][MINOR][INFO]. Be thorough and specific.",
+    "maxia-code-review": "You are a senior software engineer. Review code for bugs, performance issues, and best practices. Suggest improvements.",
+    "maxia-translate": "You are a professional translator. Translate accurately while preserving meaning and tone. Auto-detect source language.",
+    "maxia-summary": "You are a document summarizer. Extract key points into clear bullet points. Be concise but comprehensive.",
+    "maxia-wallet-analysis": "You are a blockchain wallet analyst. Analyze wallet addresses for token holdings, transaction patterns, DeFi positions, and risk indicators. Provide a risk score from 0-100.",
+    "maxia-marketing": "You are a Web3 marketing copywriter. Generate compelling copy optimized for the Web3/AI audience.",
+    "maxia-image": "You are an image generation prompt engineer. Create a detailed prompt for FLUX.1 / Stable Diffusion based on the user's request.",
+    "maxia-scraper": "You are a web scraping assistant. Extract and structure data from the provided URL or content into clean JSON.",
+    "maxia-transcription": "You are an audio transcription assistant. Provide structured transcription from the audio context described.",
+    "maxia-embedding": "You are a text embedding assistant. Convert text into key concepts and semantic categories. Return JSON array.",
+    "maxia-sentiment": "You are a sentiment analysis engine. Return JSON: sentiment_score (-1 to 1), confidence (0-1), label, key_phrases.",
+    "maxia-wallet-risk": "You are a blockchain wallet risk analyst. Score 0-100 (0=high risk, 100=safe). Analyze: balance, age, tx count, DeFi exposure. Return JSON.",
+    "maxia-airdrop-scanner": "You are an airdrop eligibility analyst. List protocols where the wallet may qualify. Return JSON with protocol names and likelihood.",
+    "maxia-smart-money": "You are a smart money tracker. Analyze whale movements: large transfers, accumulation patterns, DeFi positions. Return JSON.",
+    "maxia-nft-rarity": "You are an NFT rarity calculator. Calculate rarity score from trait distribution. Return JSON with score and rare traits.",
+    "maxia-finetune": "You are a fine-tuning advisor. Help the user plan their LLM fine-tuning: dataset prep, hyperparams, GPU requirements.",
+    "maxia-defi-yields": "You are a DeFi yield analyst. Find the best APY across lending, staking, LP protocols on major chains. Return JSON.",
+}
 
-    system_prompts = {
-        "maxia-audit": "You are a smart contract security auditor. Analyze the code for vulnerabilities: reentrancy, overflow, access control, flash loan attacks. Structure: [CRITICAL][MAJOR][MINOR][INFO]. Be thorough and specific.",
-        "maxia-code": "You are a senior software engineer. Review code for bugs, performance issues, and best practices. Suggest improvements. Write production-ready code with error handling and comments.",
-        "maxia-data": "You are a DeFi data analyst. Provide detailed analytics with numbers and insights.",
-        "maxia-translate": "You are a professional translator. Translate accurately while preserving meaning and tone. Auto-detect source language.",
-        "maxia-summary": "You are a document summarizer. Extract key points into clear bullet points. Be concise but comprehensive. Supports up to 10,000 words.",
-        "maxia-wallet": "You are a blockchain wallet analyst. Analyze wallet addresses for token holdings, transaction patterns, DeFi positions, and risk indicators. Provide a risk score from 0-100.",
-        "maxia-marketing": "You are a Web3 marketing copywriter. Generate compelling landing page copy, Twitter threads, blog posts, or product descriptions. Optimize for the Web3/AI audience.",
-        "maxia-image": "You are an image generation prompt engineer. Create a detailed image generation prompt based on the user's request. Output the optimized prompt for FLUX.1 / Stable Diffusion.",
-        "maxia-scraper": "You are a web scraping assistant. Extract and structure data from the provided URL or content into clean JSON format.",
-        "maxia-transcription": "You are an audio transcription assistant. The user provides audio context or a description. Provide a structured transcription. If no real audio, explain that the service requires audio file upload via the /api/public/transcribe endpoint.",
-        "maxia-embedding": "You are a text embedding assistant. Convert the provided text into a structured representation suitable for vector search. Return a JSON array of key concepts and their semantic categories.",
-        "maxia-sentiment": "You are a sentiment analysis engine. Analyze the provided text and return: sentiment_score (-1.0 to 1.0), confidence (0-1), label (very_negative/negative/neutral/positive/very_positive), and key_phrases that influenced the score. Return JSON.",
-        "maxia-wallet-score": "You are a blockchain wallet analyst. Based on the wallet address provided, explain what data points would be analyzed (balance, age, tx count, DeFi exposure, token diversity) and provide a risk assessment framework. Score 0-100 where 0=high risk, 100=safe. Return JSON.",
-        "maxia-airdrop-scan": "You are an airdrop eligibility analyst. Based on the wallet address, list protocols where the wallet may be eligible for airdrops. Check for: early adopter status, governance participation, liquidity provision, bridge usage, NFT holdings. Return JSON with protocol names and eligibility likelihood.",
-        "maxia-smart-money": "You are a smart money tracker. Analyze whale wallet movements and provide insights on: large transfers, accumulation patterns, DeFi position changes, and potential market signals. Return JSON.",
-        "maxia-nft-rarity": "You are an NFT rarity calculator. Based on the collection and token ID provided, calculate a rarity score based on trait distribution. Return JSON with score, rank estimate, and rare traits.",
-    }
-    sys = system_prompts.get(service_id, "You are a helpful AI assistant.")
+
+async def _execute_native_service(service_id: str, prompt: str) -> str:
+    """Execute a MAXIA native service via LLM Router (Groq -> Mistral -> Claude fallback)."""
+    sys_prompt = _SERVICE_PROMPTS.get(service_id, "You are a helpful AI assistant.")
 
     try:
-        def _call():
-            resp = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[{"role": "system", "content": sys}, {"role": "user", "content": prompt}],
-                max_tokens=1500, temperature=0.7,
-            )
-            return resp.choices[0].message.content.strip()
-        return await asyncio.to_thread(_call)
+        from llm_router import router as llm_router
+        result = await llm_router.call(prompt=prompt, system=sys_prompt, max_tokens=1500)
+        if result:
+            return result
     except Exception as e:
-        # Fix #21: Don't leak internal error details
-        print(f"[PublicAPI] Native service execution error: {e}")
-        return "Service execution temporarily unavailable"
+        print(f"[PublicAPI] LLM Router error: {e}")
+
+    # Direct Groq fallback (legacy)
+    try:
+        if groq_client:
+            def _call():
+                resp = groq_client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
+                    max_tokens=1500, temperature=0.7,
+                )
+                return resp.choices[0].message.content.strip()
+            return await asyncio.to_thread(_call)
+    except Exception as e:
+        print(f"[PublicAPI] Groq fallback error: {e}")
+
+    return "Service temporarily unavailable — please retry in a few seconds"
 
 
 async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
@@ -2880,12 +2890,20 @@ async def public_gpu_tiers():
         else:
             sell_price = base_price
 
+        # Check real availability on Akash
+        is_avail = True
+        if akash_ok and _akash and tier_id in akash_map:
+            try:
+                is_avail = await _akash.check_tier_available(tier_id)
+            except Exception:
+                is_avail = True  # Assume available if check fails
+
         tier = {
             "id": tier_id,
             "label": gpu["label"],
             "vram_gb": gpu["vram_gb"],
             "price_per_hour_usdc": sell_price,
-            "available": True,
+            "available": is_avail,
             "source": "live" if akash_ok else "fallback",
             "maxia_markup": f"{int(_MARKUP*100)}%",
             "provider": "akash",

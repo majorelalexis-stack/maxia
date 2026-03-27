@@ -145,12 +145,41 @@ class AkashClient:
         """Verifie si un tier est disponible sur Akash."""
         return tier_id in AKASH_GPU_MAP and self.api_key
 
+    # Cache dispo GPU (refresh toutes les 5 min)
+    _gpu_avail_cache: dict = {}
+    _gpu_avail_ts: float = 0
+
     async def get_gpu_availability(self) -> dict:
-        """Recupere la disponibilite GPU sur le reseau Akash."""
+        """Recupere la disponibilite GPU sur le reseau Akash avec cache 5 min."""
+        now = time.time()
+        if AkashClient._gpu_avail_cache and now - AkashClient._gpu_avail_ts < 300:
+            return AkashClient._gpu_avail_cache
+
         result = await self._request("GET", "/v1/gpu")
         if "error" in result:
             return {"available": False, "error": result["error"]}
-        return {"available": True, "gpus": result}
+
+        # Parser les GPU dispo par modele
+        avail = {}
+        details = result.get("gpus", result).get("details", {}).get("nvidia", [])
+        for gpu in details:
+            model = (gpu.get("model") or "").lower()
+            free = gpu.get("allocatable", 0) - gpu.get("allocated", 0)
+            avail[model] = max(0, free)
+
+        AkashClient._gpu_avail_cache = {"available": True, "models": avail}
+        AkashClient._gpu_avail_ts = now
+        return AkashClient._gpu_avail_cache
+
+    async def check_tier_available(self, tier_id: str) -> bool:
+        """Verifie si un tier specifique a des GPU dispo sur Akash."""
+        if tier_id not in AKASH_GPU_MAP:
+            return False
+        specs = AKASH_GPU_MAP[tier_id]
+        model = specs["model"].lower()
+        avail = await self.get_gpu_availability()
+        models = avail.get("models", {})
+        return models.get(model, 0) > 0
 
     async def get_price_estimate(self, tier_id: str) -> float | None:
         """Estime le prix/heure pour un tier sur Akash (basee sur les bids recents)."""

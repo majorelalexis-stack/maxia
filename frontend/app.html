@@ -825,37 +825,17 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: NFTs ─── -->
 <div class="page" id="page-nfts">
-  <h2 class="page-title">NFT Collection</h2>
-  <p class="page-sub">Mint NFTs on Solana or Base — AI-generated metadata</p>
+  <h2 class="page-title">NFT & Soulbound Tokens</h2>
+  <p class="page-sub">Mint agent identity NFTs and Soulbound Tokens (SBTs) on Solana + Base</p>
 
-  <div class="stats-row" id="nft-stats">
-    <div class="stat-card"><div class="val" id="nft-total-agents">—</div><div class="lbl">Registered Agents</div></div>
-    <div class="stat-card"><div class="val" id="nft-total-minted">—</div><div class="lbl">NFTs Minted</div></div>
-    <div class="stat-card"><div class="val" id="nft-avg-trust">—</div><div class="lbl">Avg Trust Score</div></div>
-    <div class="stat-card"><div class="val" id="nft-total-badges">—</div><div class="lbl">Badges Earned</div></div>
-  </div>
-
-  <div class="card" style="max-width:480px;margin-bottom:32px">
-    <h3 style="font-size:18px;font-weight:600;margin-bottom:20px">Mint NFT</h3>
-    <div class="input-group">
-      <label>Name</label>
-      <input class="input-field" type="text" id="nft-name" placeholder="My NFT">
-    </div>
-    <div class="input-group">
-      <label>Description</label>
-      <input class="input-field" type="text" id="nft-desc" placeholder="A unique AI-generated NFT">
-    </div>
-    <button class="btn btn-primary" onclick="mintNFT()">Mint NFT (on-chain)</button>
-  </div>
-
-  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Minted NFTs</h3>
-  <div id="nfts-grid" class="grid-3" style="margin-bottom:32px">
-    <div style="text-align:center;padding:24px;color:var(--muted);grid-column:1/-1">Loading NFTs...</div>
-  </div>
-
-  <h3 style="font-size:18px;font-weight:600;margin-bottom:16px">Registered Agents</h3>
-  <div id="agents-grid" class="grid-3">
-    <div style="text-align:center;padding:24px;color:var(--muted);grid-column:1/-1">Loading agents...</div>
+  <div class="card" style="text-align:center;padding:48px 24px;max-width:600px;margin:40px auto">
+    <div style="font-size:48px;margin-bottom:16px">&#127912;</div>
+    <h3 style="font-size:22px;font-weight:700;margin-bottom:8px">Coming Soon</h3>
+    <p style="color:var(--muted);margin-bottom:20px;max-width:420px;margin-left:auto;margin-right:auto">
+      Agent Identity SBTs and on-chain reputation NFTs are in development.
+      Register your Agent ID now to be ready when minting goes live.
+    </p>
+    <button class="btn btn-primary" onclick="showPage('agentid')" style="max-width:220px;margin:0 auto">Create Agent ID</button>
   </div>
 </div>
 
@@ -4714,18 +4694,10 @@ async function loadStockMiniChart(symbol) {
     }
   } catch(e) {}
 
-  // Fallback: generate 30-day sparkline from current price and 24h change
+  // No historical data available — show message instead of fake chart
   if (chartData.length < 5) {
-    var now = Math.floor(Date.now()/1000);
-    var dayAgoPrice = currentPrice / (1 + change/100);
-    for (var i = 29; i >= 0; i--) {
-      var t = now - i * 86400;
-      var progress = (30 - i) / 30;
-      // Smooth interpolation with some noise
-      var noise = Math.sin(i * 0.7) * currentPrice * 0.008 + Math.cos(i * 1.3) * currentPrice * 0.005;
-      var val = dayAgoPrice + (currentPrice - dayAgoPrice) * progress + noise;
-      chartData.push({time: t, value: Math.max(val, currentPrice * 0.9)});
-    }
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px">Live price only — historical chart coming soon</div>';
+    return;
   }
 
   try {
