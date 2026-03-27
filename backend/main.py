@@ -24,7 +24,15 @@ from models import (
     GpuRentRequest, GpuRentPublicRequest,
 )
 from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
-from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
+try:
+    from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
+except ImportError:
+    akash_client = None
+    AKASH_GPU_MAP = {}
+    AKASH_MAX_PRICE = 10.0
+    _active_deployments = {}
+    class AkashClient:
+        pass
 from agentid_client import agentid as agentid_client
 from config import AKASH_ENABLED
 from solana_verifier import verify_transaction
