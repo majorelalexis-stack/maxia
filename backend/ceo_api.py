@@ -7,7 +7,10 @@ import hashlib
 
 from fastapi import APIRouter, HTTPException, Request
 from error_utils import safe_error
-from database import db
+def _get_db():
+    """Lazy DB import to avoid stale singleton reference."""
+    import database
+    return database.db
 
 router = APIRouter(prefix="/api/ceo", tags=["ceo"])
 
@@ -254,7 +257,7 @@ async def ceo_full_state(request: Request):
         mem = ceo.memory._data
         # Compter les vrais services actifs depuis la DB (pas la memoire CEO)
         try:
-            stats = await db.get_marketplace_stats()
+            stats = await _get_db().get_marketplace_stats()
             services_count = stats.get("services_listed", 0)
         except Exception:
             services_count = mem.get("services", 0)
@@ -376,7 +379,7 @@ async def ceo_update_price(request: Request):
         raise HTTPException(400, "new_price required")
 
     try:
-        await db.update_service(service_id, {"price_usdc": float(new_price)})
+        await _get_db().update_service(service_id, {"price_usdc": float(new_price)})
         audit_log("ceo_update_price", ip, f"service={service_id} price={new_price} reason={reason}", "ceo-local")
         return {"success": True, "service_id": service_id, "new_price": new_price}
     except Exception as e:
@@ -413,7 +416,7 @@ async def ceo_transactions(request: Request, limit: int = 50):
     from auth import require_ceo_auth
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
     try:
-        rows = await db.get_activity(limit)
+        rows = await _get_db().get_activity(limit)
         return {"transactions": rows, "count": len(rows)}
     except Exception as e:
         return {"error": "An error occurred", "transactions": []}
@@ -475,7 +478,7 @@ async def ceo_health_check(request: Request):
         }
         # Check DB
         try:
-            await db.get_stats()
+            await _get_db().get_stats()
         except Exception:
             health["components"]["database"] = "error"
             health["healthy"] = False
@@ -874,27 +877,27 @@ async def ceo_web_analytics(request: Request):
         h7d = now - 604800
 
         # Signups last 24h and 7d
-        signups_24h = await db.raw_execute_fetchall(
+        signups_24h = await _get_db().raw_execute_fetchall(
             "SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h24,))
-        signups_7d = await db.raw_execute_fetchall(
+        signups_7d = await _get_db().raw_execute_fetchall(
             "SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h7d,))
-        total_agents = await db.raw_execute_fetchall(
+        total_agents = await _get_db().raw_execute_fetchall(
             "SELECT COUNT(*) as cnt FROM agents")
 
         # Transactions last 24h
-        tx_24h = await db.raw_execute_fetchall(
+        tx_24h = await _get_db().raw_execute_fetchall(
             "SELECT COUNT(*) as cnt FROM marketplace_tx WHERE created_at > ?", (h24,))
 
         # Revenue last 24h
-        revenue = await db.raw_execute_fetchall(
+        revenue = await _get_db().raw_execute_fetchall(
             "SELECT COALESCE(SUM(commission_usdc), 0) as total FROM marketplace_tx WHERE created_at > ?", (h24,))
 
         # Active services
-        services = await db.raw_execute_fetchall(
+        services = await _get_db().raw_execute_fetchall(
             "SELECT COUNT(*) as cnt FROM agent_services WHERE status='active'")
 
         # Recent signups (last 5)
-        recent = await db.raw_execute_fetchall(
+        recent = await _get_db().raw_execute_fetchall(
             "SELECT name, wallet, created_at FROM agents ORDER BY created_at DESC LIMIT 5")
 
         return {
@@ -1031,8 +1034,8 @@ async def ceo_competitors(request: Request):
 
     # MAXIA self-assessment
     try:
-        agents = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
-        services = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agent_services WHERE status='active'")
+        agents = await _get_db().raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
+        services = await _get_db().raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agent_services WHERE status='active'")
         competitors["maxia"] = {
             "name": "MAXIA (us)",
             "registered_agents": agents[0]["cnt"] if agents else 0,
@@ -1110,9 +1113,9 @@ async def ceo_feedback_loop(request: Request):
     try:
         now = int(time.time())
         h24 = now - 86400
-        signups = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h24,))
-        total = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
-        revenue = await db.raw_execute_fetchall(
+        signups = await _get_db().raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h24,))
+        total = await _get_db().raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
+        revenue = await _get_db().raw_execute_fetchall(
             "SELECT COALESCE(SUM(commission_usdc), 0) as total FROM marketplace_tx WHERE created_at > ?", (h24,))
         results["web"] = {
             "signups_24h": signups[0]["cnt"] if signups else 0,
