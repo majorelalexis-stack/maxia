@@ -243,7 +243,8 @@ async def update_candles():
                         (price, price, price, symbol, minute_ts))
                 else:
                     await db.raw_execute(
-                        "INSERT OR IGNORE INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?)",
+                        "INSERT INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?) "
+                        "ON CONFLICT(symbol,interval,timestamp) DO UPDATE SET high=MAX(price_candles.high,excluded.high), low=MIN(price_candles.low,excluded.low), close=excluded.close",
                         (symbol, "1m", price, price, price, price, 0, minute_ts))
 
 
@@ -264,7 +265,8 @@ async def update_candles():
                             l = min(r["low"] for r in rows)
                             c = rows[-1]["close"]
                             await db.raw_execute(
-                                "INSERT OR REPLACE INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?)",
+                                "INSERT INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?) "
+                                "ON CONFLICT(symbol,interval,timestamp) DO UPDATE SET open=excluded.open, high=excluded.high, low=excluded.low, close=excluded.close",
                                 (symbol, interval, o, h, l, c, 0, bucket_ts))
         
             # Cleanup old candles daily

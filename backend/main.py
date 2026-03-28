@@ -2352,6 +2352,11 @@ async def _ws_receive_json_timeout(ws: WebSocket, timeout: float) -> dict:
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
+    ip = ws.client.host if ws.client else "unknown"
+    if _ws_connections.get(ip, 0) >= _WS_MAX_PER_IP:
+        await ws.close(1008)
+        return
+    _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
     await ws.accept()
     cid = str(uuid.uuid4())
     _ws_clients[cid] = ws
@@ -2414,10 +2419,16 @@ async def ws_endpoint(ws: WebSocket):
         pass
     finally:
         _ws_clients.pop(cid, None)
+        _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
 
 @app.websocket("/auctions")
 async def auction_ws(ws: WebSocket):
+    ip = ws.client.host if ws.client else "unknown"
+    if _ws_connections.get(ip, 0) >= _WS_MAX_PER_IP:
+        await ws.close(1008)
+        return
+    _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
     await ws.accept()
     cid = str(uuid.uuid4())
     await auction_manager.register(cid, ws)
@@ -2468,6 +2479,7 @@ async def auction_ws(ws: WebSocket):
         pass
     finally:
         await auction_manager.unregister(cid)
+        _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
 
 # V-09: WebSocket connection limiter
