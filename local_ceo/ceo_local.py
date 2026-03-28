@@ -2515,9 +2515,23 @@ class CEOLocal:
             return _default
 
     async def _generate_tweet_via_local(self, context: str = "") -> str:
-        """Genere un tweet via CEO local (Qwen 3 14B sur 7900XT)."""
-        system = "You are Alexis, solo founder building MAXIA (AI-to-AI marketplace, 14 chains, 65 tokens, DeFi yields). Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. Write like you're talking to a friend who codes. Max 250 chars. English only. NEVER mention revenue numbers or user counts. If you include a link, use maxiaworld.app?utm_source=twitter"
-        prompt = f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}"
+        """Genere un tweet via CEO local (Qwen 3 14B sur 7900XT). Checks memory to avoid repetition."""
+        # Check what we already talked about recently to avoid spam/repetition
+        recent_memory = vmem.search_context("recent tweets posted about MAXIA", n=5)
+        avoid_topics = ""
+        if recent_memory and "(Aucun" not in recent_memory:
+            avoid_topics = f"\n\nAVOID these topics (already covered recently):\n{recent_memory}\n\nPick a DIFFERENT angle."
+
+        system = (
+            "You are Alexis, solo founder building MAXIA. "
+            f"{MAXIA_FEATURES_SHORT} "
+            "Write tweets that sound like a REAL person — share frustrations, small wins, debugging stories, hot takes, honest questions. "
+            "NEVER sound like marketing. No hashtags. No emojis spam (0-1 max). No 'revolutionary' or 'game-changing'. "
+            "Write like you're talking to a friend who codes. Max 250 chars. English only. "
+            "NEVER mention revenue numbers or user counts. "
+            "If you include a link, use maxiaworld.app"
+        )
+        prompt = f"Write a tweet. {context or 'Share something real — a debugging story, a hot take on AI agents, or an honest question to other devs.'}{avoid_topics}"
         result = await call_ceo(prompt, system, max_tokens=100, think=False)
         if result:
             return result.strip().strip('"')

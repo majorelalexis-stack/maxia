@@ -856,7 +856,7 @@ class BrowserAgent:
             await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "tweet_ok")
 
-            self._record_action("tweet", self._content_hash("tweet", text))
+            self._record_action("tweet", self._content_hash("tweet", text), content_text=text, target="twitter")
             return {"success": True, "proof": proof, "text": text[:100]}
 
         except Exception as e:
@@ -914,7 +914,7 @@ class BrowserAgent:
                 return {"success": False, "error": "Bouton Reply introuvable"}
 
             await page.wait_for_timeout(5000)
-            self._record_action("reply", self._content_hash("reply", tweet_url))
+            self._record_action("reply", self._content_hash("reply", tweet_url), content_text=text, target=tweet_url)
             return {"success": True, "url": tweet_url, "reply": text[:100]}
 
         except Exception as e:
@@ -1188,7 +1188,7 @@ class BrowserAgent:
             await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "reddit_ok")
 
-            self._record_action("reddit_post", self._content_hash("reddit_post", f"{subreddit}:{title}"))
+            self._record_action("reddit_post", self._content_hash("reddit_post", f"{subreddit}:{title}"), content_text=f"{title}: {body[:200]}", target=subreddit)
             return {"success": True, "proof": proof, "subreddit": subreddit}
 
         except Exception as e:
@@ -1715,7 +1715,7 @@ class BrowserAgent:
 
             await page.wait_for_timeout(5000)
             proof = await self._screenshot(page, "reddit_comment_ok")
-            self._record_action("reddit_comment", self._content_hash("reddit_comment", post_url))
+            self._record_action("reddit_comment", self._content_hash("reddit_comment", post_url), content_text=comment_text[:300] if 'comment_text' in dir() else post_url, target=post_url)
             return {"success": True, "proof": proof, "url": post_url}
 
         except Exception as e:
