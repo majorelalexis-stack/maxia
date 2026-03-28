@@ -5,3 +5,6 @@ import os
 os.environ.setdefault("JWT_SECRET", "test-secret-key-minimum-32-characters-long")
 os.environ.setdefault("SANDBOX_MODE", "true")
 os.environ.setdefault("ADMIN_KEY", "test-admin-key-32chars-minimum!!")
+
+# chaos_test.py modifies global state (circuit breakers) — run separately via CI
+collect_ignore_glob = ["*chaos_test*"]

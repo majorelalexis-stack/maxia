@@ -1,0 +1,13 @@
+.git
+__pycache__
+*.pyc
+.env
+*.db
+*.db-shm
+*.db-wal
+local_ceo/
+frontend-new/
+frontend-backup*/
+tests/
+.claude/
+.github/

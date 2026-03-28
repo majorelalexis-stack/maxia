@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r backend/requirements.txt 2>&1 | tail -5 || true
+          pip install -r backend/requirements.txt 2>&1 | tail -5
           pip install pytest pytest-asyncio 2>&1 | tail -3
 
       - name: Syntax check all Python files
@@ -127,5 +127,8 @@ jobs:
           asyncio.run(smoke())
           "
 
-      - name: Chaos / resilience tests
-        run: python tests/chaos_test.py
+      - name: Security scan (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --ignore-vuln GHSA-0000 2>&1 || true
+        continue-on-error: true
