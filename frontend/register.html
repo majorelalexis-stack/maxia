@@ -20,11 +20,11 @@
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0A0E17;--bg2:#111827;--card:#151D2E;--text:#E2E8F0;--muted:#94A3B8;--muted2:#475569;--blue:#3B82F6;--purple:#8B5CF6;--cyan:#06B6D4;--green:#10B981;--orange:#F59E0B;--red:#EF4444;--border:rgba(255,255,255,.06)}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--blue:#3b82f6;--purple:#7c3aed;--cyan:#00e5ff;--green:#10B981;--orange:#F59E0B;--red:#EF4444;--border:rgba(255,255,255,.06)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
 a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
 
 /* Nav */
@@ -48,7 +48,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 .ps{display:flex;flex-direction:column;align-items:center;width:120px;z-index:1}
 .ps-dot{width:44px;height:44px;border-radius:50%;background:var(--card);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:var(--muted2);transition:all .3s}
 .ps-label{font-size:11px;color:var(--muted2);margin-top:6px;text-transform:uppercase;letter-spacing:.5px}
-.ps.active .ps-dot{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;border-color:var(--blue);box-shadow:0 0 24px rgba(59,130,246,.3)}
+.ps.active .ps-dot{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;border-color:var(--blue);box-shadow:0 0 24px rgba(59,130,246,.3)}
 .ps.active .ps-label{color:var(--cyan)}
 .ps.done .ps-dot{background:var(--green);color:#fff;border-color:var(--green)}
 .ps.done .ps-label{color:var(--green)}
@@ -67,15 +67,15 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 .fg{margin-bottom:20px}
 .fg label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:500}
 .fg .req{color:var(--red)}
-.fg input,.fg textarea,.fg select{width:100%;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;transition:all .2s}
+.fg input,.fg textarea,.fg select{width:100%;padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:all .2s}
 .fg input:focus,.fg textarea:focus,.fg select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
 .fg textarea{height:100px;resize:vertical}
 .fg select{cursor:pointer}
 .fg .hint{font-size:11px;color:var(--muted2);margin-top:4px}
 
 /* Buttons */
-.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'Outfit',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.btn-primary{background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;width:100%}
+.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;width:100%}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--muted2);width:100%;margin-top:10px}
@@ -113,6 +113,58 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 </style>
 </head>
 <body>
+<style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}h1,h2,h3{font-family:Syne,sans-serif}::selection{background:rgba(0,229,255,.2)}</style><div class="bg-hex"><canvas id="hexc"></canvas></div><div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div><div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div><script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
+<!-- NAV -->
+<nav>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button onclick="document.getElementById('pg-sm').style.left='0px';document.getElementById('pg-ov').style.opacity='1';document.getElementById('pg-ov').style.pointerEvents='auto'" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px">
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+    </button>
+    <a href="/" class="nav-logo">MAXIA</a>
+  </div>
+  <div class="nav-links">
+    <a href="/app#swap">Swap</a>
+    <a href="/app#stocks">Stocks</a>
+    <a href="/app#trading">Trading</a>
+    <a href="/marketplace">Marketplace</a>
+    <a href="/enterprise" style="color:var(--gold)">Enterprise</a>
+    <a href="/forum">Forum</a>
+    <a href="/app" class="nav-cta" style="color:#fff">Launch App</a>
+  </div>
+</nav>
+
+<!-- Hamburger overlay + side menu -->
+<div id="pg-ov" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('pg-sm').style.left='-320px'"></div>
+<div id="pg-sm" style="position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column">
+  <div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <button onclick="document.getElementById('pg-sm').style.left='-320px';document.getElementById('pg-ov').style.opacity='0';document.getElementById('pg-ov').style.pointerEvents='none'" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px">&times;</button>
+  </div>
+  <div style="padding:16px 20px;flex:1">
+    <a href="/app" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--text);font-size:14px;font-weight:600;border-radius:10px;transition:all .2s;text-decoration:none;margin-bottom:12px" onmouseenter="this.style.background='rgba(0,229,255,.06)'" onmouseleave="this.style.background=''">&#127968; Home</a><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:4px 0 10px 8px">Trade</div>
+    <a href="/app#swap" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#9889; Swap</a>
+    <a href="/app#stocks" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128200; Stocks</a>
+    <a href="/app#trading" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128202; Trading</a>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Explore</div>
+    <a href="/marketplace" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128269; Marketplace</a>
+    <a href="/app#gpu" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128421; GPU Cloud</a>
+    <a href="/app#yields" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127793; DeFi Yields</a>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Community</div>
+    <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>
+    <a href="/app#agentid" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#129302; Agent ID</a>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Business</div>
+    <a href="/enterprise" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(244,63,94,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127970; Enterprise</a>
+    
+    
+  </div>
+  <div style="padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)">
+    <a href="/app" style="display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s" onmouseenter="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,229,255,.25)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">Launch App &#8594;</a>
+  </div>
+</div>
+
+
 <script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
 
 <nav class="nav">
@@ -130,11 +182,11 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 </section>
 
 <div class="stats-bar">
-  <div class="stat"><div class="stat-num">65</div><div class="stat-label">Tokens</div></div>
+  <div class="stat"><div class="stat-num">50</div><div class="stat-label">Tokens</div></div>
   <div class="stat"><div class="stat-num">14</div><div class="stat-label">Chains</div></div>
-  <div class="stat"><div class="stat-num">25</div><div class="stat-label">Stocks</div></div>
+  <div class="stat"><div class="stat-num">10</div><div class="stat-label">Stocks</div></div>
   <div class="stat"><div class="stat-num">6</div><div class="stat-label">GPU Tiers</div></div>
-  <div class="stat"><div class="stat-num">46</div><div class="stat-label">MCP Tools</div></div>
+  <div class="stat"><div class="stat-num">36</div><div class="stat-label">MCP Tools</div></div>
   <div class="stat"><div class="stat-num">0%</div><div class="stat-label">GPU Markup</div></div>
 </div>
 
