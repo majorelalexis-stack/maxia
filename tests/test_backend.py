@@ -109,8 +109,8 @@ class TestMarketplaceCommissions:
 
     def test_bronze_marketplace(self):
         from config import get_commission_bps
-        assert get_commission_bps(100) == 100   # 1%
-        assert get_commission_bps(499) == 100
+        assert get_commission_bps(100) == 150   # 1.5%
+        assert get_commission_bps(499) == 150
 
     def test_gold_marketplace(self):
         from config import get_commission_bps
@@ -367,9 +367,11 @@ class TestPythOracleStaleness:
         from pyth_oracle import MAX_STALENESS_CRYPTO_HFT_S
         assert MAX_STALENESS_CRYPTO_HFT_S == 3
 
-    def test_confidence_warn_pct(self):
-        from pyth_oracle import CONFIDENCE_WARN_PCT
-        assert CONFIDENCE_WARN_PCT == 2.0
+    def test_confidence_tiered(self):
+        from pyth_oracle import get_confidence_threshold
+        assert get_confidence_threshold("SOL") == 2.0   # major
+        assert get_confidence_threshold("LINK") == 5.0  # mid
+        assert get_confidence_threshold("BONK") == 10.0 # small
 
     def test_stale_circuit_threshold(self):
         from pyth_oracle import STALE_CIRCUIT_THRESHOLD
