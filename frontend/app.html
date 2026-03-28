@@ -4588,6 +4588,8 @@ async function loadStocks() {
     });
 
     renderStockRows();
+    // Demarrer le live price immediatement
+    startStockPriceLive();
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--red)">Failed to load stocks</td></tr>';
   }

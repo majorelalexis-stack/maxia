@@ -1259,30 +1259,57 @@ async def start_equity_poll():
 
 
 async def _equity_poll_loop():
-    """Poll rapide Pyth HTTP pour les equity feeds — les pousse dans le stream."""
-    feed_to_symbol = {fid: sym for sym, fid in EQUITY_FEEDS.items()}
+    """Poll rapide Pyth HTTP pour les equity feeds — batch parallele, pousse dans le stream."""
+    print(f"[PythEquity] Loop started — {len(EQUITY_FEEDS)} feeds (batches of 2)")
+    fid_to_sym = {fid: sym for sym, fid in EQUITY_FEEDS.items()}
+    # Pyth Hermes limite ~3 feeds par requete HTTP — batches de 2 pour etre safe
+    feed_list = list(EQUITY_FEEDS.items())
+    batches = [feed_list[i:i+2] for i in range(0, len(feed_list), 2)]
     while True:
-        try:
-            now = time.time()
-            for sym, fid in EQUITY_FEEDS.items():
-                result = await get_pyth_price(fid, hft=False)
-                if "error" not in result and result.get("price", 0) > 0:
-                    result["symbol"] = sym
-                    result["source"] = "pyth_poll"
+        for batch in batches:
+            try:
+                now = time.time()
+                ids_str = "&".join(f"ids[]=0x{fid}" for _, fid in batch)
+                url = f"{HERMES_URL}/v2/updates/price/latest?{ids_str}"
+                async with httpx.AsyncClient(timeout=httpx.Timeout(8)) as eq_client:
+                    resp = await eq_client.get(url)
+                    if resp.status_code != 200:
+                        continue
+                    resp_data = resp.json()
+                for entry in resp_data.get("parsed", []):
+                    fid = entry.get("id", "").replace("0x", "")
+                    sym = fid_to_sym.get(fid, "")
+                    if not sym:
+                        continue
+                    price_data = entry.get("price", {})
+                    raw_price = int(price_data.get("price", "0"))
+                    exponent = int(price_data.get("expo", "0"))
+                    raw_conf = int(price_data.get("conf", "0"))
+                    publish_time = price_data.get("publish_time", 0)
+                    price = raw_price * (10 ** exponent)
+                    confidence = raw_conf * (10 ** exponent)
+                    if price <= 0:
+                        continue
+                    age_s = int(now) - publish_time if publish_time > 0 else 0
+                    conf_pct = (confidence / price * 100) if price > 0 else 0
+                    result = {
+                        "price": round(price, 6), "confidence": round(confidence, 6),
+                        "confidence_pct": round(conf_pct, 4), "publish_time": publish_time,
+                        "age_s": age_s, "stale": False, "wide_confidence": conf_pct > get_confidence_threshold(sym),
+                        "source": "pyth_poll", "symbol": sym,
+                    }
                     _streaming_prices[fid] = {"data": result, "ts": now}
-                    # P3: TWAP
-                    update_twap(sym, result["price"])
-                    # Push aux subscribers WebSocket
+                    update_twap(sym, price)
+                    _process_candle_tick(sym, price, now)
                     for q in list(_sse_subscribers):
                         try:
                             q.put_nowait({"symbol": sym, **result})
                         except asyncio.QueueFull:
                             pass
-                    # CandleBuilder
-                    _process_candle_tick(sym, result["price"], now)
-        except Exception as e:
-            logger.error(f"[PythEquity] Poll error: {e}")
-        await asyncio.sleep(2)
+            except Exception as e:
+                print(f"[PythEquity] Batch error: {e}")
+            await asyncio.sleep(0.5)  # 0.5s entre chaque batch = ~1.5s pour les 11 feeds
+        await asyncio.sleep(1)  # 1s pause entre les cycles complets
 
 
 async def start_fallback_refresh():
