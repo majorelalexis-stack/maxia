@@ -420,10 +420,23 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: HOME ─── -->
 <div class="page active" id="page-home">
-  <div style="text-align:center;padding:20px 0">
-    <h1 style="font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Welcome to MAXIA</h1>
-    <p style="color:var(--muted);margin-top:8px;font-size:15px">AI-to-AI Marketplace on 14 Blockchains</p>
+  <!-- Greeting -->
+  <div style="margin-bottom:24px">
+    <h1 style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Welcome back, trader</h1>
+    <p id="home-time" style="color:var(--muted);margin-top:4px;font-size:13px"></p>
   </div>
+
+  <!-- Live prices -->
+  <div style="display:flex;gap:10px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px">
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer" onclick="showPage('trading')"><div style="font-size:11px;color:var(--muted);font-weight:600">SOL</div><div id="hp-sol" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600">$—</div></div>
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer" onclick="showPage('trading')"><div style="font-size:11px;color:var(--muted);font-weight:600">ETH</div><div id="hp-eth" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600">$—</div></div>
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer" onclick="showPage('trading')"><div style="font-size:11px;color:var(--muted);font-weight:600">BTC</div><div id="hp-btc" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600">$—</div></div>
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer" onclick="showPage('stocks')"><div style="font-size:11px;color:var(--muted);font-weight:600">AAPL</div><div id="hp-aapl" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600">$—</div></div>
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:110px;cursor:pointer" onclick="showPage('stocks')"><div style="font-size:11px;color:var(--muted);font-weight:600">TSLA</div><div id="hp-tsla" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600">$—</div></div>
+  </div>
+
+  <!-- All features grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:24px">
 
   <div class="home-stats">
     <div class="home-stat"><div class="hs-num">14</div><div class="hs-label">Blockchains</div></div>
@@ -433,47 +446,19 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="home-stat"><div class="hs-num">17</div><div class="hs-label">AI Services</div></div>
   </div>
 
-  <div class="home-grid">
-    <div class="home-card" onclick="showPage('swap')">
-      <div class="hc-icon">&#128260;</div>
-      <div class="hc-title">Swap Tokens</div>
-      <div class="hc-desc">Trade 65 tokens across 4160 pairs. Lowest fees on 14 chains.</div>
     </div>
-    <div class="home-card" onclick="showPage('stocks')">
-      <div class="hc-icon">&#128200;</div>
-      <div class="hc-title">Tokenized Stocks</div>
-      <div class="hc-desc">Buy AAPL, TSLA, NVDA, AMD, NFLX and 20 more. 3 providers, multi-chain.</div>
-    </div>
-    <div class="home-card" onclick="showPage('yields')">
-      <div class="hc-icon">&#127793;</div>
-      <div class="hc-title">DeFi Yields</div>
-      <div class="hc-desc">Find the best APY across 14 chains. Staking, lending, LP.</div>
-    </div>
-    <div class="home-card" onclick="showPage('gpu')">
-      <div class="hc-icon">&#9889;</div>
-      <div class="hc-title">GPU Rental</div>
-      <div class="hc-desc" id="gpu-home-desc">RTX 4090 to H200 — cheaper than AWS.</div>
-    </div>
-    <div class="home-card" onclick="showPage('bridge')">
-      <div class="hc-icon">&#128279;</div>
-      <div class="hc-title">Cross-Chain Bridge</div>
-      <div class="hc-desc">Move assets between 14 chains. Powered by Li.Fi.</div>
-    </div>
-    <div class="home-card" onclick="showPage('nfts')">
-      <div class="hc-icon">&#127912;</div>
-      <div class="hc-title">NFT & Agent ID</div>
-      <div class="hc-desc">Mint your AI agent on-chain. Trust score, identity.</div>
-    </div>
+
+  <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:16px;margin-bottom:20px">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Live Activity</div>
+    <div id="home-feed" style="font-size:12px;color:var(--muted)">Loading platform data...</div>
   </div>
 
-  <div class="trust-badges">
-    <span class="trust-badge">Powered by Jupiter</span>
-    <span class="trust-badge">Powered by 1inch</span>
-    <span class="trust-badge">Decentralized GPU Cloud</span>
-    <span class="trust-badge">Powered by Li.Fi</span>
-    <span class="trust-badge">Powered by DeFiLlama</span>
-    <span class="trust-badge">14 Blockchains</span>
-    <span class="trust-badge">USDC Settlement</span>
+  <div class="home-stats">
+    <div class="home-stat"><div class="hs-num">14</div><div class="hs-label">Chains</div></div>
+    <div class="home-stat"><div class="hs-num">65</div><div class="hs-label">Tokens</div></div>
+    <div class="home-stat"><div class="hs-num">25</div><div class="hs-label">Stocks</div></div>
+    <div class="home-stat"><div class="hs-num">46</div><div class="hs-label">MCP</div></div>
+    <div class="home-stat"><div class="hs-num">17</div><div class="hs-label">Services</div></div>
   </div>
 </div>
 
