@@ -744,7 +744,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <p style="color:var(--muted);font-size:13px">Trade 25 US equities 24/7 on-chain — fractional from $1 USDC</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span class="badge badge-green">Live on Solana</span>
+      <span class="badge badge-green">Trade 24/7</span>
+      <span class="badge" id="stk-oracle-badge" style="cursor:help" title="Oracle price freshness">Oracle: —</span>
       <span class="badge" id="stocks-commission-badge">BRONZE 1.5%</span>
     </div>
   </div>
@@ -4553,6 +4554,17 @@ async function loadStocks() {
     var data = await api('/api/public/stocks');
     var stocks = (data && data.stocks) || (Array.isArray(data) ? data : []);
 
+    // Update oracle status badge
+    var ms = data && data.market_status;
+    if (ms) {
+      var badge = document.getElementById('stk-oracle-badge');
+      if (badge) {
+        badge.textContent = ms.label || 'Oracle: —';
+        badge.className = 'badge ' + (ms.oracle === 'live' ? 'badge-green' : ms.oracle === 'after_hours' ? 'badge-orange' : '');
+        badge.title = ms.note || '';
+      }
+    }
+
     if (!Array.isArray(stocks) || stocks.length === 0) {
       // Fallback: build from catalog
       stocks = Object.keys(STOCK_CATALOG).map(function(sym) {
@@ -4581,7 +4593,8 @@ async function loadStocks() {
       var obj = {
         symbol: sym, name: s.name || cat.name || sym, price: price, change: change,
         sector: s.sector || cat.sector || 'Technology', xstock: cat.xstock || sym+'X',
-        mint: cat.mint || '', logo: cat.logo || '', provider: cat.mint && cat.mint.length > 20 ? 'Backed' : '—'
+        mint: cat.mint || '', logo: cat.logo || '', provider: cat.mint && cat.mint.length > 20 ? 'Backed' : '—',
+        dex_price: s.dex_price_usd || 0,
       };
       _stockPriceCache[sym] = {price: price, change: change, source: price > 0 ? 'live' : 'unavailable'};
       return obj;
@@ -4619,6 +4632,7 @@ function renderStockRows() {
     var changeColor = s.change >= 0 ? 'var(--green)' : 'var(--red)';
     var changeStr = (s.change >= 0 ? '+' : '') + s.change.toFixed(2) + '%';
     var priceStr = s.price > 0 ? '$' + s.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+    var dexStr = s.dex_price > 0 ? '<div style="font-size:10px;color:var(--cyan)" title="DEX on-chain price (24/7)">DEX $' + s.dex_price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</div>' : '';
     var isSelected = _selectedStock === s.symbol;
     var rowBg = isSelected ? 'background:rgba(59,130,246,.08)' : '';
     var available = s.mint && s.mint.length > 20;
@@ -4627,7 +4641,7 @@ function renderStockRows() {
         (s.logo ? '<img src="'+esc(s.logo)+'" width="28" height="28" style="border-radius:50%;background:var(--bg2)" onerror="this.style.display=\'none\'">' : '<div style="width:28px;height:28px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--cyan)">'+s.symbol.charAt(0)+'</div>') +
         '<div><div style="font-weight:600;font-size:14px">' + esc(s.xstock) + '</div><div style="font-size:11px;color:var(--muted)">' + esc(s.name) + '</div></div>' +
       '</div></td>' +
-      '<td id="stk-price-' + esc(s.symbol) + '" style="padding:12px 8px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:600;font-size:14px">' + priceStr + '</td>' +
+      '<td id="stk-price-' + esc(s.symbol) + '" style="padding:12px 8px;text-align:right;font-family:\'JetBrains Mono\',monospace;font-weight:600;font-size:14px">' + priceStr + dexStr + '</td>' +
       '<td id="stk-change-' + esc(s.symbol) + '" style="padding:12px 8px;text-align:right;font-weight:600;color:' + changeColor + '">' + changeStr + '</td>' +
       '<td style="padding:12px 8px;text-align:center"><span class="badge" style="font-size:10px;padding:2px 8px">' + (available ? esc(s.provider) : '<span style="color:var(--muted2)">Soon</span>') + '</span></td>' +
       '<td style="padding:12px 16px;text-align:right;white-space:nowrap">' +

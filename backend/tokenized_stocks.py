@@ -145,6 +145,38 @@ def _check_price_jump(symbol: str, current_price: float) -> tuple[bool, float]:
     jump_pct = abs(current_price - prev_price) / prev_price * 100
     return jump_pct > MAX_PRICE_JUMP_PCT, round(jump_pct, 2)
 
+# ── DEX price cache (Jupiter on-chain, 24/7) ──
+_dex_price_cache: dict = {}  # {mint: price_usd}
+_dex_cache_ts: float = 0
+_DEX_CACHE_TTL = 30  # 30s cache
+
+
+async def fetch_dex_prices():
+    """Fetch prix DEX on-chain des xStock tokens via Jupiter Price API."""
+    global _dex_price_cache, _dex_cache_ts
+    import time as _t
+    if _t.time() - _dex_cache_ts < _DEX_CACHE_TTL and _dex_price_cache:
+        return _dex_price_cache
+    mints = [info.get("mint_xstock", "") for info in TOKENIZED_STOCKS.values() if info.get("mint_xstock")]
+    if not mints:
+        return _dex_price_cache
+    try:
+        import httpx
+        ids = ",".join(mints[:10])  # Max 10 par requete
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(f"https://api.jup.ag/price/v2?ids={ids}")
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                for mint, info in data.items():
+                    price = float(info.get("price", 0))
+                    if price > 0:
+                        _dex_price_cache[mint] = round(price, 4)
+                _dex_cache_ts = _t.time()
+    except Exception:
+        pass
+    return _dex_price_cache
+
+
 # ── Catalogue des actions tokenisees multi-chain ──
 # 3 providers: xStocks/Backed (Solana+ETH), Ondo GM (ETH), Dinari dShares (Arbitrum)
 # + Ondo Treasuries (OUSG, USDY) multi-chain
@@ -666,10 +698,16 @@ class TokenizedStockExchange:
                 pass
         """Liste toutes les actions disponibles avec prix."""
         prices = await fetch_stock_prices()
+        # Fetch DEX prices on-chain (Jupiter, 24/7)
+        try:
+            await fetch_dex_prices()
+        except Exception:
+            pass
         stocks = []
         for sym, info in TOKENIZED_STOCKS.items():
             price_data = prices.get(sym, {})
-            stocks.append({
+            sol_mint = info.get("mint_xstock", "")
+            stock_entry = {
                 "symbol": sym,
                 "name": info["name"],
                 "sector": info.get("sector", ""),
@@ -684,23 +722,45 @@ class TokenizedStockExchange:
                 "min_buy_usdc": 1.0,
                 "payment": "USDC",
                 "mints": {
-                    "solana": info.get("mint_xstock", ""),
+                    "solana": sol_mint,
                     "ethereum": info.get("mint_eth", info.get("mint_ondo", "")),
                     "arbitrum": info.get("mint_dinari_arb", ""),
                 },
-            })
+            }
+            # Prix DEX on-chain (Jupiter) — trade 24/7
+            if sol_mint and sol_mint in _dex_price_cache:
+                stock_entry["dex_price_usd"] = _dex_price_cache[sol_mint]
+            stocks.append(stock_entry)
+
+        # Market status — oracle fraicheur
+        try:
+            from pyth_oracle import _is_market_open
+            oracle_live = _is_market_open()
+        except Exception:
+            oracle_live = False
+        from datetime import datetime, timezone
+        utc_now = datetime.now(timezone.utc)
+        is_weekend = utc_now.weekday() >= 5
+        is_after_hours = not oracle_live and not is_weekend and utc_now.weekday() < 5
 
         return {
             "total": len(stocks),
             "stocks": stocks,
             "providers": ["Backed Finance (xStocks)", "Ondo Global Markets"],
             "commission": {
-                "bronze": "0.5% (0-1K USDC/mois)",
-                "argent": "0.2% (1K-5K USDC/mois)",
-                "or": "0.1% (5K-25K USDC/mois)",
-                "baleine": "0.05% (25K+ USDC/mois)",
+                "bronze": "1.5% (0-500 USDC)",
+                "gold": "0.5% (500-5K USDC)",
+                "whale": "0.1% (5K+ USDC)",
             },
-            "note": "Commission la plus basse du marche. Achat fractionne a partir de 1 USDC.",
+            "market_status": {
+                "oracle": "live" if oracle_live else "after_hours" if is_after_hours else "last_close",
+                "label": "Oracle: Live" if oracle_live else "Oracle: After-Hours" if is_after_hours else "Oracle: Last Close",
+                "trading": "24/7 on-chain",
+                "spy_price": prices.get("SPY", {}).get("price", 0),
+                "spy_change": round(prices.get("SPY", {}).get("change", 0), 2),
+                "note": "Tokenized stocks are SPL tokens on Solana — tradeable anytime. Oracle price reflects latest US market data.",
+            },
+            "note": "Trade 24/7 on-chain. Fractional from $1 USDC.",
             "disclaimer": STOCK_DISCLAIMER,
         }
 

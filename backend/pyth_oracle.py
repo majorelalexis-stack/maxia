@@ -852,6 +852,52 @@ async def api_stock_price(symbol: str):
     return await get_stock_price(sym)
 
 
+@router.get("/market-status")
+async def api_market_status():
+    """Status oracle actions tokenisees — live ou dernier cours.
+    MAXIA trade 24/7 (tokens on-chain). L'oracle indique la fraicheur du prix."""
+    from datetime import datetime, timezone, timedelta
+    utc_now = datetime.now(timezone.utc)
+    is_open = _is_market_open()
+    weekday = utc_now.weekday()
+
+    # Calcul du prochain open (lun-ven 13:30 UTC)
+    if is_open:
+        next_event = "close"
+        # Close a 20:00 UTC
+        close_today = utc_now.replace(hour=20, minute=0, second=0, microsecond=0)
+        seconds_until = max(0, int((close_today - utc_now).total_seconds()))
+    else:
+        next_event = "open"
+        # Prochain lundi 13:30 UTC si weekend, sinon demain 13:30 UTC
+        if weekday == 5:  # samedi
+            days_until = 2
+        elif weekday == 6:  # dimanche
+            days_until = 1
+        elif utc_now.hour >= 20:  # apres close
+            days_until = 1
+            if weekday == 4:  # vendredi soir
+                days_until = 3
+        else:  # avant open
+            days_until = 0
+        next_open = (utc_now + timedelta(days=days_until)).replace(hour=13, minute=30, second=0, microsecond=0)
+        seconds_until = max(0, int((next_open - utc_now).total_seconds()))
+
+    # After-hours: lun-ven 20:00-00:00 UTC ou 08:00-13:30 UTC
+    is_after_hours = not is_open and weekday < 5 and (utc_now.hour >= 20 or utc_now.hour < 1 or (8 <= utc_now.hour < 14))
+
+    return {
+        "oracle_status": "live" if is_open else "after_hours" if is_after_hours else "last_close",
+        "oracle_label": "Oracle: Live" if is_open else "Oracle: After-Hours" if is_after_hours else "Oracle: Last Close",
+        "trading": "24/7 — tokenized stocks trade on-chain anytime",
+        "next_event": next_event,
+        "seconds_until": seconds_until,
+        "hours_until": round(seconds_until / 3600, 1),
+        "is_weekend": weekday >= 5,
+        "utc_time": utc_now.strftime("%H:%M UTC"),
+    }
+
+
 @router.get("/crypto/{symbol}")
 async def api_crypto_price(symbol: str):
     """Prix temps-reel d'une crypto via Pyth Network."""
