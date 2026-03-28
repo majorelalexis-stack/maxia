@@ -2293,28 +2293,11 @@ document.getElementById('chart-token').addEventListener('change', function() {
 
 async function loadTTLivePrice() {
   var token = (document.getElementById('chart-token').value||'SOL').toUpperCase();
-  try {
-    var mode = _ttHFT ? 'hft' : 'normal';
-    var resp = await fetch('/oracle/price/live/' + token + '?mode=' + mode);
-    var data = await resp.json();
-    if (data.price) {
-      _ttCurrentPrice = data.price;
-      document.getElementById('tt-live-price').textContent = '$' + data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
-      updateTTEstimate();
-    }
-  } catch(e) {
-    // Fallback to crypto/prices endpoint
-    try {
-      var resp2 = await fetch('/api/public/crypto/prices');
-      var d2 = await resp2.json();
-      var tokenData = (d2.prices || {})[token];
-      var fallbackPrice = tokenData ? (tokenData.price || 0) : 0;
-      if (fallbackPrice > 0) {
-        _ttCurrentPrice = fallbackPrice;
-        document.getElementById('tt-live-price').textContent = '$' + fallbackPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
-        updateTTEstimate();
-      }
-    } catch(e2) {}
+  var price = await _fetchTokenPrice(token);
+  if (price > 0) {
+    _ttCurrentPrice = price;
+    document.getElementById('tt-live-price').textContent = _formatPrice(price);
+    updateTTEstimate();
   }
 }
 
@@ -2371,51 +2354,89 @@ function _stopChartPoll() {
   if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
 }
 
+function _formatPrice(p) {
+  if (p >= 1000) return '$' + p.toFixed(2);
+  if (p >= 1) return '$' + p.toFixed(4);
+  return '$' + p.toFixed(6);
+}
+
+async function _fetchTokenPrice(symbol) {
+  // Try Pyth oracle first (live, sub-second)
+  try {
+    var r = await fetch('/oracle/price/live/' + symbol);
+    if (r.ok) {
+      var d = await r.json();
+      if (d.price && d.price > 0) return d.price;
+    }
+  } catch(e) {}
+  // Fallback: CoinGecko/cache prices
+  try {
+    var r2 = await fetch('/api/public/crypto/prices');
+    if (r2.ok) {
+      var d2 = await r2.json();
+      var p = (d2.prices || {})[symbol];
+      if (p && p.price > 0) return p.price;
+    }
+  } catch(e) {}
+  // Fallback: stock prices
+  try {
+    var r3 = await fetch('/api/public/stocks');
+    if (r3.ok) {
+      var d3 = await r3.json();
+      var stocks = d3.stocks || [];
+      for (var i = 0; i < stocks.length; i++) {
+        if (stocks[i].symbol === symbol && stocks[i].price_usd > 0) return stocks[i].price_usd;
+      }
+    }
+  } catch(e) {}
+  return 0;
+}
+
 function _startChartPoll(symbol, interval_s) {
   _stopChartPoll();
   _chartPollId++;
   var myId = _chartPollId;
   _chartCurrentSymbol = symbol;
 
+  // Reset price display immediately
+  _ttCurrentPrice = 0;
+  var priceEl = document.getElementById('tt-live-price');
+  if (priceEl) priceEl.textContent = '\u2014'; // em-dash
+
   var badge = document.getElementById('tt-stream-badge');
   if (badge) { badge.textContent = 'LIVE ' + symbol; badge.className = 'badge badge-green'; }
 
-  // Track current candle to build proper OHLC
-  var curCandle = null; // {time, open, high, low, close}
+  var curCandle = null;
 
   async function tick() {
     if (myId !== _chartPollId || !_candleSeries) return;
-    try {
-      var r = await fetch('/oracle/price/live/' + symbol);
-      if (!r.ok) return;
-      var d = await r.json();
-      if (!d.price || d.price <= 0) return;
-      if (myId !== _chartPollId) return;
+    var price = await _fetchTokenPrice(symbol);
+    if (myId !== _chartPollId) return;
+    if (price <= 0) {
+      if (badge) { badge.textContent = symbol + ' — no price'; badge.className = 'badge'; }
+      return;
+    }
 
-      var now = Math.floor(Date.now() / 1000);
-      var bucket = Math.floor(now / interval_s) * interval_s;
-      var price = d.price;
+    var now = Math.floor(Date.now() / 1000);
+    var bucket = Math.floor(now / interval_s) * interval_s;
 
-      // Update price display + estimate
-      _ttCurrentPrice = price;
-      var priceEl = document.getElementById('tt-live-price');
-      if (priceEl) priceEl.textContent = '$' + price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
-      updateTTEstimate();
+    // Update price display
+    _ttCurrentPrice = price;
+    if (priceEl) priceEl.textContent = _formatPrice(price);
+    updateTTEstimate();
 
-      // Build proper OHLC candle
-      if (!curCandle || curCandle.time !== bucket) {
-        // New candle period — start fresh
-        curCandle = { time: bucket, open: price, high: price, low: price, close: price };
-      } else {
-        // Same period — update high/low/close
-        curCandle.close = price;
-        if (price > curCandle.high) curCandle.high = price;
-        if (price < curCandle.low) curCandle.low = price;
-      }
+    // Build OHLC candle
+    if (!curCandle || curCandle.time !== bucket) {
+      curCandle = { time: bucket, open: price, high: price, low: price, close: price };
+    } else {
+      curCandle.close = price;
+      if (price > curCandle.high) curCandle.high = price;
+      if (price < curCandle.low) curCandle.low = price;
+    }
 
-      _candleSeries.update(curCandle);
-      _chart.timeScale().scrollToRealTime();
-    } catch(e) {}
+    _candleSeries.update(curCandle);
+    _chart.timeScale().scrollToRealTime();
+    if (badge) { badge.textContent = 'LIVE ' + symbol; badge.className = 'badge badge-green'; }
   }
 
   tick();
