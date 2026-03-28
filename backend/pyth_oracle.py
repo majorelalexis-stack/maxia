@@ -30,20 +30,80 @@ FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
 
 # ── Constantes Pyth Hermes ──
 
-HERMES_URL = "https://hermes.pyth.network"
+HERMES_URL = os.getenv("PYTH_HERMES_URL", "https://hermes.pyth.network")  # P6: env var pour Hermes prive
 
 # ── Protection anti-staleness ──
-# Prix trop vieux = risque d'arbitrage. Seuils differents par asset class.
-# Staleness tiers — le client choisit son mode via ?mode=hft ou ?mode=normal
-MAX_STALENESS_STOCK_NORMAL_S = 600   # Actions tokenisees: max 10min (xStocks/Ondo/Dinari)
-MAX_STALENESS_STOCK_HFT_S = 5       # HFT/day-trading: max 5s
-MAX_STALENESS_CRYPTO_NORMAL_S = 120  # Crypto normal: max 120s
-MAX_STALENESS_CRYPTO_HFT_S = 3      # Crypto HFT: max 3s
-# Confidence interval: si > CONFIDENCE_WARN_PCT du prix, le prix est peu fiable
-CONFIDENCE_WARN_PCT = 2.0      # 2% = spread oracle trop large, flagge comme unreliable
-# Circuit breaker: si N lectures consecutives sont stale, pause les trades
-STALE_CIRCUIT_THRESHOLD = 5    # 5 stales d'affilee -> source consideree down
-_consecutive_stale: dict[str, int] = {}  # {feed_id: count}
+MAX_STALENESS_STOCK_NORMAL_S = 600
+MAX_STALENESS_STOCK_HFT_S = 5
+MAX_STALENESS_CRYPTO_NORMAL_S = 120
+MAX_STALENESS_CRYPTO_HFT_S = 3
+STALE_CIRCUIT_THRESHOLD = 5
+_consecutive_stale: dict[str, int] = {}
+
+# ── P2: Confidence tieree par asset class (comme Drift) ──
+# Majors: seuil strict (haute liquidite, confidence basse attendue)
+# Mid-caps: seuil moyen (liquidite moyenne)
+# Small-caps: seuil large (liquidite faible, confidence naturellement haute)
+_CONFIDENCE_TIERS = {
+    "major": 2.0,    # SOL, ETH, BTC, USDC — comme avant
+    "mid":   5.0,    # LINK, UNI, AAVE, AVAX, XRP, MATIC, etc.
+    "small": 10.0,   # BONK, WIF, POPCAT, PENGU, FARTCOIN, etc.
+}
+_MAJOR_TOKENS = {"SOL", "ETH", "BTC", "USDC", "USDT"}
+_MID_TOKENS = {"LINK", "UNI", "AAVE", "AVAX", "XRP", "MATIC", "RENDER", "JUP", "RAY", "ORCA",
+               "DRIFT", "JTO", "PYTH", "HNT", "W", "LDO", "FET", "OLAS", "NEAR", "APT", "SUI",
+               "SEI", "INJ", "ARB", "OP", "TIA", "STX", "FIL", "AR", "ONDO", "DOGE"}
+# Tout le reste = small
+
+
+def get_confidence_threshold(symbol: str) -> float:
+    """Retourne le seuil de confidence adapte a l'asset class."""
+    sym = symbol.upper()
+    if sym in _MAJOR_TOKENS:
+        return _CONFIDENCE_TIERS["major"]
+    if sym in _MID_TOKENS:
+        return _CONFIDENCE_TIERS["mid"]
+    return _CONFIDENCE_TIERS["small"]
+
+
+# ── P3: TWAP rolling 5 minutes ──
+_twap_data: dict[str, list] = {}  # {symbol: [(ts, price), ...]}
+_TWAP_WINDOW_S = 300  # 5 minutes
+_TWAP_MAX_DEVIATION_PCT = 20.0  # Rejeter si spot devie >20% du TWAP
+
+
+def update_twap(symbol: str, price: float):
+    """Ajoute un datapoint au TWAP rolling."""
+    now = time.time()
+    if symbol not in _twap_data:
+        _twap_data[symbol] = []
+    _twap_data[symbol].append((now, price))
+    # Purger les points hors fenetre
+    cutoff = now - _TWAP_WINDOW_S
+    _twap_data[symbol] = [(t, p) for t, p in _twap_data[symbol] if t >= cutoff]
+
+
+def get_twap(symbol: str) -> float:
+    """Retourne le TWAP 5min. 0 si pas assez de data."""
+    points = _twap_data.get(symbol, [])
+    if len(points) < 2:
+        return 0
+    return sum(p for _, p in points) / len(points)
+
+
+def check_twap_deviation(symbol: str, spot_price: float) -> dict:
+    """Verifie si le prix spot devie trop du TWAP 5min.
+    Retourne {"ok": bool, "twap": float, "deviation_pct": float}"""
+    twap = get_twap(symbol)
+    if twap <= 0 or spot_price <= 0:
+        return {"ok": True, "twap": 0, "deviation_pct": 0, "reason": "insufficient_data"}
+    deviation = abs(spot_price - twap) / twap * 100
+    return {
+        "ok": deviation <= _TWAP_MAX_DEVIATION_PCT,
+        "twap": round(twap, 6),
+        "spot": round(spot_price, 6),
+        "deviation_pct": round(deviation, 2),
+    }
 
 # ── Oracle monitoring (uptime, latency, freshness) ──
 _oracle_metrics = {
@@ -53,10 +113,13 @@ _oracle_metrics = {
     "confidence_rejected": 0,
     "circuit_opens": 0,
     "fallback_used": 0,
-    "latency_samples": [],  # last 100 latencies in ms
+    "stream_events": 0,       # P5: prix recus via SSE
+    "last_stream_event_ts": 0, # P5: heartbeat monitoring
+    "latency_samples": [],
     "started_at": time.time(),
 }
 _METRICS_MAX_SAMPLES = 100
+_HEARTBEAT_ALERT_S = 60  # P5: alerter si aucun event SSE depuis 60s
 
 # Feed IDs Pyth pour les actions (confirmes sur hermes.pyth.network)
 # Stocks sans feed Pyth connu (mars 2026) :
@@ -212,9 +275,12 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
             max_staleness = MAX_STALENESS_STOCK_NORMAL_S if is_equity else MAX_STALENESS_CRYPTO_NORMAL_S
         is_stale = age_s > max_staleness if publish_time > 0 else False
 
-        # ── Confidence interval check ──
+        # ── P2: Confidence interval check (tieree par asset class) ──
         confidence_pct = (confidence / price * 100) if price > 0 else 0
-        wide_confidence = confidence_pct > CONFIDENCE_WARN_PCT
+        # Resolve symbol from feed_id for tiered threshold
+        _sym = next((s for s, fid in ALL_FEEDS.items() if fid == feed_id), "")
+        _conf_threshold = get_confidence_threshold(_sym) if _sym else 2.0
+        wide_confidence = confidence_pct > _conf_threshold
 
         # ── Circuit breaker sur lectures stale consecutives ──
         if is_stale:
@@ -234,12 +300,17 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
             "price": round(price, 6),
             "confidence": round(confidence, 6),
             "confidence_pct": round(confidence_pct, 4),
+            "confidence_threshold": _conf_threshold,
             "publish_time": publish_time,
             "age_s": age_s,
             "stale": is_stale,
             "wide_confidence": wide_confidence,
             "source": "pyth",
         }
+
+        # P3: TWAP rolling update
+        if _sym:
+            update_twap(_sym, price)
 
         # Mettre en cache (eviction si limite atteinte)
         if len(_price_cache) >= _CACHE_MAX:
@@ -837,6 +908,16 @@ async def api_oracle_monitoring():
             fid[:12]: count for fid, count in _consecutive_stale.items() if count > 0
         },
         "streaming_active": _sse_task is not None and not _sse_task.done() if _sse_task else False,
+        "stream_events": _oracle_metrics["stream_events"],
+        "heartbeat": {
+            "last_event_s_ago": round(time.time() - _oracle_metrics["last_stream_event_ts"]) if _oracle_metrics["last_stream_event_ts"] > 0 else None,
+            "healthy": (time.time() - _oracle_metrics["last_stream_event_ts"] < _HEARTBEAT_ALERT_S) if _oracle_metrics["last_stream_event_ts"] > 0 else False,
+            "threshold_s": _HEARTBEAT_ALERT_S,
+        },
+        "twap_5min": {
+            sym: {"twap": get_twap(sym), "points": len(_twap_data.get(sym, []))}
+            for sym in ["SOL", "ETH", "BTC"] if get_twap(sym) > 0
+        },
     }
 
 
@@ -917,27 +998,36 @@ async def api_oracle_specs():
         },
         "trade_protection": {
             "confidence_enforcement": {
-                "threshold": f"{CONFIDENCE_WARN_PCT}% of price",
-                "action": "BLOCK trade (not just warn)",
-                "description": "If Pyth confidence interval exceeds 2% of price, swaps are rejected until oracle stabilizes",
+                "tiered_thresholds": {
+                    "majors (SOL/ETH/BTC/USDC)": "2%",
+                    "mid-caps (LINK/UNI/AVAX/XRP...)": "5%",
+                    "small-caps (BONK/WIF/POPCAT...)": "10%",
+                },
+                "action": "BLOCK trade if confidence exceeds asset-class threshold",
+            },
+            "cross_validation": {
+                "method": "Multi-oracle median vote (not simple fallback chain)",
+                "logic": "Compare Pyth vs Helius/CoinGecko. >3% divergence = use median. >10% = BLOCK trade.",
+                "chainlink": "ETH/BTC/USDC cross-verified on-chain (Base, max 3% deviation)",
+            },
+            "twap_protection": {
+                "window": "5-minute rolling TWAP",
+                "max_deviation": "20% — rejects spot prices that deviate from TWAP (flash manipulation defense)",
+            },
+            "conservative_valuation": {
+                "method": "Pyth confidence bounds used for worst-case pricing",
+                "input_token": "price - confidence (protects buyer)",
+                "output_token": "price + confidence (protects seller)",
             },
             "price_reverification": {
                 "action": "BLOCK trade if price moved >1% between quote and execution",
-                "description": "Fresh price is re-fetched at execution time and compared with quote price. Prevents stale quote attacks.",
             },
-            "fallback_block": "Swaps blocked when price source is static fallback (all live oracles down)",
+            "fallback_block": "Swaps blocked when price source is static fallback",
             "price_impact_limit": "5% max (Jupiter liquidity check)",
             "payment_verification": "On-chain USDC transfer verified via Solana RPC (finalized commitment)",
             "stale_rejection": "Prices older than threshold are rejected, not used",
-            "monitoring": "GET /oracle/monitoring — real-time P50/P95/P99 latency, success rate, circuit breaker status",
-        },
-        "cross_verification": {
-            "method": "Multi-oracle consensus required before trade execution",
-            "primary": "Pyth Hermes (confidence + staleness enforced)",
-            "secondary": "Chainlink on-chain (Base mainnet, eth_call to AggregatorV3)",
-            "tertiary": "Fresh re-fetch from Helius/CoinGecko at execution time",
-            "max_deviation": "1% between quote and execution price, 3% between Pyth and Chainlink",
-            "action_on_mismatch": "BLOCK trade, request new quote",
+            "heartbeat_monitoring": f"Alert if no SSE event in {_HEARTBEAT_ALERT_S}s — detects silent oracle failures",
+            "monitoring": "GET /oracle/monitoring — P50/P95/P99 latency, stream events, TWAP, heartbeat",
         },
         "fallback_cascade": [
             "1. Pyth Hermes SSE (primary — persistent stream, <1s, confidence interval)",
@@ -1165,7 +1255,20 @@ async def _process_sse_event(event_str: str, feed_to_symbol: dict):
                         "symbol": symbol,
                     }
 
+                    # P2: confidence tieree par asset
+                    conf_threshold = get_confidence_threshold(symbol) if symbol else 2.0
+                    result["wide_confidence"] = result["confidence_pct"] > conf_threshold
+                    result["confidence_threshold"] = conf_threshold
+
                     _streaming_prices[feed_id] = {"data": result, "ts": now}
+
+                    # P3: TWAP rolling
+                    if symbol:
+                        update_twap(symbol, price)
+
+                    # P5: stream metrics + heartbeat
+                    _oracle_metrics["stream_events"] += 1
+                    _oracle_metrics["last_stream_event_ts"] = now
 
                     # Push aux subscribers WebSocket
                     for q in list(_sse_subscribers):
