@@ -2309,7 +2309,9 @@ var _chartTF = '1s';
 var _chartWS = null;  // WebSocket pour candles live
 var _chartLimits = {'1s': 300, '5s': 300, '1m': 120, '1h': 48, '6h': 48, '1d': 90, '1w': 52};
 var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60, '1h': 3600, '6h': 21600, '1d': 86400};
-var _liveTokens = ['SOL', 'ETH', 'BTC', 'USDC'];   // Tokens avec SSE Pyth stream
+// ALL tokens with Pyth feeds (7 crypto + 11 stocks) — polled every 2s, candles built server-side
+var _liveTokens = ['SOL', 'ETH', 'BTC', 'USDC', 'XRP', 'AVAX', 'MATIC',
+                   'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOG', 'MSFT', 'META', 'COIN', 'QQQ', 'SPY', 'MSTR'];
 
 function setChartTF(tf, btn) {
   _chartTF = tf;
@@ -2413,7 +2415,7 @@ async function loadChart() {
         _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
         _chart.timeScale().fitContent();
       }
-      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + fallbackTF + ') — Live: SOL/ETH/BTC/USDC</span>';
+      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + fallbackTF + ') — Live: 7 crypto + 11 stocks via Pyth</span>';
     } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   } else {
     // 1W — pas de live (pas de builder 1w), REST only
