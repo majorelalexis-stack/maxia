@@ -142,26 +142,26 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
 
   <!-- New Features Grid -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;max-width:900px;margin:28px auto 0">
-    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:12px;padding:16px;text-align:center">
+    <a href="/app#swap" style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:12px;padding:16px;text-align:center;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s;cursor:pointer;display:block" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(99,102,241,.4)'" onmouseleave="this.style.transform='';this.style.borderColor=''">
       <div style="font-size:24px;margin-bottom:6px">&#128172;</div>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px">AI Chat Trading</div>
       <div style="font-size:11px;color:var(--muted)">Type "swap 10 USDC to SOL" — AI executes</div>
-    </div>
-    <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15);border-radius:12px;padding:16px;text-align:center">
+    </a>
+    <a href="/app#trading" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15);border-radius:12px;padding:16px;text-align:center;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s;cursor:pointer;display:block" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(16,185,129,.4)'" onmouseleave="this.style.transform='';this.style.borderColor=''">
       <div style="font-size:24px;margin-bottom:6px">&#128200;</div>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px">Live Charts 1s</div>
-      <div style="font-size:11px;color:var(--muted)">Pyth SSE + Chainlink — candlesticks real-time</div>
-    </div>
-    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:11px;color:var(--muted)">6-source oracle — candlesticks real-time</div>
+    </a>
+    <a href="/app#trading" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:12px;padding:16px;text-align:center;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s;cursor:pointer;display:block" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(245,158,11,.4)'" onmouseleave="this.style.transform='';this.style.borderColor=''">
       <div style="font-size:24px;margin-bottom:6px">&#128640;</div>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px">Leverage 100x</div>
-      <div style="font-size:11px;color:var(--muted)">Jupiter Perps — SOL, ETH, BTC perpetuals</div>
-    </div>
-    <div style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:11px;color:var(--muted)">SOL, ETH, BTC perpetuals</div>
+    </a>
+    <a href="/app#swap" style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.15);border-radius:12px;padding:16px;text-align:center;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s;cursor:pointer;display:block" onmouseenter="this.style.transform='translateY(-3px)';this.style.borderColor='rgba(236,72,153,.4)'" onmouseleave="this.style.transform='';this.style.borderColor=''">
       <div style="font-size:24px;margin-bottom:6px">&#127942;</div>
       <div style="font-weight:700;font-size:13px;margin-bottom:4px">Earn Points</div>
       <div style="font-size:11px;color:var(--muted)">Trade to earn XP, badges, climb leaderboard</div>
-    </div>
+    </a>
   </div>
 
   <!-- Interactive Swap Demo — No wallet needed -->
@@ -960,7 +960,7 @@ async function loadDynamic(){
     if(ms){
       try{document.getElementById('s-agents').textContent=ms.registered_agents||ms.agents_registered||1;}catch(e){}
       try{document.getElementById('s-services').textContent=ms.services_listed||17;}catch(e){}
-      try{var gt=await(await fetch('/api/public/gpu/tiers')).json();document.getElementById('s-gpu').textContent=(gt.tiers||gt).length||13;}catch(e){}
+      try{var gt=await(await fetch('/api/public/gpu/tiers')).json();var real=(gt.tiers||gt).filter(function(t){return !t.local});document.getElementById('s-gpu').textContent=real.length||6;}catch(e){}
     }
   }catch(e){}
 
