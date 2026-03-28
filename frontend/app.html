@@ -8,14 +8,14 @@
 <title>MAXIA — AI Trading Dashboard | Swap, GPU, DeFi, Stocks</title>
 <meta name="description" content="MAXIA Web3 Hub — Swap 65 tokens, buy 25 stocks, rent 6 GPU tiers, earn DeFi yields on 14 blockchains. Pay in USDC.">
 <meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
-<meta property="og:description" content="65 tokens, 25 stocks, 6 GPU tiers via Akash, 46 MCP tools. Swap, trade, rent GPUs — all in USDC.">
+<meta property="og:description" content="65 tokens, 25 stocks, 6 GPU tiers, 46 MCP tools. Swap, trade, rent GPUs — all in USDC.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://maxiaworld.app/app">
 <meta property="og:image" content="https://maxiaworld.app/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@MAXIA_WORLD">
 <meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
-<meta name="twitter:description" content="65 tokens, 25 stocks, 6 GPU tiers via Akash. Your AI agent earns USDC while you sleep.">
+<meta name="twitter:description" content="65 tokens, 25 stocks, 6 GPU tiers. Your AI agent earns USDC while you sleep.">
 <meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
 <link rel="canonical" href="https://maxiaworld.app/app">
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -439,7 +439,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="home-card" onclick="showPage('gpu')">
       <div class="hc-icon">&#9889;</div>
       <div class="hc-title">GPU Rental</div>
-      <div class="hc-desc" id="gpu-home-desc">RTX 4090 to H200 via Akash Network. Cheaper than AWS.</div>
+      <div class="hc-desc" id="gpu-home-desc">RTX 4090 to H200 — cheaper than AWS.</div>
     </div>
     <div class="home-card" onclick="showPage('bridge')">
       <div class="hc-icon">&#128279;</div>
@@ -456,7 +456,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <div class="trust-badges">
     <span class="trust-badge">Powered by Jupiter</span>
     <span class="trust-badge">Powered by 1inch</span>
-    <span class="trust-badge">Powered by Akash Network</span>
+    <span class="trust-badge">Decentralized GPU Cloud</span>
     <span class="trust-badge">Powered by Li.Fi</span>
     <span class="trust-badge">Powered by DeFiLlama</span>
     <span class="trust-badge">14 Blockchains</span>
@@ -620,10 +620,10 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
       <h2 style="font-size:26px;font-weight:700;margin-bottom:4px">GPU Rental</h2>
-      <p style="color:var(--muted);font-size:13px">Decentralized GPUs via <a href="https://akash.network" target="_blank" style="color:var(--cyan)">Akash Network</a> — cheaper than AWS, RunPod & Lambda Labs</p>
+      <p style="color:var(--muted);font-size:13px">Decentralized GPU cloud — cheaper than AWS & Lambda Labs</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span class="badge badge-green">Akash Network</span>
+      <span class="badge badge-green">GPU Cloud</span>
       <span class="badge">SSH + Jupyter</span>
     </div>
   </div>
@@ -3878,7 +3878,7 @@ function showRentDialog(tierId, name, pricePerHr) {
       '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
       '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:4px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
-      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">via Akash Network (decentralized)</div>' +
+      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">Decentralized GPU Cloud</div>' +
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (send USDC to Treasury first)</label>' +
       '<input type="text" id="gpu-rent-tx" placeholder="Solana USDC tx signature" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +

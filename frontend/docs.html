@@ -155,7 +155,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
         <div class="step-header">
           <span class="step-num">2</span>
           <div>
-            <div class="step-title">Check GPU prices (live from Akash Network)</div>
+            <div class="step-title">Check GPU prices (live pricing)</div>
             <div class="step-desc">13 tiers from RTX 3090 to B200. Prices refreshed every 30 minutes.</div>
           </div>
         </div>
@@ -382,11 +382,11 @@ print(f<span style="color:#A5D6FF">"Tx: {result['tx_hash']}"</span>)</div>
     <!-- GPU RENTAL -->
     <section id="gpu" style="margin-bottom:48px">
       <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">GPU Rental</h2>
-      <p style="color:var(--muted);margin-bottom:24px">6 GPU tiers from RTX 3090 to B200. Akash Network, cheaper than AWS. SSH + Jupyter included. Auto-terminate on expiry.</p>
+      <p style="color:var(--muted);margin-bottom:24px">6 GPU tiers from RTX 4090 to H200. Cheaper than AWS. SSH + Jupyter included. Auto-terminate on expiry.</p>
 
       <div class="endpoint">
         <div><span class="method method-get">GET</span><span class="endpoint-path">/api/public/gpu/tiers</span></div>
-        <div class="endpoint-desc">List all available GPU tiers with live Akash Network pricing (refreshed every 30 minutes).</div>
+        <div class="endpoint-desc">List all available GPU tiers with live pricing (refreshed every 30 minutes).</div>
         <div class="code-block">curl https://maxiaworld.app/api/public/gpu/tiers
 
 <span style="color:#8B949E"># Response:</span>
@@ -423,7 +423,7 @@ print(f<span style="color:#A5D6FF">"Tx: {result['tx_hash']}"</span>)</div>
   "status": "active",
   "pod_id": "pod_abc123",
   "ssh": "ssh root@123.45.67.89 -p 22001",
-  "jupyter": "https://pod_abc123-8888.proxy.runpod.net",
+  "jupyter": "https://gpu-abc123.maxiaworld.app:8888",
   "expires_at": "2026-03-25T14:00:00Z",
   "cost_usdc": 2.38
 }</div>
@@ -442,7 +442,7 @@ print(f<span style="color:#A5D6FF">"Jupyter: {result['jupyter']}"</span>)</div>
         </div>
       </div>
 
-      <div class="note">GPUs via Akash Network (decentralized). 15% MAXIA markup, still cheaper than AWS/RunPod/Lambda. Auto-terminate on expiry. Prices refreshed every 30 minutes.</div>
+      <div class="note">Decentralized GPU cloud. Competitive pricing, cheaper than AWS/Lambda. Auto-terminate on expiry. Prices refreshed every 30 minutes.</div>
     </section>
 
     <!-- TOKENIZED STOCKS -->
@@ -824,7 +824,7 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
 
       <div class="endpoint">
         <div><span class="method method-get">GET</span><span class="endpoint-path">/api/public/prices</span></div>
-        <div class="endpoint-desc">Returns all live pricing data in one call. GPU tiers (live Akash), service prices, commission tiers, and chain support matrix.</div>
+        <div class="endpoint-desc">Returns all live pricing data in one call. GPU tiers, service prices, commission tiers, and chain support matrix.</div>
         <div class="code-block">curl https://maxiaworld.app/api/public/prices
 
 <span style="color:#8B949E"># Response includes:</span>
@@ -867,7 +867,7 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
         </div>
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
           <div style="font-size:20px;margin-bottom:8px">GPU Prices</div>
-          <div class="data-src">Akash Network API</div>
+          <div class="data-src">GPU Cloud API</div>
           <div style="color:var(--muted);font-size:13px;margin-top:8px">13 tiers, 30min refresh</div>
         </div>
       </div>
