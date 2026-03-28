@@ -1316,11 +1316,15 @@ async def start_equity_poll():
 
 
 async def _equity_poll_loop():
-    """Poll rapide Pyth HTTP pour les equity feeds — batch parallele, pousse dans le stream."""
-    print(f"[PythEquity] Loop started — {len(EQUITY_FEEDS)} feeds (batches of 2)")
-    fid_to_sym = {fid: sym for sym, fid in EQUITY_FEEDS.items()}
+    """Poll rapide Pyth HTTP pour TOUS les feeds (equity + crypto non-SSE) — batch parallele."""
+    # SSE stream handles SOL/ETH/BTC/USDC. This poll handles everything else + stocks.
+    _sse_symbols = {"SOL", "ETH", "BTC", "USDC"}  # Already streamed via SSE
+    non_sse_crypto = {sym: fid for sym, fid in CRYPTO_FEEDS.items() if sym not in _sse_symbols}
+    all_poll_feeds = {**EQUITY_FEEDS, **non_sse_crypto}
+    print(f"[PythPoll] Loop started — {len(all_poll_feeds)} feeds ({len(EQUITY_FEEDS)} equity + {len(non_sse_crypto)} crypto, batches of 2)")
+    fid_to_sym = {fid: sym for sym, fid in all_poll_feeds.items()}
     # Pyth Hermes limite ~3 feeds par requete HTTP — batches de 2 pour etre safe
-    feed_list = list(EQUITY_FEEDS.items())
+    feed_list = list(all_poll_feeds.items())
     batches = [feed_list[i:i+2] for i in range(0, len(feed_list), 2)]
     while True:
         for batch in batches:
