@@ -66,7 +66,7 @@ def _queue_pending(decision: dict, memory):
         "ts": datetime.utcnow().isoformat(),
         "action": decision.get("action", "")[:300],
         "cible": decision.get("cible", ""),
-        "priorite": decision.get("priorite", "ORANGE").upper(),
+        "priorite": str(decision.get("priorite", "ORANGE")).upper(),
         "raison": decision.get("raison", ""),
         "status": "pending",
     })
@@ -84,9 +84,9 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
 
     Returns dict with keys: executed (bool), reason/detail (str).
     """
-    priorite = decision.get("priorite", "ORANGE").upper()
-    action = decision.get("action", "")
-    cible = decision.get("cible", "").upper()
+    priorite = str(decision.get("priorite", "ORANGE")).upper()
+    action = str(decision.get("action", ""))
+    cible = str(decision.get("cible", "")).upper()
 
     # ROUGE = never auto-execute, queue for dashboard approval
     if priorite == "ROUGE":

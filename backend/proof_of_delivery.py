@@ -11,7 +11,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from database import db
+def _get_db():
+    """Lazy import to avoid stale reference from monkey-patched db singleton."""
+    import database
+    return database.db
 from auth import require_auth
 from alerts import alert_system, alert_error
 from security import audit_log
@@ -69,6 +72,9 @@ async def _ensure_schema():
     if _schema_initialized:
         return
     try:
+        db = _get_db()
+        if not db:
+            return
         await db.raw_executescript(POD_SCHEMA)
         _schema_initialized = True
         print("[PoD] Tables deliveries + pod_disputes creees")
@@ -96,21 +102,21 @@ class DeliveryDisputeRequest(BaseModel):
 
 async def _get_delivery(delivery_id: str) -> Optional[dict]:
     """Recupere une livraison par ID."""
-    rows = await db.raw_execute_fetchall(
+    db = _get_db(); rows = await db.raw_execute_fetchall(
         "SELECT * FROM deliveries WHERE id=?", (delivery_id,))
     return dict(rows[0]) if rows else None
 
 
 async def _get_delivery_by_escrow(escrow_id: str) -> Optional[dict]:
     """Recupere une livraison par escrow_id."""
-    rows = await db.raw_execute_fetchall(
+    db = _get_db(); rows = await db.raw_execute_fetchall(
         "SELECT * FROM deliveries WHERE escrow_id=?", (escrow_id,))
     return dict(rows[0]) if rows else None
 
 
 async def _get_escrow_data(escrow_id: str) -> Optional[dict]:
     """Recupere les donnees de l'escrow depuis escrow_records."""
-    rows = await db.raw_execute_fetchall(
+    db = _get_db(); rows = await db.raw_execute_fetchall(
         "SELECT data FROM escrow_records WHERE escrow_id=?", (escrow_id,))
     if rows:
         return json.loads(rows[0]["data"])
@@ -174,7 +180,7 @@ async def submit_delivery(req: DeliverySubmitRequest, auth=Depends(require_auth)
         "liveness_end": now + LIVENESS_SECONDS,
     }
 
-    await db.raw_execute(
+    db = _get_db(); await db.raw_execute(
         "INSERT INTO deliveries (id, escrow_id, seller_wallet, buyer_wallet, "
         "delivery_hash, delivered_at, status, liveness_end) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -225,7 +231,7 @@ async def confirm_delivery(delivery_id: str, auth=Depends(require_auth)):
 
     # Confirmer
     now = int(time.time())
-    await db.raw_execute(
+    db = _get_db(); await db.raw_execute(
         "UPDATE deliveries SET status='confirmed', confirmed_at=? WHERE id=?",
         (now, delivery_id))
 
@@ -271,13 +277,13 @@ async def dispute_delivery(delivery_id: str, req: DeliveryDisputeRequest,
 
     # Mettre a jour le statut
     now = int(time.time())
-    await db.raw_execute(
+    db = _get_db(); await db.raw_execute(
         "UPDATE deliveries SET status='disputed', disputed_at=? WHERE id=?",
         (now, delivery_id))
 
     # Creer le dispute record
     dispute_id = str(uuid.uuid4())
-    await db.raw_execute(
+    db = _get_db(); await db.raw_execute(
         "INSERT INTO pod_disputes (id, delivery_id, escrow_id, initiator, reason, "
         "evidence_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (dispute_id, delivery_id, delivery["escrow_id"], "buyer",
@@ -317,7 +323,7 @@ async def _run_ai_evaluation(dispute_id: str, delivery_id: str,
         result = await evaluate_dispute(delivery_id, reason, evidence_hash)
 
         # Mettre a jour le dispute avec la recommandation IA
-        await db.raw_execute(
+        db = _get_db(); await db.raw_execute(
             "UPDATE pod_disputes SET ai_recommendation=?, ai_confidence=? WHERE id=?",
             (result.get("recommendation", ""), result.get("confidence", 0), dispute_id))
 
@@ -400,7 +406,7 @@ async def list_pending_deliveries(auth=Depends(require_auth)):
     await _ensure_schema()
 
     now = int(time.time())
-    rows = await db.raw_execute_fetchall(
+    db = _get_db(); rows = await db.raw_execute_fetchall(
         "SELECT * FROM deliveries WHERE status='pending' ORDER BY liveness_end ASC")
     deliveries = []
     for row in rows:
@@ -425,7 +431,7 @@ async def get_delivery_status(escrow_id: str, auth=Depends(require_auth)):
         raise HTTPException(404, "Aucune livraison pour cet escrow")
 
     # Charger les disputes liees
-    disputes = await db.raw_execute_fetchall(
+    db = _get_db(); disputes = await db.raw_execute_fetchall(
         "SELECT * FROM pod_disputes WHERE delivery_id=? ORDER BY created_at DESC",
         (delivery["id"],))
     disputes_list = [dict(d) for d in disputes] if disputes else []
@@ -452,7 +458,7 @@ async def check_liveness_expirations():
     await _ensure_schema()
 
     now = int(time.time())
-    rows = await db.raw_execute_fetchall(
+    db = _get_db(); rows = await db.raw_execute_fetchall(
         "SELECT * FROM deliveries WHERE status='pending' AND liveness_end < ?", (now,))
 
     if not rows:
@@ -466,7 +472,7 @@ async def check_liveness_expirations():
 
         try:
             # Auto-confirmer
-            await db.raw_execute(
+            db = _get_db(); await db.raw_execute(
                 "UPDATE deliveries SET status='confirmed', confirmed_at=? WHERE id=?",
                 (now, delivery_id))
 

@@ -2518,11 +2518,18 @@ async def ws_prices(websocket: WebSocket):
                     from price_oracle import get_crypto_prices
                     prices = await get_crypto_prices()
                     await websocket.send_json({"type": "prices", "data": prices, "ts": int(time.time())})
+                except WebSocketDisconnect:
+                    break
                 except Exception as e:
-                    print(f"[WS/prices] Error: {e}")
+                    err_msg = str(e).lower()
+                    if err_msg and "close" not in err_msg and "cancelled" not in err_msg:
+                        print(f"[WS/prices] Error: {e}")
                 await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        pass
     except Exception as e:
-        if "disconnect" not in str(e).lower():
+        err_msg = str(e).lower()
+        if err_msg and "disconnect" not in err_msg and "close" not in err_msg and "cancelled" not in err_msg:
             print(f"[WS/prices] Connection error: {e}")
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
@@ -2567,8 +2574,11 @@ async def ws_chart(websocket: WebSocket):
                     await websocket.send_json(msg)
         finally:
             _candle_subscribers.remove(q)
+    except WebSocketDisconnect:
+        pass
     except Exception as e:
-        if "disconnect" not in str(e).lower():
+        err_msg = str(e).lower()
+        if err_msg and "disconnect" not in err_msg and "close" not in err_msg and "cancelled" not in err_msg:
             print(f"[WS/chart] Error: {e}")
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
@@ -2610,8 +2620,12 @@ async def ws_candles(websocket: WebSocket):
                     r = rows[0]
                     await websocket.send_json({"type": "candle", "symbol": symbol, "interval": interval,
                         "o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"], "v": r["volume"], "t": r["timestamp"]})
+            except WebSocketDisconnect:
+                break
             except Exception as e:
-                print(f"[WS/candles] Error: {e}")
+                err_msg = str(e).lower()
+                if err_msg and "close" not in err_msg and "cancelled" not in err_msg:
+                    print(f"[WS/candles] Error: {e}")
             await asyncio.sleep(60 if interval != "1m" else 10)
     except Exception as e:
         if "disconnect" not in str(e).lower():
