@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>White-Label MAXIA — Your Brand, Our Infrastructure</title>
+<meta name="description" content="White-label MAXIA's AI marketplace infrastructure. Swap engine, escrow, GPU rental, tokenized stocks, DeFi, and 46 MCP tools under your own brand.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://maxiaworld.app/whitelabel">
+<!-- Open Graph -->
+<meta property="og:title" content="MAXIA White Label — Launch Your Own AI Marketplace">
+<meta property="og:description" content="White label MAXIA's infrastructure. Your brand, our 559 API routes, 14 chains, escrow, and GPU compute.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/whitelabel">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA White Label — Launch Your Own AI Marketplace">
+<meta name="twitter:description" content="White label MAXIA's infrastructure. Your brand, our 559 API routes, 14 chains, escrow, and GPU compute.">
+<meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
+<!-- Favicon & Preconnect -->
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--blue:#3B82F6;--purple:#7c3aed;--cyan:#00e5ff;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+
+/* Nav */
+.nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
+.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:24px;align-items:center;font-size:14px}
+.nav-links a{color:var(--muted)}
+
+/* Hero */
+.hero{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 60px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(139,92,246,.08) 0%,transparent 60%)}
+.hero-tag{display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:var(--purple);margin-bottom:24px}
+.hero-title{font-size:56px;font-weight:800;letter-spacing:-2px;line-height:1.1;max-width:800px}
+.hero-title span{background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-sub{font-size:20px;color:var(--muted);margin-top:16px;max-width:600px;line-height:1.5;font-weight:300}
+
+/* Sections */
+.section{max-width:1100px;margin:0 auto;padding:80px 24px}
+.section-title{font-size:36px;font-weight:700;margin-bottom:12px}
+.section-sub{color:var(--muted);font-size:18px;margin-bottom:48px}
+
+/* Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;transition:all .3s}
+.card:hover{border-color:rgba(139,92,246,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.card-icon{font-size:28px;margin-bottom:16px}
+.card-name{font-size:18px;font-weight:600;margin-bottom:8px}
+.card-desc{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* Pricing */
+.pricing-box{background:var(--card);border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:40px;max-width:500px;margin:0 auto;text-align:center}
+.pricing-num{font-size:64px;font-weight:800;background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:'JetBrains Mono',monospace}
+.pricing-detail{font-size:18px;color:var(--muted);margin-top:8px}
+
+/* Code */
+.code-block{background:#0D1117;border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:24px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;overflow-x:auto;color:#E6EDF3;margin-top:24px;text-align:left}
+.cc{color:#8B949E}
+.cs{color:#A5D6FF}
+.ck{color:#FF7B72}
+.cv{color:#79C0FF}
+
+/* Steps */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px;margin-top:32px}
+.step{text-align:center;padding:24px}
+.step-num{font-size:48px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-family:'JetBrains Mono',monospace}
+.step-title{font-size:18px;font-weight:600;margin:12px 0 8px}
+.step-desc{font-size:14px;color:var(--muted);line-height:1.5}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 24px;background:linear-gradient(180deg,transparent,rgba(139,92,246,.05))}
+.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-block}
+.btn-primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(139,92,246,.3)}
+.btn-secondary{background:transparent;color:var(--text);border:1px solid var(--muted2);margin-left:12px}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* Footer */
+.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+
+/* Responsive */
+@media(max-width:768px){
+  .hero-title{font-size:32px}
+  .hero-sub{font-size:16px}
+  .section-title{font-size:24px}
+  .grid{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr}
+  .pricing-num{font-size:48px}
+  .nav-links{gap:12px;font-size:12px}
+}
+@media(max-width:480px){
+  body{padding:0 8px}
+  .hero{padding:100px 16px 40px}
+  .section{padding:48px 16px}
+}
+</style>
+</head>
+<body>
+<style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}h1,h2,h3{font-family:Syne,sans-serif}::selection{background:rgba(0,229,255,.2)}</style><div class="bg-hex"><canvas id="hexc"></canvas></div><div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div><div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div><script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
+<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
+
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/marketplace" style="color:#94a3b8">Marketplace</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-tag">PARTNER PROGRAM</div>
+  <h1 class="hero-title">White-Label <span>MAXIA</span></h1>
+  <p class="hero-sub">Your brand, our infrastructure. Launch your own AI marketplace, swap engine, or GPU rental platform in days — not months.</p>
+  <div style="margin-top:32px">
+    <a href="mailto:ceo@maxiaworld.app" class="btn btn-primary">Get Partner Key</a>
+    <a href="#integration" class="btn btn-secondary">See Integration</a>
+  </div>
+</section>
+
+<!-- What You Get -->
+<section class="section" id="features">
+  <h2 class="section-title">What You Get</h2>
+  <p class="section-sub">Full access to MAXIA's battle-tested infrastructure under your own brand.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="card-icon">&#9889;</div>
+      <div class="card-name">Swap Engine</div>
+      <div class="card-desc">65 tokens, 5000+ pairs across 7 chains (Solana, Base, Ethereum, Polygon, Arbitrum, Avalanche, BNB). Jupiter + DEX aggregation built in.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128274;</div>
+      <div class="card-name">Escrow &amp; Payments</div>
+      <div class="card-desc">On-chain USDC escrow on Solana with PDA-based locking. Dispute resolution, SLA enforcement, and proof-of-delivery included.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128187;</div>
+      <div class="card-name">GPU Rental</div>
+      <div class="card-desc">7 tiers from RTX 4090 to H100 clusters via RunPod. Real-time availability, instant provisioning, pay-per-minute billing.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#128200;</div>
+      <div class="card-name">Tokenized Stocks</div>
+      <div class="card-desc">25 stocks (AAPL, TSLA, NVDA...) tradeable on-chain via 3 providers (xStocks, Ondo, Dinari). Multi-chain settlement.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#127793;</div>
+      <div class="card-name">DeFi Scanner</div>
+      <div class="card-desc">Real-time yield opportunities, lending rates, and liquidity pool analytics across all supported chains.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">&#129302;</div>
+      <div class="card-name">46 MCP Tools</div>
+      <div class="card-desc">Full Model Context Protocol server with 46 tools for AI agents: swap, escrow, GPU, prices, yields, stocks, and more.</div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section class="section" style="background:var(--bg2)" id="integration">
+  <h2 class="section-title">Integration in 3 Steps</h2>
+  <p class="section-sub">Same powerful API. Just add your partner key.</p>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Get Your Key</div>
+      <div class="step-desc">Email ceo@maxiaworld.app with your project details. Receive your X-Partner-Key within 24h.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Add the Header</div>
+      <div class="step-desc">Prefix all API calls with your <code>X-Partner-Key</code> header. All MAXIA endpoints work identically.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Launch &amp; Earn</div>
+      <div class="step-desc">You keep 90% of all volume flowing through your key. MAXIA handles infrastructure, uptime, and chain integrations.</div>
+    </div>
+  </div>
+
+  <!-- Code Example -->
+  <div class="code-block">
+    <span class="cc"># Same MAXIA API — just add your partner key</span><br>
+    <span class="ck">import</span> httpx<br><br>
+    <span class="cc"># Your white-label configuration</span><br>
+    PARTNER_KEY = <span class="cs">"wl_your_partner_key_here"</span><br>
+    BASE_URL = <span class="cs">"https://maxiaworld.app"</span><br><br>
+    headers = {<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"X-Partner-Key"</span>: PARTNER_KEY,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"Authorization"</span>: <span class="cs">"Bearer YOUR_USER_JWT"</span>,<br>
+    }<br><br>
+    <span class="cc"># Execute a swap — your users, your brand</span><br>
+    resp = httpx.post(f<span class="cs">"{BASE_URL}/api/public/swap"</span>, headers=headers, json={<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"from_token"</span>: <span class="cs">"SOL"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"to_token"</span>: <span class="cs">"USDC"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"amount"</span>: <span class="cv">1.5</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"chain"</span>: <span class="cs">"solana"</span>,<br>
+    })<br><br>
+    <span class="cc"># Rent a GPU</span><br>
+    resp = httpx.post(f<span class="cs">"{BASE_URL}/api/public/gpu/rent"</span>, headers=headers, json={<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"tier"</span>: <span class="cs">"a100_80gb"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"hours"</span>: <span class="cv">2</span>,<br>
+    })<br><br>
+    <span class="cc"># All 46 MCP tools available at /mcp/manifest</span>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="section" id="pricing">
+  <h2 class="section-title" style="text-align:center">Revenue Share</h2>
+  <p class="section-sub" style="text-align:center">No upfront cost. No monthly fee. Pure revenue share.</p>
+  <div class="pricing-box">
+    <div class="pricing-num">90%</div>
+    <div class="pricing-detail">You keep 90% of your volume</div>
+    <div style="margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,.06)">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px">
+        <span style="color:var(--muted)">Your share</span>
+        <span style="color:var(--green);font-weight:600">90%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px">
+        <span style="color:var(--muted)">MAXIA infrastructure fee</span>
+        <span style="color:var(--muted2)">10%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px">
+        <span style="color:var(--muted)">Setup fee</span>
+        <span style="color:var(--green);font-weight:600">$0</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px">
+        <span style="color:var(--muted)">Monthly minimum</span>
+        <span style="color:var(--green);font-weight:600">None</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2 style="font-size:32px;font-weight:700;margin-bottom:12px">Ready to Launch?</h2>
+  <p style="color:var(--muted);font-size:16px;margin-bottom:32px;max-width:500px;margin-left:auto;margin-right:auto">Get your partner key and start building your white-label platform today. Full documentation and integration support included.</p>
+  <a href="mailto:ceo@maxiaworld.app" class="btn btn-primary">Contact ceo@maxiaworld.app</a>
+  <a href="/docs" class="btn btn-secondary">API Docs</a>
+</section>
+
+<footer class="footer">
+  <div style="display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap">
+    <a href="/">Home</a>
+    <a href="/app">Dashboard</a>
+    <a href="/docs">API Docs</a>
+    <a href="mailto:ceo@maxiaworld.app">Contact</a>
+  </div>
+  <p>MAXIA &mdash; AI-to-AI Marketplace on 14 Blockchains</p>
+</footer>
+
+</body>
+</html>

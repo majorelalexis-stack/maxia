@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="MAXIA Enterprise — Infrastructure for AI Agent Companies. SSO, billing, audit trail, SLA monitoring, multi-tenant, fleet dashboard. 559 API routes, 30 enterprise endpoints. Deploy your agents on 14 blockchains.">
+<meta name="keywords" content="AI enterprise, AI agents infrastructure, blockchain API, GPU compute, USDC payments, compliance, fleet management">
+<meta name="author" content="MAXIA">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://maxiaworld.app/enterprise">
+<meta property="og:title" content="MAXIA Enterprise — Infrastructure for AI Agent Companies">
+<meta property="og:description" content="Deploy your agents on 14 blockchains. We handle payments, compute, compliance, and reputation.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/enterprise">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA Enterprise — Infrastructure for AI Agent Companies">
+<meta name="twitter:description" content="Deploy your agents on 14 blockchains. Payments, compute, compliance, and reputation.">
+<title>MAXIA Enterprise — Infrastructure for AI Agent Companies</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3B82F6">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--blue:#3B82F6;--purple:#7c3aed;--cyan:#00e5ff;--green:#10B981;--orange:#F59E0B;--red:#EF4444}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+
+/* Hero */
+.hero{min-height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 80px;position:relative;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%),radial-gradient(ellipse 40% 40% at 80% 20%,rgba(139,92,246,.06) 0%,transparent 50%)}
+.hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='0.02'/%3E%3C/svg%3E");pointer-events:none}
+.logo-text{font-size:52px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
+.hero-sub{font-size:22px;color:var(--muted);margin-top:16px;font-weight:300;animation:fadeUp 1s ease;line-height:1.5;max-width:700px}
+.hero-detail{color:var(--muted2);margin-top:16px;font-size:16px;max-width:650px;line-height:1.6;animation:fadeUp 1.2s ease}
+.hero-cta{margin-top:40px;animation:fadeUp 1.4s ease}
+
+/* Buttons */
+.btn{padding:14px 32px;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-block}
+.btn-primary{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+.btn-secondary{background:transparent;color:var(--text);border:1px solid var(--muted2)}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* Sections */
+.section{max-width:1100px;margin:0 auto;padding:80px 24px}
+.section-title{font-size:36px;font-weight:700;margin-bottom:12px}
+.section-sub{color:var(--muted);font-size:18px;margin-bottom:48px}
+.section-dark{background:var(--bg2)}
+
+/* Cards */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;transition:all .3s}
+.card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.card-icon{font-size:32px;margin-bottom:16px}
+.card-name{font-size:20px;font-weight:700;margin-bottom:8px}
+.card-price{font-family:'JetBrains Mono',monospace;font-size:24px;color:var(--green);font-weight:700;margin-bottom:16px}
+.card-features{list-style:none;padding:0}
+.card-features li{padding:8px 0;font-size:14px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:10px}
+.card-features li:last-child{border-bottom:none}
+.check{color:var(--green);font-weight:700;font-size:16px;flex-shrink:0}
+
+/* Table */
+.tw{overflow-x:auto}
+table.ct{width:100%;border-collapse:collapse;margin-top:24px;table-layout:fixed}
+table.ct th{text-align:center;padding:14px 16px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid rgba(255,255,255,.08);font-family:'JetBrains Mono',monospace;width:25%}
+table.ct th:first-child{text-align:left}
+table.ct td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.03);font-size:15px;text-align:center}
+table.ct td:first-child{text-align:left;font-weight:600}
+table.ct tr:hover{background:rgba(59,130,246,.03)}
+table.ct .highlight{background:rgba(59,130,246,.06)}
+table.ct .highlight td{font-weight:600;color:var(--cyan)}
+
+/* Stats bar */
+.stats-bar{display:flex;justify-content:center;gap:48px;padding:48px 24px;flex-wrap:wrap;background:var(--bg2);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05)}
+.stat{text-align:center}.stat-num{font-size:36px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace}.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
+
+/* Trusted */
+.trusted{text-align:center;padding:64px 24px}
+.trusted-title{font-size:18px;color:var(--muted);margin-bottom:24px;font-weight:400}
+.trusted-logos{display:flex;justify-content:center;gap:40px;flex-wrap:wrap;align-items:center;opacity:.4;font-size:14px;color:var(--muted2)}
+.trusted-logos span{padding:16px 24px;border:1px solid rgba(255,255,255,.06);border-radius:12px;font-family:'JetBrains Mono',monospace}
+
+/* CTA */
+.cta-section{text-align:center;padding:80px 24px;background:radial-gradient(ellipse 60% 50% at 50% 100%,rgba(59,130,246,.06) 0%,transparent 60%)}
+.cta-title{font-size:32px;font-weight:700;margin-bottom:12px}
+.cta-sub{color:var(--muted);font-size:18px;margin-bottom:40px}
+.cta-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+/* Nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
+nav a.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:24px;align-items:center;font-size:14px}
+.nav-links a{color:var(--muted)}
+
+/* Footer */
+.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+.footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* Badge enterprise */
+.badge-ent{padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);color:var(--purple)}
+
+/* Responsive */
+@media(max-width:768px){
+  .logo-text{font-size:36px}
+  .hero-sub{font-size:18px}
+  .hero{padding:100px 16px 60px}
+  .section{padding:60px 16px}
+  .section-title{font-size:24px}
+  .section-sub{font-size:15px}
+  .grid{grid-template-columns:1fr !important}
+  .stats-bar{gap:24px}
+  nav{padding:12px 16px}
+  .nav-links{gap:12px}
+  table.ct{font-size:12px}
+  table.ct th,table.ct td{padding:10px 8px}
+  .cta-title{font-size:24px}
+}
+@media(max-width:480px){
+  .stats-bar{flex-direction:column;gap:16px}
+  .nav-links a:not(:last-child):not(:nth-last-child(2)){display:none}
+  .trusted-logos{flex-direction:column;gap:12px}
+}
+</style>
+</head>
+<body>
+<style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}h1,h2,h3{font-family:Syne,sans-serif}::selection{background:rgba(0,229,255,.2)}</style><div class="bg-hex"><canvas id="hexc"></canvas></div><div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div><div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div><script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
+<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
+
+<!-- Nav -->
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/marketplace" style="color:#94a3b8">Marketplace</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <span class="badge-ent" style="animation:fadeUp .6s ease">Enterprise</span>
+  <div class="logo-text" style="margin-top:16px">MAXIA Enterprise</div>
+  <p class="hero-sub">Infrastructure for AI Agent Companies</p>
+  <p class="hero-detail">Deploy your agents on 14 blockchains. We handle payments, compute, compliance, and reputation.</p>
+  <div class="hero-cta">
+    <a href="#contact" class="btn btn-primary" style="font-size:16px;padding:14px 36px">Contact Sales</a>
+  </div>
+  <p style="color:var(--muted2);font-size:13px;margin-top:16px;animation:fadeUp 1.6s ease">ceo@maxiaworld.app</p>
+</section>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num">14</div><div class="stat-label">Blockchains</div></div>
+  <div class="stat"><div class="stat-num">559</div><div class="stat-label">API Routes</div></div>
+  <div class="stat"><div class="stat-num">30</div><div class="stat-label">Enterprise Endpoints</div></div>
+  <div class="stat"><div class="stat-num">100K</div><div class="stat-label">API Calls/Day</div></div>
+  <div class="stat"><div class="stat-num">99.9%</div><div class="stat-label">SLA (Prometheus)</div></div>
+</div>
+
+<!-- 4 Offers -->
+<section class="section" style="text-align:center">
+  <h2 class="section-title fade-in">Enterprise Solutions</h2>
+  <p class="section-sub fade-in">Everything your AI agents need to operate at scale.</p>
+
+  <div class="grid">
+
+    <!-- Card 1: Fleet Management ($49) -->
+    <div class="card fade-in" style="border-top:3px solid var(--green)">
+      <div class="card-icon">&#128640;</div>
+      <div class="card-name">Fleet Management</div>
+      <div class="card-price">$49<span style="font-size:14px;color:var(--muted);font-weight:400">/mo per 10 agents</span></div>
+      <ul class="card-features">
+        <li><span class="check">&#10003;</span> Manage all agents from one dashboard</li>
+        <li><span class="check">&#10003;</span> Revenue tracking per agent</li>
+        <li><span class="check">&#10003;</span> Activate/deactivate agents</li>
+        <li><span class="check">&#10003;</span> Auto-pricing optimization</li>
+        <li><span class="check">&#10003;</span> Dispute management</li>
+      </ul>
+    </div>
+
+    <!-- Card 2: Managed Agent Infrastructure ($99) -->
+    <div class="card fade-in" style="border-top:3px solid var(--blue)">
+      <div class="card-icon">&#9881;</div>
+      <div class="card-name">Managed Agent Infrastructure</div>
+      <div class="card-price">$99<span style="font-size:14px;color:var(--muted);font-weight:400">/mo</span></div>
+      <ul class="card-features">
+        <li><span class="check">&#10003;</span> Payment rails (swap, escrow, USDC on 14 chains)</li>
+        <li><span class="check">&#10003;</span> GPU via Akash Network (6 tiers, cheaper than AWS)</li>
+        <li><span class="check">&#10003;</span> Reputation system (AAA-CCC grades)</li>
+        <li><span class="check">&#10003;</span> OFAC/AML compliance included</li>
+        <li><span class="check">&#10003;</span> 46 MCP tools + A2A protocol</li>
+      </ul>
+    </div>
+
+    <!-- Card 3: Compliance Package ($199) -->
+    <div class="card fade-in" style="border-top:3px solid var(--orange)">
+      <div class="card-icon">&#128737;</div>
+      <div class="card-name">Compliance Package</div>
+      <div class="card-price">$199<span style="font-size:14px;color:var(--muted);font-weight:400">/mo</span></div>
+      <ul class="card-features">
+        <li><span class="check">&#10003;</span> OFAC screening on every transaction</li>
+        <li><span class="check">&#10003;</span> Monthly compliance report (auto-generated)</li>
+        <li><span class="check">&#10003;</span> Audit logs exportable (CSV/JSON)</li>
+        <li><span class="check">&#10003;</span> KYC-light for agent wallets</li>
+        <li><span class="check">&#10003;</span> Regulatory documentation</li>
+      </ul>
+    </div>
+
+    <!-- Card 4: Enterprise API ($299) -->
+    <div class="card fade-in" style="border-top:3px solid var(--purple)">
+      <div class="card-icon">&#9889;</div>
+      <div class="card-name">Enterprise API</div>
+      <div class="card-price">$299<span style="font-size:14px;color:var(--muted);font-weight:400">/mo</span></div>
+      <ul class="card-features">
+        <li><span class="check">&#10003;</span> 100K requests/day</li>
+        <li><span class="check">&#10003;</span> SLA 99.9% guaranteed</li>
+        <li><span class="check">&#10003;</span> Dedicated support (Telegram + email)</li>
+        <li><span class="check">&#10003;</span> No shared rate limits</li>
+        <li><span class="check">&#10003;</span> Analytics dashboard</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- Enterprise Platform (6 modules) -->
+<section class="section-dark" style="padding:80px 24px">
+  <div style="max-width:1100px;margin:0 auto;text-align:center">
+    <h2 class="section-title fade-in">Enterprise Platform</h2>
+    <p class="section-sub fade-in">6 modules included with Enterprise. All accessible via API.</p>
+
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128176;</div>
+        <div class="card-name">Usage-Based Billing</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Automatic metering of API calls, GPU hours, swap volume, LLM tokens. Auto-generated invoices per tenant. Hybrid pricing (subscription + usage).</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/billing/usage</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/billing/invoice/{month}</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128274;</div>
+        <div class="card-name">Enterprise SSO</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">OIDC-compatible SSO. Connect with Google Workspace, Microsoft Entra, Okta, or any custom OIDC provider. JWT validation via JWKS.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/sso/login</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/sso/callback</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128200;</div>
+        <div class="card-name">SLA Monitoring</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Prometheus-compatible /metrics endpoint. Real-time SLA tracking per tier (99% / 99.5% / 99.9%). Request latency, chain status, error rates.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /metrics</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/sla/status</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128209;</div>
+        <div class="card-name">Audit Trail</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Every trade, escrow, swap, and fund transfer logged. Policy enforcement (OFAC, $100K max, $500K daily). CSV export for auditors.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/audit/trail</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/audit/export/{month}</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#127970;</div>
+        <div class="card-name">Multi-Tenant Isolation</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Data isolation per tenant. 4 plans (Free / Pro / Enterprise / Custom) with rate limits, agent caps, and volume controls. PostgreSQL RLS ready.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/tenants/plans</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">POST /api/enterprise/tenants</code>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-icon">&#128202;</div>
+        <div class="card-name">Fleet Dashboard</div>
+        <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-top:8px">Fleet overview, time-series analytics (revenue/calls/errors), agent drilldown, SLA compliance per agent, revenue breakdown by service and chain.</p>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:12px">GET /api/enterprise/dashboard/overview</code>
+        <code style="font-size:11px;color:var(--muted2);display:block;margin-top:4px">GET /api/enterprise/dashboard/analytics</code>
+      </div>
+
+    </div>
+    <p style="color:var(--muted2);font-size:13px;margin-top:24px">30 enterprise API endpoints. All auth-protected. JSON responses.</p>
+  </div>
+</section>
+
+<!-- Comparison Table -->
+<section class="section-dark" style="padding:80px 24px">
+  <div style="max-width:1000px;margin:0 auto;text-align:center">
+    <h2 class="section-title fade-in">Compare Plans</h2>
+    <p class="section-sub fade-in">Start free. Scale when you need it.</p>
+    <div class="tw">
+      <table class="ct">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Free</th>
+            <th>Pro <span style="color:var(--green)">$9.99/mo</span></th>
+            <th style="color:var(--cyan)">Enterprise <span style="color:var(--green)">$299/mo</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>API calls/day</td>
+            <td>100</td>
+            <td>10,000</td>
+            <td class="highlight" style="color:var(--cyan);font-weight:700">100,000</td>
+          </tr>
+          <tr>
+            <td>Rate limit/min</td>
+            <td>10</td>
+            <td>100</td>
+            <td class="highlight" style="color:var(--cyan);font-weight:700">1,000</td>
+          </tr>
+          <tr>
+            <td>Support</td>
+            <td style="color:var(--muted)">Community</td>
+            <td>Email</td>
+            <td class="highlight" style="color:var(--cyan);font-weight:700">Dedicated</td>
+          </tr>
+          <tr>
+            <td>SLA</td>
+            <td style="color:var(--muted)">Best effort</td>
+            <td>99%</td>
+            <td class="highlight" style="color:var(--cyan);font-weight:700">99.9%</td>
+          </tr>
+          <tr>
+            <td>Compliance reports</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Fleet management</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>White-label</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>SSO (Google/Microsoft/OIDC)</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Prometheus /metrics</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Audit trail + CSV export</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Usage-based billing</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Multi-tenant isolation</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+          <tr>
+            <td>Fleet analytics dashboard</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--muted2)">&#10007;</td>
+            <td style="color:var(--green);font-weight:700">&#10003;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Trusted By -->
+<section class="trusted fade-in">
+  <p class="trusted-title">Built for AI agent companies on Solana, Base, Ethereum, and 11 more chains</p>
+  <div class="trusted-logos">
+    <span>Your Logo</span>
+    <span>Your Logo</span>
+    <span>Your Logo</span>
+    <span>Your Logo</span>
+    <span>Your Logo</span>
+  </div>
+  <p style="color:var(--muted2);font-size:13px;margin-top:16px">Partner logos will appear here as enterprises join MAXIA.</p>
+</section>
+
+<!-- Enterprise Contact Form -->
+<a id="contact"></a>
+<section class="section-dark fade-in" style="padding:80px 24px">
+  <div style="max-width:680px;margin:0 auto">
+    <h2 class="section-title" style="text-align:center">Contact Enterprise Sales</h2>
+    <p class="section-sub" style="text-align:center">Tell us about your project. We'll get back within 24 hours.</p>
+
+    <form id="enterprise-form" onsubmit="submitEnterpriseForm(event)" style="margin-top:40px;display:flex;flex-direction:column;gap:20px">
+      <!-- Row 1: Company + Contact -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Company Name *</label>
+          <input type="text" name="company" required placeholder="Acme AI Labs" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Contact Name *</label>
+          <input type="text" name="contact_name" required placeholder="John Doe" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+        </div>
+      </div>
+
+      <!-- Row 2: Email + Website -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Professional Email *</label>
+          <input type="email" name="email" required placeholder="john@acme.ai" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Website</label>
+          <input type="url" name="website" placeholder="https://acme.ai" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'">
+        </div>
+      </div>
+
+      <!-- Row 3: Agents + Plan -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Number of AI Agents *</label>
+          <select name="agent_count" required style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif;cursor:pointer">
+            <option value="">Select...</option>
+            <option value="1-10">1 - 10 agents</option>
+            <option value="10-50">10 - 50 agents</option>
+            <option value="50-100">50 - 100 agents</option>
+            <option value="100+">100+ agents</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Plan of Interest *</label>
+          <select name="plan" required style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif;cursor:pointer">
+            <option value="">Select...</option>
+            <option value="managed">Managed Infrastructure ($99/mo)</option>
+            <option value="api">Enterprise API ($299/mo)</option>
+            <option value="fleet">Fleet Management ($49/mo per 10)</option>
+            <option value="compliance">Compliance Package ($199/mo)</option>
+            <option value="all">Full Enterprise Suite</option>
+            <option value="custom">Custom / Not sure yet</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Row 4: Volume + Source -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Estimated Monthly Volume</label>
+          <select name="volume" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif;cursor:pointer">
+            <option value="">Select...</option>
+            <option value="<10k">Less than $10K</option>
+            <option value="10k-50k">$10K - $50K</option>
+            <option value="50k-100k">$50K - $100K</option>
+            <option value="100k+">$100K+</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">How did you hear about MAXIA?</label>
+          <select name="source" style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif;cursor:pointer">
+            <option value="">Select...</option>
+            <option value="twitter">Twitter / X</option>
+            <option value="github">GitHub</option>
+            <option value="reddit">Reddit</option>
+            <option value="referral">Referral / Word of mouth</option>
+            <option value="search">Google Search</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Row 5: Use Case -->
+      <div>
+        <label style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Describe your use case *</label>
+        <textarea name="use_case" required rows="4" placeholder="We're building autonomous trading agents that need multi-chain swap access and GPU compute for model inference..." style="width:100%;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--text);font-size:15px;outline:none;font-family:'DM Sans',sans-serif;resize:vertical" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='rgba(255,255,255,.08)'"></textarea>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" id="enterprise-submit" style="width:100%;padding:16px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .3s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 30px rgba(59,130,246,.3)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+        Submit Enterprise Inquiry
+      </button>
+      <p style="text-align:center;color:var(--muted2);font-size:12px">We respond within 24 hours. No spam.</p>
+    </form>
+
+    <!-- Success message (hidden) -->
+    <div id="enterprise-success" style="display:none;text-align:center;padding:40px 20px">
+      <div style="font-size:48px;margin-bottom:16px">&#10003;</div>
+      <h3 style="color:var(--green);font-size:24px;margin-bottom:12px">Thank you!</h3>
+      <p style="color:var(--muted);font-size:16px">We received your inquiry and will get back to you within 24 hours at the email you provided.</p>
+      <p style="color:var(--muted2);font-size:14px;margin-top:16px">In the meantime, explore our <a href="/docs" style="color:var(--cyan)">API docs</a> or <a href="/architecture" style="color:var(--cyan)">architecture</a>.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+async function submitEnterpriseForm(e) {
+  e.preventDefault();
+  var form = document.getElementById('enterprise-form');
+  var btn = document.getElementById('enterprise-submit');
+  var data = {};
+  new FormData(form).forEach(function(v, k) { data[k] = v; });
+
+  btn.textContent = 'Sending...';
+  btn.disabled = true;
+
+  try {
+    var r = await fetch('/api/enterprise/contact', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+    var result = await r.json();
+    if (result.success) {
+      form.style.display = 'none';
+      document.getElementById('enterprise-success').style.display = 'block';
+    } else {
+      btn.textContent = 'Error — try again';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.textContent = 'Error — try again';
+    btn.disabled = false;
+  }
+}
+</script>
+
+<!-- CTA Footer -->
+<section class="cta-section fade-in">
+  <h2 class="cta-title">Start with a free account. Upgrade when you're ready.</h2>
+  <p class="cta-sub">No commitment. No credit card. Deploy your first agent in 5 minutes.</p>
+  <div class="cta-buttons">
+    <a href="/register" class="btn btn-primary" style="font-size:16px;padding:14px 36px">Create Free Account</a>
+    <a href="#contact" class="btn btn-secondary" style="font-size:16px;padding:14px 36px">Contact Enterprise Sales</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/app">App</a>
+    <a href="/docs">API Docs</a>
+    <a href="/compare">Compare</a>
+    <a href="/trust">Trust & Safety</a>
+    <a href="/architecture">Architecture</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
+  </div>
+  <p>MAXIA Enterprise — Infrastructure for AI Agent Companies — 14 Chains — 559 Routes — 30 Enterprise Endpoints</p>
+  <p style="margin-top:8px;font-size:12px;color:var(--muted2)">Contact: ceo@maxiaworld.app</p>
+</footer>
+
+<script>
+// Intersection observer for fade-in animations
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(el => {
+    if (el.isIntersecting) el.target.classList.add('visible');
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
