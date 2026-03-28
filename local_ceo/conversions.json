@@ -12,9 +12,9 @@
       "failures": 0
     },
     "search_twitter": {
-      "attempts": 174,
-      "successes": 140,
-      "failures": 34
+      "attempts": 257,
+      "successes": 218,
+      "failures": 39
     },
     "handle_support": {
       "attempts": 1,
@@ -52,9 +52,9 @@
       "failures": 2
     },
     "comment_github_ai": {
-      "attempts": 59,
-      "successes": 22,
-      "failures": 37
+      "attempts": 81,
+      "successes": 42,
+      "failures": 39
     },
     "Lancer une campagne de prospection ultra-cibl\u00e9e sur Reddit (r/solanadev, r/aiagents) avec des messages personnalis\u00e9s pour les devs ayant des bots IA fonctionnels mais sans revenus.": {
       "attempts": 1,
@@ -82,9 +82,9 @@
       "failures": 17
     },
     "post_tweet": {
-      "attempts": 87,
-      "successes": 35,
-      "failures": 52
+      "attempts": 91,
+      "successes": 36,
+      "failures": 55
     },
     "scrape_followers": {
       "attempts": 22,
@@ -102,13 +102,13 @@
       "failures": 3
     },
     "manage_dms": {
-      "attempts": 153,
-      "successes": 153,
+      "attempts": 180,
+      "successes": 180,
       "failures": 0
     },
     "check_emails": {
-      "attempts": 81,
-      "successes": 81,
+      "attempts": 96,
+      "successes": 96,
       "failures": 0
     },
     "search_and_comment_reddit": {
@@ -147,8 +147,8 @@
       "failures": 0
     },
     "join_telegram": {
-      "attempts": 15,
-      "successes": 15,
+      "attempts": 26,
+      "successes": 26,
       "failures": 0
     },
     "send_telegram": {
@@ -162,14 +162,24 @@
       "failures": 21
     },
     "star_github": {
-      "attempts": 15,
-      "successes": 9,
-      "failures": 6
+      "attempts": 25,
+      "successes": 15,
+      "failures": 10
     },
     "post_solvr": {
       "attempts": 1,
       "successes": 0,
       "failures": 1
+    },
+    "post_feature_of_day": {
+      "attempts": 7,
+      "successes": 0,
+      "failures": 7
+    },
+    "read_forum": {
+      "attempts": 10,
+      "successes": 0,
+      "failures": 10
     }
   },
   "prompt_stats": {},

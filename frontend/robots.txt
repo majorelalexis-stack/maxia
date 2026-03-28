@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /ws
+Disallow: /mcp/
+
+Sitemap: https://maxiaworld.app/sitemap.xml

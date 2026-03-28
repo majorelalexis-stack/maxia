@@ -1,9 +1,9 @@
 {
   "twitter": {
     "score": 9,
-    "trend": "+",
-    "actions": 25,
-    "successes": 24
+    "trend": "=",
+    "actions": 94,
+    "successes": 89
   },
   "reddit": {
     "score": 5,
@@ -12,10 +12,10 @@
     "successes": 0
   },
   "github": {
-    "score": 8,
-    "trend": "+",
-    "actions": 9,
-    "successes": 8
+    "score": 7,
+    "trend": "=",
+    "actions": 34,
+    "successes": 28
   },
   "discord": {
     "score": 5,
@@ -25,14 +25,14 @@
   },
   "telegram": {
     "score": 10,
-    "trend": "+",
-    "actions": 3,
-    "successes": 3
+    "trend": "=",
+    "actions": 11,
+    "successes": 11
   },
   "email": {
     "score": 10,
-    "trend": "+",
-    "actions": 3,
-    "successes": 3
+    "trend": "=",
+    "actions": 13,
+    "successes": 13
   }
 }

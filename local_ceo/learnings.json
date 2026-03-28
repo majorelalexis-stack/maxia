@@ -10,5 +10,41 @@
     "prospects_found": 10,
     "best_surf_source": "API Collect",
     "ts": "2026-03-26T06:49:23"
+  },
+  {
+    "week": "2026-W12",
+    "cycle": 900,
+    "focus": "Prioritize boosting search_twitter efforts as they show high success and strong engagement metrics.",
+    "best_platform": "API Collect generates the most prospects, with 20 ",
+    "top_topic": "Not directly specified, but high engagement is lik",
+    "stop_doing": "Avoid post_tweet as it shows low success despite high engagement effort.",
+    "avg_mentions": 5.0,
+    "prospects_found": 10,
+    "best_surf_source": "API Collect",
+    "ts": "2026-03-26T15:42:20"
+  },
+  {
+    "week": "2026-W12",
+    "cycle": 1000,
+    "focus": "Prioritize API Collect outreach and optimize Twitter search strategies to maximize prospect engageme",
+    "best_platform": "API Collect generates the most prospects (19 total",
+    "top_topic": "Twitter search is the top engagement driver (24 su",
+    "stop_doing": "Stop using post_feature_of_day, as it has 0% success rate and wastes time with no results.",
+    "avg_mentions": 5.0,
+    "prospects_found": 10,
+    "best_surf_source": "API Collect",
+    "ts": "2026-03-27T03:10:57"
+  },
+  {
+    "week": "2026-W12",
+    "cycle": 1100,
+    "focus": "Prioritize increasing search_twitter efforts as it has a high success rate and significantly boosts ",
+    "best_platform": "API Collect is the best platform, generating 15 pr",
+    "top_topic": "Engage with API-related content and updates, as it",
+    "stop_doing": "Avoid read_forum actions, as they have a 0% success rate and waste time.",
+    "avg_mentions": 5.0,
+    "prospects_found": 10,
+    "best_surf_source": "API Collect",
+    "ts": "2026-03-28T13:10:10"
   }
 ]

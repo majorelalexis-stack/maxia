@@ -1,0 +1,3 @@
+[workspace]
+members = ["programs/maxia_escrow"]
+resolver = "2"
