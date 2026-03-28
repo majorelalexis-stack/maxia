@@ -2339,24 +2339,32 @@ function _createChart(container) {
 }
 
 var _chartWSId = 0; // Incremented on each new connection to cancel stale reconnects
+var _chartCurrentSymbol = ''; // Track which symbol the chart is showing
 function _connectChartWS(symbol, interval_s) {
   _chartWSId++;
   var myId = _chartWSId;
+  _chartCurrentSymbol = symbol;
   if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   _chartWS = new WebSocket(proto + '//' + location.host + '/ws/chart');
   _chartWS.onopen = function() {
     _chartWS.send(JSON.stringify({ symbol: symbol, interval: interval_s }));
     var badge = document.getElementById('tt-stream-badge');
-    if (badge) { badge.textContent = 'LIVE ' + (interval_s < 60 ? interval_s + 's' : '1m'); badge.className = 'badge badge-green'; }
+    if (badge) { badge.textContent = 'LIVE ' + (interval_s < 60 ? interval_s + 's' : '1m') + ' ' + symbol; badge.className = 'badge badge-green'; }
   };
   _chartWS.onmessage = function(e) {
+    // Ignore if this WS is stale (user already switched to another token)
+    if (myId !== _chartWSId) return;
     try {
       var msg = JSON.parse(e.data);
       if (msg.type === 'history' && msg.candles && _candleSeries) {
+        // Verify history is for the correct symbol
+        if (msg.symbol && msg.symbol !== symbol) return;
         _candleSeries.setData(msg.candles);
         _chart.timeScale().fitContent();
       } else if ((msg.type === 'candle_update' || msg.type === 'candle_complete') && _candleSeries) {
+        // CRITICAL: verify symbol matches — reject data from other tokens
+        if (msg.symbol && msg.symbol !== symbol) return;
         _candleSeries.update({ time: msg.time, open: msg.open, high: msg.high, low: msg.low, close: msg.close });
         if (msg.type === 'candle_update') { _chart.timeScale().scrollToRealTime(); }
       }
@@ -2365,7 +2373,6 @@ function _connectChartWS(symbol, interval_s) {
   _chartWS.onclose = function() {
     var badge = document.getElementById('tt-stream-badge');
     if (badge) { badge.textContent = 'Offline'; badge.className = 'badge'; }
-    // Only reconnect if this is still the current connection (not replaced by a new symbol)
     if (myId === _chartWSId) {
       setTimeout(function() { if (myId === _chartWSId && _chartTF in _liveIntervals) _connectChartWS(symbol, interval_s); }, 3000);
     }
@@ -5015,7 +5022,10 @@ async function loadStockMiniChart(symbol) {
     _stkWS.onmessage = function(e) {
       try {
         var msg = JSON.parse(e.data);
+        // Verify symbol matches — reject data from other tokens
+        if (msg.symbol && msg.symbol !== baseSymbol) return;
         if (msg.type === 'history' && msg.candles && _stkSeries) {
+          if (msg.symbol && msg.symbol !== baseSymbol) return;
           _stkSeries.setData(msg.candles);
           _stkChart.timeScale().fitContent();
         } else if ((msg.type === 'candle_update' || msg.type === 'candle_complete') && _stkSeries) {
