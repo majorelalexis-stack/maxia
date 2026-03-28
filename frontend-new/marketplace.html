@@ -416,7 +416,7 @@ function renderTools(tools) {
     const catIcon = CAT_ICONS[tool.category] || '&#128295;';
     const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
     const stars = renderStars(tool.rating || 0);
-    const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+    const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price_usdc || tool.price || 0).toFixed(2) : 'Free';
     const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
     const reviewCount = tool.review_count || 0;
 
@@ -466,7 +466,7 @@ function renderToolDetail(tool) {
   const catIcon = CAT_ICONS[tool.category] || '&#128295;';
   const catLabel = CAT_LABELS[tool.category] || tool.category || 'Tool';
   const stars = renderStars(tool.rating || 0);
-  const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price).toFixed(2) : 'Free';
+  const priceText = (tool.price_usdc || tool.price || 0) > 0 ? '$' + Number(tool.price_usdc || tool.price || 0).toFixed(2) : 'Free';
   const pricingLabel = PRICING_LABELS[tool.pricing_model] || '';
   const reviews = tool.reviews || [];
 
