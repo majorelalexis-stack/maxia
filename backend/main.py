@@ -1558,14 +1558,14 @@ async def admin_login_page():
 <title>MAXIA Admin</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0A0E17;color:#E2E8F0;font-family:'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
-.login{background:#151D2E;border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:40px;max-width:400px;width:90%}
-h1{font-size:28px;margin-bottom:8px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-p{color:#94A3B8;font-size:14px;margin-bottom:24px}
-input{width:100%;padding:14px;border-radius:10px;background:#0A0E17;border:1px solid rgba(255,255,255,.08);color:#E2E8F0;font-size:15px;margin-bottom:16px;outline:none;font-family:monospace}
-input:focus{border-color:#06B6D4}
-button{width:100%;padding:14px;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer}
-button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3)}
+body{background:#060a14;color:#e4e4e7;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
+.login{background:rgba(255,255,255,.03);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:40px;max-width:400px;width:90%}
+h1{font-family:'Syne',sans-serif;font-size:28px;margin-bottom:8px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+p{color:#a1a1aa;font-size:14px;margin-bottom:24px}
+input{width:100%;padding:14px;border-radius:10px;background:#060a14;border:1px solid rgba(255,255,255,.08);color:#e4e4e7;font-size:15px;margin-bottom:16px;outline:none;font-family:'JetBrains Mono',monospace}
+input:focus{border-color:#00e5ff}
+button{width:100%;padding:14px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,229,255,.3)}
 .err{color:#EF4444;font-size:13px;margin-top:12px;display:none}
 </style></head><body>
 <div class="login">
@@ -1711,17 +1711,18 @@ async def docs_html_page():
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MAXIA API Documentation</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}body{background:#0A0E17;color:#CBD5E1;font-family:system-ui,-apple-system,sans-serif;line-height:1.6}
+*{margin:0;padding:0;box-sizing:border-box}body{background:#060a14;color:#e4e4e7;font-family:'DM Sans',sans-serif;line-height:1.6}
 .container{max-width:900px;margin:0 auto;padding:40px 24px}
-h1{font-size:32px;color:#1A56DB;margin-bottom:8px}
-h2{font-size:22px;color:#7C6BF8;margin:32px 0 16px;padding-top:24px;border-top:1px solid rgba(255,255,255,.06)}
-h3{font-size:16px;color:#22D3EE;margin:20px 0 8px}
-p{margin-bottom:12px;color:#94A3B8}
-.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:rgba(124,107,248,.15);color:#7C6BF8;margin-left:8px}
-.endpoint{background:#111827;border:1px solid #1E293B;border-radius:8px;padding:16px;margin:8px 0 16px}
+h1{font-family:'Syne',sans-serif;font-size:32px;background:linear-gradient(135deg,#00e5ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+h2{font-family:'Syne',sans-serif;font-size:22px;color:#7c3aed;margin:32px 0 16px;padding-top:24px;border-top:1px solid rgba(255,255,255,.05)}
+h3{font-family:'Syne',sans-serif;font-size:16px;color:#00e5ff;margin:20px 0 8px}
+p{margin-bottom:12px;color:#a1a1aa}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:rgba(124,58,237,.1);color:#a78bfa;margin-left:8px}
+.endpoint{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:16px;margin:8px 0 16px;transition:border-color .2s}
+.endpoint:hover{border-color:rgba(0,229,255,.2)}
 .method{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;margin-right:8px}
-.get{background:#064E3B;color:#6EE7B7}.post{background:#1E3A5F;color:#7DD3FC}
-.url{font-family:monospace;color:#E2E8F0;font-size:14px}
+.get{background:rgba(34,197,94,.1);color:#22c55e}.post{background:rgba(59,130,246,.1);color:#3b82f6}
+.url{font-family:'JetBrains Mono',monospace;color:#e4e4e7;font-size:14px}
 .desc{color:#94A3B8;font-size:13px;margin-top:6px}
 pre{background:#111827;border:1px solid #1E293B;border-radius:8px;padding:16px;overflow-x:auto;font-size:13px;color:#E6EDF3;margin:12px 0}
 code{font-family:'JetBrains Mono',monospace;font-size:13px}
@@ -1836,21 +1837,21 @@ async def pricing_page():
 <link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#3B82F6">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,sans-serif;background:#0A0E17;color:#E2E8F0;min-height:100vh}
+body{font-family:'DM Sans',sans-serif;background:#060a14;color:#e4e4e7;min-height:100vh}
 .container{max-width:1100px;margin:0 auto;padding:40px 24px}
-h1{font-size:42px;font-weight:800;text-align:center;margin-bottom:8px}
-.sub{text-align:center;color:#94A3B8;font-size:18px;margin-bottom:48px}
+h1{font-family:'Syne',sans-serif;font-size:42px;font-weight:800;text-align:center;margin-bottom:8px}
+.sub{text-align:center;color:#a1a1aa;font-size:18px;margin-bottom:48px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-bottom:48px}
-.card{background:#151D2E;border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;text-align:center}
-.card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px);transition:all .3s}
-.card h3{font-size:20px;margin-bottom:4px}
-.card .price{font-size:36px;font-weight:800;margin:16px 0}
-.card .price.free{color:#10B981}
-.card .price.blue{color:#3B82F6}
-.card .desc{color:#94A3B8;font-size:14px;line-height:1.6}
+.card{background:rgba(255,255,255,.02);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:28px;text-align:center}
+.card:hover{border-color:rgba(0,229,255,.2);transform:translateY(-3px);transition:all .4s}
+.card h3{font-family:'Syne',sans-serif;font-size:20px;margin-bottom:4px}
+.card .price{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;margin:16px 0}
+.card .price.free{color:#22c55e}
+.card .price.blue{color:#00e5ff}
+.card .desc{color:#a1a1aa;font-size:14px;line-height:1.6}
 .card ul{text-align:left;list-style:none;margin-top:16px}
-.card li{padding:6px 0;font-size:14px;color:#CBD5E1}
-.card li::before{content:"\\2713 ";color:#10B981}
+.card li{padding:6px 0;font-size:14px;color:#e4e4e7}
+.card li::before{content:"\\2713 ";color:#00e5ff}
 .section{margin-bottom:48px}
 .section h2{font-size:28px;font-weight:700;margin-bottom:24px}
 table{width:100%;border-collapse:collapse}
