@@ -147,7 +147,7 @@ class CandleBuilder:
 
 # Builders par symbol + intervalle — alimentes par le stream SSE
 _candle_builders: dict[str, dict[int, CandleBuilder]] = {}  # {symbol: {interval_s: builder}}
-_LIVE_INTERVALS = [1, 5, 60]  # 1s, 5s, 1m
+_LIVE_INTERVALS = [1, 5, 60, 3600, 21600, 86400]  # 1s, 5s, 1m, 1h, 6h, 1d
 
 # Subscribers pour les candles live (WebSocket /ws/chart)
 _candle_subscribers: list[asyncio.Queue] = []

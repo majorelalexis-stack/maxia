@@ -2191,7 +2191,7 @@ var _candleSeries = null;
 var _chartTF = '1s';
 var _chartWS = null;  // WebSocket pour candles live
 var _chartLimits = {'1s': 300, '5s': 300, '1m': 120, '1h': 48, '6h': 48, '1d': 90, '1w': 52};
-var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60};  // Intervalles live (WebSocket)
+var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60, '1h': 3600, '6h': 21600, '1d': 86400};
 var _liveTokens = ['SOL', 'ETH', 'BTC', 'USDC'];   // Tokens avec SSE Pyth stream
 
 function setChartTF(tf, btn) {
@@ -2254,44 +2254,52 @@ async function loadChart() {
 
   _createChart(container);
 
-  var isLiveTF = _chartTF in _liveIntervals;
+  var isLiveTF = _liveIntervals.hasOwnProperty(_chartTF);
   var isLiveToken = _liveTokens.indexOf(token) >= 0;
   var isLive = isLiveTF && isLiveToken;
 
   if (isLive) {
-    // Mode live : WebSocket /ws/chart avec candles seconde par seconde
-    signalEl.innerHTML = '<span style="color:#10b981">Connecting live stream ' + esc(token) + ' (' + _chartTF + ')...</span>';
-    _connectChartWS(token, _liveIntervals[_chartTF]);
-    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + _chartTF.toUpperCase() + ' candles — Pyth SSE &lt;1s</span>';
-  } else if (isLiveTF && !isLiveToken) {
-    // Token sans SSE — fallback REST 1m
+    // Mode live : WebSocket + historique REST pour 1H/6H/1D
+    var interval_s = _liveIntervals[_chartTF];
+    // Charger l'historique REST d'abord pour les grands timeframes
+    if (interval_s >= 3600) {
+      try {
+        var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
+        var candles = (r && r.candles) || [];
+        if (candles.length > 0 && _candleSeries) {
+          _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
+        }
+      } catch(e) {}
+    }
+    signalEl.innerHTML = '<span style="color:#10b981">Connecting live ' + esc(token) + ' (' + _chartTF + ')...</span>';
+    _connectChartWS(token, interval_s);
+    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + _chartTF.toUpperCase() + ' — Pyth SSE &lt;1s</span>';
+  } else if (!isLiveToken) {
+    // Token sans SSE — fallback REST
     if (_chartWS) { _chartWS.close(); _chartWS = null; }
-    signalEl.innerHTML = '<span style="color:var(--orange)">Live ' + _chartTF + ' not available for ' + esc(token) + ' — showing 1M candles</span>';
+    var fallbackTF = (_chartTF in _liveIntervals) ? '1m' : _chartTF;
+    signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + '...</span>';
     try {
-      var r = await api('/api/trading/candles/' + token + '?interval=1m&limit=120');
+      var r = await api('/api/trading/candles/' + token + '?interval=' + fallbackTF + '&limit=' + (_chartLimits[fallbackTF]||120));
       var candles = (r && r.candles) || [];
       if (candles.length > 0 && _candleSeries) {
         _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
         _chart.timeScale().fitContent();
-        signalEl.innerHTML = '<span style="color:var(--orange);font-size:12px">' + candles.length + ' candles (1m fallback) — Live 1S/5S: SOL, ETH, BTC, USDC only</span>';
       }
+      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + fallbackTF + ') — Live: SOL/ETH/BTC/USDC</span>';
     } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   } else {
-    // Mode historique : REST API
+    // 1W — pas de live (pas de builder 1w), REST only
     if (_chartWS) { _chartWS.close(); _chartWS = null; }
-    signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + ' chart...</span>';
+    signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + '...</span>';
     try {
       var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
       var candles = (r && r.candles) || [];
       if (candles.length > 0 && _candleSeries) {
-        var data = candles.map(function(c) {
-          return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close };
-        });
-        _candleSeries.setData(data);
+        _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
         _chart.timeScale().fitContent();
-        var srcBadge = r.source === 'dexpaprika' ? '<span style="color:var(--green);font-size:11px;margin-left:8px">DEX Live</span>' : '<span style="color:var(--muted);font-size:11px;margin-left:8px">Cached</span>';
-        signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + _chartTF + ')' + srcBadge + '</span>';
       }
+      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + _chartTF + ')</span>';
     } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   }
 

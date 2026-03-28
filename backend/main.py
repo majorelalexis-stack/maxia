@@ -3662,7 +3662,7 @@ async def ws_chart(websocket: WebSocket):
         params = await _ws_receive_json_timeout(websocket, timeout=5.0)
         symbol = params.get("symbol", "SOL").upper()[:20]
         interval = int(params.get("interval", 1))
-        if interval not in (1, 5, 60):
+        if interval not in (1, 5, 60, 3600, 21600, 86400):
             interval = 1
 
         from pyth_oracle import _candle_subscribers, get_recent_candles
