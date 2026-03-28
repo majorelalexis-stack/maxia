@@ -11,12 +11,13 @@ Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
 import logging
 import uuid, time, hashlib, secrets, asyncio, json, datetime, re
+from error_utils import safe_error
 from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
     get_commission_bps, get_commission_tier_name, BLOCKED_WORDS, BLOCKED_PATTERNS,
 )
-from security import check_content_safety, check_ofac_wallet, require_ofac_clear, check_rate_limit_tiered
+from security import check_content_safety, check_ofac_wallet, require_ofac_clear, check_rate_limit_tiered, check_rate_limit
 
 # Fix #13: Solana address validation helper
 _SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
@@ -373,8 +374,10 @@ async def api_docs():
 # ══════════════════════════════════════════
 
 @router.post("/register")
-async def register_agent(req: dict):
+async def register_agent(req: dict, request: Request):
     """Inscription gratuite pour les IA. Retourne une API key. Persiste dans SQLite."""
+    # Rate limit registration to prevent abuse (IP-based)
+    check_rate_limit(request)
     await _load_from_db()
 
     # Fix #2: Validate required fields exist and have correct types

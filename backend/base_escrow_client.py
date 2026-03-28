@@ -49,13 +49,41 @@ async def _rpc_call(method: str, params: list) -> dict:
         return resp.json()
 
 
+def _keccak256(data: bytes) -> bytes:
+    """Compute Keccak-256 hash (NOT NIST SHA3-256 — Ethereum uses pre-NIST Keccak)."""
+    # Use pysha3 if available, otherwise pycryptodome, otherwise eth_hash
+    try:
+        import sha3
+        k = sha3.keccak_256(data)
+        return k.digest()
+    except ImportError:
+        pass
+    try:
+        from Crypto.Hash import keccak
+        k = keccak.new(digest_bits=256, data=data)
+        return k.digest()
+    except ImportError:
+        pass
+    try:
+        from eth_hash.auto import keccak as eth_keccak
+        return eth_keccak(data)
+    except ImportError:
+        pass
+    # Last resort: use web3 if installed
+    try:
+        from web3 import Web3
+        return Web3.keccak(data)
+    except ImportError:
+        raise ImportError(
+            "No Keccak-256 library found. Install one of: pysha3, pycryptodome, eth-hash[pycryptodome], web3"
+        )
+
+
 def _encode_function_call(func_name: str, param_types: list, param_values: list) -> str:
     """Encode a Solidity function call (minimal ABI encoding)."""
-    from hashlib import sha3_256
     # Function selector = first 4 bytes of keccak256(signature)
     sig = f"{func_name}({','.join(param_types)})"
-    import hashlib
-    selector = hashlib.sha3_256(sig.encode()).hexdigest()[:8]
+    selector = _keccak256(sig.encode()).hex()[:8]
 
     # For simple view calls with no params
     if not param_types:
@@ -100,7 +128,7 @@ async def get_stats() -> dict:
         }
     except Exception as e:
         logger.error(f"[BaseEscrow] getStats error: {e}")
-        return {"total_escrows": 0, "total_volume_usdc": 0, "total_commissions_usdc": 0, "error": str(e)[:100]}
+        return {"total_escrows": 0, "total_volume_usdc": 0, "total_commissions_usdc": 0}
 
 
 async def get_commission_tier(buyer_address: str) -> dict:
@@ -159,7 +187,7 @@ async def get_escrow(escrow_id_hex: str) -> dict:
         }
     except Exception as e:
         logger.error(f"[BaseEscrow] getEscrow error: {e}")
-        return {"error": str(e)[:100]}
+        return {"error": "Failed to fetch escrow details"}
 
 
 async def verify_escrow_tx(tx_hash: str) -> dict:
@@ -196,7 +224,7 @@ async def verify_escrow_tx(tx_hash: str) -> dict:
         }
     except Exception as e:
         logger.error(f"[BaseEscrow] verify_tx error: {e}")
-        return {"valid": False, "error": str(e)[:100]}
+        return {"valid": False, "error": "Failed to verify escrow transaction"}
 
 
 # ══════════════════════════════════════════

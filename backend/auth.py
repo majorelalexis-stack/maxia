@@ -48,7 +48,7 @@ def create_session_token(wallet: str) -> str:
 
 def verify_session_token(token: str) -> str:
     """Verifie un token de session. Retourne le wallet ou raise."""
-    parts = token.split(":")
+    parts = token.rsplit(":", 2)
     if len(parts) != 3:
         raise HTTPException(401, "Token invalide")
     wallet, expiry_str, sig = parts
@@ -207,9 +207,9 @@ async def require_auth(
         vk = VerifyKey(pub_bytes)
         sig_bytes = bytes.fromhex(x_signature) if len(x_signature) == 128 else base58.b58decode(x_signature)
         vk.verify(message, sig_bytes)
-    except Exception as e:
+    except Exception:
         _record_failed(x_wallet)
-        raise HTTPException(401, f"Auth echouee: {e}")
+        raise HTTPException(401, "Authentication failed")
 
     # Consommer le nonce apres usage reussi
     del NONCES[x_wallet]
@@ -260,9 +260,32 @@ async def require_auth_flexible(
         wallet = verify_session_token(token)
         return {"wallet": wallet, "did": None, "auth_method": "session_token"}
 
-    # 3) X-API-Key (for public API / sandbox)
+    # 3) X-API-Key (for public API / sandbox) — verify key exists in DB
     if x_api_key:
-        return {"wallet": x_api_key, "did": None, "auth_method": "api_key"}
+        try:
+            from database import db
+            rows = await db.raw_execute_fetchall(
+                "SELECT wallet, agent_id FROM agents WHERE api_key=? AND status='active' LIMIT 1",
+                (x_api_key,)
+            )
+            if rows:
+                agent = dict(rows[0])
+                return {
+                    "wallet": agent.get("wallet", x_api_key),
+                    "did": None,
+                    "agent_id": agent.get("agent_id"),
+                    "auth_method": "api_key",
+                }
+            # Key not found in DB — reject
+            raise HTTPException(401, "Invalid API key")
+        except HTTPException:
+            raise
+        except Exception:
+            # DB unavailable — fallback to sandbox mode only
+            from config import SANDBOX_MODE
+            if SANDBOX_MODE:
+                return {"wallet": x_api_key, "did": None, "auth_method": "api_key"}
+            raise HTTPException(401, "API key verification unavailable")
 
     raise HTTPException(401,
         "Authentication required. Use one of: "
@@ -359,7 +382,9 @@ async def require_agent_sig_auth(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"DID resolution error: {e}")
+        import logging
+        logging.getLogger(__name__).error(f"DID resolution error: {e}")
+        raise HTTPException(500, "DID resolution failed")
 
     # Verifier la signature
     message = f"{x_agent_did}:{x_agent_ts}".encode()

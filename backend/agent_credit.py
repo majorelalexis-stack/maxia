@@ -280,56 +280,93 @@ async def request_credit(agent_id: str, amount_usdc: float) -> dict:
     if limit <= 0:
         raise HTTPException(403, f"Score insuffisant ({score}/1000). Minimum 300 pour un credit.")
 
-    # Verifier le credit existant
-    existing = await db.raw_execute_fetchall(
-        "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=?",
-        (agent_id,)
-    )
-
-    current_debt = 0.0
-    if existing:
-        row = existing[0]
-        borrowed = float(row[0] if isinstance(row, (list, tuple)) else row.get("borrowed", 0) or 0)
-        repaid = float(row[1] if isinstance(row, (list, tuple)) else row.get("repaid", 0) or 0)
-        status = row[2] if isinstance(row, (list, tuple)) else row.get("status", "active")
-
-        if status == "defaulted":
-            raise HTTPException(403, "Compte en defaut de paiement. Remboursez d'abord votre dette.")
-
-        current_debt = borrowed - repaid
-
-    available = limit - current_debt
-    if amount_usdc > available:
-        raise HTTPException(400,
-            f"Credit disponible insuffisant: ${available:.2f} "
-            f"(limite ${limit:.2f}, dette ${current_debt:.2f})")
-
-    # Accorder le credit
+    # Accorder le credit — transactionnel pour eviter les races
     now_ts = int(time.time())
     credit_id = str(uuid.uuid4())
-
-    if existing:
-        await db.raw_execute(
-            "UPDATE agent_credits SET score=?, credit_limit=?, borrowed=borrowed+?, "
-            "last_scored_at=?, updated_at=? WHERE agent_id=?",
-            (score, limit, amount_usdc, now_ts, now_ts, agent_id)
-        )
-    else:
-        await db.raw_execute(
-            "INSERT INTO agent_credits (id, agent_id, score, credit_limit, borrowed, "
-            "repaid, status, last_scored_at, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 0, 'active', ?, ?, ?)",
-            (credit_id, agent_id, score, limit, amount_usdc, now_ts, now_ts, now_ts)
-        )
-
-    # Enregistrer la transaction
     tx_id = str(uuid.uuid4())
-    new_balance = current_debt + amount_usdc
-    await db.raw_execute(
-        "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, balance_after, created_at) "
-        "VALUES (?, ?, 'borrow', ?, ?, ?)",
-        (tx_id, agent_id, amount_usdc, new_balance, now_ts)
-    )
+
+    pool = db._pg if hasattr(db, '_pg') and db._pg else None
+    if pool:
+        # PostgreSQL — transaction avec SELECT FOR UPDATE
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=$1 FOR UPDATE",
+                    agent_id)
+
+                current_debt = 0.0
+                existing = row is not None
+                if existing:
+                    borrowed = float(row["borrowed"] or 0)
+                    repaid = float(row["repaid"] or 0)
+                    status = row["status"]
+                    if status == "defaulted":
+                        raise HTTPException(403, "Compte en defaut de paiement. Remboursez d'abord votre dette.")
+                    current_debt = borrowed - repaid
+
+                available = limit - current_debt
+                if amount_usdc > available:
+                    raise HTTPException(400,
+                        f"Credit disponible insuffisant: ${available:.2f} "
+                        f"(limite ${limit:.2f}, dette ${current_debt:.2f})")
+
+                if existing:
+                    await conn.execute(
+                        "UPDATE agent_credits SET score=$1, credit_limit=$2, borrowed=borrowed+$3, "
+                        "last_scored_at=$4, updated_at=$5 WHERE agent_id=$6",
+                        score, limit, amount_usdc, now_ts, now_ts, agent_id)
+                else:
+                    await conn.execute(
+                        "INSERT INTO agent_credits (id, agent_id, score, credit_limit, borrowed, "
+                        "repaid, status, last_scored_at, created_at, updated_at) "
+                        "VALUES ($1, $2, $3, $4, $5, 0, 'active', $6, $7, $8)",
+                        credit_id, agent_id, score, limit, amount_usdc, now_ts, now_ts, now_ts)
+
+                new_balance = current_debt + amount_usdc
+                await conn.execute(
+                    "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, balance_after, created_at) "
+                    "VALUES ($1, $2, 'borrow', $3, $4, $5)",
+                    tx_id, agent_id, amount_usdc, new_balance, now_ts)
+    else:
+        # SQLite fallback — single writer, less risk
+        existing_rows = await db.raw_execute_fetchall(
+            "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=?",
+            (agent_id,))
+
+        current_debt = 0.0
+        existing = bool(existing_rows)
+        if existing:
+            row = existing_rows[0]
+            borrowed = float(row[0] if isinstance(row, (list, tuple)) else row.get("borrowed", 0) or 0)
+            repaid = float(row[1] if isinstance(row, (list, tuple)) else row.get("repaid", 0) or 0)
+            status = row[2] if isinstance(row, (list, tuple)) else row.get("status", "active")
+            if status == "defaulted":
+                raise HTTPException(403, "Compte en defaut de paiement. Remboursez d'abord votre dette.")
+            current_debt = borrowed - repaid
+
+        available = limit - current_debt
+        if amount_usdc > available:
+            raise HTTPException(400,
+                f"Credit disponible insuffisant: ${available:.2f} "
+                f"(limite ${limit:.2f}, dette ${current_debt:.2f})")
+
+        if existing:
+            await db.raw_execute(
+                "UPDATE agent_credits SET score=?, credit_limit=?, borrowed=borrowed+?, "
+                "last_scored_at=?, updated_at=? WHERE agent_id=?",
+                (score, limit, amount_usdc, now_ts, now_ts, agent_id))
+        else:
+            await db.raw_execute(
+                "INSERT INTO agent_credits (id, agent_id, score, credit_limit, borrowed, "
+                "repaid, status, last_scored_at, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 0, 'active', ?, ?, ?)",
+                (credit_id, agent_id, score, limit, amount_usdc, now_ts, now_ts, now_ts))
+
+        new_balance = current_debt + amount_usdc
+        await db.raw_execute(
+            "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, balance_after, created_at) "
+            "VALUES (?, ?, 'borrow', ?, ?, ?)",
+            (tx_id, agent_id, amount_usdc, new_balance, now_ts))
 
     return {
         "status": "approved",
@@ -354,42 +391,68 @@ async def repay_credit(agent_id: str, amount_usdc: float, tx_signature: str = ""
     if amount_usdc <= 0:
         raise HTTPException(400, "Le montant doit etre positif")
 
-    # Verifier le credit existant
-    rows = await db.raw_execute_fetchall(
-        "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=?",
-        (agent_id,)
-    )
-    if not rows:
-        raise HTTPException(404, "Aucun credit trouve pour cet agent")
-
-    row = rows[0]
-    borrowed = float(row[0] if isinstance(row, (list, tuple)) else row.get("borrowed", 0) or 0)
-    repaid = float(row[1] if isinstance(row, (list, tuple)) else row.get("repaid", 0) or 0)
-    current_debt = borrowed - repaid
-
-    if current_debt <= 0:
-        raise HTTPException(400, "Aucune dette a rembourser")
-
-    # Limiter au montant de la dette
-    actual_repay = min(amount_usdc, current_debt)
+    # Rembourser — transactionnel pour eviter les races
     now_ts = int(time.time())
-
-    # Mettre a jour le credit
-    new_debt = current_debt - actual_repay
-    new_status = "active" if new_debt > 0 else "cleared"
-
-    await db.raw_execute(
-        "UPDATE agent_credits SET repaid=repaid+?, status=?, updated_at=? WHERE agent_id=?",
-        (actual_repay, new_status, now_ts, agent_id)
-    )
-
-    # Enregistrer la transaction
     tx_id = str(uuid.uuid4())
-    await db.raw_execute(
-        "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, tx_signature, "
-        "balance_after, created_at) VALUES (?, ?, 'repay', ?, ?, ?, ?)",
-        (tx_id, agent_id, actual_repay, tx_signature, new_debt, now_ts)
-    )
+
+    pool = db._pg if hasattr(db, '_pg') and db._pg else None
+    if pool:
+        # PostgreSQL — transaction avec SELECT FOR UPDATE
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=$1 FOR UPDATE",
+                    agent_id)
+                if not row:
+                    raise HTTPException(404, "Aucun credit trouve pour cet agent")
+
+                borrowed = float(row["borrowed"] or 0)
+                repaid_val = float(row["repaid"] or 0)
+                current_debt = borrowed - repaid_val
+
+                if current_debt <= 0:
+                    raise HTTPException(400, "Aucune dette a rembourser")
+
+                actual_repay = min(amount_usdc, current_debt)
+                new_debt = current_debt - actual_repay
+                new_status = "active" if new_debt > 0 else "cleared"
+
+                await conn.execute(
+                    "UPDATE agent_credits SET repaid=repaid+$1, status=$2, updated_at=$3 WHERE agent_id=$4",
+                    actual_repay, new_status, now_ts, agent_id)
+
+                await conn.execute(
+                    "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, tx_signature, "
+                    "balance_after, created_at) VALUES ($1, $2, 'repay', $3, $4, $5, $6)",
+                    tx_id, agent_id, actual_repay, tx_signature, new_debt, now_ts)
+    else:
+        # SQLite fallback — single writer, less risk
+        rows = await db.raw_execute_fetchall(
+            "SELECT borrowed, repaid, status FROM agent_credits WHERE agent_id=?",
+            (agent_id,))
+        if not rows:
+            raise HTTPException(404, "Aucun credit trouve pour cet agent")
+
+        row = rows[0]
+        borrowed = float(row[0] if isinstance(row, (list, tuple)) else row.get("borrowed", 0) or 0)
+        repaid_val = float(row[1] if isinstance(row, (list, tuple)) else row.get("repaid", 0) or 0)
+        current_debt = borrowed - repaid_val
+
+        if current_debt <= 0:
+            raise HTTPException(400, "Aucune dette a rembourser")
+
+        actual_repay = min(amount_usdc, current_debt)
+        new_debt = current_debt - actual_repay
+        new_status = "active" if new_debt > 0 else "cleared"
+
+        await db.raw_execute(
+            "UPDATE agent_credits SET repaid=repaid+?, status=?, updated_at=? WHERE agent_id=?",
+            (actual_repay, new_status, now_ts, agent_id))
+
+        await db.raw_execute(
+            "INSERT INTO credit_transactions (id, agent_id, type, amount_usdc, tx_signature, "
+            "balance_after, created_at) VALUES (?, ?, 'repay', ?, ?, ?, ?)",
+            (tx_id, agent_id, actual_repay, tx_signature, new_debt, now_ts))
 
     return {
         "status": "repaid",

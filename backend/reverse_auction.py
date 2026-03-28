@@ -12,6 +12,7 @@ Scoring multi-attribut pour eviter la course vers le bas :
 import logging
 import uuid, time, json
 from datetime import datetime, timezone, timedelta
+from error_utils import safe_error
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Query
 from pydantic import BaseModel, Field

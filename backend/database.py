@@ -159,6 +159,13 @@ DB_SCHEMA = (
     "commission REAL DEFAULT 0, payment_tx TEXT, jupiter_tx TEXT,"
     "status TEXT DEFAULT 'completed',"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE INDEX IF NOT EXISTS idx_tx_purpose ON transactions(purpose, created_at);"
+    "CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at);"
+    "CREATE INDEX IF NOT EXISTS idx_svc_agent ON agent_services(agent_api_key, status);"
+    "CREATE INDEX IF NOT EXISTS idx_mtx_buyer ON marketplace_tx(buyer);"
+    "CREATE INDEX IF NOT EXISTS idx_mtx_seller ON marketplace_tx(seller);"
+    "CREATE INDEX IF NOT EXISTS idx_swaps_wallet ON crypto_swaps(buyer_wallet);"
 )
 
 class Database:
@@ -231,8 +238,9 @@ class Database:
                     if stmt:
                         try:
                             await conn.execute(stmt)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+                                print(f"[DB] Migration warning: {e}")
             return
         await self._db.executescript(sql)
 
@@ -262,6 +270,7 @@ class Database:
                         except Exception:
                             pass  # Table/index existe deja
                 self._db = None  # Pas de SQLite
+                await self._run_migrations()
                 print(f"[DB] PostgreSQL connectee: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'}")
                 return
             except ImportError:

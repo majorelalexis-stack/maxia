@@ -141,12 +141,18 @@ def _parse_transfers(result: dict) -> dict:
         info = parsed.get("info", {})
 
         # SPL Token transfer / transferChecked — USDC ONLY
-        USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
         if ix_type in ("transfer", "transferChecked") and ix.get("program") == "spl-token":
             # V-05: Verify token mint is USDC (reject worthless tokens)
             token_mint = info.get("mint", "")
-            if ix_type == "transferChecked" and token_mint and token_mint != USDC_MINT:
-                continue  # Not USDC — skip this transfer
+            if ix_type == "transferChecked":
+                # transferChecked always has mint — reject if not USDC
+                if token_mint and token_mint != USDC_MINT:
+                    continue
+            elif ix_type == "transfer":
+                # Plain transfer has no mint field — REJECT (cannot verify it's USDC)
+                # An attacker could send a worthless SPL token via plain transfer
+                if not token_mint or token_mint != USDC_MINT:
+                    continue
 
             amount_str = info.get("tokenAmount", {}).get("uiAmountString")
             if amount_str is None:
@@ -162,7 +168,7 @@ def _parse_transfers(result: dict) -> dict:
                 "to": info.get("destination", ""),
                 "amount_usdc": amount_usdc,
                 "amount_raw": amount_raw,
-                "mint": token_mint or USDC_MINT,
+                "mint": token_mint,
             })
 
         # SOL transfer

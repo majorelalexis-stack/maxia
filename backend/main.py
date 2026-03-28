@@ -3,6 +3,7 @@ import logging
 import asyncio, os, uuid, time, json
 from contextlib import asynccontextmanager
 from pathlib import Path
+from error_utils import safe_error
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -488,21 +489,18 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(86400)  # once per day
             try:
                 cutoff = int(time.time()) - 30 * 86400  # 30 days ago
-                # Get all agents from DB
-                rows = await db.raw_execute_fetchall(
-                    "SELECT api_key, volume_30d FROM agents WHERE volume_30d > 0")
-                # Check last transaction time for each agent
-                for row in (rows or []):
+                # Single JOIN query instead of N+1 per-agent queries
+                inactive = await db.raw_execute_fetchall(
+                    "SELECT a.api_key FROM agents a "
+                    "LEFT JOIN marketplace_tx m ON (a.api_key = m.buyer OR a.api_key = m.seller) "
+                    "WHERE a.volume_30d > 0 "
+                    "GROUP BY a.api_key "
+                    "HAVING COALESCE(MAX(m.created_at), 0) < ?",
+                    (cutoff,))
+                for row in (inactive or []):
                     api_key = row["api_key"]
-                    last_tx = await db.raw_execute_fetchall(
-                        "SELECT MAX(CAST(json_extract(data, '$.timestamp') AS INTEGER)) AS last_ts "
-                        "FROM marketplace_tx WHERE buyer=? OR seller=?",
-                        (api_key, api_key))
-                    last_ts = (last_tx[0]["last_ts"] or 0) if last_tx else 0
-                    if last_ts < cutoff and row["volume_30d"] > 0:
-                        # No transactions in 30 days — reset volume
-                        await db.update_agent(api_key, {"volume_30d": 0, "tier": "BRONZE"})
-                        print(f"[VolumeDecay] Reset {api_key[:20]}... (inactive 30d)")
+                    await db.update_agent(api_key, {"volume_30d": 0, "tier": "BRONZE"})
+                    print(f"[VolumeDecay] Reset {api_key[:20]}... (inactive 30d)")
             except Exception as e:
                 if "no such table" not in str(e):
                     print(f"[VolumeDecay] Error: {e}")
@@ -573,14 +571,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[MAXIA] Stream updater init error: {e}")
 
-    # Telegram bot — poll getUpdates pour les boutons Go/No-Go (approbation CEO Local)
+    # Telegram bot — REMOVED from lifespan: scheduler.py already starts run_telegram_bot()
+    # as one of its tasks (line 75). Running it twice causes duplicate getUpdates polling,
+    # which leads to missed approval button callbacks and 409 Conflict errors from Telegram API.
     t_telegram = None
-    try:
-        from telegram_bot import run_telegram_bot
-        t_telegram = asyncio.create_task(run_telegram_bot())
-        print("[MAXIA] Telegram bot started (approval buttons + alerts)")
-    except Exception as e:
-        print(f"[MAXIA] Telegram bot init error: {e}")
 
     # Pyth SSE permanent — stream prix live en continu (pas on-demand)
     try:
@@ -639,12 +633,29 @@ async def lifespan(app: FastAPI):
                 t.cancel()
         except Exception:
             pass
+    # Cancel tasks created outside try blocks (always defined)
+    for t in [t_volume, t_price_broadcast]:
+        try:
+            t.cancel()
+        except Exception:
+            pass
+    # Cancel tasks that may not exist if their try/import failed
+    try:
+        t_alerts.cancel()
+    except (NameError, Exception):
+        pass
     scheduler.stop()
     scout_agent.stop()
     # Close connections
     try:
         from price_oracle import close_http_pool
         await close_http_pool()
+    except Exception:
+        pass
+    # Close shared HTTP client
+    try:
+        from http_client import close_http_client
+        await close_http_client()
     except Exception:
         pass
     await db.disconnect()
@@ -1354,6 +1365,9 @@ async def forum_post(post_id: str):
 @app.post("/api/public/forum/post")
 async def forum_create_post(request: Request):
     """AI Forum — create a new post."""
+    # SECURITY: No auth — wallet in body is self-reported (not verified).
+    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    check_rate_limit(request)
     from forum import create_post
     body = await request.json()
     if not body.get("title") or not body.get("wallet"):
@@ -1361,14 +1375,16 @@ async def forum_create_post(request: Request):
     # H2: Verification format wallet (Solana base58 ou EVM 0x) anti-spam
     _validate_wallet_format(body["wallet"])
     from security import check_content_safety
-    safety = check_content_safety(body.get("title", "") + " " + body.get("body", ""))
-    if not safety.get("safe", True):
-        raise HTTPException(400, f"Content blocked: {safety.get('reason', 'unsafe')}")
+    # check_content_safety raises HTTPException(400) directly if content is blocked
+    check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     return await create_post(db, body)
 
 @app.post("/api/public/forum/post/{post_id}/reply")
 async def forum_reply(post_id: str, request: Request):
     """AI Forum — reply to a post."""
+    # SECURITY: No auth — wallet in body is self-reported (not verified).
+    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    check_rate_limit(request)
     from forum import create_reply
     body = await request.json()
     if not body.get("body") or not body.get("wallet"):
@@ -1380,6 +1396,9 @@ async def forum_reply(post_id: str, request: Request):
 @app.post("/api/public/forum/post/{post_id}/vote")
 async def forum_vote(post_id: str, request: Request):
     """AI Forum — vote on a post (+1 or -1)."""
+    # SECURITY: No auth — wallet in body is self-reported (not verified).
+    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    check_rate_limit(request)
     from forum import vote_post
     body = await request.json()
     wallet = body.get("wallet", "")
@@ -1462,9 +1481,8 @@ async def marketplace_publish(request: Request):
     if not body.get("name") or not body.get("creator_wallet"):
         raise HTTPException(400, "name and creator_wallet required")
     from security import check_content_safety
-    safety = check_content_safety(body.get("name", "") + " " + body.get("description", ""))
-    if not safety.get("safe", True):
-        raise HTTPException(400, f"Content blocked: {safety.get('reason')}")
+    # check_content_safety raises HTTPException(400) directly if content is blocked
+    check_content_safety(body.get("name", "") + " " + body.get("description", ""))
     return await publish_tool(db, body)
 
 @app.post("/api/public/marketplace/tool/{tool_id}/purchase")
@@ -1494,20 +1512,6 @@ async def marketplace_search(q: str = "", limit: int = 20):
 async def creator_stats(wallet: str):
     from creator_marketplace import get_creator_stats
     return await get_creator_stats(db, wallet)
-
-@app.get("/marketplace")
-async def marketplace_page():
-    p = Path(__file__).resolve().parent.parent / "frontend" / "marketplace.html"
-    if p.exists():
-        return HTMLResponse(p.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Marketplace coming soon</h1>")
-
-@app.get("/creator")
-async def creator_page():
-    p = Path(__file__).resolve().parent.parent / "frontend" / "creator.html"
-    if p.exists():
-        return HTMLResponse(p.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Creator Dashboard coming soon</h1>")
 
 @app.get("/og-image.png", include_in_schema=False)
 async def serve_og_image():
@@ -2795,7 +2799,7 @@ async def agent_did_document(agent_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"DID document error: {e}")
+        raise HTTPException(500, "DID document error")
 
 
 @app.get("/.well-known/did.json")
@@ -3424,7 +3428,7 @@ async def ceo_approve(approval_id: str, request: Request):
         found["status"] = "error"
         found["error"] = str(e)[:200]
         ceo.memory.save()
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, "Internal server error")
 
 
 @app.post("/api/ceo/approvals/{approval_id}/deny")
@@ -3541,10 +3545,16 @@ async def ws_endpoint(ws: WebSocket):
                 nonce = msg.get("nonce", "")
                 if wallet and signature and nonce:
                     # Verify nonce exists and matches
-                    from auth import NONCES
+                    from auth import NONCES, _USED_NONCES, _cleanup_used_nonces, _USED_NONCES_MAX
                     entry = NONCES.get(wallet)
                     if not entry or entry[0] != nonce:
                         await ws.send_json({"type": "AUTH_FAILED", "error": "Invalid or expired nonce"})
+                        await ws.close(1008)
+                        break
+                    # Anti-replay: check nonce not already used
+                    replay_key = f"{wallet}:{nonce}"
+                    if replay_key in _USED_NONCES:
+                        await ws.send_json({"type": "AUTH_FAILED", "error": "Nonce already used (replay detected)"})
                         await ws.close(1008)
                         break
                     # Verifier la signature ed25519
@@ -3556,6 +3566,11 @@ async def ws_endpoint(ws: WebSocket):
                         vk = VerifyKey(pub_bytes)
                         sig_bytes = bytes.fromhex(signature) if len(signature) == 128 else b58.b58decode(signature)
                         vk.verify(message, sig_bytes)
+                        # Consume the nonce (anti-replay)
+                        NONCES.pop(wallet, None)
+                        _USED_NONCES[replay_key] = time.time()
+                        if len(_USED_NONCES) > _USED_NONCES_MAX:
+                            _cleanup_used_nonces()
                         authenticated_wallet = wallet
                         agent_worker.register_external_agent(wallet)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
@@ -3691,6 +3706,13 @@ async def ws_chart(websocket: WebSocket):
     Send after connect: {"symbol": "SOL", "interval": 1}  (interval in seconds)
     Receives: {"type": "candle_update", "symbol": "SOL", "interval": 1, "time": ..., "open": ..., "high": ..., "low": ..., "close": ...}
     """
+    # Per-IP connection limit (same as /ws/prices)
+    ip = websocket.client.host if websocket.client else "unknown"
+    _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
+    if _ws_connections[ip] > _WS_MAX_PER_IP:
+        _ws_connections[ip] -= 1
+        await websocket.close(code=1008, reason="Too many connections")
+        return
     await websocket.accept()
     try:
         params = await _ws_receive_json_timeout(websocket, timeout=5.0)
@@ -3719,11 +3741,20 @@ async def ws_chart(websocket: WebSocket):
     except Exception as e:
         if "disconnect" not in str(e).lower():
             print(f"[WS/chart] Error: {e}")
+    finally:
+        _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
 
 @app.websocket("/ws/candles")
 async def ws_candles(websocket: WebSocket):
     """WebSocket: real-time candle updates every 60 seconds."""
+    # Per-IP connection limit (same as /ws/prices)
+    ip = websocket.client.host if websocket.client else "unknown"
+    _ws_connections[ip] = _ws_connections.get(ip, 0) + 1
+    if _ws_connections[ip] > _WS_MAX_PER_IP:
+        _ws_connections[ip] -= 1
+        await websocket.close(code=1008, reason="Too many connections")
+        return
     await websocket.accept()
     try:
         # Get subscription params from first message (H5: controle taille)
@@ -3756,6 +3787,8 @@ async def ws_candles(websocket: WebSocket):
     except Exception as e:
         if "disconnect" not in str(e).lower():
             print(f"[WS/candles] Connection error: {e}")
+    finally:
+        _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -4614,8 +4647,10 @@ async def growth_status():
     return growth_agent.get_stats()
 
 @app.get("/api/agent/preflight")
-async def preflight():
-    """Diagnostic systeme complet."""
+async def preflight(request: Request):
+    """Diagnostic systeme complet. Admin only — exposes system diagnostics."""
+    from security import require_admin
+    require_admin(request)
     results = await check_system_ready()
     return results
 

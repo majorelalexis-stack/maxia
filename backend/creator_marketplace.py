@@ -11,6 +11,7 @@ import logging
 import time
 import uuid
 import json
+from error_utils import safe_error
 
 TOOL_CATEGORIES = [
     {"id": "tools", "name": "Tools & APIs", "icon": "🔧", "description": "Scrapers, analyzers, converters, API wrappers"},

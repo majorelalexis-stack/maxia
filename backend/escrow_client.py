@@ -254,24 +254,52 @@ class EscrowClient:
             escrow["status"] = "releasing"
             await self._save_escrow(escrow)
 
-            # Envoyer les USDC au seller
+            # Commission MAXIA (Art.2)
+            from config import get_commission_bps, get_commission_tier_name
+            amount = escrow["amount_usdc"]
+            commission_bps = get_commission_bps(amount)
+            commission_usdc = round(amount * commission_bps / 10000, 6)
+            seller_gets = round(amount - commission_usdc, 6)
+            tier_name = get_commission_tier_name(amount)
+
+            # Envoyer les USDC au seller (montant APRES commission)
             from solana_tx import send_usdc_transfer
             result = await send_usdc_transfer(
                 to_address=escrow["seller"],
-                amount_usdc=escrow["amount_usdc"],
+                amount_usdc=seller_gets,
                 from_privkey=ESCROW_PRIVKEY_B58,
                 from_address=ESCROW_ADDRESS,
             )
+
+            # Envoyer la commission au treasury (si > 0)
+            commission_tx = ""
+            if result.get("success") and commission_usdc > 0 and TREASURY_ADDRESS:
+                try:
+                    comm_result = await send_usdc_transfer(
+                        to_address=TREASURY_ADDRESS,
+                        amount_usdc=commission_usdc,
+                        from_privkey=ESCROW_PRIVKEY_B58,
+                        from_address=ESCROW_ADDRESS,
+                    )
+                    commission_tx = comm_result.get("signature", "")
+                except Exception as comm_err:
+                    print(f"[Escrow] Commission transfer failed (non-blocking): {comm_err}")
 
             if result.get("success"):
                 escrow["status"] = "released"
                 escrow["releasedAt"] = int(time.time())
                 escrow["releaseTx"] = result.get("signature", "")
+                escrow["commission_usdc"] = commission_usdc
+                escrow["commission_bps"] = commission_bps
+                escrow["commission_tier"] = tier_name
+                escrow["seller_gets_usdc"] = seller_gets
+                escrow["commission_tx"] = commission_tx
                 await self._save_escrow(escrow)
-                print(f"[EscrowClient] Released: {escrow['amount_usdc']} USDC -> {escrow['seller'][:8]}...")
+                print(f"[EscrowClient] Released: {seller_gets} USDC -> {escrow['seller'][:8]}... (commission: {commission_usdc} USDC {tier_name})")
                 await alert_system(
                     "Escrow libere",
-                    f"**{escrow['amount_usdc']} USDC** envoyes au seller `{escrow['seller'][:8]}...`",
+                    f"**{seller_gets} USDC** envoyes au seller `{escrow['seller'][:8]}...`\n"
+                    f"Commission: {commission_usdc} USDC ({tier_name} {commission_bps/100}%)",
                 )
                 return {"success": True, **escrow}
             else:
@@ -370,18 +398,44 @@ class EscrowClient:
             await self._save_escrow(escrow)
 
             from solana_tx import send_usdc_transfer
+            from config import get_commission_bps, get_commission_tier_name
             target = escrow["seller"] if release_to_seller else escrow["buyer"]
+            amount = escrow["amount_usdc"]
+
+            # Commission only when releasing to seller (not on refunds)
+            commission_usdc = 0.0
+            seller_gets = amount
+            if release_to_seller:
+                commission_bps = get_commission_bps(amount)
+                commission_usdc = round(amount * commission_bps / 10000, 6)
+                seller_gets = round(amount - commission_usdc, 6)
+
             result = await send_usdc_transfer(
                 to_address=target,
-                amount_usdc=escrow["amount_usdc"],
+                amount_usdc=seller_gets if release_to_seller else amount,
                 from_privkey=ESCROW_PRIVKEY_B58,
                 from_address=ESCROW_ADDRESS,
             )
+
+            # Send commission to treasury if applicable
+            if result.get("success") and commission_usdc > 0 and TREASURY_ADDRESS:
+                try:
+                    await send_usdc_transfer(
+                        to_address=TREASURY_ADDRESS,
+                        amount_usdc=commission_usdc,
+                        from_privkey=ESCROW_PRIVKEY_B58,
+                        from_address=ESCROW_ADDRESS,
+                    )
+                except Exception:
+                    print(f"[Escrow] Commission transfer failed in resolve (non-blocking)")
 
             if result.get("success"):
                 escrow["status"] = "released" if release_to_seller else "refunded"
                 escrow["resolvedAt"] = int(time.time())
                 escrow["resolvedTo"] = "seller" if release_to_seller else "buyer"
+                if release_to_seller:
+                    escrow["commission_usdc"] = commission_usdc
+                    escrow["seller_gets_usdc"] = seller_gets
                 await self._save_escrow(escrow)
                 return {"success": True, **escrow}
 

@@ -16,3 +16,12 @@ temp-repos/
 local_ceo/.env
 ceo_memory.json.bak
 .claude/skills/trailofbits
+
+# CEO local operational files (contain business intelligence / agent strategies)
+local_ceo/ceo_vector_db/
+local_ceo/conversions.json
+local_ceo/actions_today.json
+local_ceo/.browser_dedup.json
+local_ceo/learnings.json
+local_ceo/platform_scores.json
+local_ceo/rnd_findings.md

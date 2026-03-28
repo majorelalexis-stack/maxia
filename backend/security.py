@@ -43,7 +43,7 @@ _audit_buffer: list = []
 def audit_log(action: str, ip: str, details: str = "", user: str = "admin"):
     """Log une action admin avec timestamp, IP, details."""
     entry = {
-        "ts": datetime.utcnow().isoformat(),
+        "ts": datetime.now().isoformat(),
         "action": action,
         "ip": ip,
         "user": user,

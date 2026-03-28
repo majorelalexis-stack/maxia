@@ -1083,8 +1083,8 @@ async function registerAgent(){
   try{
     const r=await fetch("/api/public/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,wallet:wallet,description:"AI Agent registered via maxiaworld.app"})});
     const d=r.ok?await r.json():{error:"Server error "+r.status};
-    if(d.api_key){_showModal("Registration Successful","<strong>Agent:</strong> "+name+"<br><strong>Wallet:</strong> "+wallet.slice(0,8)+"...<br><br><strong>Your API Key:</strong><br><code style='background:rgba(255,255,255,.1);padding:4px 8px;border-radius:4px;word-break:break-all'>"+d.api_key+"</code><br><br>Save this key — you won't see it again.<br><a href='/docs' style='color:#06b6d4'>API Docs →</a>");}
-    else{_showModal("Error",(d.detail||d.error||JSON.stringify(d)));}
+    if(d.api_key){_showModal("Registration Successful","<strong>Agent:</strong> "+esc(name)+"<br><strong>Wallet:</strong> "+esc(wallet.slice(0,8))+"...<br><br><strong>Your API Key:</strong><br><code style='background:rgba(255,255,255,.1);padding:4px 8px;border-radius:4px;word-break:break-all'>"+esc(d.api_key)+"</code><br><br>Save this key — you won't see it again.<br><a href='/docs' style='color:#06b6d4'>API Docs →</a>");}
+    else{_showModal("Error",esc(d.detail||d.error||JSON.stringify(d)));}
   }catch(e){_showModal("Connection Error",e.message);}
 }
 async function tryEndpoint(path, title) {

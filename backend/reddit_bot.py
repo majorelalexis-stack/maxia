@@ -17,6 +17,7 @@ Bot posts max 2x/week per subreddit to avoid bans.
 import logging
 import asyncio, time, os, json, random
 import httpx
+from error_utils import safe_error
 
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")

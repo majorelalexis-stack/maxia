@@ -19,6 +19,7 @@ import time
 import math
 import uuid
 import json
+from error_utils import safe_error
 from collections import defaultdict
 
 # ══════════════════════════════════════════
@@ -330,12 +331,13 @@ async def vote_post(db, post_id: str, wallet: str, vote: int) -> dict:
 async def get_posts(db, community: str = "", sort: str = "hot", limit: int = 20, offset: int = 0) -> list:
     """Get forum posts, sorted by hot/new/top."""
     try:
-        if sort == "new":
-            order = "created_at DESC"
-        elif sort == "top":
-            order = "hot_score DESC"
-        else:
-            order = "hot_score DESC"
+        # Whitelist ORDER BY to prevent SQL injection — NEVER interpolate user input
+        _VALID_ORDERS = {
+            "new": "created_at DESC",
+            "top": "hot_score DESC",
+            "hot": "hot_score DESC",
+        }
+        order = _VALID_ORDERS.get(sort, "hot_score DESC")
 
         if community:
             rows = await db.raw_execute_fetchall(
