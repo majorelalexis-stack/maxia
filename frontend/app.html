@@ -1939,7 +1939,7 @@ function showPage(name, btn) {
   if (name === 'stocks') loadStocks();
   if (name === 'nfts') loadNFTs();
   if (name === 'agentid') { loadAgentList(); loadCreditScore(); }
-  if (name === 'trading') { loadAppWhales(); loadAppCopy(); loadChart(); loadAppAlerts(); _startAutoRefresh('trading', function(){ loadAppWhales(); loadChart(); loadAppAlerts(); }, 60000); }
+  if (name === 'trading') { loadTTLivePrice(); loadAppWhales(); loadAppCopy(); loadChart(); loadAppAlerts(); _startAutoRefresh('trading', function(){ loadTTLivePrice(); loadAppWhales(); loadChart(); loadAppAlerts(); }, 60000); }
   if (name === 'escrow') loadEscrows();
 }
 
@@ -2269,12 +2269,15 @@ async function loadTTLivePrice() {
       updateTTEstimate();
     }
   } catch(e) {
-    // Fallback to regular price
+    // Fallback to crypto/prices endpoint
     try {
-      var resp2 = await fetch('/api/public/prices');
-      var prices = await resp2.json();
-      if (prices[token]) {
-        document.getElementById('tt-live-price').textContent = '$' + prices[token].toFixed(2);
+      var resp2 = await fetch('/api/public/crypto/prices');
+      var d2 = await resp2.json();
+      var tokenData = (d2.prices || {})[token];
+      var fallbackPrice = tokenData ? (tokenData.price || 0) : 0;
+      if (fallbackPrice > 0) {
+        _ttCurrentPrice = fallbackPrice;
+        document.getElementById('tt-live-price').textContent = '$' + fallbackPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
         updateTTEstimate();
       }
     } catch(e2) {}
