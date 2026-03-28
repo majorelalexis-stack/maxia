@@ -532,8 +532,9 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     to_source = prices.get(to_token, {}).get("source", "unknown")
     price_source = "live" if from_source != "fallback" and to_source != "fallback" else "fallback"
 
-    # ── P1: Cross-validation multi-oracle (vote mediane, pas fallback) ──
-    # Compare Pyth vs prix cache (Helius/CoinGecko). Si divergence >3% = mediane. >10% = bloque.
+    # ── P1: Use Pyth live price as PRIMARY source, fallback to CoinGecko cache ──
+    # Pyth SSE gives sub-second prices. CoinGecko cache can be stale (fallback).
+    # Always prefer Pyth when available and confident.
     wide_confidence = False
     confidence_pct = 0.0
     try:
@@ -551,25 +552,19 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
                 wide_confidence = True
                 confidence_pct = max(confidence_pct, pyth_data.get("confidence_pct", 0))
 
-            # P1: cross-validate Pyth vs Helius/CoinGecko
             pyth_price = pyth_data.get("price", 0)
-            cached_price = prices.get(sym, {}).get("price", 0)
-            if pyth_price > 0 and cached_price > 0:
-                divergence = abs(pyth_price - cached_price) / cached_price * 100
-                if divergence > 10:
-                    _log_swap(f"BLOCKED swap — oracle divergence {divergence:.1f}% for {sym} (Pyth ${pyth_price:.2f} vs cache ${cached_price:.2f})")
-                    return {"error": f"Oracle price divergence too high for {sym} ({divergence:.0f}%). Possible manipulation. Try again later."}
-                if divergence > 3:
-                    # Prendre la mediane au lieu du prix cache
-                    median_price = (pyth_price + cached_price) / 2
-                    _log_swap(f"[ORACLE] {sym} divergence {divergence:.1f}% — using median ${median_price:.2f}")
-                    if sym == from_token:
-                        from_price = median_price
-                    else:
-                        to_price = median_price
+            if pyth_price > 0 and not pyth_data.get("stale") and not pyth_data.get("wide_confidence"):
+                # Pyth price is live and confident — use it as the reference price
+                if sym == from_token:
+                    from_price = pyth_price
+                    from_source = "pyth_live"
+                else:
+                    to_price = pyth_price
+                    to_source = "pyth_live"
+                price_source = "live"
 
             # P3: TWAP check — rejeter si prix spot devie >20% du TWAP 5min
-            twap_check = check_twap_deviation(sym, pyth_price or cached_price)
+            twap_check = check_twap_deviation(sym, pyth_price or from_price if sym == from_token else to_price)
             if not twap_check.get("ok", True):
                 _log_swap(f"BLOCKED swap — TWAP deviation {twap_check['deviation_pct']:.1f}% for {sym} (spot ${twap_check['spot']} vs TWAP ${twap_check['twap']})")
                 return {"error": f"Price anomaly detected for {sym}: spot price deviates {twap_check['deviation_pct']:.0f}% from 5-minute average. Possible flash manipulation."}

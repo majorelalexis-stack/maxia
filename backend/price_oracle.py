@@ -159,9 +159,9 @@ TOKEN_MINTS = {
 }
 
 FALLBACK_PRICES = {
-    "SOL": 139, "USDC": 1.0, "USDT": 1.0, "BONK": 0.000025,
-    "JUP": 0.72, "RAY": 2.5, "WIF": 1.18, "RENDER": 7.5,
-    "HNT": 3.92, "TRUMP": 2.87, "PYTH": 0.058, "W": 0.10, "ETH": 3119, "BTC": 90613, "ORCA": 1.50,
+    "SOL": 83, "USDC": 1.0, "USDT": 1.0, "BONK": 0.000015,
+    "JUP": 0.45, "RAY": 1.8, "WIF": 0.50, "RENDER": 4.5,
+    "HNT": 3.0, "TRUMP": 8.5, "PYTH": 0.15, "W": 0.05, "ETH": 1950, "BTC": 87000, "ORCA": 1.0,
     "JTO": 2.5, "TNSR": 0.6, "MEW": 0.003, "POPCAT": 0.4, "MOBILE": 0.001,
     "MNDE": 0.08, "MSOL": 150, "JITOSOL": 150, "BSOL": 140, "DRIFT": 1.2,
     "KMNO": 0.08, "PENGU": 0.01, "AI16Z": 0.5, "FARTCOIN": 0.8, "GRASS": 1.5,
