@@ -856,3 +856,299 @@ async def ceo_deny(approval_id: str, request: Request):
     ceo.memory.fondateur_responded()
     ceo.memory.log_decision("vert", f"DENIED: {found['action']}", "fondateur", found["cible"])
     return {"success": True, "id": approval_id, "status": "denied"}
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Web Analytics & Twitter Analytics
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/analytics/web")
+async def ceo_web_analytics(request: Request):
+    """Web analytics for CEO — visitors, signups, referrers, conversion."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    try:
+        now = int(time.time())
+        h24 = now - 86400
+        h7d = now - 604800
+
+        # Signups last 24h and 7d
+        signups_24h = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h24,))
+        signups_7d = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h7d,))
+        total_agents = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM agents")
+
+        # Transactions last 24h
+        tx_24h = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM marketplace_tx WHERE created_at > ?", (h24,))
+
+        # Revenue last 24h
+        revenue = await db.raw_execute_fetchall(
+            "SELECT COALESCE(SUM(commission_usdc), 0) as total FROM marketplace_tx WHERE created_at > ?", (h24,))
+
+        # Active services
+        services = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM agent_services WHERE status='active'")
+
+        # Recent signups (last 5)
+        recent = await db.raw_execute_fetchall(
+            "SELECT name, wallet, created_at FROM agents ORDER BY created_at DESC LIMIT 5")
+
+        return {
+            "signups_24h": signups_24h[0]["cnt"] if signups_24h else 0,
+            "signups_7d": signups_7d[0]["cnt"] if signups_7d else 0,
+            "total_agents": total_agents[0]["cnt"] if total_agents else 0,
+            "transactions_24h": tx_24h[0]["cnt"] if tx_24h else 0,
+            "revenue_24h_usdc": float(revenue[0]["total"]) if revenue else 0,
+            "active_services": services[0]["cnt"] if services else 0,
+            "recent_signups": [
+                {"name": r["name"], "wallet": r["wallet"][:8] + "...", "created_at": r["created_at"]}
+                for r in (recent or [])
+            ],
+            "conversion_note": "Visitors data requires nginx log parsing — TODO",
+            "ts": now,
+        }
+    except Exception as e:
+        return safe_error(e, "ceo_web_analytics")
+
+
+@router.get("/analytics/twitter")
+async def ceo_twitter_analytics(request: Request):
+    """Twitter performance stats for CEO strategy — reads from conversions.json."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    from pathlib import Path
+
+    stats: dict = {"tweets": {}, "comments": {}, "platform_scores": {}}
+
+    # Read conversions.json (CEO local tracks success/failure per action)
+    conv_path = Path(__file__).parent.parent / "local_ceo" / "conversions.json"
+    if conv_path.exists():
+        try:
+            with open(conv_path) as f:
+                conv = json.load(f)
+            # Extract Twitter-specific stats
+            for action, data in conv.items():
+                if "twitter" in action.lower() or "tweet" in action.lower():
+                    stats["tweets"][action] = data
+                if "comment" in action.lower() and "twitter" in action.lower():
+                    stats["comments"][action] = data
+        except Exception:
+            pass
+
+    # Read platform_scores.json
+    scores_path = Path(__file__).parent.parent / "local_ceo" / "platform_scores.json"
+    if scores_path.exists():
+        try:
+            with open(scores_path) as f:
+                stats["platform_scores"] = json.load(f)
+        except Exception:
+            pass
+
+    # Read actions_today.json for daily counts
+    actions_path = Path(__file__).parent.parent / "local_ceo" / "actions_today.json"
+    if actions_path.exists():
+        try:
+            with open(actions_path) as f:
+                stats["actions_today"] = json.load(f)
+        except Exception:
+            pass
+
+    # Read learnings.json for strategic insights
+    learn_path = Path(__file__).parent.parent / "local_ceo" / "learnings.json"
+    if learn_path.exists():
+        try:
+            with open(learn_path) as f:
+                stats["learnings"] = json.load(f)
+        except Exception:
+            pass
+
+    return stats
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Competitor Intelligence
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/competitors")
+async def ceo_competitors(request: Request):
+    """Competitive intelligence — scrapes competitor stats for CEO strategy."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    from http_client import get_http_client
+    client = get_http_client()
+    competitors: dict = {}
+
+    # Virtuals Protocol — agents count
+    try:
+        r = await client.get("https://api.virtuals.io/api/tokens?limit=1", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            competitors["virtuals"] = {
+                "name": "Virtuals Protocol",
+                "agents": d.get("total", "50000+"),
+                "url": "https://virtuals.io",
+                "strength": "Token incentives, large community",
+            }
+    except Exception:
+        competitors["virtuals"] = {"name": "Virtuals Protocol", "agents": "50000+", "note": "API unreachable"}
+
+    # ElizaOS — GitHub stars
+    try:
+        r = await client.get("https://api.github.com/repos/elizaOS/eliza", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            competitors["elizaos"] = {
+                "name": "ElizaOS",
+                "github_stars": d.get("stargazers_count", 0),
+                "forks": d.get("forks_count", 0),
+                "open_issues": d.get("open_issues_count", 0),
+                "url": "https://github.com/elizaOS/eliza",
+                "strength": "Open source, huge community",
+            }
+    except Exception:
+        competitors["elizaos"] = {"name": "ElizaOS", "note": "GitHub API unreachable"}
+
+    # Olas/Autonolas — services registered
+    try:
+        r = await client.get("https://registry.olas.network/api/v1/services?limit=1", timeout=10)
+        if r.status_code == 200:
+            d = r.json()
+            total = d.get("total", len(d.get("results", d.get("services", []))))
+            competitors["olas"] = {
+                "name": "Autonolas/Olas",
+                "registered_services": total,
+                "url": "https://olas.network",
+                "strength": "On-chain agent registry, tokenomics",
+            }
+    except Exception:
+        competitors["olas"] = {"name": "Autonolas/Olas", "note": "API unreachable"}
+
+    # MAXIA self-assessment
+    try:
+        agents = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
+        services = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agent_services WHERE status='active'")
+        competitors["maxia"] = {
+            "name": "MAXIA (us)",
+            "registered_agents": agents[0]["cnt"] if agents else 0,
+            "active_services": services[0]["cnt"] if services else 0,
+            "chains": 14,
+            "mcp_tools": 46,
+            "strength": "AI-to-AI marketplace, escrow on-chain, 14 chains",
+            "weakness": "0 revenue, 0 paying clients, low visibility",
+        }
+    except Exception:
+        pass
+
+    return {"competitors": competitors, "note": "CEO should compare and identify gaps weekly"}
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Weekly Objectives
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/objectives")
+async def ceo_get_objectives(request: Request):
+    """Get current weekly objective and history."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from ceo_objectives import get_objectives, check_pivot_needed
+    data = get_objectives()
+    data["pivot_check"] = check_pivot_needed()
+    return data
+
+
+@router.post("/objectives/set")
+async def ceo_set_objective(request: Request):
+    """Set a new weekly objective."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    body = await request.json()
+    from ceo_objectives import set_weekly_objective
+    return set_weekly_objective(
+        body.get("objective", ""),
+        int(body.get("target", 5)),
+        body.get("metric", "signups"),
+    )
+
+
+@router.post("/objectives/update")
+async def ceo_update_progress(request: Request):
+    """Update progress on current objective."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    body = await request.json()
+    from ceo_objectives import update_progress
+    return update_progress(
+        int(body.get("current", 0)),
+        body.get("strategy", ""),
+        body.get("action", ""),
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Feedback Loop (all-in-one strategic data)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/feedback-loop")
+async def ceo_feedback_loop(request: Request):
+    """Complete feedback loop data for CEO strategic reasoning.
+    Combines web analytics, Twitter performance, competitors, and objectives
+    into a single prompt-ready package for Qwen 14B think=on."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    # Gather all data sources
+    results: dict = {}
+
+    # Web analytics
+    try:
+        now = int(time.time())
+        h24 = now - 86400
+        signups = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents WHERE created_at > ?", (h24,))
+        total = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM agents")
+        revenue = await db.raw_execute_fetchall(
+            "SELECT COALESCE(SUM(commission_usdc), 0) as total FROM marketplace_tx WHERE created_at > ?", (h24,))
+        results["web"] = {
+            "signups_24h": signups[0]["cnt"] if signups else 0,
+            "total_agents": total[0]["cnt"] if total else 0,
+            "revenue_24h": float(revenue[0]["total"]) if revenue else 0,
+        }
+    except Exception:
+        results["web"] = {"error": "DB unavailable"}
+
+    # Objectives
+    try:
+        from ceo_objectives import get_objectives, check_pivot_needed
+        obj = get_objectives()
+        results["objective"] = obj.get("current_week")
+        results["pivot_check"] = check_pivot_needed()
+        results["objective_history"] = obj.get("history", [])[-4:]  # Last 4 weeks
+    except Exception:
+        results["objective"] = None
+
+    # Conversions (from local CEO files)
+    from pathlib import Path
+    conv_path = Path(__file__).parent.parent / "local_ceo" / "conversions.json"
+    if conv_path.exists():
+        try:
+            with open(conv_path) as f:
+                results["conversions"] = json.load(f)
+        except Exception:
+            pass
+
+    # Generate CEO prompt
+    results["ceo_prompt"] = (
+        "You are the CEO of MAXIA, an AI-to-AI marketplace on 14 blockchains. "
+        "Analyze the following data and propose a NEW acquisition strategy for this week. "
+        "Be specific: which channels, which targets, what message, what metric to track. "
+        "If the current strategy has score < 30%, PIVOT to something completely different. "
+        "Data: " + json.dumps(results, default=str)
+    )
+
+    return results
