@@ -2380,7 +2380,9 @@ function _startChartPoll(symbol, interval_s) {
   var badge = document.getElementById('tt-stream-badge');
   if (badge) { badge.textContent = 'LIVE ' + symbol; badge.className = 'badge badge-green'; }
 
-  // Fetch price and update chart every 2s
+  // Track current candle to build proper OHLC
+  var curCandle = null; // {time, open, high, low, close}
+
   async function tick() {
     if (myId !== _chartPollId || !_candleSeries) return;
     try {
@@ -2388,27 +2390,35 @@ function _startChartPoll(symbol, interval_s) {
       if (!r.ok) return;
       var d = await r.json();
       if (!d.price || d.price <= 0) return;
-      if (myId !== _chartPollId) return; // Re-check after await
+      if (myId !== _chartPollId) return;
 
       var now = Math.floor(Date.now() / 1000);
       var bucket = Math.floor(now / interval_s) * interval_s;
       var price = d.price;
 
-      // Update current price display
+      // Update price display + estimate
       _ttCurrentPrice = price;
       var priceEl = document.getElementById('tt-live-price');
       if (priceEl) priceEl.textContent = '$' + price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
       updateTTEstimate();
 
-      // Update chart candle
-      _candleSeries.update({ time: bucket, open: price, high: price, low: price, close: price });
+      // Build proper OHLC candle
+      if (!curCandle || curCandle.time !== bucket) {
+        // New candle period — start fresh
+        curCandle = { time: bucket, open: price, high: price, low: price, close: price };
+      } else {
+        // Same period — update high/low/close
+        curCandle.close = price;
+        if (price > curCandle.high) curCandle.high = price;
+        if (price < curCandle.low) curCandle.low = price;
+      }
+
+      _candleSeries.update(curCandle);
       _chart.timeScale().scrollToRealTime();
     } catch(e) {}
   }
 
-  // First tick immediately
   tick();
-  // Then every 2s
   _chartPollTimer = setInterval(tick, 2000);
 }
 
