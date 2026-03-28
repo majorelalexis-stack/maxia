@@ -2261,7 +2261,7 @@ async function loadTTLivePrice() {
   var token = (document.getElementById('chart-token').value||'SOL').toUpperCase();
   try {
     var mode = _ttHFT ? 'hft' : 'normal';
-    var resp = await fetch('/api/oracle/price/live/' + token + '?mode=' + mode);
+    var resp = await fetch('/oracle/price/live/' + token + '?mode=' + mode);
     var data = await resp.json();
     if (data.price) {
       _ttCurrentPrice = data.price;
