@@ -15,8 +15,9 @@ from email.header import decode_header
 from email.utils import parseaddr, formatdate
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from dotenv import load_dotenv
+from security import require_admin
 
 load_dotenv()
 
@@ -87,8 +88,9 @@ def _parse_date(date_str: str) -> str:
 # ══════════════════════════════════════════
 
 @router.get("/messages")
-async def get_messages(folder: str = "INBOX", limit: int = 30, unread_only: bool = False):
+async def get_messages(request: Request, folder: str = "INBOX", limit: int = 30, unread_only: bool = False):
     """Recupere les emails de la boite mail."""
+    require_admin(request)
     if not EMAIL_PASSWORD:
         raise HTTPException(400, "Email non configure")
 
@@ -160,7 +162,7 @@ async def get_messages(folder: str = "INBOX", limit: int = 30, unread_only: bool
             "messages": result,
         }
     except Exception as e:
-        raise HTTPException(500, f"Erreur IMAP: {str(e)}")
+        raise HTTPException(500, "Email service error")
 
 
 # ══════════════════════════════════════════
@@ -168,8 +170,9 @@ async def get_messages(folder: str = "INBOX", limit: int = 30, unread_only: bool
 # ══════════════════════════════════════════
 
 @router.get("/message/{uid}")
-async def get_message(uid: str):
+async def get_message(uid: str, request: Request):
     """Recupere un email specifique et le marque comme lu."""
+    require_admin(request)
     if not EMAIL_PASSWORD:
         raise HTTPException(400, "Email non configure")
 
@@ -219,7 +222,7 @@ async def get_message(uid: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, "Email service error")
 
 
 # ══════════════════════════════════════════
@@ -227,8 +230,10 @@ async def get_message(uid: str):
 # ══════════════════════════════════════════
 
 @router.post("/send")
-async def send_email(req: dict):
+async def send_email(req: dict, request: Request = None):
     """Envoie un email."""
+    if request is not None:
+        require_admin(request)
     if not EMAIL_PASSWORD:
         raise HTTPException(400, "Email non configure")
 
@@ -282,7 +287,7 @@ MAXIA — AI-to-AI Marketplace on 14 Chains<br>
         print(f"[Email] Sent to {to}: {subject[:40]}")
         return {"success": True, "to": to, "subject": subject}
     except Exception as e:
-        raise HTTPException(500, f"Erreur SMTP: {str(e)}")
+        raise HTTPException(500, "Email service error")
 
 
 # ══════════════════════════════════════════
@@ -290,10 +295,11 @@ MAXIA — AI-to-AI Marketplace on 14 Chains<br>
 # ══════════════════════════════════════════
 
 @router.post("/reply/{uid}")
-async def reply_to_email(uid: str, req: dict):
+async def reply_to_email(uid: str, req: dict, request: Request):
     """Repond a un email existant."""
+    require_admin(request)
     # D'abord recuperer l'original
-    original = await get_message(uid)
+    original = await get_message(uid, request)
 
     subject = original["subject"]
     if not subject.lower().startswith("re:"):
@@ -304,7 +310,7 @@ async def reply_to_email(uid: str, req: dict):
         "subject": subject,
         "body": req.get("body", ""),
         "reply_to_id": original.get("message_id"),
-    })
+    }, request)
 
 
 # ══════════════════════════════════════════
@@ -312,8 +318,9 @@ async def reply_to_email(uid: str, req: dict):
 # ══════════════════════════════════════════
 
 @router.delete("/message/{uid}")
-async def delete_message(uid: str):
+async def delete_message(uid: str, request: Request):
     """Supprime un email (le deplace dans Trash)."""
+    require_admin(request)
     if not EMAIL_PASSWORD:
         raise HTTPException(400, "Email non configure")
 
@@ -329,7 +336,7 @@ async def delete_message(uid: str):
         await asyncio.to_thread(_delete)
         return {"success": True, "deleted": uid}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, "Email service error")
 
 
 # ══════════════════════════════════════════
@@ -337,8 +344,9 @@ async def delete_message(uid: str):
 # ══════════════════════════════════════════
 
 @router.post("/mark-read/{uid}")
-async def mark_read(uid: str):
+async def mark_read(uid: str, request: Request):
     """Marque un email comme lu."""
+    require_admin(request)
     if not EMAIL_PASSWORD:
         raise HTTPException(400, "Email non configure")
 
@@ -353,4 +361,4 @@ async def mark_read(uid: str):
         await asyncio.to_thread(_mark)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, "Email service error")

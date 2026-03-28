@@ -1019,7 +1019,7 @@ async def submit_dispute_evidence(dispute_id: str, req: dict, x_api_key: str = H
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Error submitting evidence: {str(e)[:100]}")
+        raise HTTPException(500, "Error submitting evidence")
 
 
 @router.post("/dispute/{dispute_id}/escalate")
@@ -1065,7 +1065,7 @@ async def escalate_dispute(dispute_id: str, x_api_key: str = Header(None, alias=
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Error escalating dispute: {str(e)[:100]}")
+        raise HTTPException(500, "Error escalating dispute")
 
 
 @router.get("/disputes")

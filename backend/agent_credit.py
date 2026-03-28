@@ -383,13 +383,26 @@ async def request_credit(agent_id: str, amount_usdc: float) -> dict:
 async def repay_credit(agent_id: str, amount_usdc: float, tx_signature: str = "") -> dict:
     """Rembourse une partie ou la totalite du credit d'un agent.
 
-    Necessite un montant positif et optionnellement une signature de transaction on-chain.
+    Necessite un montant positif et une signature de transaction on-chain verifiee.
     """
     from database import db
     await _ensure_schema()
 
     if amount_usdc <= 0:
         raise HTTPException(400, "Le montant doit etre positif")
+
+    # Verify tx_signature is provided and valid on-chain
+    if not tx_signature:
+        raise HTTPException(400, "tx_signature required for repayment proof")
+    from solana_verifier import verify_transaction
+    from config import TREASURY_ADDRESS
+    pay_ok = await verify_transaction(tx_signature, expected_amount_usdc=amount_usdc, expected_recipient=TREASURY_ADDRESS)
+    if not pay_ok.get("valid"):
+        raise HTTPException(400, f"Payment not verified: {pay_ok.get('error', 'unknown')}")
+    # Check replay
+    if db:
+        if await db.tx_already_processed(tx_signature):
+            raise HTTPException(400, "Transaction already processed")
 
     # Rembourser — transactionnel pour eviter les races
     now_ts = int(time.time())
@@ -552,7 +565,7 @@ class CreditRequestModel(BaseModel):
 
 class CreditRepayModel(BaseModel):
     amount_usdc: float
-    tx_signature: str = ""
+    tx_signature: str
 
 
 # ── Routes FastAPI ──

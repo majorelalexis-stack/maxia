@@ -1398,6 +1398,13 @@ async def favicon():
         return FileResponse(str(fav_path), media_type="image/svg+xml")
     return HTMLResponse("", status_code=404)
 
+@app.get("/manifest.json", include_in_schema=False)
+async def manifest_json():
+    mf_path = FRONTEND_DIR / "manifest.json"
+    if mf_path.exists():
+        return FileResponse(str(mf_path), media_type="application/json")
+    return HTMLResponse("{}", status_code=404, media_type="application/json")
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon_ico():
     """Redirect .ico to .svg for browsers that request favicon.ico."""
@@ -2405,7 +2412,6 @@ _local_ceo_state = {
 async def ceo_sync(request: Request):
     """Synchronisation CEO local <-> VPS. Evite les double-posts."""
     from auth import require_ceo_auth
-    _check_ceo_rate(request.client.host if request.client else "?")
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
 
     body = await request.json()
@@ -4087,8 +4093,10 @@ async def ap2_pay_outgoing(req: dict, wallet: str = Depends(require_auth)):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/agent/status")
-async def agent_status():
-    """Statut complet de l'agent autonome."""
+async def agent_status(request: Request):
+    """Statut complet de l'agent autonome. Admin only."""
+    from security import require_admin
+    require_admin(request)
     return {
         "brain": brain.get_stats(),
         "growth": growth_agent.get_stats(),
@@ -4097,11 +4105,15 @@ async def agent_status():
     }
 
 @app.get("/api/agent/brain")
-async def brain_status():
+async def brain_status(request: Request):
+    from security import require_admin
+    require_admin(request)
     return brain.get_stats()
 
 @app.get("/api/agent/growth")
-async def growth_status():
+async def growth_status(request: Request):
+    from security import require_admin
+    require_admin(request)
     return growth_agent.get_stats()
 
 @app.get("/api/agent/preflight")
@@ -4785,6 +4797,8 @@ async def enterprise_fleet(wallet: str, request: Request):
 @app.post("/api/enterprise/fleet/toggle")
 async def enterprise_toggle_agent(request: Request):
     """Activate/deactivate an agent in the fleet."""
+    from security import require_admin
+    require_admin(request)
     from fleet_manager import toggle_agent
     body = await request.json()
     return await toggle_agent(body.get("api_key", ""), body.get("enabled", True), db)

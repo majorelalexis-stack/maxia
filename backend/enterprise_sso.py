@@ -455,7 +455,9 @@ async def api_sso_login():
                 url = f"{auth_endpoint}?{urlencode(params)}"
                 return RedirectResponse(url)
         except Exception as e:
-            raise HTTPException(500, f"Erreur discovery OIDC: {e}")
+            import logging
+            logging.getLogger(__name__).error(f"OIDC discovery error: {e}")
+            raise HTTPException(500, "SSO configuration error")
 
     url = sso_login_url()
     if not url:

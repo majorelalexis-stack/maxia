@@ -6,6 +6,7 @@
 <meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAXIA — AI Web3 Hub on 14 Chains — Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -1942,7 +1943,7 @@ function toast(msg, type) {
   type = type || 'info';
   const t = document.getElementById('toast');
   t.className = 'show ' + type;
-  t.innerHTML = (type === 'ok' ? '✅' : type === 'err' ? '❌' : 'ℹ️') + ' ' + msg;
+  t.innerHTML = (type === 'ok' ? '✅' : type === 'err' ? '❌' : 'ℹ️') + ' ' + esc(msg);
   clearTimeout(t._t);
   t._t = setTimeout(() => t.className = '', 3500);
 }

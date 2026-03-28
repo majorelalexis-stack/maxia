@@ -298,7 +298,7 @@ async def _call_0x_quote(chain_id: int, sell_address: str, buy_address: str,
         raise
     except Exception as e:
         _log(f"0x quote error: {e}")
-        raise HTTPException(502, f"0x API indisponible: {str(e)[:200]}")
+        raise HTTPException(502, "Swap API unavailable")
 
 
 async def _call_0x_price(chain_id: int, sell_address: str, buy_address: str,
@@ -330,7 +330,7 @@ async def _call_0x_price(chain_id: int, sell_address: str, buy_address: str,
         raise
     except Exception as e:
         _log(f"0x price error: {e}")
-        raise HTTPException(502, f"0x API indisponible: {str(e)[:200]}")
+        raise HTTPException(502, "Swap API unavailable")
 
 
 # ── Router FastAPI ──
