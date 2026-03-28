@@ -906,6 +906,13 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     except Exception:
         pass
 
+    # Referral — credit 10% commission to referrer
+    try:
+        from referral import credit_referral_commission
+        await credit_referral_commission(buyer_wallet, commission_usd)
+    except Exception:
+        pass
+
     return {
         "success": True,
         **swap,
