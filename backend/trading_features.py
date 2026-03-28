@@ -86,7 +86,9 @@ async def whale_my_monitors(x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM whale_monitors WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
+        "SELECT id, api_key, wallet_address, chain, threshold_usdc, "
+        "callback_url, active, created_at "
+        "FROM whale_monitors WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     return {"monitors": [dict(r) for r in rows], "total": len(rows)}
 
 
@@ -121,7 +123,9 @@ async def check_whales():
         try:
             db = await _get_db()
             monitors = await db.raw_execute_fetchall(
-                "SELECT * FROM whale_monitors WHERE active=1")
+                "SELECT id, api_key, wallet_address, chain, threshold_usdc, "
+                "callback_url, active, created_at "
+                "FROM whale_monitors WHERE active=1")
             if not monitors:
                 await asyncio.sleep(60)
                 continue
@@ -234,7 +238,8 @@ async def update_candles():
                     continue
                 # Upsert 1m candle
                 existing = await db.raw_execute_fetchall(
-                    "SELECT * FROM price_candles WHERE symbol=? AND interval='1m' AND timestamp=?",
+                    "SELECT id, open, high, low, close, volume "
+                    "FROM price_candles WHERE symbol=? AND interval='1m' AND timestamp=?",
                     (symbol, minute_ts))
                 if existing:
                     row = existing[0]
@@ -313,7 +318,9 @@ async def copy_trade_follows(x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM copy_trades WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
+        "SELECT id, api_key, target_wallet, chain, max_per_trade_usdc, "
+        "active, total_copied, total_volume_usdc, created_at "
+        "FROM copy_trades WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     return {"follows": [dict(r) for r in rows], "total": len(rows)}
 
 

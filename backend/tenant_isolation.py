@@ -268,11 +268,15 @@ async def list_tenants(db, status: str = "") -> list:
 
     if status:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM tenants WHERE status=? ORDER BY created_at DESC", (status,)
+            "SELECT tenant_id, name, plan, admin_email, admin_wallet, status, "
+            "settings, created_at, updated_at "
+            "FROM tenants WHERE status=? ORDER BY created_at DESC", (status,)
         )
     else:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM tenants ORDER BY created_at DESC"
+            "SELECT tenant_id, name, plan, admin_email, admin_wallet, status, "
+            "settings, created_at, updated_at "
+            "FROM tenants ORDER BY created_at DESC"
         )
 
     results = []
@@ -298,7 +302,9 @@ async def get_tenant(db, tenant_id: str) -> Optional[dict]:
     await _ensure_schema(db)
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM tenants WHERE tenant_id=?", (tenant_id,)
+        "SELECT tenant_id, name, plan, admin_email, admin_wallet, status, "
+        "settings, created_at, updated_at "
+        "FROM tenants WHERE tenant_id=?", (tenant_id,)
     )
     if not rows:
         return None

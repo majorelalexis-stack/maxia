@@ -261,14 +261,18 @@ async def list_open_requests(
         if service_type not in SERVICE_FLOORS:
             raise HTTPException(400, f"service_type invalide. Valeurs: {', '.join(sorted(SERVICE_FLOORS.keys()))}")
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM auction_requests "
+            "SELECT id, buyer_id, service_type, description, budget_max_usdc, "
+            "sla_tier, deadline, status, created_at, awarded_at, winning_bid_id "
+            "FROM auction_requests "
             "WHERE status IN ('open', 'bidding') AND service_type = ? "
             "ORDER BY created_at DESC LIMIT ?",
             (service_type, limit),
         )
     else:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM auction_requests "
+            "SELECT id, buyer_id, service_type, description, budget_max_usdc, "
+            "sla_tier, deadline, status, created_at, awarded_at, winning_bid_id "
+            "FROM auction_requests "
             "WHERE status IN ('open', 'bidding') "
             "ORDER BY created_at DESC LIMIT ?",
             (limit,),
@@ -297,7 +301,9 @@ async def get_request_details(request_id: int):
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_requests WHERE id = ?", (request_id,),
+        "SELECT id, buyer_id, service_type, description, budget_max_usdc, "
+        "sla_tier, deadline, status, created_at, awarded_at, winning_bid_id "
+        "FROM auction_requests WHERE id = ?", (request_id,),
     )
     if not rows:
         raise HTTPException(404, "Demande non trouvee")
@@ -306,7 +312,9 @@ async def get_request_details(request_id: int):
 
     # Recuperer tous les bids, tries par score decroissant
     bid_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_bids WHERE request_id = ? ORDER BY score DESC",
+        "SELECT id, request_id, seller_id, agent_id, price_usdc, "
+        "estimated_time_s, sla_commitment, message, score, status, created_at "
+        "FROM auction_bids WHERE request_id = ? ORDER BY score DESC",
         (request_id,),
     )
     bids = []
@@ -340,7 +348,9 @@ async def submit_bid(
 
     # Verifier que la demande existe et est ouverte
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_requests WHERE id = ?", (request_id,),
+        "SELECT id, buyer_id, service_type, budget_max_usdc, sla_tier, "
+        "deadline, status "
+        "FROM auction_requests WHERE id = ?", (request_id,),
     )
     if not rows:
         raise HTTPException(404, "Demande non trouvee")
@@ -450,7 +460,8 @@ async def accept_bid(
 
     # Verifier que la demande existe et appartient au buyer
     req_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_requests WHERE id = ?", (request_id,),
+        "SELECT id, buyer_id, service_type, budget_max_usdc, status "
+        "FROM auction_requests WHERE id = ?", (request_id,),
     )
     if not req_rows:
         raise HTTPException(404, "Demande non trouvee")
@@ -465,7 +476,9 @@ async def accept_bid(
 
     # Verifier que le bid existe et appartient a cette demande
     bid_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_bids WHERE id = ? AND request_id = ?",
+        "SELECT id, request_id, seller_id, agent_id, price_usdc, "
+        "estimated_time_s, sla_commitment, message, score, status, created_at "
+        "FROM auction_bids WHERE id = ? AND request_id = ?",
         (bid_id, request_id),
     )
     if not bid_rows:
@@ -554,7 +567,8 @@ async def cancel_request(
         raise HTTPException(401, "X-API-Key requis")
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_requests WHERE id = ?", (request_id,),
+        "SELECT id, buyer_id, status "
+        "FROM auction_requests WHERE id = ?", (request_id,),
     )
     if not rows:
         raise HTTPException(404, "Demande non trouvee")
@@ -600,7 +614,9 @@ async def my_requests(
         raise HTTPException(401, "X-API-Key requis")
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM auction_requests WHERE buyer_id = ? ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, buyer_id, service_type, description, budget_max_usdc, "
+        "sla_tier, deadline, status, created_at, awarded_at, winning_bid_id "
+        "FROM auction_requests WHERE buyer_id = ? ORDER BY created_at DESC LIMIT ?",
         (x_api_key, limit),
     )
 

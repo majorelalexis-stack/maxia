@@ -115,7 +115,9 @@ async def webhook_list(x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM webhook_subscriptions WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
+        "SELECT id, api_key, callback_url, events, filters, active, "
+        "deliveries, last_delivery_at, created_at "
+        "FROM webhook_subscriptions WHERE api_key=? AND active=1 ORDER BY created_at DESC", (x_api_key,))
     subs = []
     for r in rows:
         s = dict(r)
@@ -130,7 +132,9 @@ async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet:
     Si filter_wallet est specifie, notifie seulement les abonnes lies a ce wallet."""
     from http_client import get_http_client
     db = await _get_db()
-    query = "SELECT * FROM webhook_subscriptions WHERE active=1"
+    query = ("SELECT id, api_key, callback_url, events, filters, active, "
+             "deliveries, last_delivery_at, created_at "
+             "FROM webhook_subscriptions WHERE active=1")
     rows = await db.raw_execute_fetchall(query)
 
     sent = 0
@@ -234,7 +238,9 @@ async def notify_subscribers(event_type: str, data: dict):
     try:
         db = await _get_db()
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM webhook_subscriptions WHERE active=1")
+            "SELECT id, api_key, callback_url, events, filters, active, "
+            "deliveries, last_delivery_at, created_at "
+            "FROM webhook_subscriptions WHERE active=1")
         from http_client import get_http_client
         for sub in rows:
             events = json.loads(sub.get("events", '["all"]'))
@@ -309,13 +315,16 @@ async def public_escrow_list(x_api_key: str = Header(None, alias="X-API-Key"),
 
     if role == "buyer":
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM escrow_records WHERE buyer=? ORDER BY created_at DESC", (agent["wallet"],))
+            "SELECT escrow_id, buyer, seller, status, data, created_at "
+            "FROM escrow_records WHERE buyer=? ORDER BY created_at DESC", (agent["wallet"],))
     elif role == "seller":
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM escrow_records WHERE seller=? ORDER BY created_at DESC", (agent["wallet"],))
+            "SELECT escrow_id, buyer, seller, status, data, created_at "
+            "FROM escrow_records WHERE seller=? ORDER BY created_at DESC", (agent["wallet"],))
     else:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM escrow_records WHERE buyer=? OR seller=? ORDER BY created_at DESC",
+            "SELECT escrow_id, buyer, seller, status, data, created_at "
+            "FROM escrow_records WHERE buyer=? OR seller=? ORDER BY created_at DESC",
             (agent["wallet"], agent["wallet"]))
 
     escrows = []
@@ -338,7 +347,8 @@ async def public_escrow_confirm(escrow_id: str, x_api_key: str = Header(None, al
     db = await _get_db()
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
+        "SELECT escrow_id, buyer, seller, status, data "
+        "FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
         (escrow_id, agent["wallet"]))
     if not rows:
         raise HTTPException(404, "Escrow not found or not locked")
@@ -361,7 +371,8 @@ async def public_escrow_dispute(escrow_id: str, req: dict = None,
     db = await _get_db()
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
+        "SELECT escrow_id, buyer, seller, status "
+        "FROM escrow_records WHERE escrow_id=? AND buyer=? AND status='locked'",
         (escrow_id, agent["wallet"]))
     if not rows:
         raise HTTPException(404, "Escrow not found or not locked")
@@ -390,7 +401,8 @@ async def public_escrow_get(escrow_id: str, x_api_key: str = Header(None, alias=
     db = await _get_db()
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM escrow_records WHERE escrow_id=? AND (buyer=? OR seller=?)",
+        "SELECT escrow_id, buyer, seller, status, data, created_at "
+        "FROM escrow_records WHERE escrow_id=? AND (buyer=? OR seller=?)",
         (escrow_id, agent["wallet"], agent["wallet"]))
     if not rows:
         raise HTTPException(404, "Escrow not found")
@@ -438,7 +450,9 @@ async def sla_get(service_id: str):
     """Get SLA for a service. Free, no auth."""
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM service_slas WHERE service_id=?", (service_id,))
+        "SELECT id, service_id, seller_api_key, max_response_time_ms, "
+        "uptime_guarantee_pct, auto_refund, created_at "
+        "FROM service_slas WHERE service_id=?", (service_id,))
     if not rows:
         return {"service_id": service_id, "sla": None, "note": "No SLA set for this service"}
     return {"service_id": service_id, "sla": dict(rows[0])}
@@ -451,7 +465,9 @@ async def sla_violations(service_id: str, x_api_key: str = Header(None, alias="X
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM sla_violations WHERE service_id=? ORDER BY created_at DESC LIMIT 100",
+        "SELECT id, service_id, sla_id, violation_type, response_time_ms, "
+        "refunded, refund_amount_usdc, buyer_wallet, created_at "
+        "FROM sla_violations WHERE service_id=? ORDER BY created_at DESC LIMIT 100",
         (service_id,))
     return {"violations": [dict(r) for r in rows], "total": len(rows)}
 
@@ -461,7 +477,8 @@ async def check_sla(service_id: str, response_time_ms: int, price_usdc: float, b
     try:
         db = await _get_db()
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM service_slas WHERE service_id=?", (service_id,))
+            "SELECT id, service_id, max_response_time_ms, auto_refund "
+            "FROM service_slas WHERE service_id=?", (service_id,))
         if not rows:
             return
         sla = rows[0]
@@ -539,7 +556,10 @@ async def clone_list(x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM clone_configs WHERE clone_api_key=? AND active=1 ORDER BY created_at DESC",
+        "SELECT id, original_service_id, original_seller_key, clone_api_key, "
+        "clone_service_id, revenue_share_pct, total_revenue_usdc, "
+        "total_royalties_usdc, active, created_at "
+        "FROM clone_configs WHERE clone_api_key=? AND active=1 ORDER BY created_at DESC",
         (x_api_key,))
     return {"clones": [dict(r) for r in rows], "total": len(rows)}
 
@@ -551,7 +571,10 @@ async def clone_royalties(x_api_key: str = Header(None, alias="X-API-Key")):
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM clone_configs WHERE original_seller_key=? ORDER BY total_royalties_usdc DESC",
+        "SELECT id, original_service_id, original_seller_key, clone_api_key, "
+        "clone_service_id, revenue_share_pct, total_revenue_usdc, "
+        "total_royalties_usdc, active, created_at "
+        "FROM clone_configs WHERE original_seller_key=? ORDER BY total_royalties_usdc DESC",
         (x_api_key,))
     total = sum(float(r["total_royalties_usdc"]) for r in rows)
     return {"royalties": [dict(r) for r in rows], "total_royalties_usdc": round(total, 4),
@@ -576,7 +599,10 @@ async def process_clone_royalty(clone_service_id: str, sale_amount_usdc: float):
     try:
         db = await _get_db()
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM clone_configs WHERE clone_service_id=? AND active=1", (clone_service_id,))
+            "SELECT id, original_service_id, original_seller_key, clone_api_key, "
+            "clone_service_id, revenue_share_pct, total_revenue_usdc, "
+            "total_royalties_usdc, active, created_at "
+            "FROM clone_configs WHERE clone_service_id=? AND active=1", (clone_service_id,))
         if not rows:
             return
         config = rows[0]

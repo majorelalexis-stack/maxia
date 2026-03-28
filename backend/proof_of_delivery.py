@@ -3,9 +3,12 @@ Liveness period de 2h : si le buyer ne dispute pas, la livraison est auto-confir
 Tables auto-creees au demarrage comme les autres modules."""
 import asyncio
 import json
+import logging
 import os
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -77,9 +80,9 @@ async def _ensure_schema():
             return
         await db.raw_executescript(POD_SCHEMA)
         _schema_initialized = True
-        print("[PoD] Tables deliveries + pod_disputes creees")
+        logger.info("Tables deliveries + pod_disputes creees")
     except Exception as e:
-        print(f"[PoD] Schema error: {e}")
+        logger.error("Schema error: %s", e)
 
 
 # ══════════════════════════════════════════
@@ -103,14 +106,18 @@ class DeliveryDisputeRequest(BaseModel):
 async def _get_delivery(delivery_id: str) -> Optional[dict]:
     """Recupere une livraison par ID."""
     db = _get_db(); rows = await db.raw_execute_fetchall(
-        "SELECT * FROM deliveries WHERE id=?", (delivery_id,))
+        "SELECT id, escrow_id, seller_wallet, buyer_wallet, delivery_hash, "
+        "delivered_at, status, liveness_end, confirmed_at, disputed_at "
+        "FROM deliveries WHERE id=?", (delivery_id,))
     return dict(rows[0]) if rows else None
 
 
 async def _get_delivery_by_escrow(escrow_id: str) -> Optional[dict]:
     """Recupere une livraison par escrow_id."""
     db = _get_db(); rows = await db.raw_execute_fetchall(
-        "SELECT * FROM deliveries WHERE escrow_id=?", (escrow_id,))
+        "SELECT id, escrow_id, seller_wallet, buyer_wallet, delivery_hash, "
+        "delivered_at, status, liveness_end, confirmed_at, disputed_at "
+        "FROM deliveries WHERE escrow_id=?", (escrow_id,))
     return dict(rows[0]) if rows else None
 
 
@@ -189,8 +196,8 @@ async def submit_delivery(req: DeliverySubmitRequest, auth=Depends(require_auth)
          delivery["delivered_at"], delivery["status"], delivery["liveness_end"]))
 
     liveness_min = LIVENESS_SECONDS // 60
-    print(f"[PoD] Livraison soumise: {delivery_id[:8]}... escrow={req.escrow_id[:8]}... "
-          f"liveness={liveness_min}min")
+    logger.info("Livraison soumise: %s... escrow=%s... liveness=%dmin",
+                delivery_id[:8], req.escrow_id[:8], liveness_min)
     audit_log("pod_submit", "system",
               f"delivery={delivery_id} escrow={req.escrow_id} hash={req.delivery_hash[:16]}...")
 
@@ -238,8 +245,8 @@ async def confirm_delivery(delivery_id: str, auth=Depends(require_auth)):
     # Liberer l'escrow
     escrow_result = await _release_escrow(delivery["escrow_id"], delivery["buyer_wallet"])
 
-    print(f"[PoD] Livraison confirmee par buyer: {delivery_id[:8]}... "
-          f"escrow={delivery['escrow_id'][:8]}...")
+    logger.info("Livraison confirmee par buyer: %s... escrow=%s...",
+                delivery_id[:8], delivery['escrow_id'][:8])
     audit_log("pod_confirm", "system",
               f"delivery={delivery_id} escrow={delivery['escrow_id']} by=buyer")
 
@@ -289,8 +296,8 @@ async def dispute_delivery(delivery_id: str, req: DeliveryDisputeRequest,
         (dispute_id, delivery_id, delivery["escrow_id"], "buyer",
          req.reason, req.evidence_hash, now))
 
-    print(f"[PoD] Dispute ouverte: {dispute_id[:8]}... delivery={delivery_id[:8]}... "
-          f"reason={req.reason[:50]}...")
+    logger.info("Dispute ouverte: %s... delivery=%s... reason=%s...",
+                dispute_id[:8], delivery_id[:8], req.reason[:50])
     audit_log("pod_dispute", "system",
               f"dispute={dispute_id} delivery={delivery_id} reason={req.reason[:100]}")
 
@@ -338,17 +345,17 @@ async def _run_ai_evaluation(dispute_id: str, delivery_id: str,
             # Auto-execute (VERT) — haute confiance + petit montant
             resolution = result.get("recommendation", "release")
             await resolve_dispute(dispute_id, resolution)
-            print(f"[PoD] Auto-resolved dispute {dispute_id[:8]}... -> {resolution} "
-                  f"(confidence={confidence}%, amount=${amount:.2f})")
+            logger.info("Auto-resolved dispute %s... -> %s (confidence=%s%%, amount=$%.2f)",
+                        dispute_id[:8], resolution, confidence, amount)
         else:
             # Envoi Telegram pour approbation admin (ORANGE)
             await _send_dispute_for_approval(
                 dispute_id, delivery_id, result, amount, confidence)
-            print(f"[PoD] Dispute {dispute_id[:8]}... envoyee au fondateur "
-                  f"(confidence={confidence}%, amount=${amount:.2f})")
+            logger.info("Dispute %s... envoyee au fondateur (confidence=%s%%, amount=$%.2f)",
+                        dispute_id[:8], confidence, amount)
 
     except Exception as e:
-        print(f"[PoD] Erreur evaluation IA dispute {dispute_id[:8]}...: {e}")
+        logger.error("Erreur evaluation IA dispute %s...: %s", dispute_id[:8], e)
         await alert_error("PoD", f"Evaluation dispute echouee: {e}")
 
 
@@ -359,7 +366,7 @@ async def _send_dispute_for_approval(dispute_id: str, delivery_id: str,
     tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     tg_chat = os.getenv("TELEGRAM_CHAT_ID", "")
     if not tg_token or not tg_chat:
-        print(f"[PoD] Telegram non configure — dispute {dispute_id[:8]}... en attente")
+        logger.warning("Telegram non configure — dispute %s... en attente", dispute_id[:8])
         return
 
     recommendation = ai_result.get("recommendation", "?")
@@ -396,9 +403,9 @@ async def _send_dispute_for_approval(dispute_id: str, delivery_id: str,
             timeout=10,
         )
         if resp.status_code != 200:
-            print(f"[PoD] Telegram erreur {resp.status_code}")
+            logger.error("Telegram erreur %d", resp.status_code)
     except Exception as e:
-        print(f"[PoD] Telegram erreur: {e}")
+        logger.error("Telegram erreur: %s", e)
 
 
 @router.get("/pending", response_model=None)
@@ -408,7 +415,9 @@ async def list_pending_deliveries(auth=Depends(require_auth)):
 
     now = int(time.time())
     db = _get_db(); rows = await db.raw_execute_fetchall(
-        "SELECT * FROM deliveries WHERE status='pending' ORDER BY liveness_end ASC")
+        "SELECT id, escrow_id, seller_wallet, buyer_wallet, delivery_hash, "
+        "delivered_at, status, liveness_end, confirmed_at, disputed_at "
+        "FROM deliveries WHERE status='pending' ORDER BY liveness_end ASC")
     deliveries = []
     for row in rows:
         d = dict(row)
@@ -433,7 +442,9 @@ async def get_delivery_status(escrow_id: str, auth=Depends(require_auth)):
 
     # Charger les disputes liees
     db = _get_db(); disputes = await db.raw_execute_fetchall(
-        "SELECT * FROM pod_disputes WHERE delivery_id=? ORDER BY created_at DESC",
+        "SELECT id, delivery_id, escrow_id, initiator, reason, evidence_hash, "
+        "ai_recommendation, ai_confidence, resolution, resolved_at, resolved_by, created_at "
+        "FROM pod_disputes WHERE delivery_id=? ORDER BY created_at DESC",
         (delivery["id"],))
     disputes_list = [dict(d) for d in disputes] if disputes else []
 
@@ -460,7 +471,8 @@ async def check_liveness_expirations():
 
     now = int(time.time())
     db = _get_db(); rows = await db.raw_execute_fetchall(
-        "SELECT * FROM deliveries WHERE status='pending' AND liveness_end < ?", (now,))
+        "SELECT id, escrow_id, seller_wallet, buyer_wallet, status, liveness_end "
+        "FROM deliveries WHERE status='pending' AND liveness_end < ?", (now,))
 
     if not rows:
         return
@@ -481,15 +493,15 @@ async def check_liveness_expirations():
             escrow_result = await _release_escrow(escrow_id, delivery["buyer_wallet"])
 
             status = "OK" if escrow_result.get("success") else f"WARN: {escrow_result.get('error', '?')}"
-            print(f"[PoD] Auto-confirmed delivery {delivery_id[:8]}... "
-                  f"for escrow {escrow_id[:8]}... (liveness expired) [{status}]")
+            logger.info("Auto-confirmed delivery %s... for escrow %s... (liveness expired) [%s]",
+                        delivery_id[:8], escrow_id[:8], status)
             audit_log("pod_auto_confirm", "system",
                       f"delivery={delivery_id} escrow={escrow_id}")
             count += 1
 
         except Exception as e:
-            print(f"[PoD] Erreur auto-confirm {delivery_id[:8]}...: {e}")
+            logger.error("Erreur auto-confirm %s...: %s", delivery_id[:8], e)
             await alert_error("PoD", f"Auto-confirm echoue delivery={delivery_id[:8]}... : {e}")
 
     if count > 0:
-        print(f"[PoD] {count} livraison(s) auto-confirmee(s)")
+        logger.info("%d livraison(s) auto-confirmee(s)", count)

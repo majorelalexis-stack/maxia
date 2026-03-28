@@ -34,7 +34,9 @@ async def evaluate_dispute(delivery_id: str, reason: str, evidence_hash: str) ->
     escrow = None
     try:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM deliveries WHERE id=?", (delivery_id,))
+            "SELECT id, escrow_id, seller_wallet, buyer_wallet, delivery_hash, "
+            "delivered_at, status, liveness_end, confirmed_at, disputed_at "
+            "FROM deliveries WHERE id=?", (delivery_id,))
         delivery = dict(rows[0]) if rows else None
     except Exception as e:
         print(f"[DisputeResolver] Erreur chargement delivery: {e}")
@@ -280,14 +282,18 @@ async def resolve_dispute(dispute_id: str, resolution: str, resolved_by: str = "
 
     # Charger le dispute
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM pod_disputes WHERE id=?", (dispute_id,))
+        "SELECT id, delivery_id, escrow_id, initiator, reason, resolution, "
+        "resolved_at, resolved_by, created_at "
+        "FROM pod_disputes WHERE id=?", (dispute_id,))
     if not rows:
         raise ValueError(f"Dispute introuvable: {dispute_id}")
     dispute = dict(rows[0])
 
     # Charger la livraison
     delivery_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM deliveries WHERE id=?", (dispute["delivery_id"],))
+        "SELECT id, escrow_id, seller_wallet, buyer_wallet, delivery_hash, "
+        "delivered_at, status, liveness_end "
+        "FROM deliveries WHERE id=?", (dispute["delivery_id"],))
     if not delivery_rows:
         raise ValueError(f"Delivery introuvable: {dispute['delivery_id']}")
     delivery = dict(delivery_rows[0])

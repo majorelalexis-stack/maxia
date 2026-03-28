@@ -148,7 +148,9 @@ async def message_inbox(x_api_key: str = Header(None, alias="X-API-Key"), limit:
         raise HTTPException(401, "X-API-Key required")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_messages WHERE recipient_api_key=? AND read=0 ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, channel_id, sender_api_key, sender_name, recipient_api_key, "
+        "message, msg_type, metadata, read, created_at "
+        "FROM agent_messages WHERE recipient_api_key=? AND read=0 ORDER BY created_at DESC LIMIT ?",
         (x_api_key, min(limit, 100)))
     return {"messages": [dict(r) for r in rows], "total": len(rows)}
 
@@ -161,7 +163,9 @@ async def message_conversation(other_api_key: str, x_api_key: str = Header(None,
     db = await _get_db()
     channel = _channel_id(x_api_key, other_api_key)
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_messages WHERE channel_id=? ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, channel_id, sender_api_key, sender_name, recipient_api_key, "
+        "message, msg_type, metadata, read, created_at "
+        "FROM agent_messages WHERE channel_id=? ORDER BY created_at DESC LIMIT ?",
         (channel, min(limit, 200)))
     return {"messages": [dict(r) for r in reversed(rows)], "channel_id": channel, "total": len(rows)}
 

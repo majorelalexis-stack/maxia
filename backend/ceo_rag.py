@@ -12,9 +12,11 @@ Usage:
 L'archive complete est gardee dans des fichiers separes.
 Le contexte LLM ne charge que les resultats de recherche pertinents.
 """
-import json, os, re
+import json, logging, os, re
 from collections import defaultdict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class RAGLocal:
@@ -41,7 +43,7 @@ class RAGLocal:
             with open(self._index_path, "w") as f:
                 json.dump(self._index, f, default=str)
         except Exception as e:
-            print(f"[RAG] Save error: {e}")
+            logger.error("Save error: %s", e)
 
     def _get_archive_path(self, collection: str) -> str:
         return os.path.join(self._dir, f"{collection}.json")
@@ -67,7 +69,7 @@ class RAGLocal:
             with open(path, "w") as f:
                 json.dump(self._archives.get(collection, {}), f, indent=1, default=str)
         except Exception as e:
-            print(f"[RAG] Archive save error: {e}")
+            logger.error("Archive save error: %s", e)
 
     def _tokenize(self, text: str) -> list:
         """Extrait les mots-cles significatifs (>3 chars, lowercase)."""

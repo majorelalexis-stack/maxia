@@ -41,7 +41,7 @@ GPU_MAP = {
 # Pods actifs (en memoire)
 _active_pods: dict = {}  # pod_id -> {buyer, tier, start_time, hours, ...}
 
-print(f"[RunPod] Client initialise — API key {'present' if RUNPOD_API_KEY else 'ABSENTE'}")
+log.info("Client initialise — API key %s", 'present' if RUNPOD_API_KEY else 'ABSENTE')
 
 
 class RunPodClient:
@@ -124,7 +124,7 @@ class RunPodClient:
         errors = data.get("errors")
         if errors:
             err_msg = errors[0].get("message", str(errors))
-            print(f"[RunPod] Create error: {err_msg}")
+            log.error("Create error: %s", err_msg)
             return {"success": False, "error": err_msg}
 
         pod = data.get("data", {}).get("podFindAndDeployOnDemand", {})
@@ -136,7 +136,7 @@ class RunPodClient:
         # Fix #10: Fallback if RunPod doesn't return cost
         cost_per_hr = pod.get("costPerHr", 0) or gpu_config.get("base_price_per_hour", 0)
 
-        print(f"[RunPod] Pod cree: {pod_id} ({gpu_id}) — host: {host_id}")
+        log.info("Pod cree: %s (%s) — host: %s", pod_id, gpu_id, host_id)
 
         # 2. Attendre que le pod soit pret (max 60 secondes)
         credentials = await self._wait_for_ready(pod_id, timeout=60)
@@ -208,7 +208,7 @@ class RunPodClient:
                         elif private_port == 8888:
                             jupyter_url = f"https://{ip}:{public_port}"
 
-                    print(f"[RunPod] Pod {pod_id} pret — uptime: {uptime}s")
+                    log.info("Pod %s pret — uptime: %ds", pod_id, uptime)
                     return {
                         "status": "running",
                         "ssh": ssh_port or f"ssh root@{pod_id}.proxy.runpod.net",
@@ -218,7 +218,7 @@ class RunPodClient:
 
             await asyncio.sleep(5)
 
-        print(f"[RunPod] Pod {pod_id} timeout apres {timeout}s — status: provisioning")
+        log.warning("Pod %s timeout apres %ds — status: provisioning", pod_id, timeout)
         return {"status": "provisioning"}
 
     def _ensure_monitor_started(self):
@@ -229,8 +229,7 @@ class RunPodClient:
 
     async def _monitor_pods(self):
         """Fix #5: Persistent background loop that checks every 60s for expired pods."""
-        log.info("[RunPod] Pod monitor started")
-        print("[RunPod] Pod monitor started")
+        log.info("Pod monitor started")
         while True:
             try:
                 now = int(time.time())
@@ -239,7 +238,7 @@ class RunPodClient:
                         continue
                     scheduled = pod_info.get("scheduled_termination", 0)
                     if scheduled and now >= scheduled:
-                        print(f"[RunPod] Monitor: auto-terminating pod {pod_id} (expired)")
+                        log.info("Monitor: auto-terminating pod %s (expired)", pod_id)
                         result = await self.terminate_pod(pod_id)
                         if not result.get("success"):
                             log.warning(f"[RunPod] Monitor: failed to terminate {pod_id}: {result.get('error')}")
@@ -298,7 +297,7 @@ class RunPodClient:
             _active_pods[pod_id]["status"] = "terminated"
             _active_pods[pod_id]["actual_hours"] = round(elapsed_hours, 2)
             _active_pods[pod_id]["actual_cost"] = actual_cost
-            print(f"[RunPod] Pod {pod_id} termine — {elapsed_hours:.1f}h, cout: ${actual_cost}")
+            log.info("Pod %s termine — %.1fh, cout: $%s", pod_id, elapsed_hours, actual_cost)
 
         return {"success": True, "pod_id": pod_id, "status": "terminated", "actual_cost": actual_cost}
 
@@ -459,10 +458,10 @@ async def fetch_live_gpu_prices() -> dict:
                 }
             _gpu_price_cache = prices
             _gpu_cache_ts = _time.time()
-            print(f"[RunPod] Live prices fetched: {len(prices)} GPU types")
+            log.info("Live prices fetched: %d GPU types", len(prices))
             return prices
     except Exception as e:
-        print(f"[RunPod] Live pricing error: {e}")
+        log.error("Live pricing error: %s", e)
 
     return {}
 

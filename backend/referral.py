@@ -5,8 +5,11 @@ commission MAXIA sur chaque transaction du filleul (plafonné $1000/mois).
 Les badges sont recalcules toutes les heures par le scheduler.
 """
 
+import logging
 import os, time, uuid
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
@@ -97,9 +100,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_REFERRAL_SCHEMA)
         _schema_ready = True
-        print("[Referral] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[Referral] Erreur schema: {e}")
+        logger.error("Erreur schema: %s", e)
 
 
 def _generate_code() -> str:
@@ -416,7 +419,7 @@ async def _award_badge(db, agent_id: str, badge_name: str):
             (agent_id, badge_name, icon),
         )
     except Exception as e:
-        print(f"[Referral] Erreur attribution badge {badge_name} a {agent_id}: {e}")
+        logger.error("Erreur attribution badge %s a %s: %s", badge_name, agent_id, e)
 
 
 async def recalculate_badges():
@@ -431,7 +434,7 @@ async def recalculate_badges():
     try:
         agents = await db.raw_execute_fetchall("SELECT api_key, wallet, created_at FROM agents")
     except Exception as e:
-        print(f"[Referral] Erreur recalcul badges: {e}")
+        logger.error("Erreur recalcul badges: %s", e)
         return
 
     if not agents:
@@ -528,4 +531,4 @@ async def recalculate_badges():
         except Exception:
             pass
 
-    print(f"[Referral] Badges recalcules pour {len(agents)} agents")
+    logger.info("Badges recalcules pour %d agents", len(agents))

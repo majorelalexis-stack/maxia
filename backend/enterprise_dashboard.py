@@ -101,7 +101,8 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
     try:
         # Chercher les agents du owner
         agents = await db.raw_execute_fetchall(
-            "SELECT * FROM agents WHERE wallet=? OR referred_by=?",
+            "SELECT api_key, name, wallet, tier, created_at "
+            "FROM agents WHERE wallet=? OR referred_by=?",
             (owner_id, owner_id),
         )
 
@@ -283,7 +284,8 @@ async def get_agent_drilldown(agent_id: str, db) -> dict:
     try:
         # Chercher l'agent par api_key (partiel ou complet)
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agents WHERE api_key=? OR api_key LIKE ?",
+            "SELECT api_key, name, wallet, tier, created_at "
+            "FROM agents WHERE api_key=? OR api_key LIKE ?",
             (agent_id, f"{agent_id}%"),
         )
         if rows:
@@ -314,7 +316,8 @@ async def get_agent_drilldown(agent_id: str, db) -> dict:
         # Transactions recentes
         try:
             tx_rows = await db.raw_execute_fetchall(
-                "SELECT * FROM marketplace_tx WHERE seller=? OR buyer=? ORDER BY created_at DESC LIMIT 20",
+                "SELECT seller, buyer, seller_gets_usdc, commission_usdc, service, created_at "
+                "FROM marketplace_tx WHERE seller=? OR buyer=? ORDER BY created_at DESC LIMIT 20",
                 (wallet, wallet),
             )
             recent_txs = [dict(r) if hasattr(r, "keys") else r for r in tx_rows]
@@ -395,7 +398,9 @@ async def get_sla_compliance(owner_id: str, db) -> dict:
     violations = []
     try:
         v_rows = await db.raw_execute_fetchall(
-            "SELECT * FROM sla_violations ORDER BY created_at DESC LIMIT 50"
+            "SELECT id, service_id, sla_id, violation_type, response_time_ms, "
+            "refunded, refund_amount_usdc, buyer_wallet, created_at "
+            "FROM sla_violations ORDER BY created_at DESC LIMIT 50"
         )
         violations = [dict(r) if hasattr(r, "keys") else r for r in v_rows]
     except Exception:

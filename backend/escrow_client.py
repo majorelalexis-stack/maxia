@@ -8,9 +8,11 @@ SECURITE ESCROW WALLET :
   - En prod : utiliser un hardware wallet ou KMS (AWS/GCP)
   - Verification au demarrage : adresse valide, cle correspond a l'adresse
 """
-import uuid, time, json, asyncio, re
+import uuid, time, json, asyncio, re, logging
 import httpx
 import base58
+
+logger = logging.getLogger(__name__)
 from config import (
     get_rpc_url, TREASURY_ADDRESS, ESCROW_ADDRESS, ESCROW_PRIVKEY_B58,
 )
@@ -55,9 +57,9 @@ def _verify_escrow_config():
         errors.append("ESCROW_ADDRESS == TREASURY_ADDRESS — ils doivent etre DIFFERENTS pour la securite")
     if errors:
         for e in errors:
-            print(f"[ESCROW] ERREUR CRITIQUE: {e}")
+            logger.critical("ERREUR CRITIQUE: %s", e)
     else:
-        print(f"[ESCROW] Config OK: {ESCROW_ADDRESS[:8]}... (separe du treasury)")
+        logger.info("Config OK: %s... (separe du treasury)", ESCROW_ADDRESS[:8])
     return errors
 
 
@@ -77,9 +79,9 @@ class EscrowClient:
         self._escrows: dict = {}  # cache local, synchronise avec DB
         self._disabled = bool(_escrow_errors)
         if self._disabled:
-            print(f"[EscrowClient] DESACTIVE — {len(_escrow_errors)} erreur(s) de config. Aucune operation escrow possible.")
+            logger.error("DESACTIVE — %d erreur(s) de config. Aucune operation escrow possible.", len(_escrow_errors))
         else:
-            print(f"[EscrowClient] Initialise (wallet: {ESCROW_ADDRESS[:16]}...)" if ESCROW_ADDRESS else "[EscrowClient] ATTENTION: ESCROW_ADDRESS non configure")
+            logger.info("Initialise (wallet: %s...)", ESCROW_ADDRESS[:16]) if ESCROW_ADDRESS else logger.warning("ATTENTION: ESCROW_ADDRESS non configure")
 
     def _check_enabled(self) -> dict | None:
         """Retourne une erreur si l'escrow est desactive, None sinon."""
@@ -99,7 +101,7 @@ class EscrowClient:
             for row in rows:
                 escrow = json.loads(row["data"])
                 self._escrows[escrow["escrowId"]] = escrow
-            print(f"[EscrowClient] {len(self._escrows)} escrows actifs charges depuis DB")
+            logger.info("%d escrows actifs charges depuis DB", len(self._escrows))
         except Exception:
             pass  # Table pas encore creee
 
@@ -113,7 +115,7 @@ class EscrowClient:
                     (escrow["escrowId"], escrow["buyer"], escrow["seller"],
                      escrow["status"], json.dumps(escrow)))
             except Exception as e:
-                print(f"[EscrowClient] Erreur sauvegarde DB: {e}")
+                logger.error("Erreur sauvegarde DB: %s", e)
 
     # #10: Load single escrow from DB (source of truth)
     async def _load_escrow_from_db(self, escrow_id: str) -> dict | None:
@@ -207,7 +209,7 @@ class EscrowClient:
         }
         await self._save_escrow(escrow)
 
-        print(f"[EscrowClient] Escrow cree: {verified_amount} USDC | {buyer_wallet[:8]}... -> {seller_wallet[:8]}...")
+        logger.info("Escrow cree: %s USDC | %s... -> %s...", verified_amount, buyer_wallet[:8], seller_wallet[:8])
         await alert_system(
             "Nouvel Escrow",
             f"**{verified_amount} USDC** verrouilles\n"
@@ -283,7 +285,7 @@ class EscrowClient:
                     )
                     commission_tx = comm_result.get("signature", "")
                 except Exception as comm_err:
-                    print(f"[Escrow] Commission transfer failed (non-blocking): {comm_err}")
+                    logger.warning("Commission transfer failed (non-blocking): %s", comm_err)
 
             if result.get("success"):
                 escrow["status"] = "released"
@@ -295,7 +297,7 @@ class EscrowClient:
                 escrow["seller_gets_usdc"] = seller_gets
                 escrow["commission_tx"] = commission_tx
                 await self._save_escrow(escrow)
-                print(f"[EscrowClient] Released: {seller_gets} USDC -> {escrow['seller'][:8]}... (commission: {commission_usdc} USDC {tier_name})")
+                logger.info("Released: %s USDC -> %s... (commission: %s USDC %s)", seller_gets, escrow['seller'][:8], commission_usdc, tier_name)
                 await alert_system(
                     "Escrow libere",
                     f"**{seller_gets} USDC** envoyes au seller `{escrow['seller'][:8]}...`\n"
@@ -308,7 +310,7 @@ class EscrowClient:
                 await self._save_escrow(escrow)
                 # #14 / #16: Log and audit failed transfers
                 error_msg = result.get("error", "unknown")
-                print(f"[Escrow] FAILED transfer {escrow_id}: {error_msg}")
+                logger.error("FAILED transfer %s: %s", escrow_id, error_msg)
                 from security import audit_log
                 audit_log("escrow_transfer_failed", "system", f"escrow={escrow_id} error={error_msg}")
                 return {"success": False, "error": f"Transfer echoue: {error_msg}"}
@@ -361,14 +363,14 @@ class EscrowClient:
                 escrow["status"] = "refunded"
                 escrow["refundedAt"] = int(time.time())
                 await self._save_escrow(escrow)
-                print(f"[EscrowClient] Refunded: {escrow['amount_usdc']} USDC -> {escrow['buyer'][:8]}...")
+                logger.info("Refunded: %s USDC -> %s...", escrow['amount_usdc'], escrow['buyer'][:8])
                 return {"success": True, **escrow}
 
             # Revert to locked on failure
             escrow["status"] = "locked"
             await self._save_escrow(escrow)
             error_msg = result.get("error", "unknown")
-            print(f"[Escrow] FAILED refund {escrow_id}: {error_msg}")
+            logger.error("FAILED refund %s: %s", escrow_id, error_msg)
             from security import audit_log
             audit_log("escrow_refund_failed", "system", f"escrow={escrow_id} error={error_msg}")
             return {"success": False, "error": f"Refund echoue: {error_msg}"}
@@ -427,7 +429,7 @@ class EscrowClient:
                         from_address=ESCROW_ADDRESS,
                     )
                 except Exception:
-                    print(f"[Escrow] Commission transfer failed in resolve (non-blocking)")
+                    logger.warning("Commission transfer failed in resolve (non-blocking)")
 
             if result.get("success"):
                 escrow["status"] = "released" if release_to_seller else "refunded"
@@ -443,7 +445,7 @@ class EscrowClient:
             escrow["status"] = "locked"
             await self._save_escrow(escrow)
             error_msg = result.get("error", "unknown")
-            print(f"[Escrow] FAILED resolution {escrow_id}: {error_msg}")
+            logger.error("FAILED resolution %s: %s", escrow_id, error_msg)
             from security import audit_log
             audit_log("escrow_resolution_failed", "system", f"escrow={escrow_id} to={'seller' if release_to_seller else 'buyer'} error={error_msg}")
             return {"success": False, "error": f"Resolution echouee: {error_msg}"}

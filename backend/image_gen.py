@@ -9,6 +9,8 @@ import asyncio, time, uuid, base64, os
 import httpx
 from http_client import get_http_client
 
+logger = logging.getLogger(__name__)
+
 # Together AI — tier gratuit disponible
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
 TOGETHER_URL = "https://api.together.xyz/v1/images/generations"
@@ -50,7 +52,7 @@ BLOCKED_WORDS = [
 _gen_stats = {"total": 0, "success": 0, "blocked": 0, "errors": 0}
 _gen_history: list = []
 
-print(f"[ImageGen] Service initialise — {'Together AI' if TOGETHER_API_KEY else 'Pollinations.ai (gratuit, sans cle)'}")
+logger.info("Service initialise — %s", 'Together AI' if TOGETHER_API_KEY else 'Pollinations.ai (gratuit, sans cle)')
 
 
 def _check_prompt_safety(prompt: str) -> bool:
@@ -106,7 +108,7 @@ async def generate_image(prompt: str, model: str = "flux-schnell",
             "timestamp": int(time.time()),
         }
         _gen_history.append(gen_record)
-        print(f"[ImageGen] Generated: '{prompt[:50]}...' ({model}, {width}x{height})")
+        logger.info("Generated: '%s...' (%s, %dx%d)", prompt[:50], model, width, height)
 
     return result
 

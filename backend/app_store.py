@@ -24,7 +24,8 @@ async def get_featured_agents(db, limit: int = 12) -> list:
     """Get featured agents for the App Store homepage."""
     try:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agent_services WHERE status='active' ORDER BY sales DESC, rating DESC LIMIT ?",
+            "SELECT id, name, description, price_usdc, rating, rating_count, sales, agent_name, type "
+            "FROM agent_services WHERE status='active' ORDER BY sales DESC, rating DESC LIMIT ?",
             (limit,))
         agents = []
         for r in rows:
@@ -50,7 +51,8 @@ async def get_agents_by_category(db, category: str, limit: int = 20) -> list:
     """Get agents filtered by category."""
     try:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agent_services WHERE status='active' AND type=? ORDER BY sales DESC LIMIT ?",
+            "SELECT id, name, description, price_usdc, rating, rating_count, sales, agent_name, type "
+            "FROM agent_services WHERE status='active' AND type=? ORDER BY sales DESC LIMIT ?",
             (category, limit))
         agents = []
         for r in rows:
@@ -76,7 +78,8 @@ async def search_agents(db, query: str, limit: int = 20) -> list:
     """Search agents by name or description."""
     try:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agent_services WHERE status='active' AND (name LIKE ? OR description LIKE ?) ORDER BY sales DESC LIMIT ?",
+            "SELECT id, name, description, price_usdc, rating, rating_count, sales, agent_name, type "
+            "FROM agent_services WHERE status='active' AND (name LIKE ? OR description LIKE ?) ORDER BY sales DESC LIMIT ?",
             (f"%{query}%", f"%{query}%", limit))
         agents = []
         for r in rows:

@@ -149,7 +149,10 @@ async def stop_stream(stream_id: str, wallet: str) -> dict:
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM payment_streams WHERE id = ?", (stream_id,)
+        "SELECT id, payer, receiver, rate_per_hour, started_at, stopped_at, "
+        "max_hours, total_locked, earned_so_far, commission_so_far, "
+        "status, service_id, payment_tx, created_at "
+        "FROM payment_streams WHERE id = ?", (stream_id,)
     )
     if not rows:
         raise HTTPException(404, "Stream introuvable")
@@ -205,7 +208,10 @@ async def get_stream_status(stream_id: str) -> dict:
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM payment_streams WHERE id = ?", (stream_id,)
+        "SELECT id, payer, receiver, rate_per_hour, started_at, stopped_at, "
+        "max_hours, total_locked, earned_so_far, commission_so_far, "
+        "status, service_id, payment_tx, created_at "
+        "FROM payment_streams WHERE id = ?", (stream_id,)
     )
     if not rows:
         raise HTTPException(404, "Stream introuvable")
@@ -274,7 +280,10 @@ async def settle_stream(stream_id: str) -> dict:
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM payment_streams WHERE id = ?", (stream_id,)
+        "SELECT id, payer, receiver, rate_per_hour, started_at, stopped_at, "
+        "max_hours, total_locked, earned_so_far, commission_so_far, "
+        "status, service_id, payment_tx, created_at "
+        "FROM payment_streams WHERE id = ?", (stream_id,)
     )
     if not rows:
         raise HTTPException(404, "Stream introuvable")

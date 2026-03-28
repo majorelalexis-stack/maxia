@@ -164,7 +164,9 @@ async def validate_key(
 
     # Look up in api_keys_v2
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM api_keys_v2 WHERE api_key_hash=?", (key_hash,)
+        "SELECT key_id, api_key_hash, agent_wallet, name, scopes, tier, "
+        "rate_limit_day, created_at, last_used_at, revoked_at "
+        "FROM api_keys_v2 WHERE api_key_hash=?", (key_hash,)
     )
     row = rows[0] if rows else None
 
@@ -207,7 +209,7 @@ async def validate_key(
     # ── Backward compatibility: check legacy agents table ──
     try:
         legacy_rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agents WHERE api_key=?", (raw_key,)
+            "SELECT api_key, wallet, name FROM agents WHERE api_key=?", (raw_key,)
         )
         legacy = legacy_rows[0] if legacy_rows else None
     except Exception:
@@ -265,7 +267,9 @@ async def log_audit(
 async def revoke_key(db, key_id: str, wallet: str) -> dict:
     """Revoke a key. Only the owner (by wallet) can revoke."""
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM api_keys_v2 WHERE key_id=?", (key_id,)
+        "SELECT key_id, api_key_hash, agent_wallet, name, scopes, tier, "
+        "rate_limit_day, created_at, last_used_at, revoked_at "
+        "FROM api_keys_v2 WHERE key_id=?", (key_id,)
     )
     row = rows[0] if rows else None
 
@@ -290,7 +294,9 @@ async def revoke_key(db, key_id: str, wallet: str) -> dict:
 async def list_keys(db, wallet: str) -> list[dict]:
     """List all keys for a wallet. Key hashes are masked — only last 8 chars shown."""
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM api_keys_v2 WHERE agent_wallet=? ORDER BY created_at DESC",
+        "SELECT key_id, api_key_hash, agent_wallet, name, scopes, tier, "
+        "rate_limit_day, created_at, last_used_at, revoked_at "
+        "FROM api_keys_v2 WHERE agent_wallet=? ORDER BY created_at DESC",
         (wallet,),
     )
     result = []

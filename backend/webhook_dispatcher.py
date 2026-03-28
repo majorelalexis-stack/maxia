@@ -187,7 +187,9 @@ async def _deliver(
 async def dispatch(db, command_id: str, result_payload: dict) -> dict:
     """Dispatch result to all registered callbacks for a command_id."""
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM webhook_callbacks WHERE command_id=? AND status='pending'",
+        "SELECT id, buyer_wallet, callback_url, service_id, command_id, "
+        "status, payload, attempts, next_retry_at, created_at "
+        "FROM webhook_callbacks WHERE command_id=? AND status='pending'",
         (command_id,),
     )
 
@@ -247,7 +249,9 @@ async def retry_worker(db):
         try:
             now = int(time.time())
             rows = await db.raw_execute_fetchall(
-                "SELECT * FROM webhook_callbacks WHERE status='pending' "
+                "SELECT id, buyer_wallet, callback_url, service_id, command_id, "
+                "status, payload, attempts, next_retry_at, created_at "
+                "FROM webhook_callbacks WHERE status='pending' "
                 "AND next_retry_at IS NOT NULL AND next_retry_at<=? "
                 "AND attempts < ?",
                 (now, MAX_ATTEMPTS),

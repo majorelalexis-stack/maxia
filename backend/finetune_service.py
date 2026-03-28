@@ -523,4 +523,4 @@ print("MAXIA_TRAINING_COMPLETE")
 '''
 
 
-print("[Finetune] LLM Fine-Tuning as a Service (Unsloth + RunPod) monte")
+log.info("LLM Fine-Tuning as a Service (Unsloth + RunPod) monte")

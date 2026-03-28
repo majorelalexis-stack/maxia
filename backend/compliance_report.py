@@ -17,7 +17,8 @@ async def generate_compliance_report(wallet: str, db, period_days: int = 30) -> 
     # Transactions
     try:
         txs = await db.raw_execute_fetchall(
-            "SELECT * FROM transactions WHERE (buyer=? OR seller=?) AND created_at>? ORDER BY created_at DESC",
+            "SELECT tx_signature, wallet, amount_usdc, purpose, buyer, seller, created_at "
+            "FROM transactions WHERE (buyer=? OR seller=?) AND created_at>? ORDER BY created_at DESC",
             (wallet, wallet, cutoff))
         transactions = [dict(t) for t in txs]
     except Exception:
@@ -26,7 +27,9 @@ async def generate_compliance_report(wallet: str, db, period_days: int = 30) -> 
     # Disputes
     try:
         disputes = await db.raw_execute_fetchall(
-            "SELECT * FROM pod_disputes WHERE data LIKE ? AND created_at>?",
+            "SELECT id, delivery_id, escrow_id, initiator, reason, resolution, "
+            "resolved_at, resolved_by, created_at "
+            "FROM pod_disputes WHERE data LIKE ? AND created_at>?",
             (f"%{wallet}%", cutoff))
         dispute_list = [dict(d) for d in disputes]
     except Exception:

@@ -3,7 +3,9 @@
 SQLite pour dev/low-traffic. PostgreSQL pour prod >10 concurrent writers.
 Usage : DATABASE_URL=postgresql://user:pass@host:5432/maxia dans .env
 """
-import json, time, os, re, aiosqlite
+import json, logging, time, os, re, aiosqlite
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 
 # ── Column whitelists for safe dynamic UPDATE (S-03) ──
@@ -240,7 +242,7 @@ class Database:
                             await conn.execute(stmt)
                         except Exception as e:
                             if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
-                                print(f"[DB] Migration warning: {e}")
+                                logger.warning("Migration warning: %s", e)
             return
         await self._db.executescript(sql)
 
@@ -271,12 +273,12 @@ class Database:
                             pass  # Table/index existe deja
                 self._db = None  # Pas de SQLite
                 await self._run_migrations()
-                print(f"[DB] PostgreSQL connectee: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***'}")
+                logger.info("PostgreSQL connectee: %s", DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***')
                 return
             except ImportError:
-                print("[DB] asyncpg non installe — fallback SQLite")
+                logger.warning("asyncpg non installe — fallback SQLite")
             except Exception as e:
-                print(f"[DB] PostgreSQL error: {e} — fallback SQLite")
+                logger.error("PostgreSQL error: %s — fallback SQLite", e)
 
         # ── SQLite (defaut, dev/low-traffic) ──
         self._pg = None
@@ -286,7 +288,7 @@ class Database:
         await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.executescript(DB_SCHEMA)
         await self._run_migrations()
-        print(f"[DB] SQLite connectee: {DB_PATH}")
+        logger.info("SQLite connectee: %s", DB_PATH)
 
     # ── Schema migration system ──
 
@@ -347,14 +349,14 @@ class Database:
                 try:
                     await self.raw_executescript(sql)
                 except Exception as e:
-                    print(f"[DB] MIGRATION {version} ECHOUEE: {e}")
+                    logger.error("MIGRATION %d ECHOUEE: %s", version, e)
                     break
             from datetime import datetime, timezone
             await self.raw_execute(
                 "INSERT INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
                 (version, datetime.now(timezone.utc).isoformat(), desc))
             applied += 1
-            print(f"[DB] Migration {version} appliquee: {desc}")
+            logger.info("Migration %d appliquee: %s", version, desc)
 
         if applied == 0 and current > 0:
             pass  # Deja a jour

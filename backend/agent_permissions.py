@@ -15,10 +15,13 @@ Keypair : ed25519 (nacl) — cle publique dans DID Document, cle privee donnee 1
 Les caps par defaut sont lies au trust level. L'admin peut override.
 """
 import json
+import logging
 import time
 import uuid
 import hashlib
 import secrets
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from fastapi import HTTPException
 from nacl.signing import SigningKey, VerifyKey
@@ -192,7 +195,10 @@ async def get_or_create_permissions(api_key: str, wallet: str) -> dict:
 
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_permissions WHERE api_key=?", (api_key,))
+        "SELECT agent_id, api_key, wallet, did, uaid, public_key, trust_level, status, scopes, "
+        "max_daily_spend_usd, max_single_tx_usd, daily_spent_usd, daily_spent_date, "
+        "frozen_at, revoked_at, downgraded_from, created_at, updated_at "
+        "FROM agent_permissions WHERE api_key=?", (api_key,))
 
     if rows:
         perms = dict(rows[0])
@@ -260,7 +266,7 @@ async def get_or_create_permissions(api_key: str, wallet: str) -> dict:
                  defaults["max_daily"], defaults["max_single"],
                  0, now[:10], now, now))
         except Exception as e:
-            print(f"[AgentPerms] Create error: {e}")
+            logger.error("Create error: %s", e)
 
     # Update cache
     _perms_cache[api_key] = {"perms": perms, "cached_at": time.time()}
@@ -423,7 +429,7 @@ async def record_spend(api_key: str, amount_usd: float):
             "WHERE api_key = ?",
             (today, amount_usd, amount_usd, today, now, api_key))
     except Exception as e:
-        print(f"[AgentPerms] Record spend error: {e}")
+        logger.error("Record spend error: %s", e)
 
     _invalidate_cache(api_key)
 
@@ -503,7 +509,10 @@ async def get_agent_perms_by_id(agent_id: str) -> dict:
     """Recupere les permissions par agent_id."""
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_permissions WHERE agent_id=?", (agent_id,))
+        "SELECT agent_id, api_key, wallet, did, uaid, public_key, trust_level, status, scopes, "
+        "max_daily_spend_usd, max_single_tx_usd, daily_spent_usd, daily_spent_date, "
+        "frozen_at, revoked_at, downgraded_from, created_at, updated_at "
+        "FROM agent_permissions WHERE agent_id=?", (agent_id,))
     if not rows:
         raise HTTPException(404, f"Agent {agent_id} not found")
     return dict(rows[0])
@@ -548,7 +557,8 @@ async def rotate_agent_key(agent_id: str) -> dict:
 
     # Verifier que l'agent existe
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_permissions WHERE agent_id=?", (agent_id,))
+        "SELECT agent_id, api_key, wallet, did, uaid, trust_level, status "
+        "FROM agent_permissions WHERE agent_id=?", (agent_id,))
     if not rows:
         raise HTTPException(404, f"Agent {agent_id} not found")
 
@@ -603,12 +613,18 @@ async def resolve_agent_public(identifier: str) -> dict:
     db = await _get_db()
 
     # Determiner si c'est un DID ou un UAID
+    # Columns needed for public resolution (agent_id, did, uaid, wallet, trust_level,
+    # status, scopes, created_at, revoked_at, frozen_at)
+    _resolve_cols = (
+        "SELECT agent_id, did, uaid, wallet, trust_level, status, scopes, "
+        "created_at, revoked_at, frozen_at "
+    )
     if identifier.startswith("did:"):
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agent_permissions WHERE did=?", (identifier,))
+            _resolve_cols + "FROM agent_permissions WHERE did=?", (identifier,))
     else:
         rows = await db.raw_execute_fetchall(
-            "SELECT * FROM agent_permissions WHERE uaid=? OR agent_id=?",
+            _resolve_cols + "FROM agent_permissions WHERE uaid=? OR agent_id=?",
             (identifier, identifier))
 
     if not rows:

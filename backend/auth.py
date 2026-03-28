@@ -1,5 +1,8 @@
 """MAXIA Auth V12 - Signature Solana ed25519 + anti-replay"""
+import logging
 import os, time, secrets, hashlib, hmac
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 from nacl.signing import VerifyKey
@@ -30,7 +33,7 @@ _SANDBOX = os.getenv("SANDBOX_MODE", "false").lower() == "true"
 if not _JWT_SECRET or len(_JWT_SECRET) < 16:
     if _SANDBOX:
         _JWT_SECRET = secrets.token_hex(32)
-        print("[Auth] SANDBOX: JWT_SECRET ephemere genere")
+        logger.info("SANDBOX: JWT_SECRET ephemere genere")
     else:
         raise RuntimeError(
             "JWT_SECRET absent ou trop court (<16 chars) en mode production. "
@@ -138,7 +141,7 @@ async def verify_signature(req: AuthRequest):
         vk.verify(message, sig_bytes)
     except (BadSignatureError, Exception) as e:
         _record_failed(req.wallet)
-        print(f"[Auth] Signature verification failed: {e}")
+        logger.warning("Signature verification failed: %s", e)
         raise HTTPException(401, "Authentication failed")
 
     # Consommer le nonce (anti-replay)

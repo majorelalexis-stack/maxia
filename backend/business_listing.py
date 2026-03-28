@@ -200,7 +200,11 @@ async def browse_listings(
 
     # Note: where est construit depuis des conditions parametrees (?), order depuis une whitelist
     # Bandit B608 faux positif — pas d'input user dans le SQL
-    sql = "SELECT * FROM business_listings WHERE " + where + " ORDER BY " + order + " LIMIT 100"  # noqa: S608
+    # All columns needed by _row_to_listing
+    _bl_cols = ("id, seller_id, title, description, agent_id, monthly_revenue_usdc, "
+                "monthly_costs_usdc, clients_count, months_active, asking_price_usdc, "
+                "category, tech_stack, chains, status, created_at, sold_at, buyer_id")
+    sql = "SELECT " + _bl_cols + " FROM business_listings WHERE " + where + " ORDER BY " + order + " LIMIT 100"  # noqa: S608
     rows = await db.raw_execute_fetchall(sql, tuple(params))
 
     return {
@@ -217,7 +221,10 @@ async def get_listing_detail(listing_id: str):
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_listings WHERE id = ?", (listing_id,)
+        "SELECT id, seller_id, title, description, agent_id, monthly_revenue_usdc, "
+        "monthly_costs_usdc, clients_count, months_active, asking_price_usdc, "
+        "category, tech_stack, chains, status, created_at, sold_at, buyer_id "
+        "FROM business_listings WHERE id = ?", (listing_id,)
     )
     if not rows:
         raise HTTPException(404, "Listing introuvable")
@@ -355,7 +362,8 @@ async def make_offer(listing_id: str, req: BusinessOfferRequest, wallet: str = D
 
     # Verifier que le listing existe et est actif
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_listings WHERE id = ? AND status = 'active'", (listing_id,)
+        "SELECT id, seller_id, title, asking_price_usdc, status "
+        "FROM business_listings WHERE id = ? AND status = 'active'", (listing_id,)
     )
     if not rows:
         raise HTTPException(404, "Listing introuvable ou plus actif")
@@ -405,7 +413,8 @@ async def accept_offer(offer_id: str, wallet: str = Depends(require_auth)):
 
     # Recuperer l'offre
     offer_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_offers WHERE id = ? AND status = 'pending'", (offer_id,)
+        "SELECT id, listing_id, buyer_id, offer_usdc, message, status, created_at "
+        "FROM business_offers WHERE id = ? AND status = 'pending'", (offer_id,)
     )
     if not offer_rows:
         raise HTTPException(404, "Offre introuvable ou deja traitee")
@@ -414,7 +423,8 @@ async def accept_offer(offer_id: str, wallet: str = Depends(require_auth)):
 
     # Recuperer le listing associe
     listing_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_listings WHERE id = ? AND status = 'active'", (offer["listing_id"],)
+        "SELECT id, seller_id, title, asking_price_usdc, status "
+        "FROM business_listings WHERE id = ? AND status = 'active'", (offer["listing_id"],)
     )
     if not listing_rows:
         raise HTTPException(404, "Listing introuvable ou plus actif")
@@ -484,7 +494,8 @@ async def withdraw_listing(listing_id: str, wallet: str = Depends(require_auth))
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_listings WHERE id = ? AND status = 'active'", (listing_id,)
+        "SELECT id, seller_id, status "
+        "FROM business_listings WHERE id = ? AND status = 'active'", (listing_id,)
     )
     if not rows:
         raise HTTPException(404, "Listing introuvable ou deja retire/vendu")
@@ -521,7 +532,10 @@ async def my_listings(wallet: str = Depends(require_auth)):
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_listings WHERE seller_id = ? ORDER BY created_at DESC", (wallet,)
+        "SELECT id, seller_id, title, description, agent_id, monthly_revenue_usdc, "
+        "monthly_costs_usdc, clients_count, months_active, asking_price_usdc, "
+        "category, tech_stack, chains, status, created_at, sold_at, buyer_id "
+        "FROM business_listings WHERE seller_id = ? ORDER BY created_at DESC", (wallet,)
     )
 
     listings = []
@@ -537,7 +551,8 @@ async def my_listings(wallet: str = Depends(require_auth)):
 
             # Inclure les offres detaillees pour le vendeur
             offers = await db.raw_execute_fetchall(
-                "SELECT * FROM business_offers WHERE listing_id = ? ORDER BY offer_usdc DESC",
+                "SELECT id, listing_id, buyer_id, offer_usdc, message, status, created_at "
+                "FROM business_offers WHERE listing_id = ? ORDER BY offer_usdc DESC",
                 (listing["id"],),
             )
             listing["offers"] = [_row_to_offer(o) for o in offers]
@@ -553,7 +568,8 @@ async def my_offers(wallet: str = Depends(require_auth)):
     from database import db
 
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM business_offers WHERE buyer_id = ? ORDER BY created_at DESC", (wallet,)
+        "SELECT id, listing_id, buyer_id, offer_usdc, message, status, created_at "
+        "FROM business_offers WHERE buyer_id = ? ORDER BY created_at DESC", (wallet,)
     )
 
     offers = []

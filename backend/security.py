@@ -9,6 +9,8 @@ Inclut:
 """
 import logging
 import re, time, json, os
+
+logger = logging.getLogger(__name__)
 from collections import defaultdict
 from pathlib import Path
 from datetime import datetime
@@ -51,7 +53,7 @@ def audit_log(action: str, ip: str, details: str = "", user: str = "admin"):
         "details": details[:500],
     }
     _audit_buffer.append(entry)
-    print(f"[AUDIT] {action} from {ip}: {details[:100]}")
+    logger.info("[AUDIT] %s from %s: %s", action, ip, details[:100])
     # Flush au disque tous les 5 entrees
     if len(_audit_buffer) >= 5:
         _flush_audit()
@@ -65,7 +67,7 @@ def _flush_audit():
                 f.write(json.dumps(entry) + "\n")
         _audit_buffer = []
     except Exception as e:
-        print(f"[AUDIT] Flush error: {e}")
+        logger.error("[AUDIT] Flush error: %s", e)
 
 
 def get_audit_log(limit: int = 50) -> list:
@@ -111,7 +113,7 @@ def check_jwt_secret():
     secret = os.getenv("JWT_SECRET", "")
     insecure_defaults = ["", "secret", "changeme", "your-secret-key", "maxia", "test"]
     if secret.lower() in insecure_defaults or len(secret) < 16:
-        print("[SECURITY] ⚠️  JWT_SECRET is insecure or missing! Set a strong random value (32+ chars).")
+        logger.warning("JWT_SECRET is insecure or missing! Set a strong random value (32+ chars).")
         return False
     return True
 
@@ -123,8 +125,8 @@ def check_admin_key():
     if SANDBOX_MODE:
         return True  # Pas critique en mode sandbox/dev
     if not admin_key or len(admin_key) < 16:
-        print("[SECURITY] CRITICAL: ADMIN_KEY is missing or too short (< 16 chars)!")
-        print("[SECURITY] CRITICAL: Admin endpoints are vulnerable. Set a strong ADMIN_KEY in .env (32+ chars).")
+        logger.critical("ADMIN_KEY is missing or too short (< 16 chars)!")
+        logger.critical("Admin endpoints are vulnerable. Set a strong ADMIN_KEY in .env (32+ chars).")
         return False
     return True
 
@@ -378,7 +380,7 @@ def check_burst_limit(ip: str) -> bool:
     _burst_store[ip] = [t for t in _burst_store[ip] if t > now - BURST_WINDOW]
     if len(_burst_store[ip]) >= BURST_LIMIT:
         _burst_bans[ip] = now + BURST_BAN_DURATION
-        print(f"[Security] BURST BAN: {ip} ({len(_burst_store[ip])} req/{BURST_WINDOW}s)")
+        logger.warning("BURST BAN: %s (%d req/%ds)", ip, len(_burst_store[ip]), BURST_WINDOW)
         return False
 
     _burst_store[ip].append(now)
@@ -415,7 +417,7 @@ def _save_spend_log(log: dict):
     try:
         _SPEND_FILE.write_text(json.dumps(log))
     except Exception as e:
-        print(f"[Security] Erreur sauvegarde spend log: {e}")
+        logger.error("Erreur sauvegarde spend log: %s", e)
 
 
 def check_financial_limits(amount_usdc: float) -> dict:
@@ -645,7 +647,7 @@ def _load_ofac_list():
         pass
 
     _OFAC_LOADED = True
-    print(f"[OFAC] Loaded {len(_OFAC_SANCTIONED_ADDRESSES)} sanctioned addresses (local list)")
+    logger.info("[OFAC] Loaded %d sanctioned addresses (local list)", len(_OFAC_SANCTIONED_ADDRESSES))
 
 
 def _is_evm_address(address: str) -> bool:
@@ -904,7 +906,7 @@ async def refresh_ofac_list() -> dict:
                 continue
 
     except Exception as e:
-        print(f"[OFAC] Refresh error: {e}")
+        logger.error("[OFAC] Refresh error: %s", e)
         return {"added": added, "total": len(_OFAC_SANCTIONED_ADDRESSES), "error": "An error occurred"[:100]}
 
     # Persister les nouvelles adresses dans le fichier local
@@ -922,10 +924,10 @@ async def refresh_ofac_list() -> dict:
                 + "\n"
             )
         except Exception as e:
-            print(f"[OFAC] Error saving to file: {e}")
+            logger.error("[OFAC] Error saving to file: %s", e)
 
     _OFAC_LAST_REFRESH = now
-    print(f"[OFAC] Refresh complete: +{added} addresses (total: {len(_OFAC_SANCTIONED_ADDRESSES)}) from {len(sources_fetched)} sources")
+    logger.info("[OFAC] Refresh complete: +%d addresses (total: %d) from %d sources", added, len(_OFAC_SANCTIONED_ADDRESSES), len(sources_fetched))
 
     return {
         "added": added,

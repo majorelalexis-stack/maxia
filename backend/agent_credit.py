@@ -15,8 +15,11 @@ Score breakdown :
 
 Tables DB : agent_credits (credit lines), credit_transactions (historique)
 """
+import logging
 import time, uuid, json
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from auth import require_auth
@@ -64,7 +67,7 @@ async def _ensure_schema():
         await db.raw_executescript(_SCHEMA_SQL)
         _schema_created = True
     except Exception as e:
-        print(f"[Credit] Erreur schema: {e}")
+        logger.error("Erreur schema: %s", e)
 
 
 # ── Limites de credit par tranche de score ──
@@ -613,4 +616,4 @@ async def api_credit_status(agent_id: str, request: Request):
     return {"status": "ok", "credit": status}
 
 
-print("[Credit] Agent Credit System charge")
+logger.info("Agent Credit System charge")
