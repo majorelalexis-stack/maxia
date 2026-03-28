@@ -1049,8 +1049,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
           <span id="tt-price-change" style="font-size:13px;font-weight:600">—</span>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn-outline chart-tf active" onclick="setChartTF('1s',this)" style="padding:4px 8px;font-size:11px;color:#10b981;border-color:#10b981">1S</button>
-          <button class="btn-outline chart-tf" onclick="setChartTF('5s',this)" style="padding:4px 8px;font-size:11px;color:#10b981;border-color:#10b981">5S</button>
+          <button class="btn-outline chart-tf" onclick="setChartTF('1s',this)" style="padding:4px 8px;font-size:11px">1S</button>
+          <button class="btn-outline chart-tf active" onclick="setChartTF('5s',this)" style="padding:4px 8px;font-size:11px;color:#10b981;border-color:#10b981">5S</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('1m',this)" style="padding:4px 8px;font-size:11px">1M</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('1h',this)" style="padding:4px 8px;font-size:11px">1H</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('6h',this)" style="padding:4px 8px;font-size:11px">6H</button>
@@ -2307,7 +2307,7 @@ document.getElementById('tt-amount').addEventListener('input', updateTTEstimate)
 // Lightweight Charts v4.2 — price chart with candlesticks + real-time WebSocket
 var _chart = null;
 var _candleSeries = null;
-var _chartTF = '1s';
+var _chartTF = '5s';
 var _chartWS = null;  // WebSocket pour candles live
 var _chartLimits = {'1s': 300, '5s': 300, '1m': 120, '1h': 48, '6h': 48, '1d': 90, '1w': 52};
 var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60, '1h': 3600, '6h': 21600, '1d': 86400};
@@ -2440,7 +2440,7 @@ function _startChartPoll(symbol, interval_s) {
   }
 
   tick();
-  _chartPollTimer = setInterval(tick, 2000);
+  _chartPollTimer = setInterval(tick, 1000);
 }
 
 async function loadChart() {
@@ -2457,7 +2457,7 @@ async function loadChart() {
   if (isLive) {
     // LIVE MODE: Simple REST polling every 2s — works for ALL tokens
     var interval_s = _liveIntervals[_chartTF];
-    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + esc(token) + ' — prix toutes les 2s</span>';
+    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + esc(token) + ' — prix toutes les 1s</span>';
     _startChartPoll(token, interval_s);
   } else {
     // HISTORICAL MODE: Load candles from DB via REST
