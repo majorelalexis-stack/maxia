@@ -94,22 +94,21 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
   <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
   <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
     <a href="/app#swap" style="color:var(--muted)">Swap</a>
+    <a href="/app#stocks" style="color:var(--muted)">Stocks</a>
+    <a href="/app#trading" style="color:var(--muted)">Trading</a>
     <a href="/app#gpu" style="color:var(--muted)">GPU</a>
     <a href="/store" style="color:var(--muted)">App Store</a>
     <a href="/docs" style="color:var(--muted)">API Docs</a>
-    <a href="/compare" style="color:var(--muted)">Compare</a>
-    <a href="/forum" style="color:var(--muted)">Forum</a>
     <a href="/marketplace" style="color:var(--muted)">Marketplace</a>
     <a href="/enterprise" style="color:var(--gold)">Enterprise</a>
-    <a href="/status" style="color:var(--muted)">Status</a>
     <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border-radius:8px;font-weight:600;transition:opacity .2s">Launch App</a>
   </div>
 </nav>
 
 <section class="hero" style="padding-top:70px">
   <h1 class="logo-text">MAXIA</h1>
-  <p class="tagline">Swap on 7 chains. Payments on 14. One platform, lowest fees.</p>
-  <p style="color:var(--muted2);margin-top:12px;font-size:16px;max-width:600px">Swap crypto, buy tokenized stocks, rent GPUs, earn DeFi yields — all settled in USDC. For traders and AI agents.</p>
+  <p class="tagline">Trade crypto + tokenized stocks 24/7. AI chat. Live charts. Lowest fees.</p>
+  <p style="color:var(--muted2);margin-top:12px;font-size:16px;max-width:650px">Swap 65 tokens, trade 25 stocks on-chain, leverage up to 100x, launch tokens, rent GPUs — all in USDC. No signup required to explore.</p>
   <div class="hero-badges" id="badges">
     <span class="badge">Solana</span>
     <span class="badge">Ethereum</span>
@@ -123,7 +122,7 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     <a href="/register" class="btn btn-primary" style="font-size:16px;padding:14px 36px;background:linear-gradient(135deg,#06b6d4,#3b82f6)">Register Your AI Agent</a>
     <a href="/enterprise" class="btn btn-primary" style="font-size:16px;padding:14px 36px;background:linear-gradient(135deg,#f59e0b,#ef4444)">Enterprise</a>
   </div>
-  <p style="color:var(--muted2);font-size:13px;margin-top:16px">Free to use. No signup. Connect wallet and trade.</p>
+  <p style="color:var(--muted2);font-size:13px;margin-top:16px">Free to explore. No signup. Connect wallet only when you trade.</p>
 
   <!-- Stats masquees tant qu'il n'y a pas de volume reel -->
   <div id="landing-stats" style="display:none"></div>
@@ -140,6 +139,30 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     }
   }).catch(()=>{});
   </script>
+
+  <!-- New Features Grid -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;max-width:900px;margin:28px auto 0">
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:6px">&#128172;</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">AI Chat Trading</div>
+      <div style="font-size:11px;color:var(--muted)">Type "swap 10 USDC to SOL" — AI executes</div>
+    </div>
+    <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:6px">&#128200;</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">Live Charts 1s</div>
+      <div style="font-size:11px;color:var(--muted)">Pyth SSE + Chainlink — candlesticks real-time</div>
+    </div>
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:6px">&#128640;</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">Leverage 100x</div>
+      <div style="font-size:11px;color:var(--muted)">Jupiter Perps — SOL, ETH, BTC perpetuals</div>
+    </div>
+    <div style="background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.15);border-radius:12px;padding:16px;text-align:center">
+      <div style="font-size:24px;margin-bottom:6px">&#127942;</div>
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px">Earn Points</div>
+      <div style="font-size:11px;color:var(--muted)">Trade to earn XP, badges, climb leaderboard</div>
+    </div>
+  </div>
 
   <!-- Interactive Swap Demo — No wallet needed -->
   <div class="swap-widget" style="max-width:420px;margin:24px auto 0;background:var(--card);border:1px solid rgba(6,182,212,0.25);border-radius:16px;overflow:hidden;animation:fadeUp 1.6s ease;box-shadow:0 8px 32px rgba(0,0,0,.3)">
@@ -344,16 +367,15 @@ table.ct tr:hover{background:rgba(59,130,246,.03)}
     <p class="section-sub">Compare our fees with crypto/DeFi platforms.</p>
     <div style="overflow-x:auto">
       <table class="ct" style="max-width:700px;margin:0 auto">
-        <tr><th>Platform</th><th>Swap Fee</th><th>Tokenized Stocks</th><th>Chains</th><th>AI Services</th></tr>
-        <tr><td style="font-weight:600;color:var(--cyan)">MAXIA</td><td style="color:var(--green);font-weight:700">0.10%</td><td>25 on-chain</td><td>7 swap / 14 total</td><td style="color:var(--green)">46 MCP tools</td></tr>
-        <tr><td>Jupiter</td><td>0% + slippage</td><td>0</td><td>1</td><td>0</td></tr>
-        <tr><td>Uniswap</td><td>0.30%</td><td>0</td><td>7</td><td>0</td></tr>
-        <tr><td>1inch</td><td>0%</td><td>0</td><td>9</td><td>0</td></tr>
-        <tr><td>Binance</td><td>0.10%</td><td>0</td><td>3</td><td>0</td></tr>
-        <tr><td>Backed Finance</td><td>0.20%</td><td>11 on-chain</td><td>2</td><td>0</td></tr>
+        <tr><th>Platform</th><th>Swap Fee</th><th>Stocks</th><th>Chains</th><th>AI Chat</th><th>Perps</th><th>Oracle</th></tr>
+        <tr><td style="font-weight:600;color:var(--cyan)">MAXIA</td><td style="color:var(--green);font-weight:700">0.10%</td><td>25 on-chain</td><td>14</td><td style="color:var(--green)">Yes</td><td style="color:var(--green)">100x</td><td style="color:var(--green)">6 sources</td></tr>
+        <tr><td>Jupiter</td><td>0% + slippage</td><td>0</td><td>1</td><td>No</td><td>100x</td><td>Pyth</td></tr>
+        <tr><td>Uniswap</td><td>0.30%</td><td>0</td><td>7</td><td>No</td><td>No</td><td>TWAP</td></tr>
+        <tr><td>Solvr</td><td>via Bankr</td><td>0</td><td>8</td><td>Yes</td><td>500x</td><td>None</td></tr>
+        <tr><td>Binance</td><td>0.10%</td><td>0</td><td>3</td><td>No</td><td>125x</td><td>Custom</td></tr>
       </table>
     </div>
-    <p style="color:var(--muted2);font-size:13px;margin-top:16px">MAXIA: Binance-level fees + 25 tokenized stocks on-chain (not a stock exchange) + swap on 7 chains + AI agent marketplace.</p>
+    <p style="color:var(--muted2);font-size:13px;margin-top:16px">MAXIA: Binance-level fees + 25 tokenized stocks + AI chat trading + 100x leverage + 6-source oracle + gamification. No signup to explore.</p>
   </div>
 </section>
 
