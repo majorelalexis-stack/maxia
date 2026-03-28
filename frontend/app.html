@@ -2310,8 +2310,11 @@ function _createChart(container) {
   window.addEventListener('resize', function() { if (_chart) _chart.applyOptions({ width: container.clientWidth }); });
 }
 
+var _chartWSId = 0; // Incremented on each new connection to cancel stale reconnects
 function _connectChartWS(symbol, interval_s) {
-  if (_chartWS) { _chartWS.close(); _chartWS = null; }
+  _chartWSId++;
+  var myId = _chartWSId;
+  if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   _chartWS = new WebSocket(proto + '//' + location.host + '/ws/chart');
   _chartWS.onopen = function() {
@@ -2334,7 +2337,10 @@ function _connectChartWS(symbol, interval_s) {
   _chartWS.onclose = function() {
     var badge = document.getElementById('tt-stream-badge');
     if (badge) { badge.textContent = 'Offline'; badge.className = 'badge'; }
-    setTimeout(function() { if (_chartTF in _liveIntervals) _connectChartWS(symbol, interval_s); }, 3000);
+    // Only reconnect if this is still the current connection (not replaced by a new symbol)
+    if (myId === _chartWSId) {
+      setTimeout(function() { if (myId === _chartWSId && _chartTF in _liveIntervals) _connectChartWS(symbol, interval_s); }, 3000);
+    }
   };
 }
 

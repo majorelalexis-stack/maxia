@@ -318,16 +318,16 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 <!-- TICKER -->
 <div class="ticker">
   <div class="ticker-inner" id="ticker">
-    <div class="ticker-item"><span class="sym">SOL</span><span class="price tk-up" id="tk-SOL">$—</span></div>
-    <div class="ticker-item"><span class="sym">ETH</span><span class="price tk-up" id="tk-ETH">$—</span></div>
-    <div class="ticker-item"><span class="sym">BTC</span><span class="price tk-up" id="tk-BTC">$—</span></div>
-    <div class="ticker-item"><span class="sym">AAPL</span><span class="price" id="tk-AAPL" style="color:var(--gold)">$—</span></div>
-    <div class="ticker-item"><span class="sym">TSLA</span><span class="price" id="tk-TSLA" style="color:var(--gold)">$—</span></div>
-    <div class="ticker-item"><span class="sym">NVDA</span><span class="price" id="tk-NVDA" style="color:var(--gold)">$—</span></div>
-    <div class="ticker-item"><span class="sym">SOL</span><span class="price tk-up">$—</span></div>
-    <div class="ticker-item"><span class="sym">ETH</span><span class="price tk-up">$—</span></div>
-    <div class="ticker-item"><span class="sym">BTC</span><span class="price tk-up">$—</span></div>
-    <div class="ticker-item"><span class="sym">AAPL</span><span class="price" style="color:var(--gold)">$—</span></div>
+    <div class="ticker-item"><span class="sym">SOL</span><span class="price tk-up tk-SOL">$—</span></div>
+    <div class="ticker-item"><span class="sym">ETH</span><span class="price tk-up tk-ETH">$—</span></div>
+    <div class="ticker-item"><span class="sym">BTC</span><span class="price tk-up tk-BTC">$—</span></div>
+    <div class="ticker-item"><span class="sym">AAPL</span><span class="price tk-AAPL" style="color:var(--gold)">$—</span></div>
+    <div class="ticker-item"><span class="sym">TSLA</span><span class="price tk-TSLA" style="color:var(--gold)">$—</span></div>
+    <div class="ticker-item"><span class="sym">NVDA</span><span class="price tk-NVDA" style="color:var(--gold)">$—</span></div>
+    <div class="ticker-item"><span class="sym">SOL</span><span class="price tk-up tk-SOL">$—</span></div>
+    <div class="ticker-item"><span class="sym">ETH</span><span class="price tk-up tk-ETH">$—</span></div>
+    <div class="ticker-item"><span class="sym">BTC</span><span class="price tk-up tk-BTC">$—</span></div>
+    <div class="ticker-item"><span class="sym">AAPL</span><span class="price tk-AAPL" style="color:var(--gold)">$—</span></div>
   </div>
 </div>
 
@@ -516,7 +516,7 @@ const obs=new IntersectionObserver(e=>e.forEach(el=>{if(el.isIntersecting){el.ta
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 
 // Ticker + hero price — always live from Pyth oracle
-function _setTicker(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
+function _setTicker(cls,txt){document.querySelectorAll('.'+cls).forEach(function(el){el.textContent=txt;});}
 async function updatePrices(){
   // Crypto prices — parallel fetch
   var cryptos=[['SOL',2],['ETH',2],['BTC',0]];
