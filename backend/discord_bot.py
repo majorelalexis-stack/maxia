@@ -7,8 +7,11 @@ Regles :
 - Max 3 reponses/jour par serveur
 - Art.1 sur tout le contenu
 """
+import logging
 import asyncio, time, re, json
 import httpx
+
+logger = logging.getLogger(__name__)
 from http_client import get_http_client
 from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL, PORT, GPU_TIERS
 _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
@@ -126,7 +129,7 @@ async def _send_discord_message(channel_id: str, content: str):
     for chunk in chunks:
         resp = await client.post(url, headers=headers, json={"content": chunk}, timeout=10)
         if resp.status_code not in (200, 201):
-                print(f"[DiscordBot] Erreur envoi {resp.status_code}: {resp.text[:100]}")
+                logger.error("Erreur envoi %d: %s", resp.status_code, resp.text[:100])
 
 
 def _check_rate_limit(server_id: str) -> bool:
@@ -176,7 +179,7 @@ async def respond_to_message(channel_id: str, topic: str):
     if not response:
         return
     await _send_discord_message(channel_id, response)
-    print(f"[DiscordBot] Repondu sur topic: {topic}")
+    logger.info("Repondu sur topic: %s", topic)
 
 
 async def run_discord_bot():
@@ -185,10 +188,10 @@ async def run_discord_bot():
     _running = True
 
     if not DISCORD_BOT_TOKEN:
-        print("[DiscordBot] Token absent — bot desactive")
+        logger.warning("Token absent — bot desactive")
         return
 
-    print("[DiscordBot] Bot demarre — mode reponse intelligente + CEO chat")
+    logger.info("Bot demarre — mode reponse intelligente + CEO chat")
 
     gateway_url = "wss://gateway.discord.gg/?v=10&encoding=json"
     sequence = None
@@ -204,7 +207,7 @@ async def run_discord_bot():
                 hello_raw = await asyncio.wait_for(ws.recv(), timeout=15)
                 hello = json.loads(hello_raw)
                 if hello.get("op") != 10:
-                    print(f"[DiscordBot] Expected Hello (op10), got op{hello.get('op')}")
+                    logger.warning("Expected Hello (op10), got op%s", hello.get('op'))
                     await asyncio.sleep(5)
                     continue
                 heartbeat_interval = hello["d"]["heartbeat_interval"] / 1000
@@ -215,7 +218,7 @@ async def run_discord_bot():
                         "op": 6,
                         "d": {"token": DISCORD_BOT_TOKEN, "session_id": session_id, "seq": sequence},
                     }))
-                    print("[DiscordBot] Resume envoyee")
+                    logger.info("Resume envoyee")
                 else:
                     await ws.send(json.dumps({
                         "op": 2,
@@ -234,7 +237,7 @@ async def run_discord_bot():
                     while _running:
                         await asyncio.sleep(heartbeat_interval)
                         if not _hb_ack:
-                            print("[DiscordBot] Heartbeat ACK manque — reconnexion")
+                            logger.warning("Heartbeat ACK manque — reconnexion")
                             await ws.close(4000)
                             return
                         _hb_ack = False
@@ -252,7 +255,7 @@ async def run_discord_bot():
                     except asyncio.TimeoutError:
                         continue
                     except Exception as e:
-                        print(f"[DiscordBot] Recv error: {e}")
+                        logger.error("Recv error: %s", e)
                         break
 
                     event = json.loads(raw)
@@ -270,12 +273,12 @@ async def run_discord_bot():
 
                     # Reconnect requested
                     if op == 7:
-                        print("[DiscordBot] Reconnect demandee par Discord")
+                        logger.info("Reconnect demandee par Discord")
                         break
 
                     # Invalid session
                     if op == 9:
-                        print("[DiscordBot] Session invalide — reset")
+                        logger.warning("Session invalide — reset")
                         session_id = None
                         resume_url = None
                         sequence = None
@@ -296,10 +299,10 @@ async def run_discord_bot():
                                 resume_url += "?v=10&encoding=json"
                             bot_name = d.get("user", {}).get("username", "?")
                             guilds = len(d.get("guilds", []))
-                            print(f"[DiscordBot] Ready — {bot_name} (ID:{_bot_user_id}) — {guilds} serveurs")
+                            logger.info("Ready — %s (ID:%s) — %d serveurs", bot_name, _bot_user_id, guilds)
 
                         elif event_type == "RESUMED":
-                            print("[DiscordBot] Session resumed OK")
+                            logger.info("Session resumed OK")
 
                         elif event_type == "MESSAGE_CREATE":
                             data = event.get("d", {})
@@ -323,26 +326,26 @@ async def run_discord_bot():
                                         "Je suis le CEO de MAXIA. Pose-moi une question ou donne-moi un ordre.")
                                     continue
 
-                                print(f"[DiscordBot] {'DM' if is_dm else 'Mention'} de {user_name}: {clean_msg[:60]}...")
+                                logger.info("%s de %s: %s...", 'DM' if is_dm else 'Mention', user_name, clean_msg[:60])
                                 try:
                                     ceo_response = await _ask_ceo(clean_msg, user_name)
                                     await _send_discord_message(channel_id, ceo_response)
                                 except Exception as e:
-                                    print(f"[DiscordBot] CEO response error: {e}")
+                                    logger.error("CEO response error: %s", e)
                                     await _send_discord_message(channel_id, f"Erreur CEO: {e}")
                                 continue
 
                             # === Serveur: detection mots-cles ===
                             topic = _detect_topic(content)
                             if topic and _check_rate_limit(guild_id):
-                                print(f"[DiscordBot] Question detectee ({topic}): {content[:60]}...")
+                                logger.info("Question detectee (%s): %s...", topic, content[:60])
                                 await respond_to_message(channel_id, topic)
                                 _increment_rate(guild_id)
 
                 hb_task.cancel()
 
         except Exception as e:
-            print(f"[DiscordBot] Connection error: {e}")
+            logger.error("Connection error: %s", e)
 
         if _running:
             await asyncio.sleep(5)

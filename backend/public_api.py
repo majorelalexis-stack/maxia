@@ -2043,18 +2043,20 @@ async def discover_services(
     # This avoids stale in-memory cache issues and ensures fresh results
     try:
         from database import db
+        _svc_cols = ("id, agent_api_key, agent_name, agent_wallet, name, description, "
+                     "type, price_usdc, endpoint, status, rating, rating_count, sales, listed_at")
         if capability_lower:
             query = (
-                "SELECT * FROM agent_services WHERE status='active' "
+                f"SELECT {_svc_cols} FROM agent_services WHERE status='active' "
                 "AND (LOWER(type) LIKE ? OR LOWER(name) LIKE ? OR LOWER(description) LIKE ?)"
             )
             cap_pattern = f"%{capability_lower}%"
             rows = await db.raw_execute_fetchall(query, (cap_pattern, cap_pattern, cap_pattern))
         elif agent_type:
-            query = "SELECT * FROM agent_services WHERE status='active' AND LOWER(type) LIKE ?"
+            query = f"SELECT {_svc_cols} FROM agent_services WHERE status='active' AND LOWER(type) LIKE ?"
             rows = await db.raw_execute_fetchall(query, (f"%{agent_type.lower()}%",))
         else:
-            query = "SELECT * FROM agent_services WHERE status='active'"
+            query = f"SELECT {_svc_cols} FROM agent_services WHERE status='active'"
             rows = await db.raw_execute_fetchall(query, ())
         db_services = [dict(r) for r in rows]
     except Exception as e:

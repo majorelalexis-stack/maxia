@@ -14,6 +14,8 @@ from http_client import get_http_client
 from config import TREASURY_ADDRESS, get_rpc_url
 from security import require_ofac_clear
 
+logger = logging.getLogger(__name__)
+
 # ── Disclaimer legal (inclus dans les reponses API) ──
 STOCK_DISCLAIMER = (
     "Tokenized stocks are synthetic on-chain assets — NOT traditional equities. "
@@ -56,9 +58,9 @@ async def _ensure_price_audit_schema():
         from database import db
         await db.raw_executescript(_PRICE_AUDIT_SCHEMA)
         _price_audit_schema_ready = True
-        print("[Stocks] Schema price_audit_log pret")
+        logger.info("Schema price_audit_log pret")
     except Exception as e:
-        print(f"[Stocks] Erreur schema price_audit_log: {e}")
+        logger.error("Erreur schema price_audit_log: %s", e)
 
 
 async def _log_price_audit(symbol: str, price: float, source: str,
@@ -88,7 +90,7 @@ async def _log_price_audit(symbol: str, price: float, source: str,
             ),
         )
     except Exception as e:
-        print(f"[Stocks] Erreur audit log: {e}")
+        logger.error("Erreur audit log: %s", e)
 
 
 # ── Item 6: Spread dynamique quand prix vieux ──
@@ -498,10 +500,10 @@ async def auto_discover_xstocks() -> list:
                         }
                         TOKENIZED_STOCKS[base_sym] = new_stock
                         discovered.append({"symbol": base_sym, "name": token.get("name", ""), "mint": token.get("address", "")})
-                        print(f"[Stocks] Auto-discovered: {base_sym} ({token.get('name', '')})")
+                        logger.info("Auto-discovered: %s (%s)", base_sym, token.get('name', ''))
 
     except Exception as e:
-        print(f"[Stocks] Auto-discovery error: {e}")
+        logger.error("Auto-discovery error: %s", e)
 
     # 2. Scanner Jupiter pour les tokens Backed (bTokens) via tags
     try:
@@ -528,9 +530,9 @@ async def auto_discover_xstocks() -> list:
                         }
                         TOKENIZED_STOCKS[sym] = new_stock
                         discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": bt.get("address", "")})
-                        print(f"[Stocks] Backed discovered: {sym}")
+                        logger.info("Backed discovered: %s", sym)
     except Exception as e:
-        print(f"[Stocks] Backed scan error: {e}")
+        logger.error("Backed scan error: %s", e)
 
     # 3. Scanner Jupiter pour les tokens Ondo (suffix ON ou ondo dans le nom)
     # Note: Ondo n'a pas d'API publique — on detecte via Jupiter token list
@@ -558,15 +560,15 @@ async def auto_discover_xstocks() -> list:
                         }
                         TOKENIZED_STOCKS[sym] = new_stock
                         discovered.append({"symbol": sym, "name": ot.get("name", "")})
-                        print(f"[Stocks] Ondo discovered: {sym}")
+                        logger.info("Ondo discovered: %s", sym)
     except Exception as e:
-        print(f"[Stocks] Ondo scan error: {e}")
+        logger.error("Ondo scan error: %s", e)
 
     _discovery_cache = discovered
     _discovery_ts = time.time()
 
     if discovered:
-        print(f"[Stocks] Auto-discovery: {len(discovered)} nouvelles actions trouvees")
+        logger.info("Auto-discovery: %d nouvelles actions trouvees", len(discovered))
         try:
             from alerts import alert_system
             import asyncio
@@ -603,9 +605,9 @@ async def _ensure_portfolios_loaded():
         _portfolios = await db.get_all_stock_portfolios()
         _stock_trades = await db.get_stock_trades(500)
         if _portfolios:
-            print(f"[Stocks] Loaded {len(_portfolios)} portfolios from DB")
+            logger.info("Loaded %d portfolios from DB", len(_portfolios))
     except Exception as e:
-        print(f"[Stocks] DB load error: {e}")
+        logger.error("DB load error: %s", e)
 
 
 async def _persist_holding(api_key: str, symbol: str, shares: float):
@@ -661,7 +663,7 @@ async def fetch_stock_prices() -> dict:
                 "source": source,
             }
     except Exception as e:
-        print(f"[Stocks] Price oracle error: {e}")
+        logger.error("Price oracle error: %s", e)
 
     # Fallback si rien
     if not prices:
@@ -683,8 +685,8 @@ class TokenizedStockExchange:
 
     def __init__(self):
         self._last_discovery = 0
-        print("[Stocks] Actions tokenisees on-chain initialisee — "
-              f"{len(TOKENIZED_STOCKS)} actions disponibles")
+        logger.info("Actions tokenisees on-chain initialisee — %d actions disponibles",
+                     len(TOKENIZED_STOCKS))
 
     async def list_stocks(self) -> dict:
         await _ensure_portfolios_loaded()
@@ -837,7 +839,7 @@ class TokenizedStockExchange:
 
         # ── Oracle Safety Guard 1: Bloquer TOUT trade si prix fallback (oracles down) ──
         if price_source == "fallback":
-            print(f"[Stocks] BLOCKED buy {symbol} ${amount_usdc} — all oracles unavailable (fallback price)")
+            logger.warning("BLOCKED buy %s $%s — all oracles unavailable (fallback price)", symbol, amount_usdc)
             return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
 
         # ── Oracle Safety Guard 2: Check Pyth staleness ──
@@ -910,7 +912,7 @@ class TokenizedStockExchange:
                 swap_result = await buy_token_via_jupiter(mint_sol, net_amount, buyer_wallet)
                 route_used = "Jupiter (Solana)"
             except Exception as e:
-                print(f"[Stocks] Jupiter route failed for {symbol}: {e}")
+                logger.error("Jupiter route failed for %s: %s", symbol, e)
 
         # Route 2: Ethereum/Arbitrum via 1inch API
         if not swap_result or not swap_result.get("success"):
@@ -930,13 +932,13 @@ class TokenizedStockExchange:
                 try:
                     swap_result = await _swap_evm_1inch(evm_chain_id, evm_mint, net_amount, buyer_wallet)
                 except Exception as e:
-                    print(f"[Stocks] 1inch route failed for {symbol}: {e}")
+                    logger.error("1inch route failed for %s: %s", symbol, e)
 
         if not swap_result or not swap_result.get("success"):
             err = swap_result.get("error", "No swap route available") if swap_result else "No on-chain token found"
             return {"success": False, "error": f"Swap failed: {err}"}
 
-        print(f"[Stocks] {route_used} swap OK: {swap_result.get('signature', swap_result.get('tx_hash', ''))[:16]}...")
+        logger.info("%s swap OK: %s...", route_used, swap_result.get('signature', swap_result.get('tx_hash', ''))[:16])
 
         # Isolation multi-tenant
         from tenant_isolation import get_current_tenant
@@ -987,7 +989,7 @@ class TokenizedStockExchange:
         except Exception:
             pass
 
-        print(f"[Stocks] BUY {shares:.4f} {symbol} @ ${price} par {buyer_name} — commission {commission} USDC")
+        logger.info("BUY %.4f %s @ $%s par %s — commission %s USDC", shares, symbol, price, buyer_name, commission)
 
         return {
             "success": True,
@@ -1030,7 +1032,7 @@ class TokenizedStockExchange:
         gross_usdc_est = round(shares * price, 4)
         # Bloquer TOUT trade si prix fallback (oracles down)
         if price_source == "fallback":
-            print(f"[Stocks] BLOCKED sell {symbol} {shares} shares (~${gross_usdc_est}) — all oracles unavailable (fallback price)")
+            logger.warning("BLOCKED sell %s %s shares (~$%s) — all oracles unavailable (fallback price)", symbol, shares, gross_usdc_est)
             return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
         pyth_data = {}
         try:
@@ -1118,7 +1120,7 @@ class TokenizedStockExchange:
                 except Exception:
                     pass
 
-                print(f"[Stocks] SELL {shares:.4f} {symbol} @ ${price} par {seller_name} — commission {commission} USDC")
+                logger.info("SELL %.4f %s @ $%s par %s — commission %s USDC", shares, symbol, price, seller_name, commission)
 
                 return {
                     "success": True,

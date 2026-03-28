@@ -20,10 +20,13 @@ Contenu automatique :
   - Rapport quotidien Discord + Telegram
   - Comparatif fees hebdo
 """
+import logging
 import asyncio, time
 from datetime import date
 import httpx
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 from config import (
     get_rpc_url, GROQ_API_KEY, GROQ_MODEL,
@@ -121,11 +124,11 @@ class GrowthAgent:
         self._total_spend = 0.0
         self._max_per_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_wallet = 2
-        print("[GrowthAgent] Agent marketing ultra-cible initialise")
+        logger.info("Agent marketing ultra-cible initialise")
 
     async def run(self):
         self._running = True
-        print(f"[GrowthAgent] Demarre — max {self._max_per_day}/jour, ciblage precis")
+        logger.info("Demarre — max %d/jour, ciblage precis", self._max_per_day)
         await alert_system(
             "Agent Marketing Ultra-Cible demarre",
             f"Max {self._max_per_day} prospects/jour\n"
@@ -150,7 +153,7 @@ class GrowthAgent:
                     await self._contact_prospect(wallet, profile, analysis)
                     await asyncio.sleep(15)
             except Exception as e:
-                print(f"[GrowthAgent] Erreur: {e}")
+                logger.error("Erreur: %s", e)
                 await alert_error("GrowthAgent", str(e))
             await asyncio.sleep(14400)  # 4 heures (economie tokens)
 
@@ -171,7 +174,7 @@ class GrowthAgent:
                             analysis["fees_estimate"] = fees
                             prospects.append((w, "active_trader", analysis))
         except Exception as e:
-            print(f"[GrowthAgent] Jupiter scan error: {e}")
+            logger.error("Jupiter scan error: %s", e)
         try:
             for mint in XSTOCK_MINTS[:2]:
                 holders = await self._scan_token_holders(mint)
@@ -181,7 +184,7 @@ class GrowthAgent:
                         if analysis.get("balance", 0) >= PROSPECT_MIN_SOL:
                             prospects.append((w, "xstock_holder", analysis))
         except Exception as e:
-            print(f"[GrowthAgent] xStock scan error: {e}")
+            logger.error("xStock scan error: %s", e)
         try:
             recent = await self._scan_recent_blocks()
             for w in recent:
@@ -199,14 +202,14 @@ class GrowthAgent:
                     else:
                         prospects.append((w, "active_trader", analysis))
         except Exception as e:
-            print(f"[GrowthAgent] Recent scan error: {e}")
+            logger.error("Recent scan error: %s", e)
         seen = set()
         unique = []
         for w, p, a in prospects:
             if w not in seen:
                 seen.add(w)
                 unique.append((w, p, a))
-        print(f"[GrowthAgent] {len(unique)} prospects qualifies trouves")
+        logger.info("%d prospects qualifies trouves", len(unique))
         return unique[:self._max_per_day]
 
     async def _analyze_wallet(self, wallet: str) -> dict:
@@ -288,7 +291,7 @@ class GrowthAgent:
             from security import check_financial_limits, record_spend
             can_spend = check_financial_limits(0.00001)
             if not can_spend:
-                print(f"[GrowthAgent] Financial limit reached — skipping {wallet[:12]}")
+                logger.warning("Financial limit reached — skipping %s", wallet[:12])
                 return
         except Exception:
             pass
@@ -306,7 +309,7 @@ class GrowthAgent:
             self._prospects_today.append(wallet)
             self._daily_spend += 0.00001
             self._total_prospects += 1
-            print(f"[GrowthAgent] [{profile}] ({balance:.0f} SOL, tx:{analysis.get('tx_count',0)}): {wallet[:8]}...")
+            logger.info("[%s] (%.0f SOL, tx:%s): %s...", profile, balance, analysis.get('tx_count', 0), wallet[:8])
             await alert_prospect_contacted(wallet, f"[{profile.upper()}] {message[:80]}")
 
     async def _generate_value_message(self, wallet: str, profile: str, analysis: dict) -> str:
@@ -394,7 +397,7 @@ class GrowthAgent:
                             wallets.append(signer)
                 await asyncio.sleep(0.5)
         except Exception as e:
-            print(f"[GrowthAgent] Program scan error: {e}")
+            logger.error("Program scan error: %s", e)
         return wallets
 
     async def _scan_token_holders(self, mint: str) -> list:
@@ -423,7 +426,7 @@ class GrowthAgent:
                         holders.append(owner)
             await asyncio.sleep(1)
         except Exception as e:
-            print(f"[GrowthAgent] Token holders error: {e}")
+            logger.error("Token holders error: %s", e)
         return holders
 
     async def _scan_recent_blocks(self) -> list:
@@ -453,7 +456,7 @@ class GrowthAgent:
                             if signer and signer not in wallets and signer != TREASURY_ADDRESS and signer != MARKETING_WALLET_ADDRESS:
                                 wallets.append(signer)
         except Exception as e:
-            print(f"[GrowthAgent] Block scan error: {e}")
+            logger.error("Block scan error: %s", e)
         return wallets[:15]
 
     def _can_contact_wallet(self, wallet: str) -> bool:
@@ -471,7 +474,7 @@ class GrowthAgent:
         today = date.today().isoformat()
         if self._daily_date != today:
             if self._daily_date and self._prospects_today:
-                print(f"[GrowthAgent] Bilan {self._daily_date}: {len(self._prospects_today)} prospects contactes")
+                logger.info("Bilan %s: %d prospects contactes", self._daily_date, len(self._prospects_today))
             self._daily_date = today
             self._prospects_today = []
             self._daily_spend = 0.0
@@ -487,11 +490,11 @@ class GrowthAgent:
         reserve_sol = GROWTH_RESERVE_ALERT / 150  # Approximate SOL price
         if balance < 0.001:
             await alert_low_balance(balance, MARKETING_WALLET_ADDRESS)
-            print(f"[GrowthAgent] CRITICAL: wallet empty ({balance:.6f} SOL)")
+            logger.critical("wallet empty (%.6f SOL)", balance)
             return False
         if balance < max(0.05, reserve_sol):
             await alert_low_balance(balance, MARKETING_WALLET_ADDRESS)
-            print(f"[GrowthAgent] WARNING: low balance ({balance:.4f} SOL)")
+            logger.warning("low balance (%.4f SOL)", balance)
         return True
 
     def get_stats(self) -> dict:

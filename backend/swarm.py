@@ -25,6 +25,7 @@ from config import (
 )
 from alerts import alert_system, alert_error
 
+logger = logging.getLogger(__name__)
 
 # ── Groq client ──
 groq_client = None
@@ -200,7 +201,7 @@ class Swarm:
         self._clones: dict = {}  # clone_id -> Clone
         self._running = False  # (#15) graceful shutdown flag
         self._niche_scores: dict = {}  # niche -> profitability score
-        print(f"[Swarm] Swarm initialized -- {len(NICHE_TEMPLATES)} niches available")
+        logger.info("Swarm initialized -- %d niches available", len(NICHE_TEMPLATES))
 
     # ── Niche analysis ──
 
@@ -237,7 +238,7 @@ class Swarm:
                         "high" if count > 10 else "medium" if count > 3 else "low"
                     )
                 except Exception as e:
-                    print(f"[Swarm] ERROR analyzing niche {niche_id}: {e}")
+                    logger.error("ERROR analyzing niche %s: %s", niche_id, e)
                     score["potential_score"] = 50  # Default score
 
             # Use Groq to evaluate the niche
@@ -248,7 +249,7 @@ class Swarm:
                     if "high" in analysis.lower() or "strong" in analysis.lower():
                         score["potential_score"] = min(100, score["potential_score"] + 30)
                 except Exception as e:
-                    print(f"[Swarm] ERROR in AI niche analysis: {e}")
+                    logger.error("ERROR in AI niche analysis: %s", e)
 
             score["recommended"] = score["potential_score"] >= 40
             scores.append(score)
@@ -306,7 +307,7 @@ class Swarm:
         # (#5) Persist to DB
         await self._persist_clone(clone)
 
-        print(f"[Swarm] Clone created: {clone.name} ({niche}) -- ID: {clone_id}")
+        logger.info("Clone created: %s (%s) -- ID: %s", clone.name, niche, clone_id)
         await alert_system(
             f"New clone: {clone.name}",
             f"Niche: {niche}\nPrice: ${template['base_price_usdc']}/req\nCommission: {template['commission_bps']} BPS",
@@ -396,7 +397,7 @@ class Swarm:
                 "result_hash": hashlib.sha256(result.encode()).hexdigest(),
             }
         except Exception as e:
-            print(f"[Swarm] ERROR in process_request: {e}")
+            logger.error("ERROR in process_request: %s", e)
             return {"success": False, "error": "An error occurred"}
 
     # ── Clone management ──
@@ -407,7 +408,7 @@ class Swarm:
             return {"success": False, "error": "Clone not found"}
         clone.status = "paused"
         await self._persist_clone(clone)  # (#5)
-        print(f"[Swarm] Clone paused: {clone.name}")
+        logger.info("Clone paused: %s", clone.name)
         return {"success": True, "status": "paused"}
 
     async def resume_clone(self, clone_id: str) -> dict:
@@ -416,7 +417,7 @@ class Swarm:
             return {"success": False, "error": "Clone not found"}
         clone.status = "active"
         await self._persist_clone(clone)  # (#5)
-        print(f"[Swarm] Clone resumed: {clone.name}")
+        logger.info("Clone resumed: %s", clone.name)
         return {"success": True, "status": "active"}
 
     async def stop_clone(self, clone_id: str) -> dict:
@@ -425,7 +426,7 @@ class Swarm:
             return {"success": False, "error": "Clone not found"}
         clone.status = "stopped"
         await self._persist_clone(clone)  # (#5)
-        print(f"[Swarm] Clone stopped: {clone.name}")
+        logger.info("Clone stopped: %s", clone.name)
         return {"success": True, "status": "stopped"}
 
     # ── Swarm monitoring ──
@@ -433,7 +434,7 @@ class Swarm:
     async def run_monitor(self):
         """Swarm monitoring loop. Runs every 5 minutes."""
         self._running = True  # (#15) graceful shutdown flag
-        print("[Swarm] Monitor started")
+        logger.info("Monitor started")
 
         # Auto-deploy all bots on first run
         await asyncio.sleep(30)  # Wait for server startup
@@ -446,24 +447,23 @@ class Swarm:
                 total_royalties = sum(c.queen_royalties_paid for c in self._clones.values())
 
                 if active:
-                    print(
-                        f"[Swarm] {len(active)} active clones | "
-                        f"Rev: {total_rev:.2f} USDC | "
-                        f"Royalties: {total_royalties:.2f} USDC"
+                    logger.info(
+                        "%d active clones | Rev: %.2f USDC | Royalties: %.2f USDC",
+                        len(active), total_rev, total_royalties
                     )
             except Exception as e:
-                print(f"[Swarm] ERROR in monitor: {e}")
+                logger.error("ERROR in monitor: %s", e)
 
             await asyncio.sleep(300)
 
     def stop(self):
         """Graceful shutdown of the monitor loop (#15)."""
         self._running = False
-        print("[Swarm] Monitor stop requested")
+        logger.info("Monitor stop requested")
 
     async def auto_deploy_all(self):
         """Deploy all niche bots as INTERNAL execution engines. NOT visible on marketplace."""
-        print("[Swarm] Deploying internal execution bots (invisible to marketplace)...")
+        logger.info("Deploying internal execution bots (invisible to marketplace)...")
 
         for niche_id, template in NICHE_TEMPLATES.items():
             existing = [c for c in self._clones.values() if c.niche == niche_id and c.status == "active"]
@@ -476,12 +476,12 @@ class Swarm:
                 clone.status = "active"
                 self._clones[clone_id] = clone
                 await self._persist_clone(clone)  # (#5)
-                print(f"[Swarm] {template['name']} ready (internal fallback)")
+                logger.info("%s ready (internal fallback)", template['name'])
             except Exception as e:
-                print(f"[Swarm] ERROR deploying {niche_id}: {e}")
+                logger.error("ERROR deploying %s: %s", niche_id, e)
 
         active = len([c for c in self._clones.values() if c.status == "active"])
-        print(f"[Swarm] {active} internal bots ready as fallback execution engines")
+        logger.info("%d internal bots ready as fallback execution engines", active)
 
     async def _register_bot(self, template: dict) -> dict:
         """Register a bot agent on MAXIA marketplace."""
@@ -495,7 +495,7 @@ class Swarm:
                 if r.status_code == 200:
                     return r.json()
         except Exception as e:
-            print(f"[Swarm] ERROR registering bot: {e}")
+            logger.error("ERROR registering bot: %s", e)
         return {}
 
     async def _list_service(self, api_key: str, template: dict) -> dict:
@@ -527,7 +527,7 @@ class Swarm:
                 if r.status_code == 200:
                     return r.json()
         except Exception as e:
-            print(f"[Swarm] ERROR listing service: {e}")
+            logger.error("ERROR listing service: %s", e)
         return {}
 
     async def execute_for_buyer(self, niche: str, prompt: str) -> str:
@@ -577,7 +577,7 @@ class Swarm:
 
             return result
         except Exception as e:
-            print(f"[Swarm] ERROR in execute_for_buyer: {e}")
+            logger.error("ERROR in execute_for_buyer: %s", e)
             return f"Execution error: {e}"
 
     # ── Database persistence (#5) ──
@@ -595,14 +595,14 @@ class Swarm:
                  clone.wallet_address, clone.created_at),
             )
         except Exception as e:
-            print(f"[Swarm] ERROR persisting clone {clone.clone_id}: {e}")
+            logger.error("ERROR persisting clone %s: %s", clone.clone_id, e)
 
     async def load_clones_from_db(self):
         """Load active clones from database on startup."""
         try:
             from database import db
             rows = await db.raw_execute_fetchall(
-                "SELECT * FROM swarm_clones WHERE status IN ('active','paused')"
+                "SELECT clone_id, niche, name, status, total_requests, total_revenue, wallet_address, created_at FROM swarm_clones WHERE status IN ('active','paused')"
             )
             for row in rows:
                 niche = row[1] if isinstance(row, (list, tuple)) else row["niche"]
@@ -618,9 +618,9 @@ class Swarm:
                 clone.created_at = row[7] if isinstance(row, (list, tuple)) else row["created_at"]
                 self._clones[clone_id] = clone
             if rows:
-                print(f"[Swarm] Loaded {len(rows)} clones from database")
+                logger.info("Loaded %d clones from database", len(rows))
         except Exception as e:
-            print(f"[Swarm] ERROR loading clones from DB: {e}")
+            logger.error("ERROR loading clones from DB: %s", e)
 
     # ── Stats ──
 

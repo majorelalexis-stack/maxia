@@ -6,8 +6,11 @@ Le bot gere un canal @MAXIA_alerts avec :
 - Comparatif hebdo MAXIA vs concurrence
 - NE rejoint aucun groupe externe
 """
+import logging
 import asyncio, time, json
 import httpx
+
+logger = logging.getLogger(__name__)
 from http_client import get_http_client
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL, PORT
 
@@ -27,7 +30,7 @@ def get_approval_result(action_id: str) -> str | None:
 async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
     """Envoie un message sur le canal Telegram MAXIA."""
     if not TELEGRAM_BOT_TOKEN:
-        print(f"[Telegram] Token absent — message ignore")
+        logger.warning("Token absent — message ignore")
         return False
 
     try:
@@ -41,13 +44,13 @@ async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
         client = get_http_client()
         resp = await client.post(url, json=payload, timeout=10)
         if resp.status_code == 200:
-            print(f"[Telegram] Message envoye")
+            logger.info("Message envoye")
             return True
         else:
-            print(f"[Telegram] Erreur {resp.status_code}: {resp.text[:100]}")
+            logger.error("Erreur %d: %s", resp.status_code, resp.text[:100])
             return False
     except Exception as e:
-        print(f"[Telegram] Erreur: {e}")
+        logger.error("Erreur: %s", e)
         return False
 
 
@@ -130,7 +133,7 @@ async def check_and_alert_stocks():
                 await send_market_alert(sym, data.get("name", sym), change, data.get("price", 0))
                 await asyncio.sleep(2)  # Rate limit Telegram
     except Exception as e:
-        print(f"[Telegram] Stock check error: {e}")
+        logger.error("Stock check error: %s", e)
 
 
 async def handle_telegram_updates():
@@ -138,7 +141,7 @@ async def handle_telegram_updates():
     if not TELEGRAM_BOT_TOKEN:
         return
     last_update_id = 0
-    print("[Telegram] Incoming message handler started")
+    logger.info("Incoming message handler started")
     while True:
         try:
             client = get_http_client()
@@ -198,7 +201,7 @@ async def handle_telegram_updates():
                                 await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
                                     json={"chat_id": cb_chat, "message_id": cb_msg_id,
                                           "text": f"\u2705 APPROUVE — {action_id}"})
-                            print(f"[Telegram] CEO Local approve: {action_id}")
+                            logger.info("CEO Local approve: %s", action_id)
 
                         elif cb_data.startswith("deny:"):
                             action_id = cb_data[5:]
@@ -209,10 +212,10 @@ async def handle_telegram_updates():
                                 await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
                                     json={"chat_id": cb_chat, "message_id": cb_msg_id,
                                           "text": f"\u274c REFUSE — {action_id}"})
-                            print(f"[Telegram] CEO Local deny: {action_id}")
+                            logger.info("CEO Local deny: %s", action_id)
 
                     except Exception as e:
-                        print(f"[Telegram] Callback error: {e}")
+                        logger.error("Callback error: %s", e)
                     continue
 
                 msg = update.get("message", {})
@@ -228,7 +231,7 @@ async def handle_telegram_updates():
                 except Exception as e:
                     await _send_to_chat(chat_id, f"Erreur: {e}")
         except Exception as e:
-            print(f"[Telegram] Update error: {e}")
+            logger.error("Update error: %s", e)
         await asyncio.sleep(1)
 
 
@@ -260,13 +263,13 @@ async def run_telegram_bot():
     _running = True
 
     if not TELEGRAM_BOT_TOKEN:
-        print("[Telegram] Token absent — bot desactive")
+        logger.warning("Token absent — bot desactive")
         return
 
     # Launch incoming message handler as concurrent task
     asyncio.create_task(handle_telegram_updates())
 
-    print("[Telegram] Bot demarre — canal d'alertes actif")
+    logger.info("Bot demarre — canal d'alertes actif")
 
     # Message de demarrage — 1 seule fois par jour
     import os
@@ -330,7 +333,7 @@ async def run_telegram_bot():
                 last_weekly = day
 
         except Exception as e:
-            print(f"[Telegram] Loop error: {e}")
+            logger.error("Loop error: %s", e)
 
         await asyncio.sleep(300)  # Check toutes les 5 min
 

@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 # ── Core imports ──
 from database import db, create_database
 from auth import router as auth_router, require_auth, require_auth_flexible
@@ -28,9 +30,9 @@ from models import (
 from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
 try:
     from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
-    print(f"[Akash] Module charge OK — {len(AKASH_GPU_MAP)} GPU mappings")
+    logger.info("[Akash] Module charge OK — %d GPU mappings", len(AKASH_GPU_MAP))
 except Exception as e:
-    print(f"[Akash] Import echoue: {e} — mode RunPod only")
+    logger.warning("[Akash] Import echoue: %s — mode RunPod only", e)
     akash_client = None
     AKASH_GPU_MAP = {}
     AKASH_MAX_PRICE = 10.0
@@ -109,11 +111,11 @@ async def _init_redis_pubsub():
         _redis_pubsub = await aioredis.from_url(REDIS_URL)
         # Lancer le listener en background
         asyncio.create_task(_redis_ws_listener())
-        print(f"[WS] Redis pub/sub actif: {REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL}")
+        logger.info("[WS] Redis pub/sub actif: %s", REDIS_URL.split('@')[-1] if '@' in REDIS_URL else REDIS_URL)
     except ImportError:
-        print("[WS] redis[async] non installe — mode single-worker")
+        logger.info("[WS] redis[async] non installe — mode single-worker")
     except Exception as e:
-        print(f"[WS] Redis error: {e} — mode single-worker")
+        logger.error("[WS] Redis error: %s — mode single-worker", e)
 
 
 async def _redis_ws_listener():
@@ -130,7 +132,7 @@ async def _redis_ws_listener():
                 except Exception:
                     pass
     except Exception as e:
-        print(f"[WS] Redis listener error: {e}")
+        logger.error("[WS] Redis listener error: %s", e)
 
 
 async def _local_broadcast(msg: dict):
@@ -192,11 +194,11 @@ async def _register_native_services(db_instance):
             })
             registered += 1
         except Exception as e:
-            print(f"[MAXIA] Error registering native service {svc['id']}: {e}")
+            logger.error("[MAXIA] Error registering native service %s: %s", svc['id'], e)
     if registered:
-        print(f"[MAXIA] Registered {registered} native AI services")
+        logger.info("[MAXIA] Registered %s native AI services", registered)
     else:
-        print(f"[MAXIA] All {len(NATIVE_SERVICES)} native AI services already registered")
+        logger.info("[MAXIA] All %s native AI services already registered", len(NATIVE_SERVICES))
 
 
 # ── Lifespan ──
@@ -217,7 +219,7 @@ async def lifespan(app: FastAPI):
         await refresh_gpu_prices()
         asyncio.create_task(auto_refresh_loop())
     except Exception as e:
-        print(f"[GPU Pricing] Init error: {e} — prix fallback utilises")
+        logger.error("[GPU Pricing] Init error: %s — prix fallback utilises", e)
 
     # V12: Database factory — PostgreSQL if DATABASE_URL set, else SQLite
     import database as _db_mod
@@ -249,14 +251,14 @@ async def lifespan(app: FastAPI):
         from forum_seed import seed_forum
         await seed_forum(db)
     except Exception as e:
-        print(f"[Forum] Seed error: {e}")
+        logger.error("[Forum] Seed error: %s", e)
 
     # Marketplace tables + seed native services
     try:
         from creator_marketplace import ensure_marketplace_tables
         await ensure_marketplace_tables(db)
     except Exception as e:
-        print(f"[Marketplace] Init error: {e}")
+        logger.error("[Marketplace] Init error: %s", e)
 
     # V12: Ensure referred_by column exists in agents table
     try:
@@ -285,7 +287,7 @@ async def lifespan(app: FastAPI):
         from health_monitor import run_health_monitor
         t_health = asyncio.create_task(run_health_monitor())
     except Exception as e:
-        print(f"[MAXIA] Health monitor init error: {e}")
+        logger.error("[MAXIA] Health monitor init error: %s", e)
         t_health = None
 
     # V12: Pyth SSE streaming (prix live <1s pour clients HFT)
@@ -293,15 +295,15 @@ async def lifespan(app: FastAPI):
         from pyth_oracle import start_pyth_stream
         await start_pyth_stream()
     except Exception as e:
-        print(f"[MAXIA] Pyth stream init error: {e} — HTTP polling fallback")
+        logger.error("[MAXIA] Pyth stream init error: %s — HTTP polling fallback", e)
 
     # Enterprise: billing flush loop (persiste usage toutes les 60s)
     try:
         from enterprise_billing import billing_flush_loop
         asyncio.create_task(billing_flush_loop())
-        print("[Enterprise] Billing flush loop started")
+        logger.info("[Enterprise] Billing flush loop started")
     except Exception as e:
-        print(f"[MAXIA] Billing flush loop error: {e}")
+        logger.error("[MAXIA] Billing flush loop error: %s", e)
 
     # V12: New features (trading, marketplace, infra)
     try:
@@ -310,18 +312,18 @@ async def lifespan(app: FastAPI):
         t6 = asyncio.create_task(check_whales())
         t7 = asyncio.create_task(update_candles())
     except Exception as e:
-        print(f"[MAXIA] Trading features init error: {e}")
+        logger.error("[MAXIA] Trading features init error: %s", e)
         t6 = t7 = None
     try:
         from marketplace_features import ensure_tables as ensure_mkt_tables
         await ensure_mkt_tables()
     except Exception as e:
-        print(f"[MAXIA] Marketplace features init error: {e}")
+        logger.error("[MAXIA] Marketplace features init error: %s", e)
     try:
         from infra_features import ensure_tables as ensure_infra_tables
         await ensure_infra_tables()
     except Exception as e:
-        print(f"[MAXIA] Infra features init error: {e}")
+        logger.error("[MAXIA] Infra features init error: %s", e)
 
     # V12: DB backup
     t_backup = None
@@ -329,7 +331,7 @@ async def lifespan(app: FastAPI):
         from db_backup import run_backup_scheduler
         t_backup = asyncio.create_task(run_backup_scheduler())
     except Exception as e:
-        print(f"[MAXIA] DB backup init error: {e}")
+        logger.error("[MAXIA] DB backup init error: %s", e)
 
     # V12: Dispute auto-resolve worker
     async def _dispute_auto_resolve_worker():
@@ -345,10 +347,10 @@ async def lifespan(app: FastAPI):
                         dispute["resolution"] = "Auto-resolved after 48h. Buyer refund initiated."
                         await db.raw_execute("UPDATE disputes SET data=? WHERE id=?",
                             (json.dumps(dispute), row["id"]))
-                        print(f"[Disputes] Auto-resolved: {row['id']}")
+                        logger.info("[Disputes] Auto-resolved: %s", row['id'])
             except Exception as e:
                 if "no such table" not in str(e):
-                    print(f"[Disputes] Worker error: {e}")
+                    logger.error("[Disputes] Worker error: %s", e)
             await asyncio.sleep(3600)  # check every hour
 
     t_dispute = asyncio.create_task(_dispute_auto_resolve_worker())
@@ -371,26 +373,26 @@ async def lifespan(app: FastAPI):
                 for row in (inactive or []):
                     api_key = row["api_key"]
                     await db.update_agent(api_key, {"volume_30d": 0, "tier": "BRONZE"})
-                    print(f"[VolumeDecay] Reset {api_key[:20]}... (inactive 30d)")
+                    logger.info("[VolumeDecay] Reset %s... (inactive 30d)", api_key[:20])
             except Exception as e:
                 if "no such table" not in str(e):
-                    print(f"[VolumeDecay] Error: {e}")
+                    logger.error("[VolumeDecay] Error: %s", e)
     t_volume = asyncio.create_task(_volume_decay_worker())
 
     # V12: Price alerts worker (notifies CLIENTS, not founder)
     try:
         from trading_tools import alert_checker_worker
         t_alerts = asyncio.create_task(alert_checker_worker())
-        print("[MAXIA] Price alerts worker started (60s interval)")
+        logger.info("[MAXIA] Price alerts worker started (60s interval)")
     except Exception as e:
-        print(f"[MAXIA] Alert worker init error: {e}")
+        logger.error("[MAXIA] Alert worker init error: %s", e)
 
     # V12: Start task queue worker
     try:
         from ceo_maxia import task_queue
         t_taskq = asyncio.create_task(task_queue.worker())
     except Exception as e:
-        print(f"[MAXIA] Task queue init error: {e}")
+        logger.error("[MAXIA] Task queue init error: %s", e)
         t_taskq = None
 
     # Init file logger
@@ -407,14 +409,14 @@ async def lifespan(app: FastAPI):
         print_preflight(pf)
         missing = pf.get("env_vars", {}).get("missing_critical", [])
         if missing:
-            print(f"[MAXIA] ⚠️  Missing critical env vars: {', '.join(missing)}")
+            logger.critical("[MAXIA] ⚠️  Missing critical env vars: %s", ', '.join(missing))
     except Exception as e:
-        print(f"[MAXIA] Preflight error: {e}")
+        logger.error("[MAXIA] Preflight error: %s", e)
 
     # Security checks at startup
     from security import check_jwt_secret, check_admin_key, _flush_audit
     if not check_jwt_secret():
-        print("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
+        logger.info("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
     # H4: Validation ADMIN_KEY au demarrage
     check_admin_key()
 
@@ -432,15 +434,15 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(30)
 
     t_price_broadcast = asyncio.create_task(_price_broadcast_loop())
-    print("[MAXIA] Price broadcast loop started (30s interval)")
+    logger.info("[MAXIA] Price broadcast loop started (30s interval)")
 
     # V13+: Streaming Payments updater (60s interval)
     try:
         from streaming_payments import stream_updater_loop
         asyncio.create_task(stream_updater_loop())
-        print("[MAXIA] Streaming payments updater started (60s interval)")
+        logger.info("[MAXIA] Streaming payments updater started (60s interval)")
     except Exception as e:
-        print(f"[MAXIA] Stream updater init error: {e}")
+        logger.error("[MAXIA] Stream updater init error: %s", e)
 
     # Telegram bot — REMOVED from lifespan: scheduler.py already starts run_telegram_bot()
     # as one of its tasks (line 75). Running it twice causes duplicate getUpdates polling,
@@ -453,26 +455,26 @@ async def lifespan(app: FastAPI):
         await start_pyth_stream()
         await start_equity_poll()
         await start_fallback_refresh()
-        print("[MAXIA] Pyth SSE persistent stream + equity poll (2s) + fallback auto-refresh started")
+        logger.info("[MAXIA] Pyth SSE persistent stream + equity poll (2s) + fallback auto-refresh started")
     except Exception as e:
-        print(f"[MAXIA] Pyth stream init error: {e}")
+        logger.error("[MAXIA] Pyth stream init error: %s", e)
 
     # Chainlink Oracle — verification feeds on-chain Base au demarrage
     try:
         from chainlink_oracle import verify_feeds_at_startup
         cl_results = await verify_feeds_at_startup()
         verified = sum(1 for v in cl_results.values() if v.get("verified"))
-        print(f"[MAXIA] Chainlink Base: {verified}/{len(cl_results)} feeds verified on-chain")
+        logger.info("[MAXIA] Chainlink Base: %s/%s feeds verified on-chain", verified, len(cl_results))
     except Exception as e:
-        print(f"[MAXIA] Chainlink init error: {e}")
+        logger.error("[MAXIA] Chainlink init error: %s", e)
 
-    print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
-    print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
-    print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
+    logger.info("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
+    logger.info("[MAXIA] DB: %s | Redis: %s", 'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite', 'connected' if redis_client.is_connected else 'in-memory fallback')
+    logger.info("[MAXIA] CORS: %s", _ALLOWED_ORIGINS)
     yield
 
     # ── Graceful shutdown ──
-    print("[MAXIA] Shutting down gracefully...")
+    logger.info("[MAXIA] Shutting down gracefully...")
     # Flush audit log
     try:
         _flush_audit()
@@ -482,7 +484,7 @@ async def lifespan(app: FastAPI):
     try:
         from ceo_maxia import ceo
         ceo.memory.save()
-        print("[MAXIA] CEO memory saved")
+        logger.info("[MAXIA] CEO memory saved")
     except Exception:
         pass
     # Stop task queue
@@ -531,7 +533,7 @@ async def lifespan(app: FastAPI):
         pass
     await db.disconnect()
     await redis_client.close()
-    print("[MAXIA] Shutdown complete")
+    logger.info("[MAXIA] Shutdown complete")
 
 
 # ── App ──
@@ -567,7 +569,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     Le request_id permet de retrouver l'erreur dans les logs serveur."""
     import traceback
     req_id = str(uuid.uuid4())[:8]
-    print(f"[ERROR] {req_id}: {type(exc).__name__}: {exc}")
+    logger.error("[ERROR] %s: %s: %s", req_id, type(exc).__name__, exc)
     traceback.print_exc()
     return _JSONResponseGlobal(
         status_code=500,
@@ -688,256 +690,256 @@ try:
     from trading_features import get_router as get_trading_router
     app.include_router(get_trading_router())
 except Exception as e:
-    print(f"[MAXIA] Trading router error: {e}")
+    logger.error("[MAXIA] Trading router error: %s", e)
 try:
     from marketplace_features import get_router as get_mkt_router
     app.include_router(get_mkt_router())
 except Exception as e:
-    print(f"[MAXIA] Marketplace router error: {e}")
+    logger.error("[MAXIA] Marketplace router error: %s", e)
 try:
     from infra_features import get_router as get_infra_router
     app.include_router(get_infra_router())
 except Exception as e:
-    print(f"[MAXIA] Infra router error: {e}")
+    logger.error("[MAXIA] Infra router error: %s", e)
 try:
     from email_service import router as email_router
     app.include_router(email_router)
-    print("[Email] Service ceo@maxiaworld.app monte")
+    logger.info("[Email] Service ceo@maxiaworld.app monte")
 except Exception as e:
-    print(f"[MAXIA] Email router error: {e}")
+    logger.error("[MAXIA] Email router error: %s", e)
 try:
     from yield_aggregator import router as yield_router
     app.include_router(yield_router)
-    print("[Yield] Aggregator DeFi monte")
+    logger.info("[Yield] Aggregator DeFi monte")
 except Exception as e:
-    print(f"[MAXIA] Yield router error: {e}")
+    logger.error("[MAXIA] Yield router error: %s", e)
 try:
     from rpc_service import router as rpc_router
     app.include_router(rpc_router)
-    print("[RPC] RPC-as-a-Service 14 chains monte")
+    logger.info("[RPC] RPC-as-a-Service 14 chains monte")
 except Exception as e:
-    print(f"[MAXIA] RPC router error: {e}")
+    logger.error("[MAXIA] RPC router error: %s", e)
 try:
     from oracle_service import router as oracle_router
     app.include_router(oracle_router)
-    print("[Oracle] Oracle + Data Marketplace monte")
+    logger.info("[Oracle] Oracle + Data Marketplace monte")
 except Exception as e:
-    print(f"[MAXIA] Oracle router error: {e}")
+    logger.error("[MAXIA] Oracle router error: %s", e)
 try:
     from bridge_service import router as bridge_router
     app.include_router(bridge_router)
-    print("[Bridge] Cross-chain bridge 14 chains monte")
+    logger.info("[Bridge] Cross-chain bridge 14 chains monte")
 except Exception as e:
-    print(f"[MAXIA] Bridge router error: {e}")
+    logger.error("[MAXIA] Bridge router error: %s", e)
 try:
     from nft_service import router as nft_router
     app.include_router(nft_router)
-    print("[NFT] Agent ID + Trust Score + Service Passes monte")
+    logger.info("[NFT] Agent ID + Trust Score + Service Passes monte")
 except Exception as e:
-    print(f"[MAXIA] NFT router error: {e}")
+    logger.error("[MAXIA] NFT router error: %s", e)
 try:
     from subscription_service import router as sub_router
     app.include_router(sub_router)
-    print("[Subscriptions] Streaming payments USDC monte")
+    logger.info("[Subscriptions] Streaming payments USDC monte")
 except Exception as e:
-    print(f"[MAXIA] Subscription router error: {e}")
+    logger.error("[MAXIA] Subscription router error: %s", e)
 try:
     from trading_tools import router as trading_router
     app.include_router(trading_router)
-    print("[Trading] Whale tracker, candles, signals, portfolio, alerts monte")
+    logger.info("[Trading] Whale tracker, candles, signals, portfolio, alerts monte")
 except Exception as e:
-    print(f"[MAXIA] Trading router error: {e}")
+    logger.error("[MAXIA] Trading router error: %s", e)
 
 # V12: Fine-tuning LLM as a Service (Unsloth + RunPod)
 try:
     from finetune_service import router as finetune_router
     app.include_router(finetune_router)
-    print("[Finetune] LLM Fine-Tuning as a Service (Unsloth) monte")
+    logger.info("[Finetune] LLM Fine-Tuning as a Service (Unsloth) monte")
 except Exception as e:
-    print(f"[MAXIA] Finetune router error: {e}")
+    logger.error("[MAXIA] Finetune router error: %s", e)
 
 # V12: AWP Protocol (Agent Staking on Base)
 try:
     from awp_protocol import router as awp_router
     app.include_router(awp_router)
-    print("[AWP] Autonomous Worker Protocol (staking + discovery) monte")
+    logger.info("[AWP] Autonomous Worker Protocol (staking + discovery) monte")
 except Exception as e:
-    print(f"[MAXIA] AWP router error: {e}")
+    logger.error("[MAXIA] AWP router error: %s", e)
 
 # V12: GOAT Protocol Bridge (200+ onchain tools)
 try:
     from goat_bridge import router as goat_router
     app.include_router(goat_router)
-    print("[GOAT] Protocol bridge (200+ tools) monte")
+    logger.info("[GOAT] Protocol bridge (200+ tools) monte")
 except Exception as e:
-    print(f"[MAXIA] GOAT bridge error: {e}")
+    logger.error("[MAXIA] GOAT bridge error: %s", e)
 
 # V12: Solana DeFi (lending/borrowing/staking)
 try:
     from solana_defi import router as solana_defi_router
     app.include_router(solana_defi_router)
-    print("[DeFi] Solana DeFi (lending/borrowing/staking/LP) monte")
+    logger.info("[DeFi] Solana DeFi (lending/borrowing/staking/LP) monte")
 except Exception as e:
-    print(f"[MAXIA] Solana DeFi error: {e}")
+    logger.error("[MAXIA] Solana DeFi error: %s", e)
 
 # V12: LLM-as-a-Service (OpenAI-compatible, multi-provider)
 try:
     from llm_service import router as llm_svc_router
     app.include_router(llm_svc_router)
-    print("[LLM] LLM-as-a-Service (OpenAI-compatible) monte")
+    logger.info("[LLM] LLM-as-a-Service (OpenAI-compatible) monte")
 except Exception as e:
-    print(f"[MAXIA] LLM service router error: {e}")
+    logger.error("[MAXIA] LLM service router error: %s", e)
 
 # V12: A2A Protocol (Google/Linux Foundation — Agent2Agent)
 try:
     from a2a_protocol import router as a2a_router
     app.include_router(a2a_router)
-    print("[A2A] Agent2Agent Protocol (JSON-RPC 2.0 + SSE) monte")
+    logger.info("[A2A] Agent2Agent Protocol (JSON-RPC 2.0 + SSE) monte")
 except Exception as e:
-    print(f"[MAXIA] A2A router error: {e}")
+    logger.error("[MAXIA] A2A router error: %s", e)
 
 # V13: Proof of Delivery + Dispute Resolution (Art.47)
 try:
     from proof_of_delivery import router as pod_router
     app.include_router(pod_router)
-    print("[PoD] Proof of Delivery + Dispute Resolution monte")
+    logger.info("[PoD] Proof of Delivery + Dispute Resolution monte")
 except Exception as e:
-    print(f"[MAXIA] PoD router error: {e}")
+    logger.error("[MAXIA] PoD router error: %s", e)
 
 # V13: Chain Resilience + Status Page (Art.48)
 try:
     from chain_resilience import router as resilience_router
     app.include_router(resilience_router)
-    print("[Resilience] Circuit Breaker + Status Page monte")
+    logger.info("[Resilience] Circuit Breaker + Status Page monte")
 except Exception as e:
-    print(f"[MAXIA] Resilience router error: {e}")
+    logger.error("[MAXIA] Resilience router error: %s", e)
 
 # V13: Agent Leaderboard (Art.49)
 try:
     from agent_leaderboard import router as leaderboard_router
     app.include_router(leaderboard_router)
-    print("[Leaderboard] Agent Scoring + Grades monte")
+    logger.info("[Leaderboard] Agent Scoring + Grades monte")
 except Exception as e:
-    print(f"[MAXIA] Leaderboard router error: {e}")
+    logger.error("[MAXIA] Leaderboard router error: %s", e)
 
 # V13: SLA Enforcer (Art.50)
 try:
     from sla_enforcer import router as sla_router
     app.include_router(sla_router)
-    print("[SLA] Enforcer + Circuit Breaker monte")
+    logger.info("[SLA] Enforcer + Circuit Breaker monte")
 except Exception as e:
-    print(f"[MAXIA] SLA router error: {e}")
+    logger.error("[MAXIA] SLA router error: %s", e)
 
 # V13: Pyth Oracle (Art.51)
 try:
     from pyth_oracle import router as pyth_router
     app.include_router(pyth_router)
-    print("[Pyth] Real-time Oracle (stocks + crypto) monte")
+    logger.info("[Pyth] Real-time Oracle (stocks + crypto) monte")
 except Exception as e:
-    print(f"[MAXIA] Pyth router error: {e}")
+    logger.error("[MAXIA] Pyth router error: %s", e)
 
 # Chat conversationnel (P2)
 try:
     from chat_handler import router as chat_router
     app.include_router(chat_router)
-    print("[Chat] Conversational trading chat monte")
+    logger.info("[Chat] Conversational trading chat monte")
 except Exception as e:
-    print(f"[MAXIA] Chat router error: {e}")
+    logger.error("[MAXIA] Chat router error: %s", e)
 
 # Gamification (P3)
 try:
     from gamification import router as gamification_router
     app.include_router(gamification_router)
-    print("[Gamification] Points + badges + leaderboard monte")
+    logger.info("[Gamification] Points + badges + leaderboard monte")
 except Exception as e:
-    print(f"[MAXIA] Gamification router error: {e}")
+    logger.error("[MAXIA] Gamification router error: %s", e)
 
 # Jupiter Perps (P5)
 try:
     from perps_client import router as perps_router
     app.include_router(perps_router)
-    print("[Perps] Jupiter Perpetuals (read-only) monte")
+    logger.info("[Perps] Jupiter Perpetuals (read-only) monte")
 except Exception as e:
-    print(f"[MAXIA] Perps router error: {e}")
+    logger.error("[MAXIA] Perps router error: %s", e)
 
 # Token Launcher — Pump.fun (P6)
 try:
     from token_launcher import router as token_router
     app.include_router(token_router)
-    print("[TokenLaunch] Pump.fun token launcher monte")
+    logger.info("[TokenLaunch] Pump.fun token launcher monte")
 except Exception as e:
-    print(f"[MAXIA] Token launcher router error: {e}")
+    logger.error("[MAXIA] Token launcher router error: %s", e)
 
 # V13+: Activity Feed (Art.53)
 try:
     from activity_feed import router as feed_router
     app.include_router(feed_router)
-    print("[Feed] Activity Feed (SSE + REST) monte")
+    logger.info("[Feed] Activity Feed (SSE + REST) monte")
 except Exception as e:
-    print(f"[MAXIA] Feed router error: {e}")
+    logger.error("[MAXIA] Feed router error: %s", e)
 
 # V13+: Referral + Badges (Art.54)
 try:
     from referral import router as referral_router, badges_router
     app.include_router(referral_router)
     app.include_router(badges_router)
-    print("[Referral] Referral + Badges monte")
+    logger.info("[Referral] Referral + Badges monte")
 except Exception as e:
-    print(f"[MAXIA] Referral router error: {e}")
+    logger.error("[MAXIA] Referral router error: %s", e)
 
 # V13+: EVM Multi-Chain Swap — 6 chains via 0x (Art.55)
 try:
     from evm_swap import router as evm_swap_router
     app.include_router(evm_swap_router)
-    print("[EVM-Swap] Multi-chain swap (6 chains, 36 tokens, 0x) monte")
+    logger.info("[EVM-Swap] Multi-chain swap (6 chains, 36 tokens, 0x) monte")
 except Exception as e:
-    print(f"[MAXIA] EVM swap error: {e}")
+    logger.error("[MAXIA] EVM swap error: %s", e)
 
 # V13+: Business Listings — AI Business Marketplace (Art.56)
 try:
     from business_listing import router as business_router
     app.include_router(business_router)
-    print("[Business] AI Business Marketplace (Flippt-style) monte")
+    logger.info("[Business] AI Business Marketplace (Flippt-style) monte")
 except Exception as e:
-    print(f"[MAXIA] Business listing error: {e}")
+    logger.error("[MAXIA] Business listing error: %s", e)
 
 # V13: Reverse Auctions (Art.52)
 try:
     from reverse_auction import router as auction_router
     app.include_router(auction_router)
-    print("[Auction] Reverse Auctions (RFQ) monte")
+    logger.info("[Auction] Reverse Auctions (RFQ) monte")
 except Exception as e:
-    print(f"[MAXIA] Auction router error: {e}")
+    logger.error("[MAXIA] Auction router error: %s", e)
 
 # ═══ Enterprise Suite (6 modules) ═══
 try:
     from enterprise_billing import router as billing_router
     app.include_router(billing_router)
-    print("[Enterprise] Billing (usage-based metering + invoices) monte")
+    logger.info("[Enterprise] Billing (usage-based metering + invoices) monte")
 except Exception as e:
-    print(f"[MAXIA] Billing router error: {e}")
+    logger.error("[MAXIA] Billing router error: %s", e)
 
 try:
     from stripe_billing import router as stripe_router
     app.include_router(stripe_router)
-    print("[Enterprise] Stripe Billing (checkout + webhooks + portal) monte")
+    logger.info("[Enterprise] Stripe Billing (checkout + webhooks + portal) monte")
 except Exception as e:
-    print(f"[MAXIA] Stripe billing router error: {e}")
+    logger.error("[MAXIA] Stripe billing router error: %s", e)
 
 try:
     from enterprise_sso import router as sso_router
     app.include_router(sso_router)
-    print("[Enterprise] SSO (OIDC/Google/Microsoft) monte")
+    logger.info("[Enterprise] SSO (OIDC/Google/Microsoft) monte")
 except Exception as e:
-    print(f"[MAXIA] SSO router error: {e}")
+    logger.error("[MAXIA] SSO router error: %s", e)
 
 try:
     from enterprise_metrics import router as metrics_router, metrics_middleware
     app.include_router(metrics_router)
     app.middleware("http")(metrics_middleware)
-    print("[Enterprise] Metrics (Prometheus /metrics + SLA) monte")
+    logger.info("[Enterprise] Metrics (Prometheus /metrics + SLA) monte")
 except Exception as e:
-    print(f"[MAXIA] Metrics router error: {e}")
+    logger.error("[MAXIA] Metrics router error: %s", e)
 
 # Enterprise: tenant context middleware — set tenant_id from X-Tenant or API key
 @app.middleware("http")
@@ -960,60 +962,60 @@ async def tenant_middleware(request, call_next):
 try:
     from audit_trail import router as audit_router
     app.include_router(audit_router)
-    print("[Enterprise] Audit Trail (compliance + policies) monte")
+    logger.info("[Enterprise] Audit Trail (compliance + policies) monte")
 except Exception as e:
-    print(f"[MAXIA] Audit router error: {e}")
+    logger.error("[MAXIA] Audit router error: %s", e)
 
 try:
     from tenant_isolation import router as tenant_router
     app.include_router(tenant_router)
-    print("[Enterprise] Tenant Isolation (multi-tenant + plans) monte")
+    logger.info("[Enterprise] Tenant Isolation (multi-tenant + plans) monte")
 except Exception as e:
-    print(f"[MAXIA] Tenant router error: {e}")
+    logger.error("[MAXIA] Tenant router error: %s", e)
 
 try:
     from enterprise_dashboard import router as dashboard_router
     app.include_router(dashboard_router)
-    print("[Enterprise] Dashboard (fleet analytics + SLA + revenue) monte")
+    logger.info("[Enterprise] Dashboard (fleet analytics + SLA + revenue) monte")
 except Exception as e:
-    print(f"[MAXIA] Dashboard router error: {e}")
+    logger.error("[MAXIA] Dashboard router error: %s", e)
 
 try:
     from redis_rate_limiter import router as rate_limit_router
     app.include_router(rate_limit_router)
-    print("[RateLimit] Redis Rate Limiter monte")
+    logger.info("[RateLimit] Redis Rate Limiter monte")
 except Exception as e:
-    print(f"[MAXIA] Rate limiter router error: {e}")
+    logger.error("[MAXIA] Rate limiter router error: %s", e)
 
 try:
     from agent_analytics import router as agent_analytics_router
     app.include_router(agent_analytics_router)
-    print("[Analytics] Agent Analytics monte")
+    logger.info("[Analytics] Agent Analytics monte")
 except Exception as e:
-    print(f"[MAXIA] Agent Analytics router error: {e}")
+    logger.error("[MAXIA] Agent Analytics router error: %s", e)
 
 try:
     from agent_credit import router as agent_credit_router
     app.include_router(agent_credit_router)
-    print("[Credit] Agent Credit System monte")
+    logger.info("[Credit] Agent Credit System monte")
 except Exception as e:
-    print(f"[MAXIA] Agent Credit router error: {e}")
+    logger.error("[MAXIA] Agent Credit router error: %s", e)
 
 # V13+: Streaming Payments — pay-per-second (Art.57)
 try:
     from streaming_payments import router as stream_router
     app.include_router(stream_router)
-    print("[StreamPay] Streaming Payments (pay-per-second) monte")
+    logger.info("[StreamPay] Streaming Payments (pay-per-second) monte")
 except Exception as e:
-    print(f"[MAXIA] StreamPay router error: {e}")
+    logger.error("[MAXIA] StreamPay router error: %s", e)
 
 # V13+: Agent Subcontracting — delegation automatique (Art.58)
 try:
     from agent_subcontract import router as subcontract_router
     app.include_router(subcontract_router)
-    print("[Subcontract] Agent Subcontracting (delegation) monte")
+    logger.info("[Subcontract] Agent Subcontracting (delegation) monte")
 except Exception as e:
-    print(f"[MAXIA] Subcontract router error: {e}")
+    logger.error("[MAXIA] Subcontract router error: %s", e)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -1028,7 +1030,7 @@ if FRONTEND_DIR.exists():
 # ═══════════════════════════════════════════════════════════
 from pages import router as pages_router
 app.include_router(pages_router)
-print("[Pages] 16 HTML page routes monte")
+logger.info("[Pages] 16 HTML page routes monte")
 
 # ── App Store API endpoints ──
 
@@ -1074,7 +1076,7 @@ async def app_store_search(q: str = ""):
 # ── AI Forum (forum_api.py) ──
 from forum_api import router as forum_api_router
 app.include_router(forum_api_router)
-print("[Forum] Forum API routes monte")
+logger.info("[Forum] Forum API routes monte")
 
 # ── Creator Marketplace ──
 @app.get("/api/public/marketplace")
@@ -1883,9 +1885,9 @@ async def get_activity(request: Request, limit: int = 30):
 try:
     from ceo_api import router as ceo_api_router
     app.include_router(ceo_api_router)
-    print("[CEO-API] Routes montees")
+    logger.info("[CEO-API] Routes montees")
 except Exception as e:
-    print(f"[MAXIA] CEO API router error: {e}")
+    logger.error("[MAXIA] CEO API router error: %s", e)
 
 
 @app.post("/api/admin/ceo-reset-emergency")
@@ -2429,7 +2431,7 @@ async def ws_endpoint(ws: WebSocket):
                         agent_worker.register_external_agent(wallet)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
                     except Exception as e:
-                        print(f"[WS] Auth signature error: {e}")
+                        logger.error("[WS] Auth signature error: %s", e)
                         await ws.send_json({"type": "AUTH_FAILED", "error": "Signature invalide"})
                 else:
                     await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
@@ -2483,7 +2485,7 @@ async def auction_ws(ws: WebSocket):
                         agent_worker.register_external_agent(wallet)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
                     except Exception as e:
-                        print(f"[WS/auctions] Auth signature error: {e}")
+                        logger.error("[WS/auctions] Auth signature error: %s", e)
                         await ws.send_json({"type": "AUTH_FAILED", "error": "Signature invalide"})
                 else:
                     await ws.send_json({"type": "AUTH_FAILED", "error": "wallet, signature et nonce requis"})
@@ -2559,14 +2561,14 @@ async def ws_prices(websocket: WebSocket):
                 except Exception as e:
                     err_msg = str(e).lower()
                     if err_msg and "close" not in err_msg and "cancelled" not in err_msg:
-                        print(f"[WS/prices] Error: {e}")
+                        logger.error("[WS/prices] Error: %s", e)
                 await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
     except Exception as e:
         err_msg = str(e).lower()
         if err_msg and "disconnect" not in err_msg and "close" not in err_msg and "cancelled" not in err_msg:
-            print(f"[WS/prices] Connection error: {e}")
+            logger.error("[WS/prices] Connection error: %s", e)
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
@@ -2620,7 +2622,7 @@ async def ws_chart(websocket: WebSocket):
     except Exception as e:
         err_msg = str(e).lower()
         if err_msg and "disconnect" not in err_msg and "close" not in err_msg and "cancelled" not in err_msg:
-            print(f"[WS/chart] Error: {e}")
+            logger.error("[WS/chart] Error: %s", e)
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
@@ -2666,11 +2668,11 @@ async def ws_candles(websocket: WebSocket):
             except Exception as e:
                 err_msg = str(e).lower()
                 if err_msg and "close" not in err_msg and "cancelled" not in err_msg:
-                    print(f"[WS/candles] Error: {e}")
+                    logger.error("[WS/candles] Error: %s", e)
             await asyncio.sleep(60 if interval != "1m" else 10)
     except Exception as e:
         if "disconnect" not in str(e).lower():
-            print(f"[WS/candles] Connection error: {e}")
+            logger.error("[WS/candles] Connection error: %s", e)
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
@@ -2746,9 +2748,9 @@ async def get_command(command_id: str, wallet: str = Depends(require_auth)):
 try:
     from gpu_api import router as gpu_api_router
     app.include_router(gpu_api_router)
-    print("[GPU-API] Routes montees")
+    logger.info("[GPU-API] Routes montees")
 except Exception as e:
-    print(f"[MAXIA] GPU API router error: {e}")
+    logger.error("[MAXIA] GPU API router error: %s", e)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -3433,9 +3435,9 @@ async def swarm_stop(clone_id: str, request: Request):
 try:
     from escrow_api import router as escrow_api_router
     app.include_router(escrow_api_router)
-    print("[ESCROW-API] Routes montees")
+    logger.info("[ESCROW-API] Routes montees")
 except Exception as e:
-    print(f"[MAXIA] Escrow API router error: {e}")
+    logger.error("[MAXIA] Escrow API router error: %s", e)
 
 
 # ══════════════════════════════════════════════════════════
@@ -3578,9 +3580,9 @@ async def analytics_agents_live():
 try:
     from chain_api import router as chain_api_router
     app.include_router(chain_api_router)
-    print("[CHAIN-API] Routes montees")
+    logger.info("[CHAIN-API] Routes montees")
 except Exception as e:
-    print(f"[MAXIA] Chain API router error: {e}")
+    logger.error("[MAXIA] Chain API router error: %s", e)
 
 
 # ══════════════════════════════════════════════════════════
@@ -3797,7 +3799,7 @@ async def enterprise_contact(request: Request):
                 "INSERT INTO enterprise_leads(id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (lead_id, company, contact_name, email, website, agent_count, plan, volume, use_case, source, int(_t.time())))
         except Exception as e:
-            print(f"[Enterprise] DB error: {e}")
+            logger.error("[Enterprise] DB error: %s", e)
 
     # Send email notification to CEO
     try:
@@ -3816,7 +3818,7 @@ async def enterprise_contact(request: Request):
         )
         await send_email("ceo@maxiaworld.app", f"Enterprise Lead: {company}", email_body)
     except Exception as e:
-        print(f"[Enterprise] Email error: {e}")
+        logger.error("[Enterprise] Email error: %s", e)
 
     # Alert Telegram
     try:

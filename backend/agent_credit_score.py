@@ -58,7 +58,7 @@ async def compute_credit_score(wallet: str, db) -> dict:
         agent = None
         try:
             rows = await db.raw_execute_fetchall(
-                "SELECT * FROM agents WHERE wallet=?", (wallet,))
+                "SELECT created_at FROM agents WHERE wallet=?", (wallet,))
             if rows:
                 agent = dict(rows[0])
         except Exception:

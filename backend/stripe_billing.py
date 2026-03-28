@@ -16,6 +16,7 @@ Variables d'environnement requises :
   STRIPE_PRICE_COMPLIANCE — Price ID Stripe pour le plan Compliance (custom)
 """
 
+import logging
 import os
 import time
 import json
@@ -23,6 +24,8 @@ import hmac
 import hashlib
 from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel
@@ -69,13 +72,13 @@ if STRIPE_SECRET_KEY:
         _stripe.api_version = "2024-12-18.acacia"
         stripe = _stripe
         STRIPE_AVAILABLE = True
-        print("[Stripe] SDK initialise avec succes")
+        logger.info("SDK initialise avec succes")
     except ImportError:
-        print("[Stripe] ERREUR: package 'stripe' non installe. Lancer: pip install stripe")
+        logger.error("ERREUR: package 'stripe' non installe. Lancer: pip install stripe")
     except Exception as e:
-        print(f"[Stripe] ERREUR init: {e}")
+        logger.error("ERREUR init: %s", e)
 else:
-    print("[Stripe] STRIPE_SECRET_KEY non configure — module desactive")
+    logger.info("STRIPE_SECRET_KEY non configure — module desactive")
 
 # ── Schema DB ──
 
@@ -114,9 +117,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_STRIPE_SCHEMA)
         _schema_ready = True
-        print("[Stripe] Schema DB pret")
+        logger.info("Schema DB pret")
     except Exception as e:
-        print(f"[Stripe] Erreur schema: {e}")
+        logger.error("Erreur schema: %s", e)
 
 
 # ── Fonctions utilitaires DB ──
@@ -226,7 +229,7 @@ async def _upsert_subscription(
             (tenant_id, stripe_customer_id, stripe_subscription_id,
              plan, status, current_period_end, now_ts, now_ts),
         )
-    print(f"[Stripe] Subscription {stripe_subscription_id} -> tenant={tenant_id} status={status}")
+    logger.info("Subscription %s -> tenant=%s status=%s", stripe_subscription_id, tenant_id, status)
 
 
 async def _record_event(event_id: str, event_type: str, data: dict):
@@ -241,7 +244,7 @@ async def _record_event(event_id: str, event_type: str, data: dict):
         )
     except Exception as e:
         # Pas critique — l'event est deja traite si doublon
-        print(f"[Stripe] Event record warning: {e}")
+        logger.warning("Event record warning: %s", e)
 
 
 async def _event_already_processed(event_id: str) -> bool:
@@ -277,10 +280,10 @@ async def _sync_billing_tier(tenant_id: str, plan: str, active: bool):
                 "INSERT INTO billing_tenants (tenant_id, tier) VALUES (?, ?)",
                 (tenant_id, tier),
             )
-        print(f"[Stripe] Tier billing synchronise: tenant={tenant_id} tier={tier}")
+        logger.info("Tier billing synchronise: tenant=%s tier=%s", tenant_id, tier)
     except Exception as e:
         # La table billing_tenants peut ne pas exister si enterprise_billing n'est pas charge
-        print(f"[Stripe] Sync billing tier warning: {e}")
+        logger.warning("Sync billing tier warning: %s", e)
 
 
 # ── Logique metier Stripe ──
@@ -343,7 +346,7 @@ async def create_checkout_session(tenant_id: str, plan: str, email: Optional[str
 
     try:
         session = stripe.checkout.Session.create(**session_params)
-        print(f"[Stripe] Checkout session creee: {session.id} pour tenant={tenant_id} plan={plan}")
+        logger.info("Checkout session creee: %s pour tenant=%s plan=%s", session.id, tenant_id, plan)
         return {
             "checkout_url": session.url,
             "session_id": session.id,
@@ -351,7 +354,7 @@ async def create_checkout_session(tenant_id: str, plan: str, email: Optional[str
             "tenant_id": tenant_id,
         }
     except stripe.error.StripeError as e:
-        print(f"[Stripe] Erreur Checkout: {e}")
+        logger.error("Erreur Checkout: %s", e)
         raise HTTPException(502, f"Erreur Stripe: {e.user_message or str(e)}")
 
 
@@ -377,7 +380,7 @@ async def create_portal_session(tenant_id: str) -> dict:
             "tenant_id": tenant_id,
         }
     except stripe.error.StripeError as e:
-        print(f"[Stripe] Erreur Portal: {e}")
+        logger.error("Erreur Portal: %s", e)
         raise HTTPException(502, f"Erreur Stripe portal: {e.user_message or str(e)}")
 
 
@@ -416,7 +419,7 @@ async def get_subscription_status(tenant_id: str) -> dict:
                 is_active = live_status in ("active", "trialing")
                 is_period_valid = live_sub.current_period_end > int(time.time())
         except Exception as e:
-            print(f"[Stripe] Erreur verification live: {e}")
+            logger.error("Erreur verification live: %s", e)
             # Pas grave — on utilise les donnees DB
 
     return {
@@ -466,10 +469,10 @@ def _verify_webhook_signature(payload: bytes, sig_header: str) -> dict:
         )
         return event
     except stripe.error.SignatureVerificationError as e:
-        print(f"[Stripe] Signature webhook invalide: {e}")
+        logger.error("Signature webhook invalide: %s", e)
         raise HTTPException(400, "Signature webhook invalide")
     except ValueError as e:
-        print(f"[Stripe] Payload webhook invalide: {e}")
+        logger.error("Payload webhook invalide: %s", e)
         raise HTTPException(400, "Payload webhook invalide")
 
 
@@ -526,7 +529,7 @@ async def _handle_checkout_completed(session: dict) -> dict:
     subscription_id = session.get("subscription", "")
 
     if not tenant_id or not customer_id:
-        print(f"[Stripe] checkout.session.completed sans tenant_id ou customer_id")
+        logger.warning("checkout.session.completed sans tenant_id ou customer_id")
         return {"status": "error", "reason": "missing_metadata"}
 
     # Recuperer les details de la subscription depuis Stripe
@@ -543,7 +546,7 @@ async def _handle_checkout_completed(session: dict) -> dict:
                 if price_id:
                     plan = _resolve_plan_from_price_id(price_id)
         except Exception as e:
-            print(f"[Stripe] Erreur recuperation subscription: {e}")
+            logger.error("Erreur recuperation subscription: %s", e)
 
     # Sauvegarder en DB
     await _upsert_subscription(
@@ -558,7 +561,7 @@ async def _handle_checkout_completed(session: dict) -> dict:
     # Synchroniser le tier dans enterprise_billing
     await _sync_billing_tier(tenant_id, plan, active=True)
 
-    print(f"[Stripe] Checkout complete: tenant={tenant_id} plan={plan} customer={customer_id}")
+    logger.info("Checkout complete: tenant=%s plan=%s customer=%s", tenant_id, plan, customer_id)
     return {
         "status": "subscription_created",
         "tenant_id": tenant_id,
@@ -582,7 +585,7 @@ async def _handle_invoice_paid(invoice: dict) -> dict:
         sub = await _get_subscription_by_customer(customer_id)
 
     if not sub:
-        print(f"[Stripe] invoice.paid pour subscription inconnue: {subscription_id}")
+        logger.warning("invoice.paid pour subscription inconnue: %s", subscription_id)
         return {"status": "ignored", "reason": "unknown_subscription"}
 
     # Mettre a jour la periode via l'API Stripe
@@ -592,7 +595,7 @@ async def _handle_invoice_paid(invoice: dict) -> dict:
             live_sub = stripe.Subscription.retrieve(subscription_id)
             current_period_end = live_sub.current_period_end
         except Exception as e:
-            print(f"[Stripe] Erreur retrieve subscription: {e}")
+            logger.error("Erreur retrieve subscription: %s", e)
 
     await _upsert_subscription(
         tenant_id=sub["tenant_id"],
@@ -603,7 +606,7 @@ async def _handle_invoice_paid(invoice: dict) -> dict:
         current_period_end=current_period_end,
     )
 
-    print(f"[Stripe] Invoice paid: tenant={sub['tenant_id']} renouvele jusqu'a {current_period_end}")
+    logger.info("Invoice paid: tenant=%s renouvele jusqu'a %s", sub['tenant_id'], current_period_end)
     return {
         "status": "subscription_renewed",
         "tenant_id": sub["tenant_id"],
@@ -623,7 +626,7 @@ async def _handle_subscription_updated(subscription: dict) -> dict:
         sub = await _get_subscription_by_customer(customer_id)
 
     if not sub:
-        print(f"[Stripe] subscription.updated pour subscription inconnue: {subscription_id}")
+        logger.warning("subscription.updated pour subscription inconnue: %s", subscription_id)
         return {"status": "ignored", "reason": "unknown_subscription"}
 
     # Determiner le plan depuis les items
@@ -647,7 +650,7 @@ async def _handle_subscription_updated(subscription: dict) -> dict:
     is_active = status in ("active", "trialing")
     await _sync_billing_tier(sub["tenant_id"], plan, active=is_active)
 
-    print(f"[Stripe] Subscription updated: tenant={sub['tenant_id']} plan={plan} status={status}")
+    logger.info("Subscription updated: tenant=%s plan=%s status=%s", sub['tenant_id'], plan, status)
     return {
         "status": "subscription_updated",
         "tenant_id": sub["tenant_id"],
@@ -666,7 +669,7 @@ async def _handle_subscription_deleted(subscription: dict) -> dict:
         sub = await _get_subscription_by_customer(customer_id)
 
     if not sub:
-        print(f"[Stripe] subscription.deleted pour subscription inconnue: {subscription_id}")
+        logger.warning("subscription.deleted pour subscription inconnue: %s", subscription_id)
         return {"status": "ignored", "reason": "unknown_subscription"}
 
     await _upsert_subscription(
@@ -681,7 +684,7 @@ async def _handle_subscription_deleted(subscription: dict) -> dict:
     # Repasser en free dans enterprise_billing
     await _sync_billing_tier(sub["tenant_id"], "free", active=False)
 
-    print(f"[Stripe] Subscription annulee: tenant={sub['tenant_id']}")
+    logger.info("Subscription annulee: tenant=%s", sub['tenant_id'])
     return {
         "status": "subscription_canceled",
         "tenant_id": sub["tenant_id"],
@@ -704,8 +707,8 @@ async def _handle_payment_failed(invoice: dict) -> dict:
 
     tenant_id = sub["tenant_id"] if sub else "unknown"
 
-    print(f"[Stripe] ALERTE: Paiement echoue pour tenant={tenant_id} "
-          f"(tentative #{attempt_count}, subscription={subscription_id})")
+    logger.warning("ALERTE: Paiement echoue pour tenant=%s (tentative #%s, subscription=%s)",
+                    tenant_id, attempt_count, subscription_id)
 
     # Envoyer une alerte Discord si le webhook est configure
     try:

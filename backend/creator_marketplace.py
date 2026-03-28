@@ -288,7 +288,7 @@ async def get_tool_detail(db, tool_id: str) -> dict:
             return {"error": "Tool not found"}
         tool = json.loads(rows[0]["data"])
         reviews = await db.raw_execute_fetchall(
-            "SELECT * FROM creator_reviews WHERE tool_id=? ORDER BY created_at DESC LIMIT 20",
+            "SELECT id, tool_id, buyer_wallet, rating, review, created_at FROM creator_reviews WHERE tool_id=? ORDER BY created_at DESC LIMIT 20",
             (tool_id,))
         tool["reviews"] = [dict(r) for r in reviews]
         return tool
@@ -302,7 +302,7 @@ async def get_creator_stats(db, wallet: str) -> dict:
         tools = await db.raw_execute_fetchall(
             "SELECT data FROM creator_tools WHERE creator_wallet=?", (wallet,))
         purchases = await db.raw_execute_fetchall(
-            "SELECT * FROM creator_purchases WHERE tool_id IN (SELECT id FROM creator_tools WHERE creator_wallet=?) ORDER BY created_at DESC LIMIT 50",
+            "SELECT id, tool_id, buyer_wallet, amount_usdc, creator_share, platform_share, created_at FROM creator_purchases WHERE tool_id IN (SELECT id FROM creator_tools WHERE creator_wallet=?) ORDER BY created_at DESC LIMIT 50",
             (wallet,))
 
         total_revenue = sum(p.get("creator_share", 0) or 0 for p in purchases)

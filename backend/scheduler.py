@@ -1,6 +1,9 @@
 """MAXIA Scheduler V12 — Planificateur avec CEO Agent + tous les sous-systemes"""
+import logging
 import asyncio, time
 from alerts import alert_system
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_task(coro, name: str):
@@ -11,7 +14,7 @@ def _safe_task(coro, name: str):
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            print(f"[Scheduler] Task '{name}' crashed: {e} — autres tasks continuent")
+            logger.error("Task '%s' crashed: %s — autres tasks continuent", name, e)
     return _wrapper()
 
 # Imports avec fallback si module absent
@@ -52,20 +55,20 @@ class Scheduler:
     def __init__(self):
         self._tasks: list = []
         self._running = False
-        print("[Scheduler] V12 initialise (avec CEO Agent)")
+        logger.info("V12 initialise (avec CEO Agent)")
 
     async def run(self, brain, growth_agent, agent_worker, db=None):
         self._running = True
-        print("[Scheduler] Demarrage de tous les agents V12...")
+        logger.info("Demarrage de tous les agents V12...")
 
         # Importer le CEO
         try:
             from ceo_maxia import ceo
             ceo_available = True
-            print("[Scheduler] CEO MAXIA charge")
+            logger.info("CEO MAXIA charge")
         except Exception as e:
             ceo_available = False
-            print(f"[Scheduler] CEO MAXIA non disponible: {e}")
+            logger.warning("CEO MAXIA non disponible: %s", e)
 
         tasks = [
             asyncio.create_task(_safe_task(brain.run(db), "brain")),
@@ -134,16 +137,15 @@ class Scheduler:
                 except Exception:
                     pass
 
-                print(
-                    f"[Scheduler] Brain:{bs['tier']} | "
-                    f"Prospects:{gs['prospects_today']}/{gs['max_per_day']} | "
-                    f"Budget:{bs['budget_remaining']:.0f}$ | "
-                    f"Pricing adj:{dp.get('adjustment_bps', 0)}bps | "
-                    f"Workers:{so.get('active_workers', 0)} | "
-                    f"Up:{bs['uptime_human']}{ceo_status}"
+                logger.info(
+                    "Brain:%s | Prospects:%s/%s | Budget:%.0f$ | "
+                    "Pricing adj:%sbps | Workers:%s | Up:%s%s",
+                    bs['tier'], gs['prospects_today'], gs['max_per_day'],
+                    bs['budget_remaining'], dp.get('adjustment_bps', 0),
+                    so.get('active_workers', 0), bs['uptime_human'], ceo_status
                 )
             except Exception as e:
-                print(f"[Scheduler] Health err: {e}")
+                logger.error("Health err: %s", e)
             await asyncio.sleep(300)
 
 
@@ -167,7 +169,7 @@ class Scheduler:
                     await check_oracle_health_alert()
                 except Exception as e:
                     if "No module" not in str(e):
-                        print(f"[V13] Oracle health alert error: {e}")
+                        logger.error("[V13] Oracle health alert error: %s", e)
 
                 # Toutes les 5 min : check liveness des deliveries (PoD auto-confirm)
                 try:
@@ -175,7 +177,7 @@ class Scheduler:
                     await check_liveness_expirations()
                 except Exception as e:
                     if "No module" not in str(e):
-                        print(f"[V13] PoD liveness error: {e}")
+                        logger.error("[V13] PoD liveness error: %s", e)
 
                 # Toutes les 10 min : expirer les encheres inversees
                 if _cycle % 2 == 0:
@@ -184,47 +186,47 @@ class Scheduler:
                         await expire_old_requests()
                     except Exception as e:
                         if "No module" not in str(e):
-                            print(f"[V13] Auction expire error: {e}")
+                            logger.error("[V13] Auction expire error: %s", e)
 
                 # Toutes les heures (12 cycles de 5 min) : recalcul scores + SLA
                 if _cycle % 12 == 0:
                     try:
                         from agent_leaderboard import recalculate_all_scores
                         await recalculate_all_scores()
-                        print("[V13] Leaderboard scores recalcules")
+                        logger.info("[V13] Leaderboard scores recalcules")
                     except Exception as e:
                         if "No module" not in str(e):
-                            print(f"[V13] Leaderboard error: {e}")
+                            logger.error("[V13] Leaderboard error: %s", e)
 
                     try:
                         from sla_enforcer import enforce_sla_all
                         await enforce_sla_all()
-                        print("[V13] SLA enforcement complete")
+                        logger.info("[V13] SLA enforcement complete")
                     except Exception as e:
                         if "No module" not in str(e):
-                            print(f"[V13] SLA error: {e}")
+                            logger.error("[V13] SLA error: %s", e)
 
                     # Recalcul badges (toutes les heures)
                     try:
                         from referral import recalculate_badges
                         await recalculate_badges()
-                        print("[V13+] Badges recalcules")
+                        logger.info("[V13+] Badges recalcules")
                     except Exception as e:
                         if "No module" not in str(e):
-                            print(f"[V13+] Badges error: {e}")
+                            logger.error("[V13+] Badges error: %s", e)
 
                 # Toutes les 24h (288 cycles) : refresh liste OFAC
                 if _cycle % 288 == 0:
                     try:
                         from security import refresh_ofac_list
                         await refresh_ofac_list()
-                        print("[V13] OFAC list refreshed")
+                        logger.info("[V13] OFAC list refreshed")
                     except Exception as e:
                         if "No module" not in str(e):
-                            print(f"[V13] OFAC refresh error: {e}")
+                            logger.error("[V13] OFAC refresh error: %s", e)
 
             except Exception as e:
-                print(f"[V13] Background loop error: {e}")
+                logger.error("[V13] Background loop error: %s", e)
 
             await asyncio.sleep(300)  # 5 min
 

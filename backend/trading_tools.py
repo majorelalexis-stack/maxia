@@ -1,5 +1,6 @@
 """MAXIA Trading Tools — Whale tracker, candles OHLCV, copy trading, alertes, portfolio, signaux techniques."""
 
+import logging
 import asyncio
 import hashlib
 import math
@@ -15,6 +16,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from price_oracle import get_prices, FALLBACK_PRICES
+
+logger = logging.getLogger(__name__)
 
 # ── Router ──
 
@@ -106,14 +109,14 @@ async def _fetch_coingecko_history(token: str) -> list[float]:
             if raw_prices:
                 prices = [p[1] for p in raw_prices]
                 _cg_history_cache[token] = {"prices": prices, "ts": now}
-                print(f"[TradingSignals] CoinGecko history: {len(prices)} data points for {token}")
+                logger.info("CoinGecko history: %d data points for %s", len(prices), token)
                 return prices
         elif resp.status_code == 429:
-            print(f"[TradingSignals] CoinGecko rate-limited for {token}")
+            logger.warning("CoinGecko rate-limited for %s", token)
         else:
-            print(f"[TradingSignals] CoinGecko history HTTP {resp.status_code} for {token}")
+            logger.warning("CoinGecko history HTTP %d for %s", resp.status_code, token)
     except Exception as e:
-        print(f"[TradingSignals] CoinGecko history error for {token}: {e}")
+        logger.error("CoinGecko history error for %s: %s", token, e)
 
     # Return cached data even if stale, rather than nothing
     if cached:
@@ -207,14 +210,14 @@ async def _fetch_real_solana_whales() -> list[dict]:
                                 "source": "solana_rpc",
                             })
             except Exception as e:
-                print(f"[WhaleTracker] RPC error for {program_name}: {e}")
+                logger.error("RPC error for %s: %s", program_name, e)
     except Exception as e:
-        print(f"[WhaleTracker] Solana RPC connection error: {e}")
+        logger.error("Solana RPC connection error: %s", e)
 
     if movements:
         _real_whale_cache = movements
         _real_whale_ts = now
-        print(f"[WhaleTracker] Fetched {len(movements)} real Solana tx signatures")
+        logger.info("Fetched %d real Solana tx signatures", len(movements))
 
     return movements
 
@@ -761,10 +764,10 @@ async def _resolve_pool(token: str, network: str = "solana") -> str:
                 pool_id = pools[0].get("id", "")
                 if pool_id:
                     _pool_cache[mint] = {"pool": pool_id, "ts": time.time()}
-                    print(f"[DexPaprika] {token} -> pool {pool_id[:20]}...")
+                    logger.info("DexPaprika %s -> pool %s...", token, pool_id[:20])
                     return pool_id
     except Exception as e:
-        print(f"[DexPaprika] Pool resolve error for {token}: {e}")
+        logger.error("DexPaprika pool resolve error for %s: %s", token, e)
     return ""
 
 
@@ -823,7 +826,7 @@ async def get_candles(
                         "candles": candles,
                     }
         except Exception as e:
-            print(f"[DexPaprika] OHLCV error for {token}: {e}")
+            logger.error("DexPaprika OHLCV error for %s: %s", token, e)
 
     # Fallback: CoinGecko + synthetic candles
     try:
@@ -1149,9 +1152,9 @@ async def _notify_alert(alert: dict):
                     f"https://api.telegram.org/bot{bot_token}/sendMessage",
                     json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
                 )
-                print(f"[Alerts] Telegram sent to {chat_id}: {token} {condition} {target}")
+                logger.info("Telegram sent to %s: %s %s %s", chat_id, token, condition, target)
         except Exception as e:
-            print(f"[Alerts] Telegram error: {e}")
+            logger.error("Alerts Telegram error: %s", e)
 
     # Webhook notification
     webhook = alert.get("webhook_url")
@@ -1164,9 +1167,9 @@ async def _notify_alert(alert: dict):
                 "condition": condition, "target_price": target,
                 "message": msg,
             })
-            print(f"[Alerts] Webhook sent to {webhook[:50]}: {token}")
+            logger.info("Webhook sent to %s: %s", webhook[:50], token)
         except Exception as e:
-            print(f"[Alerts] Webhook error: {e}")
+            logger.error("Alerts Webhook error: %s", e)
 
     alert["notified"] = True
 
@@ -1213,7 +1216,7 @@ async def alert_checker_worker():
                     await _notify_alert(alert)
 
         except Exception as e:
-            print(f"[Alerts] Worker error: {e}")
+            logger.error("Alerts worker error: %s", e)
 
 
 # ══════════════════════════════════════════════════

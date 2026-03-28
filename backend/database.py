@@ -378,7 +378,7 @@ class Database:
             (t["mint"], t["symbol"], t["name"], t.get("decimals", 9), t["price"], t.get("creator", "")))
 
     async def get_tokens(self):
-        rows = await self.raw_execute_fetchall("SELECT * FROM exchange_tokens ORDER BY volume24h DESC")
+        rows = await self.raw_execute_fetchall("SELECT mint, symbol, name, decimals, price, change24h, volume24h, creator_wallet, listed_at FROM exchange_tokens ORDER BY volume24h DESC")
         return [dict(r) for r in rows]
 
     async def save_order(self, o):
@@ -389,7 +389,7 @@ class Database:
 
     async def get_open_orders(self, mint):
         rows = await self.raw_execute_fetchall(
-            "SELECT * FROM exchange_orders WHERE mint=? AND status IN ('open','partial') ORDER BY created_at ASC", (mint,))
+            "SELECT order_id, side, mint, qty, qty_filled, price_usdc, order_type, wallet, escrow_tx, currency, status, created_at FROM exchange_orders WHERE mint=? AND status IN ('open','partial') ORDER BY created_at ASC", (mint,))
         return [dict(r) for r in rows]
 
     async def update_order_status(self, order_id, status, qty_filled=None):
@@ -407,7 +407,7 @@ class Database:
         return eid
 
     async def get_escrow_by_order(self, order_id):
-        row = await self._fetchone("SELECT * FROM escrow WHERE order_id=? AND status='locked'", (order_id,))
+        row = await self._fetchone("SELECT escrow_id, order_id, wallet, currency, amount_raw, tx_signature, status, created_at FROM escrow WHERE order_id=? AND status='locked'", (order_id,))
         return dict(row) if row else None
 
     async def release_escrow(self, escrow_id):
@@ -555,11 +555,20 @@ class Database:
              agent.get("services_listed", 0)))
 
     async def get_agent(self, api_key: str):
-        rows = await self.raw_execute_fetchall("SELECT * FROM agents WHERE api_key=?", (api_key,))
+        # SELECT * intentional: all 10 columns (api_key, name, wallet, description, tier,
+        # volume_30d, total_spent, total_earned, services_listed, created_at) are accessed
+        # across 30+ callers in public_api, infra_features, marketplace_features, etc.
+        rows = await self.raw_execute_fetchall(
+            "SELECT api_key, name, wallet, description, tier, volume_30d, "
+            "total_spent, total_earned, services_listed, created_at "
+            "FROM agents WHERE api_key=?", (api_key,))
         return dict(rows[0]) if rows else None
 
     async def get_all_agents(self):
-        return await self.raw_execute_fetchall("SELECT * FROM agents ORDER BY created_at DESC")
+        return await self.raw_execute_fetchall(
+            "SELECT api_key, name, wallet, description, tier, volume_30d, "
+            "total_spent, total_earned, services_listed, created_at "
+            "FROM agents ORDER BY created_at DESC")
 
     async def update_agent(self, api_key: str, updates: dict):
         safe = {k: v for k, v in updates.items()
@@ -595,18 +604,22 @@ class Database:
              service["price_usdc"], service.get("endpoint", ""), service.get("status", "active"),
              service.get("rating", 5.0), service.get("rating_count", 0), service.get("sales", 0)))
 
+    _SVC_COLS = ("id, agent_api_key, agent_name, agent_wallet, name, description, "
+                 "type, price_usdc, endpoint, status, rating, rating_count, sales, listed_at")
+
     async def get_services(self, status="active"):
         return await self.raw_execute_fetchall(
-            "SELECT * FROM agent_services WHERE status=? ORDER BY rating DESC, sales DESC", (status,))
+            f"SELECT {self._SVC_COLS} FROM agent_services WHERE status=? ORDER BY rating DESC, sales DESC", (status,))
 
     async def get_service(self, service_id: str):
-        rows = await self.raw_execute_fetchall("SELECT * FROM agent_services WHERE id=?", (service_id,))
+        rows = await self.raw_execute_fetchall(
+            f"SELECT {self._SVC_COLS} FROM agent_services WHERE id=?", (service_id,))
         return dict(rows[0]) if rows else None
 
     async def get_service_by_name(self, name: str):
         """Cherche un service par son nom (case-insensitive)."""
         rows = await self.raw_execute_fetchall(
-            "SELECT * FROM agent_services WHERE LOWER(name)=LOWER(?) AND status='active' LIMIT 1", (name,))
+            f"SELECT {self._SVC_COLS} FROM agent_services WHERE LOWER(name)=LOWER(?) AND status='active' LIMIT 1", (name,))
         return dict(rows[0]) if rows else None
 
     async def update_service(self, service_id: str, updates: dict):
@@ -712,15 +725,19 @@ class Database:
             f"UPDATE gpu_instances SET {sets} WHERE instance_id=?",
             (*filtered.values(), instance_id))
 
+    _GPU_COLS = ("instance_id, agent_wallet, agent_name, gpu_tier, duration_hours, "
+                 "price_per_hour, total_cost, commission, payment_tx, runpod_pod_id, "
+                 "status, ssh_endpoint, scheduled_end, actual_end, actual_cost, created_at")
+
     async def get_active_gpu_instances(self) -> list:
         rows = await self.raw_execute_fetchall(
-            "SELECT * FROM gpu_instances WHERE status IN ('provisioning', 'running') "
+            f"SELECT {self._GPU_COLS} FROM gpu_instances WHERE status IN ('provisioning', 'running') "
             "ORDER BY created_at DESC")
         return [dict(r) for r in rows] if rows else []
 
     async def get_gpu_instance(self, instance_id: str) -> dict:
         rows = await self.raw_execute_fetchall(
-            "SELECT * FROM gpu_instances WHERE instance_id=?", (instance_id,))
+            f"SELECT {self._GPU_COLS} FROM gpu_instances WHERE instance_id=?", (instance_id,))
         return dict(rows[0]) if rows else {}
 
     # ── Analytics (V12) ──

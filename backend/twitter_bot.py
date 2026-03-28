@@ -6,6 +6,8 @@ Controlled by CEO MAXIA via GHOST-WRITER and RESPONDER.
 import logging
 import asyncio, os, time, json
 
+logger = logging.getLogger(__name__)
+
 from config import GPU_TIERS
 _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 
@@ -62,10 +64,10 @@ def _get_client():
         )
         return client
     except ImportError:
-        print("[Twitter] tweepy not installed")
+        logger.warning("tweepy not installed")
         return None
     except Exception as e:
-        print(f"[Twitter] Client error: {e}")
+        logger.error("Client error: %s", e)
         return None
 
 
@@ -94,11 +96,11 @@ async def post_tweet(text: str) -> dict:
         tweet_id = response.data["id"]
         _stats["tweets_today"] += 1
         _stats["total_tweets"] += 1
-        print(f"[Twitter] Tweet poste: {text[:60]}... (id:{tweet_id})")
+        logger.info("Tweet poste: %s... (id:%s)", text[:60], tweet_id)
         return {"success": True, "tweet_id": tweet_id, "text": text}
     except Exception as e:
         _stats["errors"] += 1
-        print(f"[Twitter] Post error: {e}")
+        logger.error("Post error: %s", e)
         return {"success": False, "error": "An error occurred"}
 
 
@@ -127,11 +129,11 @@ async def reply_to_tweet(tweet_id: str, text: str) -> dict:
         reply_id = response.data["id"]
         _stats["replies_today"] += 1
         _stats["total_replies"] += 1
-        print(f"[Twitter] Reply to {tweet_id}: {text[:60]}...")
+        logger.info("Reply to %s: %s...", tweet_id, text[:60])
         return {"success": True, "reply_id": reply_id, "text": text}
     except Exception as e:
         _stats["errors"] += 1
-        print(f"[Twitter] Reply error: {e}")
+        logger.error("Reply error: %s", e)
         return {"success": False, "error": "An error occurred"}
 
 
@@ -180,10 +182,10 @@ async def check_mentions() -> list:
         if mentions:
             _stats["last_mention_id"] = str(mentions[0]["id"])
 
-        print(f"[Twitter] {len(mentions)} nouvelles mentions")
+        logger.info("%d nouvelles mentions", len(mentions))
         return mentions
     except Exception as e:
-        print(f"[Twitter] Mentions error: {e}")
+        logger.error("Mentions error: %s", e)
         return []
 
 
@@ -279,11 +281,11 @@ async def like_tweet(tweet_id: str) -> dict:
         await asyncio.to_thread(_like)
         _stats["likes_today"] += 1
         _stats["total_likes"] += 1
-        print(f"[Twitter] Liked tweet {tweet_id}")
+        logger.info("Liked tweet %s", tweet_id)
         return {"success": True, "tweet_id": tweet_id}
     except Exception as e:
         _stats["errors"] += 1
-        print(f"[Twitter] Like error: {e}")
+        logger.error("Like error: %s", e)
         return {"success": False, "error": "An error occurred"}
 
 
@@ -329,7 +331,7 @@ async def engage_with_influencers() -> list:
                     if comment_result.get("success"):
                         results.append({"action": "comment", "tweet_id": tid, "comment": comment[:80]})
 
-    print(f"[Twitter] Engagement: {len(results)} actions (likes + comments)")
+    logger.info("Engagement: %d actions (likes + comments)", len(results))
     return results
 
 
@@ -405,7 +407,7 @@ async def search_tweets(query: str, max_results: int = 10) -> list:
             })
         return tweets
     except Exception as e:
-        print(f"[Twitter] Search error: {e}")
+        logger.error("Search error: %s", e)
         return []
 
 
@@ -417,17 +419,17 @@ async def run_twitter_bot():
     """Boucle autonome du bot Twitter VPS.
     Twitter est DELEGUE au CEO local — le VPS garde uniquement post_tweet()
     comme fallback si le CEO local le demande via l'API."""
-    print("[Twitter] Bot VPS en mode passif (Twitter delegue au CEO local)")
+    logger.info("Bot VPS en mode passif (Twitter delegue au CEO local)")
     if not TWITTER_API_KEY:
-        print("[Twitter] Bot inactif (pas de cles API)")
+        logger.warning("Bot inactif (pas de cles API)")
         return
 
     # Test de connexion au demarrage
     client = _get_client()
     if client:
-        print("[Twitter] Client initialise (mode passif — post uniquement via API)")
+        logger.info("Client initialise (mode passif — post uniquement via API)")
     else:
-        print("[Twitter] Erreur client — verifier les cles API")
+        logger.error("Erreur client — verifier les cles API")
         return
 
     # Pas de boucle active — le CEO local gere Twitter via Playwright
