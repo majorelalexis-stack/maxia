@@ -11,6 +11,7 @@ import httpx
 import base58
 from nacl.signing import SigningKey
 from config import get_rpc_url, ESCROW_PRIVKEY_B58, ESCROW_ADDRESS
+from http_client import get_http_client
 
 JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
 JUPITER_SWAP_API = "https://lite-api.jup.ag/swap/v1/swap"
@@ -38,30 +39,30 @@ async def get_quote(input_mint: str, output_mint: str, amount_raw: int,
     for jup_url in jup_urls:
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.get(jup_url, params=params)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        return {
-                            "success": True,
-                            "inputMint": input_mint,
-                            "outputMint": output_mint,
-                            "inAmount": data.get("inAmount", "0"),
-                            "outAmount": data.get("outAmount", "0"),
-                            "priceImpactPct": data.get("priceImpactPct", "0"),
-                            "routePlan": [
-                                {"swapInfo": step.get("swapInfo", {}).get("label", ""),
-                                 "percent": step.get("percent", 100)}
-                                for step in data.get("routePlan", [])
-                            ],
-                            "raw_quote": data,
-                        }
-                    elif resp.status_code == 429:
-                        await asyncio.sleep(2 * (attempt + 1))
-                        continue
-                    else:
-                        last_error = f"Jupiter {resp.status_code}: {resp.text[:100]}"
-                        break
+                client = get_http_client()
+                resp = await client.get(jup_url, params=params, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return {
+                        "success": True,
+                        "inputMint": input_mint,
+                        "outputMint": output_mint,
+                        "inAmount": data.get("inAmount", "0"),
+                        "outAmount": data.get("outAmount", "0"),
+                        "priceImpactPct": data.get("priceImpactPct", "0"),
+                        "routePlan": [
+                            {"swapInfo": step.get("swapInfo", {}).get("label", ""),
+                             "percent": step.get("percent", 100)}
+                            for step in data.get("routePlan", [])
+                        ],
+                        "raw_quote": data,
+                    }
+                elif resp.status_code == 429:
+                    await asyncio.sleep(2 * (attempt + 1))
+                    continue
+                else:
+                    last_error = f"Jupiter {resp.status_code}: {resp.text[:100]}"
+                    break
             except Exception as e:
                 last_error = str(e)
                 break
@@ -76,17 +77,17 @@ async def execute_swap(quote_response: dict, user_wallet: str) -> dict:
             "userPublicKey": user_wallet,
             "wrapAndUnwrapSol": True,
         }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(JUPITER_SWAP_API, json=body)
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "success": True,
-                    "swapTransaction": data.get("swapTransaction", ""),
-                    "lastValidBlockHeight": data.get("lastValidBlockHeight", 0),
-                }
-            else:
-                return {"success": False, "error": f"Jupiter swap error: {resp.text[:200]}"}
+        client = get_http_client()
+        resp = await client.post(JUPITER_SWAP_API, json=body, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            return {
+                "success": True,
+                "swapTransaction": data.get("swapTransaction", ""),
+                "lastValidBlockHeight": data.get("lastValidBlockHeight", 0),
+            }
+        else:
+            return {"success": False, "error": f"Jupiter swap error: {resp.text[:200]}"}
     except Exception as e:
         return {"success": False, "error": "An error occurred"}
 
@@ -129,9 +130,9 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
             "method": "sendTransaction",
             "params": [tx_b64, {"encoding": "base64", "skipPreflight": True}],
         }
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=20)
+        data = resp.json()
 
         if "result" in data:
             sig = data["result"]

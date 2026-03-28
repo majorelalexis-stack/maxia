@@ -18,6 +18,7 @@ import logging
 import asyncio, os, time, json
 from datetime import date
 import httpx
+from http_client import get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -302,38 +303,38 @@ class ScoutAgent:
         rpc = get_rpc_url()
         for program, protocol in SOLANA_AI_PROGRAMS.items():
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.post(rpc, json={
+                client = get_http_client()
+                resp = await client.post(rpc, json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "getSignaturesForAddress",
+                    "params": [program, {"limit": 50}],
+                })
+                sigs = resp.json().get("result", [])
+                for sig_info in sigs[:20]:
+                    sig = sig_info.get("signature", "")
+                    if not sig:
+                        continue
+                    resp2 = await client.post(rpc, json={
                         "jsonrpc": "2.0", "id": 1,
-                        "method": "getSignaturesForAddress",
-                        "params": [program, {"limit": 50}],
+                        "method": "getTransaction",
+                        "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
                     })
-                    sigs = resp.json().get("result", [])
-                    for sig_info in sigs[:20]:
-                        sig = sig_info.get("signature", "")
-                        if not sig:
-                            continue
-                        resp2 = await client.post(rpc, json={
-                            "jsonrpc": "2.0", "id": 1,
-                            "method": "getTransaction",
-                            "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                        })
-                        tx = resp2.json().get("result", {})
-                        if tx:
-                            accounts = tx.get("transaction", {}).get("message", {}).get("accountKeys", [])
-                            if accounts:
-                                signer = accounts[0]
-                                if isinstance(signer, dict):
-                                    signer = signer.get("pubkey", "")
-                                if signer and signer != MARKETING_WALLET_ADDRESS:
-                                    agents.append({
-                                        "address": signer,
-                                        "chain": "solana",
-                                        "protocol": protocol,
-                                        "type": "agent_operator",
-                                        "contact_method": "solana_memo",
-                                    })
-                        await asyncio.sleep(0.3)
+                    tx = resp2.json().get("result", {})
+                    if tx:
+                        accounts = tx.get("transaction", {}).get("message", {}).get("accountKeys", [])
+                        if accounts:
+                            signer = accounts[0]
+                            if isinstance(signer, dict):
+                                signer = signer.get("pubkey", "")
+                            if signer and signer != MARKETING_WALLET_ADDRESS:
+                                agents.append({
+                                    "address": signer,
+                                    "chain": "solana",
+                                    "protocol": protocol,
+                                    "type": "agent_operator",
+                                    "contact_method": "solana_memo",
+                                })
+                    await asyncio.sleep(0.3)
             except Exception as e:
                 logger.error("Solana scan %s error: %s", protocol, e)
         return agents
@@ -359,15 +360,15 @@ class ScoutAgent:
                     if tx_hash and len(wallets) < 10:
                         # Get tx sender
                         try:
-                            async with httpx.AsyncClient(timeout=10) as client:
-                                resp = await client.post(ETH_RPC, json={
-                                    "jsonrpc": "2.0", "id": 1,
-                                    "method": "eth_getTransactionByHash",
-                                    "params": [tx_hash],
-                                })
-                                tx = resp.json().get("result", {})
-                                if tx and tx.get("from"):
-                                    wallets.add(tx["from"])
+                            client = get_http_client()
+                            resp = await client.post(ETH_RPC, json={
+                                "jsonrpc": "2.0", "id": 1,
+                                "method": "eth_getTransactionByHash",
+                                "params": [tx_hash],
+                            })
+                            tx = resp.json().get("result", {})
+                            if tx and tx.get("from"):
+                                wallets.add(tx["from"])
                         except Exception:
                             pass
 
@@ -400,25 +401,25 @@ class ScoutAgent:
                     "method": "eth_getLogs",
                     "params": [params],
                 }
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.post(BASE_RPC, json=payload)
-                    logs = resp.json().get("result", [])
-                    wallets = set()
-                    for log in logs[:100]:
-                        topics = log.get("topics", [])
-                        for t in topics[1:]:
-                            if len(t) == 66:
-                                addr = "0x" + t[-40:]
-                                if addr != "0x" + "0" * 40:
-                                    wallets.add(addr)
-                    for wallet in list(wallets)[:5]:
-                        agents.append({
-                            "address": wallet,
-                            "chain": "base",
-                            "protocol": info["name"],
-                            "type": info["type"],
-                            "contact_method": "api_or_onchain",
-                        })
+                client = get_http_client()
+                resp = await client.post(BASE_RPC, json=payload, timeout=15)
+                logs = resp.json().get("result", [])
+                wallets = set()
+                for log in logs[:100]:
+                    topics = log.get("topics", [])
+                    for t in topics[1:]:
+                        if len(t) == 66:
+                            addr = "0x" + t[-40:]
+                            if addr != "0x" + "0" * 40:
+                                wallets.add(addr)
+                for wallet in list(wallets)[:5]:
+                    agents.append({
+                        "address": wallet,
+                        "chain": "base",
+                        "protocol": info["name"],
+                        "type": info["type"],
+                        "contact_method": "api_or_onchain",
+                    })
             except Exception as e:
                 logger.error("Base scan %s error: %s", info["name"], e)
         return agents
@@ -433,25 +434,25 @@ class ScoutAgent:
                     "method": "eth_getLogs",
                     "params": [{"address": contract, "fromBlock": "latest", "toBlock": "latest"}],
                 }
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.post(rpc_url, json=payload)
-                    logs = resp.json().get("result", [])
-                    wallets = set()
-                    for log in logs[:100]:
-                        topics = log.get("topics", [])
-                        for t in topics[1:]:
-                            if len(t) == 66:
-                                addr = "0x" + t[-40:]
-                                if addr != "0x" + "0" * 40:
-                                    wallets.add(addr)
-                    for wallet in list(wallets)[:5]:
-                        agents.append({
-                            "address": wallet,
-                            "chain": chain_name,
-                            "protocol": info["name"],
-                            "type": info["type"],
-                            "contact_method": "api_or_onchain",
-                        })
+                client = get_http_client()
+                resp = await client.post(rpc_url, json=payload, timeout=15)
+                logs = resp.json().get("result", [])
+                wallets = set()
+                for log in logs[:100]:
+                    topics = log.get("topics", [])
+                    for t in topics[1:]:
+                        if len(t) == 66:
+                            addr = "0x" + t[-40:]
+                            if addr != "0x" + "0" * 40:
+                                wallets.add(addr)
+                for wallet in list(wallets)[:5]:
+                    agents.append({
+                        "address": wallet,
+                        "chain": chain_name,
+                        "protocol": info["name"],
+                        "type": info["type"],
+                        "contact_method": "api_or_onchain",
+                    })
             except Exception as e:
                 logger.error("%s scan %s error: %s", chain_name, info["name"], e)
         return agents
@@ -460,22 +461,22 @@ class ScoutAgent:
         """Scan TON pour trouver des bots/agents actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                # Chercher les transactions recentes sur des contrats connus
-                resp = await client.get("https://toncenter.com/api/v2/getTransactions",
-                    params={"address": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs", "limit": 50})
-                data = resp.json()
-                if data.get("ok"):
-                    for tx in data.get("result", [])[:10]:
-                        sender = tx.get("in_msg", {}).get("source", "")
-                        if sender:
-                            agents.append({
-                                "address": sender,
-                                "chain": "ton",
-                                "protocol": "TON USDT",
-                                "type": "active_wallet",
-                                "contact_method": "telegram",
-                            })
+            client = get_http_client()
+            # Chercher les transactions recentes sur des contrats connus
+            resp = await client.get("https://toncenter.com/api/v2/getTransactions",
+                params={"address": "EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs", "limit": 50})
+            data = resp.json()
+            if data.get("ok"):
+                for tx in data.get("result", [])[:10]:
+                    sender = tx.get("in_msg", {}).get("source", "")
+                    if sender:
+                        agents.append({
+                            "address": sender,
+                            "chain": "ton",
+                            "protocol": "TON USDT",
+                            "type": "active_wallet",
+                            "contact_method": "telegram",
+                        })
         except Exception as e:
             logger.error("TON scan error: %s", e)
         return agents
@@ -484,27 +485,27 @@ class ScoutAgent:
         """Scan SUI pour trouver des agents/bots actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post("https://fullnode.mainnet.sui.io:443", json={
-                    "jsonrpc": "2.0", "id": 1,
-                    "method": "suix_queryEvents",
-                    "params": [{"MoveModule": {"package": "0x2", "module": "coin"}}, None, 50, True],
+            client = get_http_client()
+            resp = await client.post("https://fullnode.mainnet.sui.io:443", json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "suix_queryEvents",
+                "params": [{"MoveModule": {"package": "0x2", "module": "coin"}}, None, 50, True],
+            })
+            data = resp.json()
+            events = data.get("result", {}).get("data", [])
+            wallets = set()
+            for event in events[:10]:
+                sender = event.get("sender", "")
+                if sender:
+                    wallets.add(sender)
+            for wallet in list(wallets)[:5]:
+                agents.append({
+                    "address": wallet,
+                    "chain": "sui",
+                    "protocol": "SUI DeFi",
+                    "type": "active_wallet",
+                    "contact_method": "api_or_onchain",
                 })
-                data = resp.json()
-                events = data.get("result", {}).get("data", [])
-                wallets = set()
-                for event in events[:10]:
-                    sender = event.get("sender", "")
-                    if sender:
-                        wallets.add(sender)
-                for wallet in list(wallets)[:5]:
-                    agents.append({
-                        "address": wallet,
-                        "chain": "sui",
-                        "protocol": "SUI DeFi",
-                        "type": "active_wallet",
-                        "contact_method": "api_or_onchain",
-                    })
         except Exception as e:
             logger.error("SUI scan error: %s", e)
         return agents
@@ -513,44 +514,44 @@ class ScoutAgent:
         """Scan NEAR pour trouver des agents/bots IA actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                # Scanner les comptes NEAR connus dans l'ecosysteme AI
-                for acct in NEAR_AI_ACCOUNTS:
-                    try:
-                        resp = await client.post(NEAR_RPC, json={
-                            "jsonrpc": "2.0", "id": 1,
-                            "method": "query",
-                            "params": {"request_type": "view_account", "finality": "final", "account_id": acct["account"]},
-                        })
-                        data = resp.json()
-                        if data.get("result") and not data.get("error"):
-                            agents.append({
-                                "address": acct["account"],
-                                "chain": "near",
-                                "protocol": acct["protocol"],
-                                "type": "known_protocol",
-                                "contact_method": "api_or_onchain",
-                            })
-                            self._register_discovery(acct["account"], "near", acct["protocol"], False)
-                    except Exception:
-                        continue
-                # Scanner le registre NEAR AI
+            client = get_http_client()
+            # Scanner les comptes NEAR connus dans l'ecosysteme AI
+            for acct in NEAR_AI_ACCOUNTS:
                 try:
-                    resp = await client.get("https://api.near.ai/v1/agents", timeout=10)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        for agent in (data if isinstance(data, list) else data.get("agents", []))[:50]:
-                            addr = agent.get("account_id", agent.get("id", ""))
-                            if addr:
-                                agents.append({
-                                    "address": addr,
-                                    "chain": "near",
-                                    "protocol": "near-ai",
-                                    "type": "registered_agent",
-                                    "contact_method": "api",
-                                })
+                    resp = await client.post(NEAR_RPC, json={
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "query",
+                        "params": {"request_type": "view_account", "finality": "final", "account_id": acct["account"]},
+                    })
+                    data = resp.json()
+                    if data.get("result") and not data.get("error"):
+                        agents.append({
+                            "address": acct["account"],
+                            "chain": "near",
+                            "protocol": acct["protocol"],
+                            "type": "known_protocol",
+                            "contact_method": "api_or_onchain",
+                        })
+                        self._register_discovery(acct["account"], "near", acct["protocol"], False)
                 except Exception:
-                    pass
+                    continue
+            # Scanner le registre NEAR AI
+            try:
+                resp = await client.get("https://api.near.ai/v1/agents", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for agent in (data if isinstance(data, list) else data.get("agents", []))[:50]:
+                        addr = agent.get("account_id", agent.get("id", ""))
+                        if addr:
+                            agents.append({
+                                "address": addr,
+                                "chain": "near",
+                                "protocol": "near-ai",
+                                "type": "registered_agent",
+                                "contact_method": "api",
+                            })
+            except Exception:
+                pass
         except Exception as e:
             logger.error("NEAR scan error: %s", e)
         logger.info("NEAR: %s agents trouves", len(agents))
@@ -560,21 +561,21 @@ class ScoutAgent:
         """Scan Aptos pour trouver des agents/protocols actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                for mod in APTOS_AI_MODULES:
-                    try:
-                        resp = await client.get(f"{APTOS_API}/accounts/{mod['address']}")
-                        if resp.status_code == 200:
-                            agents.append({
-                                "address": mod["address"],
-                                "chain": "aptos",
-                                "protocol": mod["protocol"],
-                                "type": "known_protocol",
-                                "contact_method": "api",
-                            })
-                            self._register_discovery(mod["address"], "aptos", mod["protocol"], False)
-                    except Exception:
-                        continue
+            client = get_http_client()
+            for mod in APTOS_AI_MODULES:
+                try:
+                    resp = await client.get(f"{APTOS_API}/accounts/{mod['address']}", timeout=15)
+                    if resp.status_code == 200:
+                        agents.append({
+                            "address": mod["address"],
+                            "chain": "aptos",
+                            "protocol": mod["protocol"],
+                            "type": "known_protocol",
+                            "contact_method": "api",
+                        })
+                        self._register_discovery(mod["address"], "aptos", mod["protocol"], False)
+                except Exception:
+                    continue
         except Exception as e:
             logger.error("Aptos scan error: %s", e)
         logger.info("Aptos: %s agents trouves", len(agents))
@@ -584,29 +585,29 @@ class ScoutAgent:
         """Scan XRP Ledger pour trouver des agents/bots actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                for acct in XRP_AI_ACCOUNTS:
-                    try:
-                        resp = await client.post(XRPL_RPC, json={
-                            "method": "account_tx",
-                            "params": [{"account": acct, "limit": 50, "ledger_index_min": -1}],
-                        })
-                        data = resp.json()
-                        txs = data.get("result", {}).get("transactions", [])
-                        for tx in txs[:50]:
-                            dest = tx.get("tx", {}).get("Destination", "")
-                            source = tx.get("tx", {}).get("Account", "")
-                            for addr in [dest, source]:
-                                if addr and addr != acct:
-                                    agents.append({
-                                        "address": addr,
-                                        "chain": "xrp",
-                                        "protocol": "XRPL",
-                                        "type": "active_wallet",
-                                        "contact_method": "api_or_onchain",
-                                    })
-                    except Exception:
-                        continue
+            client = get_http_client()
+            for acct in XRP_AI_ACCOUNTS:
+                try:
+                    resp = await client.post(XRPL_RPC, json={
+                        "method": "account_tx",
+                        "params": [{"account": acct, "limit": 50, "ledger_index_min": -1}],
+                    })
+                    data = resp.json()
+                    txs = data.get("result", {}).get("transactions", [])
+                    for tx in txs[:50]:
+                        dest = tx.get("tx", {}).get("Destination", "")
+                        source = tx.get("tx", {}).get("Account", "")
+                        for addr in [dest, source]:
+                            if addr and addr != acct:
+                                agents.append({
+                                    "address": addr,
+                                    "chain": "xrp",
+                                    "protocol": "XRPL",
+                                    "type": "active_wallet",
+                                    "contact_method": "api_or_onchain",
+                                })
+                except Exception:
+                    continue
         except Exception as e:
             logger.error("XRP scan error: %s", e)
         logger.info("XRP: %s agents trouves", len(agents))
@@ -616,29 +617,29 @@ class ScoutAgent:
         """Scan TRON pour trouver des agents/bots actifs."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                for contract in TRON_AI_CONTRACTS:
-                    try:
-                        resp = await client.get(
-                            f"{TRON_API_URL}/v1/contracts/{contract}/events",
-                            params={"limit": 50, "only_confirmed": "true"},
-                        )
-                        data = resp.json()
-                        events = data.get("data", [])
-                        for event in events[:50]:
-                            caller = event.get("caller_contract_address", "")
-                            tx_owner = event.get("transaction_owner_address", "")
-                            for addr in [caller, tx_owner]:
-                                if addr:
-                                    agents.append({
-                                        "address": addr,
-                                        "chain": "tron",
-                                        "protocol": "TRON DeFi",
-                                        "type": "active_wallet",
-                                        "contact_method": "api_or_onchain",
-                                    })
-                    except Exception:
-                        continue
+            client = get_http_client()
+            for contract in TRON_AI_CONTRACTS:
+                try:
+                    resp = await client.get(
+                        f"{TRON_API_URL}/v1/contracts/{contract}/events",
+                        params={"limit": 50, "only_confirmed": "true"},
+                    )
+                    data = resp.json()
+                    events = data.get("data", [])
+                    for event in events[:50]:
+                        caller = event.get("caller_contract_address", "")
+                        tx_owner = event.get("transaction_owner_address", "")
+                        for addr in [caller, tx_owner]:
+                            if addr:
+                                agents.append({
+                                    "address": addr,
+                                    "chain": "tron",
+                                    "protocol": "TRON DeFi",
+                                    "type": "active_wallet",
+                                    "contact_method": "api_or_onchain",
+                                })
+                except Exception:
+                    continue
         except Exception as e:
             logger.error("TRON scan error: %s", e)
         logger.info("TRON: %s agents trouves", len(agents))
@@ -648,49 +649,49 @@ class ScoutAgent:
         """Scan ElizaOS plugin registry — 95+ real agent plugins with GitHub repos."""
         agents = []
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get("https://elizaos.github.io/registry/index.json")
-                if resp.status_code != 200:
-                    logger.warning("ElizaOS registry: HTTP %s", resp.status_code)
-                    return agents
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.get("https://elizaos.github.io/registry/index.json", timeout=15)
+            if resp.status_code != 200:
+                logger.warning("ElizaOS registry: HTTP %s", resp.status_code)
+                return agents
+            data = resp.json()
 
-                # Each entry is "package-name": "github:owner/repo"
-                for pkg_name, source in data.items():
-                    if pkg_name.startswith("__"):  # Skip metadata
-                        continue
-                    if not isinstance(source, str) or "github:" not in source:
-                        continue
+            # Each entry is "package-name": "github:owner/repo"
+            for pkg_name, source in data.items():
+                if pkg_name.startswith("__"):  # Skip metadata
+                    continue
+                if not isinstance(source, str) or "github:" not in source:
+                    continue
 
-                    # Extract github owner/repo
-                    repo_path = source.replace("github:", "")
-                    owner = repo_path.split("/")[0] if "/" in repo_path else ""
-                    repo = repo_path.split("/")[1] if "/" in repo_path else repo_path
+                # Extract github owner/repo
+                repo_path = source.replace("github:", "")
+                owner = repo_path.split("/")[0] if "/" in repo_path else ""
+                repo = repo_path.split("/")[1] if "/" in repo_path else repo_path
 
-                    if not owner or not repo:
-                        continue
+                if not owner or not repo:
+                    continue
 
-                    # Determine what kind of agent/plugin this is
-                    is_agent_plugin = any(kw in pkg_name.lower() for kw in [
-                        "plugin-solana", "plugin-evm", "plugin-near", "plugin-sui",
-                        "plugin-ton", "plugin-aptos", "plugin-binance", "plugin-coinbase",
-                        "plugin-hyperliquid", "plugin-goat", "plugin-rabbi-trader",
-                        "plugin-depin", "plugin-flow", "plugin-starknet",
-                        "client-telegram", "client-discord", "client-twitter",
-                    ])
+                # Determine what kind of agent/plugin this is
+                is_agent_plugin = any(kw in pkg_name.lower() for kw in [
+                    "plugin-solana", "plugin-evm", "plugin-near", "plugin-sui",
+                    "plugin-ton", "plugin-aptos", "plugin-binance", "plugin-coinbase",
+                    "plugin-hyperliquid", "plugin-goat", "plugin-rabbi-trader",
+                    "plugin-depin", "plugin-flow", "plugin-starknet",
+                    "client-telegram", "client-discord", "client-twitter",
+                ])
 
-                    if is_agent_plugin:
-                        agents.append({
-                            "address": f"github:{repo_path}",
-                            "chain": "multi",
-                            "protocol": "ElizaOS",
-                            "type": "plugin_developer",
-                            "service_name": pkg_name,
-                            "contact_method": "github",
-                            "github_owner": owner,
-                            "github_repo": repo,
-                            "url": f"https://github.com/{repo_path}",
-                        })
+                if is_agent_plugin:
+                    agents.append({
+                        "address": f"github:{repo_path}",
+                        "chain": "multi",
+                        "protocol": "ElizaOS",
+                        "type": "plugin_developer",
+                        "service_name": pkg_name,
+                        "contact_method": "github",
+                        "github_owner": owner,
+                        "github_repo": repo,
+                        "url": f"https://github.com/{repo_path}",
+                    })
 
             logger.info("ElizaOS: %s agent plugins trouves", len(agents))
         except Exception as e:
@@ -708,50 +709,50 @@ class ScoutAgent:
             "agent DeFi bot",
         ]
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                for query in queries[:2]:  # Max 2 queries per cycle (rate limit)
-                    _gh_headers = {"Accept": "application/vnd.github.v3+json"}
-                    _gh_token = os.getenv("GITHUB_TOKEN", "")
-                    if _gh_token:
-                        _gh_headers["Authorization"] = f"token {_gh_token}"
-                    resp = await client.get(
-                        "https://api.github.com/search/repositories",
-                        params={"q": query, "sort": "updated", "per_page": 10},
-                        headers=_gh_headers,
-                    )
-                    if resp.status_code != 200:
+            client = get_http_client()
+            for query in queries[:2]:  # Max 2 queries per cycle (rate limit)
+                _gh_headers = {"Accept": "application/vnd.github.v3+json"}
+                _gh_token = os.getenv("GITHUB_TOKEN", "")
+                if _gh_token:
+                    _gh_headers["Authorization"] = f"token {_gh_token}"
+                resp = await client.get(
+                    "https://api.github.com/search/repositories",
+                    params={"q": query, "sort": "updated", "per_page": 10},
+                    headers=_gh_headers,
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                for repo in data.get("items", []):
+                    owner = repo.get("owner", {}).get("login", "")
+                    name = repo.get("name", "")
+                    url = repo.get("html_url", "")
+                    homepage = repo.get("homepage", "")
+                    desc = repo.get("description", "") or ""
+                    stars = repo.get("stargazers_count", 0)
+
+                    # Skip low-quality repos
+                    if stars < 5:
                         continue
-                    data = resp.json()
-                    for repo in data.get("items", []):
-                        owner = repo.get("owner", {}).get("login", "")
-                        name = repo.get("name", "")
-                        url = repo.get("html_url", "")
-                        homepage = repo.get("homepage", "")
-                        desc = repo.get("description", "") or ""
-                        stars = repo.get("stargazers_count", 0)
+                    # Skip MAXIA itself
+                    if "maxia" in name.lower():
+                        continue
 
-                        # Skip low-quality repos
-                        if stars < 5:
-                            continue
-                        # Skip MAXIA itself
-                        if "maxia" in name.lower():
-                            continue
-
-                        agents.append({
-                            "address": f"github:{owner}/{name}",
-                            "chain": "multi",
-                            "protocol": "GitHub",
-                            "type": "agent_developer",
-                            "service_name": name,
-                            "contact_method": "github",
-                            "github_owner": owner,
-                            "github_repo": name,
-                            "url": url,
-                            "domain": homepage.replace("https://", "").replace("http://", "").split("/")[0] if homepage else "",
-                            "stars": stars,
-                            "description": desc[:200],
-                        })
-                    await asyncio.sleep(2)  # GitHub rate limit courtesy
+                    agents.append({
+                        "address": f"github:{owner}/{name}",
+                        "chain": "multi",
+                        "protocol": "GitHub",
+                        "type": "agent_developer",
+                        "service_name": name,
+                        "contact_method": "github",
+                        "github_owner": owner,
+                        "github_repo": name,
+                        "url": url,
+                        "domain": homepage.replace("https://", "").replace("http://", "").split("/")[0] if homepage else "",
+                        "stars": stars,
+                        "description": desc[:200],
+                    })
+                await asyncio.sleep(2)  # GitHub rate limit courtesy
 
             # Deduplicate by owner/repo
             seen = set()
@@ -772,43 +773,43 @@ class ScoutAgent:
         agents = []
         queries = ["DeFi agent", "trading bot", "data analysis agent", "blockchain agent", "AI service"]
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                for q in queries[:3]:
-                    try:
-                        resp = await client.post(
-                            "https://agentverse.ai/v1/search/agents",
-                            json={"search_text": q, "limit": 10, "sort": "interactions"},
-                        )
-                        if resp.status_code != 200:
-                            continue
-                        data = resp.json()
-                        results = data if isinstance(data, list) else data.get("results", data.get("agents", []))
-                        for agent in results:
-                            address = agent.get("address", "")
-                            endpoints = agent.get("endpoints", [])
-                            name = agent.get("name", "")
-                            if not address:
-                                continue
-                            # Extract best endpoint URL
-                            ep_url = ""
-                            for ep in (endpoints if isinstance(endpoints, list) else []):
-                                url = ep.get("url", ep) if isinstance(ep, dict) else str(ep)
-                                if url and url.startswith("http"):
-                                    ep_url = url
-                                    break
-                            agents.append({
-                                "address": address,
-                                "chain": "fetchai",
-                                "protocol": "Fetch.ai uAgent",
-                                "type": "live_agent",
-                                "service_name": name[:100],
-                                "contact_method": "api" if ep_url else "api_or_onchain",
-                                "url": ep_url,
-                                "domain": ep_url.split("//")[1].split("/")[0] if "//" in ep_url else "",
-                            })
-                    except Exception:
+            client = get_http_client()
+            for q in queries[:3]:
+                try:
+                    resp = await client.post(
+                        "https://agentverse.ai/v1/search/agents",
+                        json={"search_text": q, "limit": 10, "sort": "interactions"},
+                    )
+                    if resp.status_code != 200:
                         continue
-                    await asyncio.sleep(1)
+                    data = resp.json()
+                    results = data if isinstance(data, list) else data.get("results", data.get("agents", []))
+                    for agent in results:
+                        address = agent.get("address", "")
+                        endpoints = agent.get("endpoints", [])
+                        name = agent.get("name", "")
+                        if not address:
+                            continue
+                        # Extract best endpoint URL
+                        ep_url = ""
+                        for ep in (endpoints if isinstance(endpoints, list) else []):
+                            url = ep.get("url", ep) if isinstance(ep, dict) else str(ep)
+                            if url and url.startswith("http"):
+                                ep_url = url
+                                break
+                        agents.append({
+                            "address": address,
+                            "chain": "fetchai",
+                            "protocol": "Fetch.ai uAgent",
+                            "type": "live_agent",
+                            "service_name": name[:100],
+                            "contact_method": "api" if ep_url else "api_or_onchain",
+                            "url": ep_url,
+                            "domain": ep_url.split("//")[1].split("/")[0] if "//" in ep_url else "",
+                        })
+                except Exception:
+                    continue
+                await asyncio.sleep(1)
             logger.info("Agentverse: %s live agents trouves", len(agents))
         except Exception as e:
             logger.error("Agentverse error: %s", e)
@@ -819,39 +820,39 @@ class ScoutAgent:
         agents = []
         try:
             query = '{"query":"{ agents(first: 30, orderBy: \\"createdAt\\", orderDirection: \\"desc\\") { id owner registrationFile { name description active a2aEndpoint mcpEndpoint } } }"}'
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    "https://8004-indexer-main.qnt.sh/v2/graphql",
-                    content=query,
-                    headers={"Content-Type": "application/json"},
-                )
-                if resp.status_code != 200:
-                    logger.warning("8004 Registry: HTTP %s", resp.status_code)
-                    return agents
-                data = resp.json()
-                for agent in data.get("data", {}).get("agents", []):
-                    reg = agent.get("registrationFile", {}) or {}
-                    if not reg.get("active", True):
-                        continue
-                    a2a = reg.get("a2aEndpoint", "")
-                    mcp = reg.get("mcpEndpoint", "")
-                    name = reg.get("name", "")
-                    owner = agent.get("owner", "")
-                    if not (a2a or mcp or owner):
-                        continue
-                    ep_url = a2a or mcp
-                    agents.append({
-                        "address": owner or agent.get("id", ""),
-                        "chain": "solana",
-                        "protocol": "ERC-8004",
-                        "type": "registered_agent",
-                        "service_name": name[:100],
-                        "contact_method": "api" if ep_url else "api_or_onchain",
-                        "url": ep_url,
-                        "domain": ep_url.split("//")[1].split("/")[0] if ep_url and "//" in ep_url else "",
-                        "a2a_endpoint": a2a,
-                        "mcp_endpoint": mcp,
-                    })
+            client = get_http_client()
+            resp = await client.post(
+                "https://8004-indexer-main.qnt.sh/v2/graphql",
+                content=query,
+                headers={"Content-Type": "application/json"},
+            )
+            if resp.status_code != 200:
+                logger.warning("8004 Registry: HTTP %s", resp.status_code)
+                return agents
+            data = resp.json()
+            for agent in data.get("data", {}).get("agents", []):
+                reg = agent.get("registrationFile", {}) or {}
+                if not reg.get("active", True):
+                    continue
+                a2a = reg.get("a2aEndpoint", "")
+                mcp = reg.get("mcpEndpoint", "")
+                name = reg.get("name", "")
+                owner = agent.get("owner", "")
+                if not (a2a or mcp or owner):
+                    continue
+                ep_url = a2a or mcp
+                agents.append({
+                    "address": owner or agent.get("id", ""),
+                    "chain": "solana",
+                    "protocol": "ERC-8004",
+                    "type": "registered_agent",
+                    "service_name": name[:100],
+                    "contact_method": "api" if ep_url else "api_or_onchain",
+                    "url": ep_url,
+                    "domain": ep_url.split("//")[1].split("/")[0] if ep_url and "//" in ep_url else "",
+                    "a2a_endpoint": a2a,
+                    "mcp_endpoint": mcp,
+                })
             logger.info("8004 Registry: %s agents trouves", len(agents))
         except Exception as e:
             logger.error("8004 Registry error: %s", e)
@@ -862,31 +863,31 @@ class ScoutAgent:
         agents = []
         for registry in AI_REGISTRIES:
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.get(registry["url"], params={"limit": 50})
-                    if resp.status_code != 200:
-                        continue
-                    try:
-                        data = resp.json()
-                    except Exception:
-                        continue  # Non-JSON response (HTML error page, etc.)
-                    services = data if isinstance(data, list) else data.get("results", data.get("services", []))
-                    for svc in services[:30]:
-                        # Olas format
-                        owner = svc.get("owner", svc.get("agent_address", ""))
-                        name = svc.get("name", svc.get("description", ""))
-                        svc_id = svc.get("id", svc.get("service_id", ""))
-                        if owner:
-                            agents.append({
-                                "address": owner,
-                                "chain": registry["chain"],
-                                "protocol": registry["name"],
-                                "type": "registered_service",
-                                "service_name": str(name)[:100],
-                                "service_id": str(svc_id),
-                                "contact_method": "api",
-                                "registry_url": registry["url"],
-                            })
+                client = get_http_client()
+                resp = await client.get(registry["url"], params={"limit": 50}, timeout=15)
+                if resp.status_code != 200:
+                    continue
+                try:
+                    data = resp.json()
+                except Exception:
+                    continue  # Non-JSON response (HTML error page, etc.)
+                services = data if isinstance(data, list) else data.get("results", data.get("services", []))
+                for svc in services[:30]:
+                    # Olas format
+                    owner = svc.get("owner", svc.get("agent_address", ""))
+                    name = svc.get("name", svc.get("description", ""))
+                    svc_id = svc.get("id", svc.get("service_id", ""))
+                    if owner:
+                        agents.append({
+                            "address": owner,
+                            "chain": registry["chain"],
+                            "protocol": registry["name"],
+                            "type": "registered_service",
+                            "service_name": str(name)[:100],
+                            "service_id": str(svc_id),
+                            "contact_method": "api",
+                            "registry_url": registry["url"],
+                        })
             except Exception as e:
                 logger.error("Registry scan %s error: %s", registry["name"], e)
         return agents
@@ -938,27 +939,27 @@ class ScoutAgent:
                     f"https://{domain}/api/register",
                     f"https://{domain}/api/v1/agents",
                 ]
-                async with httpx.AsyncClient(timeout=8) as client:
-                    for ep in endpoints:
-                        try:
-                            resp = await client.get(ep)
-                            if resp.status_code == 200:
-                                # Agent has a live API — try to register MAXIA
-                                try:
-                                    await client.post(f"https://{domain}/api/register", json={
-                                        "from": "MAXIA",
-                                        "type": "marketplace_invitation",
-                                        "message": f"List your agent on MAXIA marketplace. 14 chains, USDC payments.",
-                                        "register_url": f"https://{MAXIA_URL}/api/public/register",
-                                    })
-                                except Exception:
-                                    pass
-                                self._contacted_today.append(agent_info.get("address", ""))
-                                self._total_contacted += 1
-                                logger.info("GitHub+API contact -> %s/%s via %s", owner, repo, domain)
-                                return True
-                        except Exception:
-                            continue
+                client = get_http_client()
+                for ep in endpoints:
+                    try:
+                        resp = await client.get(ep, timeout=8)
+                        if resp.status_code == 200:
+                            # Agent has a live API — try to register MAXIA
+                            try:
+                                await client.post(f"https://{domain}/api/register", json={
+                                    "from": "MAXIA",
+                                    "type": "marketplace_invitation",
+                                    "message": f"List your agent on MAXIA marketplace. 14 chains, USDC payments.",
+                                    "register_url": f"https://{MAXIA_URL}/api/public/register",
+                                })
+                            except Exception:
+                                pass
+                            self._contacted_today.append(agent_info.get("address", ""))
+                            self._total_contacted += 1
+                            logger.info("GitHub+API contact -> %s/%s via %s", owner, repo, domain)
+                            return True
+                    except Exception:
+                        continue
             except Exception:
                 pass
 
@@ -1037,35 +1038,35 @@ class ScoutAgent:
         contacted = False
         for endpoint in api_endpoints:
             try:
-                async with httpx.AsyncClient(timeout=8) as client:
-                    # Try A2A format first
-                    resp = await client.post(endpoint, json=payload)
-                    if resp.status_code in (200, 201, 202):
+                client = get_http_client()
+                # Try A2A format first
+                resp = await client.post(endpoint, json=payload, timeout=8)
+                if resp.status_code in (200, 201, 202):
+                    contacted = True
+                    break
+                # Try simple format
+                if resp.status_code in (400, 405, 415):
+                    resp2 = await client.post(endpoint, json=simple_payload, timeout=8)
+                    if resp2.status_code in (200, 201, 202):
                         contacted = True
                         break
-                    # Try simple format
-                    if resp.status_code in (400, 405, 415):
-                        resp2 = await client.post(endpoint, json=simple_payload)
-                        if resp2.status_code in (200, 201, 202):
-                            contacted = True
-                            break
-                    # Try GET (for discovery endpoints like .well-known)
-                    if resp.status_code >= 400:
-                        resp3 = await client.get(endpoint)
-                        if resp3.status_code == 200:
-                            # Agent exists — log as discoverable
-                            self._register_discovery(address, chain, protocol, contacted=False)
-                            try:
-                                agent_data = resp3.json()
-                                domain = agent_data.get("url", agent_data.get("api_url", ""))
-                                if domain:
-                                    # Try to register on their API
-                                    resp4 = await client.post(f"{domain}/api/register", json=simple_payload)
-                                    if resp4.status_code in (200, 201, 202):
-                                        contacted = True
-                                        break
-                            except Exception:
-                                pass
+                # Try GET (for discovery endpoints like .well-known)
+                if resp.status_code >= 400:
+                    resp3 = await client.get(endpoint, timeout=8)
+                    if resp3.status_code == 200:
+                        # Agent exists — log as discoverable
+                        self._register_discovery(address, chain, protocol, contacted=False)
+                        try:
+                            agent_data = resp3.json()
+                            domain = agent_data.get("url", agent_data.get("api_url", ""))
+                            if domain:
+                                # Try to register on their API
+                                resp4 = await client.post(f"{domain}/api/register", json=simple_payload, timeout=8)
+                                if resp4.status_code in (200, 201, 202):
+                                    contacted = True
+                                    break
+                        except Exception:
+                            pass
             except (httpx.TimeoutException, httpx.ConnectError):
                 continue
             except Exception:

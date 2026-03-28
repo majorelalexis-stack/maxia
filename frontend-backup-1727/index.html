@@ -1,0 +1,3418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta charset="UTF-8">
+<meta name="google-site-verification" content="TpYt3A9yqN7aegnHmLI7CyQR3nb9LbpSfH9OIYte0CM" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — AI Web3 Hub on 14 Chains — Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root {
+  --bg:       #080A0F;
+  --bg1:      #0D1017;
+  --bg2:      #131720;
+  --bg3:      #1A2030;
+  --border:   #1E2840;
+  --border2:  #2A3550;
+  --purple:   #7C6BF8;
+  --purple2:  #9D8FFF;
+  --cyan:     #00E5CC;
+  --cyan2:    #00FFE5;
+  --green:    #00E676;
+  --red:      #FF4560;
+  --gold:     #FFB300;
+  --text:     #E8EAF0;
+  --muted:    #6B7A9A;
+  --muted2:   #4A556A;
+  --font-mono: 'Space Mono', monospace;
+  --font-sans: 'Syne', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE BACKGROUND ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,107,248,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 110%, rgba(0,229,204,0.05) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── LAYOUT ── */
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg1);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; height: 100vh;
+  z-index: 100;
+}
+.logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  font-family: var(--font-sans);
+  font-size: 22px; font-weight: 800;
+  color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.logo-mark span {
+  display: inline-block; width: 8px; height: 8px;
+  background: var(--cyan); border-radius: 50%;
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulse 2s infinite;
+}
+.logo-sub { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-top: 3px; letter-spacing: 0.1em; }
+
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 8px var(--cyan);} 50%{opacity:.5;box-shadow:0 0 2px var(--cyan);} }
+
+.nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+.nav-section { padding: 12px 16px 4px; font-family: var(--font-mono); font-size: 9px; color: var(--muted2); letter-spacing: 0.15em; text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+  transition: all .15s; border-left: 2px solid transparent;
+  margin: 1px 0;
+}
+.nav-item:hover { color: var(--text); background: rgba(255,255,255,.03); }
+.nav-item.active { color: var(--cyan); border-left-color: var(--cyan); background: rgba(0,229,204,.06); }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-badge {
+  margin-left: auto; background: var(--purple);
+  color: #fff; font-family: var(--font-mono); font-size: 9px;
+  padding: 2px 6px; border-radius: 10px;
+}
+.nav-badge.green { background: rgba(0,230,118,.2); color: var(--green); }
+.nav-badge.gold { background: rgba(255,179,0,.2); color: var(--gold); }
+
+.sidebar-footer {
+  padding: 16px; border-top: 1px solid var(--border);
+  font-family: var(--font-mono); font-size: 9px; color: var(--muted2);
+}
+.status-dot {
+  display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 6px var(--green); margin-right: 6px;
+  animation: pulse2 3s infinite;
+}
+@keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── MAIN ── */
+.main { margin-left: 220px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  height: 56px; background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 28px; gap: 16px;
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-title { font-size: 15px; font-weight: 700; flex: 1; }
+.topbar-pills { display: flex; gap: 8px; align-items: center; }
+.pill {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.pill.online { border-color: rgba(0,230,118,.3); color: var(--green); }
+.pill.sol { border-color: rgba(124,107,248,.3); color: var(--purple2); }
+
+.btn-wallet {
+  padding: 7px 16px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple), #5B4FE0);
+  color: #fff; font-family: var(--font-mono); font-size: 11px;
+  border: none; cursor: pointer; font-weight: 700;
+  transition: all .2s; letter-spacing: .02em;
+  box-shadow: 0 0 20px rgba(124,107,248,.3);
+}
+.btn-wallet:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(124,107,248,.5); }
+.btn-wallet.connected { background: linear-gradient(135deg,#0D3B2E, #0A2E25); border: 1px solid rgba(0,230,118,.3); color: var(--green); }
+
+/* ── PAGE CONTENT ── */
+.page { display: none; padding: 28px; flex: 1; }
+.page.active { display: block; }
+
+/* ── STAT CARDS ── */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .2s;
+}
+.stat-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.stat-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card.purple::before { background: linear-gradient(90deg, var(--purple), transparent); }
+.stat-card.cyan::before   { background: linear-gradient(90deg, var(--cyan), transparent); }
+.stat-card.green::before  { background: linear-gradient(90deg, var(--green), transparent); }
+.stat-card.gold::before   { background: linear-gradient(90deg, var(--gold), transparent); }
+
+.stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+.stat-value { font-size: 28px; font-weight: 800; line-height: 1; }
+.stat-value.purple { color: var(--purple2); }
+.stat-value.cyan   { color: var(--cyan); }
+.stat-value.green  { color: var(--green); }
+.stat-value.gold   { color: var(--gold); }
+.stat-sub { font-family: var(--font-mono); font-size: 10px; color: var(--muted); margin-top: 6px; }
+.stat-icon { position: absolute; right: 16px; top: 16px; font-size: 22px; opacity: .3; }
+
+/* ── PANELS ── */
+.panels-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.panels-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.panel {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.panel-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title { font-size: 13px; font-weight: 700; }
+.panel-body { padding: 16px; }
+.panel-action {
+  font-family: var(--font-mono); font-size: 10px; color: var(--cyan);
+  cursor: pointer; background: none; border: none; padding: 0;
+}
+.panel-action:hover { text-decoration: underline; }
+
+/* ── TABLE ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 400;
+  color: var(--muted2); text-transform: uppercase; letter-spacing: .1em;
+  padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 10px; border-bottom: 1px solid rgba(30,40,64,.5); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  padding: 3px 8px; border-radius: 6px; letter-spacing: .05em;
+}
+.badge.green { background: rgba(0,230,118,.1); color: var(--green); border: 1px solid rgba(0,230,118,.2); }
+.badge.red   { background: rgba(255,69,96,.1);  color: var(--red);   border: 1px solid rgba(255,69,96,.2); }
+.badge.purple{ background: rgba(124,107,248,.1);color: var(--purple2);border: 1px solid rgba(124,107,248,.2); }
+.badge.cyan  { background: rgba(0,229,204,.1);  color: var(--cyan);  border: 1px solid rgba(0,229,204,.2); }
+.badge.gold  { background: rgba(255,179,0,.1);  color: var(--gold);  border: 1px solid rgba(255,179,0,.2); }
+.badge.gray  { background: rgba(107,122,154,.1);color: var(--muted); border: 1px solid rgba(107,122,154,.2); }
+
+/* ── MONO TEXT ── */
+.mono { font-family: var(--font-mono); }
+.addr { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.addr span { color: var(--text); }
+
+/* ── CHARTS ── */
+.mini-chart { height: 60px; position: relative; overflow: hidden; }
+.mini-chart canvas { width: 100% !important; height: 60px !important; }
+
+/* ── FORM ELEMENTS ── */
+.form-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.form-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.form-input {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  padding: 9px 12px; border-radius: 8px; outline: none;
+  transition: border-color .15s;
+}
+.form-input:focus { border-color: var(--cyan); }
+.form-select {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font-mono); font-size: 12px;
+  padding: 9px 12px; border-radius: 8px; outline: none; cursor: pointer;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  padding: 9px 18px; border-radius: 8px; border: none;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all .15s; letter-spacing: .03em;
+}
+.btn-primary { background: var(--purple); color: #fff; }
+.btn-primary:hover { background: var(--purple2); transform: translateY(-1px); }
+.btn-cyan { background: rgba(0,229,204,.15); color: var(--cyan); border: 1px solid rgba(0,229,204,.3); }
+.btn-cyan:hover { background: rgba(0,229,204,.25); }
+.btn-green { background: rgba(0,230,118,.15); color: var(--green); border: 1px solid rgba(0,230,118,.3); }
+.btn-danger { background: rgba(255,69,96,.15); color: var(--red); border: 1px solid rgba(255,69,96,.3); }
+.btn-sm { padding: 5px 12px; font-size: 10px; }
+.btn-full { width: 100%; }
+
+/* ── PROGRESS BAR ── */
+.progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width .5s; }
+
+/* ── TIER CARD ── */
+.tier-card {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px; margin-bottom: 8px;
+}
+.tier-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tier-name { font-weight: 700; font-size: 13px; }
+
+/* ── LOG CONSOLE ── */
+.console {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px;
+  font-family: var(--font-mono); font-size: 11px;
+  max-height: 220px; overflow-y: auto; line-height: 1.7;
+}
+.log-line { display: flex; gap: 10px; }
+.log-ts { color: var(--muted2); flex-shrink: 0; }
+.log-ok   { color: var(--green); }
+.log-warn { color: var(--gold); }
+.log-err  { color: var(--red); }
+.log-info { color: var(--cyan); }
+
+/* ── x402 SPECIFIC ── */
+.x402-flow {
+  display: flex; gap: 0; align-items: stretch;
+  background: var(--bg3); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border2); margin-bottom: 16px;
+}
+.x402-step {
+  flex: 1; padding: 14px; text-align: center;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+.x402-step:last-child { border-right: none; }
+.x402-step::after {
+  content: '→'; position: absolute; right: -8px; top: 50%;
+  transform: translateY(-50%); color: var(--cyan); font-size: 14px;
+  z-index: 1;
+}
+.x402-step:last-child::after { display: none; }
+.x402-num { font-family: var(--font-mono); font-size: 9px; color: var(--muted); margin-bottom: 4px; }
+.x402-label { font-size: 11px; font-weight: 700; color: var(--cyan); }
+.x402-sub { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.code-block {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.7;
+  margin: 8px 0; overflow-x: auto;
+  border-left: 3px solid var(--cyan);
+}
+.code-block .k  { color: var(--purple2); }
+.code-block .s  { color: var(--green); }
+.code-block .c  { color: var(--muted); font-style: italic; }
+.code-block .n  { color: var(--cyan); }
+.code-block .v  { color: var(--gold); }
+
+/* ── AUCTION CARD ── */
+.auction-card {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 14px; margin-bottom: 10px;
+  transition: border-color .2s;
+}
+.auction-card:hover { border-color: var(--purple); }
+.auction-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.auction-gpu { font-weight: 700; font-size: 14px; }
+.auction-vram { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.auction-bid { text-align: right; }
+.auction-price { font-size: 18px; font-weight: 800; color: var(--gold); }
+.auction-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted); }
+.auction-timer { font-family: var(--font-mono); font-size: 11px; color: var(--red); }
+
+/* ── MARKETPLACE CARD ── */
+.service-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px; margin-bottom: 10px;
+  display: flex; gap: 12px; align-items: flex-start;
+  transition: border-color .2s, transform .2s;
+  cursor: pointer;
+}
+.service-card:hover { border-color: var(--cyan); transform: translateY(-1px); }
+.service-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.service-body { flex: 1; }
+.service-name { font-weight: 700; font-size: 13px; margin-bottom: 3px; }
+.service-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.service-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.service-price { font-family: var(--font-mono); font-weight: 700; color: var(--cyan); font-size: 12px; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 12px 18px;
+  font-family: var(--font-mono); font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
+  transform: translateY(80px); opacity: 0;
+  transition: all .3s; z-index: 9999;
+  max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.ok   { border-left: 3px solid var(--green); }
+#toast.err  { border-left: 3px solid var(--red); }
+#toast.info { border-left: 3px solid var(--cyan); }
+
+/* ── LOADING ── */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border2);
+  border-top-color: var(--cyan); border-radius: 50%;
+  animation: spin .8s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1200px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .panels-row.three { grid-template-columns: 1fr 1fr; }
+}
+</style>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3B82F6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">⚡ MAXIA <span></span></div>
+    <div class="logo-sub">AI MARKETPLACE · SOLANA + BASE + ETHEREUM · V12</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Vue d'ensemble</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)">
+      <span class="icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('marketplace',this)">
+      <span class="icon">◎</span> Marketplace IA
+      <span class="nav-badge">NEW</span>
+    </div>
+    <div class="nav-section">Trading</div>
+    <div class="nav-item" onclick="showPage('exchange',this)">
+      <span class="icon">📈</span> Actions Tokenisees
+    </div>
+    <div class="nav-item" onclick="showPage('auctions',this)">
+      <span class="icon">⚙</span> GPU Enchères
+      <span class="nav-badge gold">LIVE</span>
+    </div>
+    <div class="nav-section">Revenus</div>
+    <div class="nav-item" onclick="showPage('subscriptions',this)">
+      <span class="icon">♾</span> Abonnements
+    </div>
+    <div class="nav-item" onclick="showPage('referrals',this)">
+      <span class="icon">⬡</span> Référrals
+    </div>
+    <div class="nav-item" onclick="showPage('data',this)">
+      <span class="icon">◫</span> Data Market
+    </div>
+    <div class="nav-section">Blockchain</div>
+    <div class="nav-item" onclick="showPage('base',this)">
+      <span class="icon">⬡</span> Base (Coinbase L2)
+      <span class="nav-badge" style="background:rgba(0,82,255,.2);color:#0052FF">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('ethereum',this)">
+      <span class="icon">⟠</span> Ethereum Mainnet
+      <span class="nav-badge" style="background:rgba(98,126,234,.2);color:#627EEA">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('kite',this)">
+      <span class="icon">🪁</span> Kite AI
+      <span class="nav-badge" style="background:rgba(255,107,53,.2);color:#FF6B35">NEW</span>
+    </div>
+    <div class="nav-section">Protocoles</div>
+    <div class="nav-item" onclick="showPage('ap2',this)">
+      <span class="icon">◈</span> AP2 (Google)
+      <span class="nav-badge" style="background:rgba(66,133,244,.2);color:#4285F4">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('x402',this)">
+      <span class="icon">◈</span> x402 Protocol
+      <span class="nav-badge" style="background:rgba(0,229,204,.2);color:var(--cyan)">NEW</span>
+    </div>
+    <div class="nav-section">IA Autonome</div>
+    <div class="nav-item" onclick="showPage('publicapi',this)" id="nav-publicapi">
+      <span class="icon">🌐</span> API Publique <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('swarm',this)" id="nav-swarm">
+      <span class="icon">🐝</span> Essaim IA <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('escrow',this)" id="nav-escrow">
+      <span class="icon">🔒</span> Escrow <span class="nav-badge" style="background:rgba(124,107,248,.2);color:var(--purple)">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('ceochat',this)" id="nav-ceochat">
+      <span class="icon">🤖</span> CEO Chat <span class="nav-badge" style="background:rgba(16,185,129,.2);color:var(--green)">LIVE</span>
+    </div>
+    <div class="nav-section">CONTROLE</div>
+    <div class="nav-item" onclick="showPage('approvals',this)" id="nav-approvals">
+      <span class="icon">&#9888;</span> Approbations <span class="nav-badge" id="approvals-badge" style="display:none;background:rgba(255,69,96,.2);color:var(--red)">0</span>
+    </div>
+    <div class="nav-section">COMMUNICATIONS</div>
+    <div class="nav-item" onclick="showPage('inbox',this)" id="nav-inbox">
+      <span class="icon">&#9993;</span> Email Inbox <span class="nav-badge green" id="inbox-badge" style="display:none">0</span>
+    </div>
+    <div class="nav-section">TRADING</div>
+    <div class="nav-item" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</div>
+    <div class="nav-section">WEB3 HUB</div>
+    <div class="nav-item" onclick="showPage('yields',this)"><span class="icon">&#128200;</span> DeFi Yields</div>
+    <div class="nav-item" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</div>
+    <div class="nav-item" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT & Agent ID</div>
+    <div class="nav-item" onclick="showPage('oracle',this)"><span class="icon">&#128302;</span> Oracle & Data</div>
+    <div class="nav-item" onclick="showPage('rpcservice',this)"><span class="icon">&#9889;</span> RPC Service</div>
+    <div class="nav-section">INTELLIGENCE</div>
+    <div class="nav-item" onclick="showPage('ceo-analytics',this)"><span class="icon">📊</span>CEO Analytics</div>
+    <div class="nav-item" onclick="showPage('agent-bus',this)"><span class="icon">🔌</span>Agent Bus</div>
+    <div class="nav-item" onclick="showPage('roi-tracking',this)"><span class="icon">💰</span>ROI Tracking</div>
+    <div class="nav-section">Système</div>
+    <div class="nav-item" onclick="showPage('logs',this)">
+      <span class="icon">▤</span> Logs &amp; API
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div><span class="status-dot"></span>Backend V12 en ligne</div>
+    <div style="margin-top:4px">Art. 1–23 · 46 MCP tools · 17 AI services · 90+ endpoints</div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-pills">
+      <div class="pill online"><span class="status-dot" style="width:5px;height:5px;margin:0"></span> Backend OK</div>
+      <div class="pill sol">◎ <span id="sol-price">chargement...</span></div>
+      <div class="pill" id="block-pill">Block #<span id="block-num">—</span></div>
+    </div>
+    <button class="btn-wallet" id="wallet-btn" onclick="connectWallet()">
+      ◎ Connecter Phantom
+    </button>
+  </header>
+
+  <!-- ══ PAGE: DASHBOARD ══ -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats-grid">
+      <div class="stat-card purple">
+        <div class="stat-icon">◈</div>
+        <div class="stat-label">Volume 24h</div>
+        <div class="stat-value purple" id="vol24">—</div>
+        <div class="stat-sub">USDC total transactions</div>
+      </div>
+      <div class="stat-card cyan">
+        <div class="stat-icon">⬡</div>
+        <div class="stat-label">Services actifs</div>
+        <div class="stat-value cyan" id="svc-count">—</div>
+        <div class="stat-sub">Agents IA disponibles</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-icon">⇌</div>
+        <div class="stat-label">Revenus totaux</div>
+        <div class="stat-value green" id="rev-total">—</div>
+        <div class="stat-sub">USDC générés (tout Art.)</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-icon">⚙</div>
+        <div class="stat-label">GPU en enchères</div>
+        <div class="stat-value gold" id="gpu-count">—</div>
+        <div class="stat-sub">GPU instances actives</div>
+      </div>
+    </div>
+
+    <div class="panels-row">
+      <!-- Activité récente -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ Activité récente</div>
+          <button class="panel-action" onclick="loadActivity()">Actualiser</button>
+        </div>
+        <div class="panel-body">
+          <table class="data-table">
+            <thead><tr><th>Type</th><th>Wallet</th><th>Montant</th><th>Statut</th><th>Heure</th></tr></thead>
+            <tbody id="activity-table">
+              <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">
+                <div class="spinner" style="margin:0 auto"></div>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- API Health -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Santé du système</div>
+          <button class="panel-action" onclick="checkHealth()">Vérifier</button>
+        </div>
+        <div class="panel-body">
+          <div id="health-display">
+            <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wallets overview -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">◎ Wallets MAXIA</div>
+        <span class="badge cyan">Solana</span> <span class="badge purple">Base</span> <span class="badge gold">Ethereum</span> <span class="badge green">XRP</span> <span class="badge cyan">Polygon</span> <span class="badge purple">Arbitrum</span> <span class="badge gold">Avalanche</span> <span class="badge green">BNB</span> <span class="badge cyan">TON</span> <span class="badge purple">SUI</span> <span class="badge gold">TRON</span> <span class="badge green">NEAR</span> <span class="badge cyan">Aptos</span> <span class="badge purple">SEI</span>
+      </div>
+      <div class="panel-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="tier-card">
+            <div class="tier-header">
+              <div>
+                <div class="tier-name" style="color:var(--gold)">Treasury</div>
+                <div style="font-size:10px;color:var(--muted)">Vos revenus MAXIA</div>
+              </div>
+              <span class="badge gold">TREASURY</span>
+            </div>
+            <div class="addr" style="word-break:break-all;font-size:10px">
+              <span>FiYWC9NGUdCbRdNftajVDTpY</span>3siQQUtcaHk58ZvEAE4h
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="stat-label">SOL</div>
+                <div id="treasury-sol" style="font-weight:700;color:var(--purple2);font-family:var(--font-mono)">—</div>
+              </div>
+              <div style="flex:1">
+                <div class="stat-label">USDC</div>
+                <div id="treasury-usdc" style="font-weight:700;color:var(--green);font-family:var(--font-mono)">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="tier-card">
+            <div class="tier-header">
+              <div>
+                <div class="tier-name" style="color:var(--cyan)">Escrow</div>
+                <div style="font-size:10px;color:var(--muted)">Fonds en transit</div>
+              </div>
+              <span class="badge cyan">ESCROW</span>
+            </div>
+            <div class="addr" style="word-break:break-all;font-size:10px">
+              <span>2bx7cMeEPSd9icdEHL2d6wVB</span>SinsRm2g6Wd3Avm5BzGX
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px">
+              <div style="flex:1">
+                <div class="stat-label">SOL</div>
+                <div id="escrow-sol" style="font-weight:700;color:var(--purple2);font-family:var(--font-mono)">—</div>
+              </div>
+              <div style="flex:1">
+                <div class="stat-label">USDC</div>
+                <div id="escrow-usdc" style="font-weight:700;color:var(--green);font-family:var(--font-mono)">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts temps réel -->
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◈ Volume 7j (horaire)</div>
+          <button class="panel-action" onclick="refreshCharts()">Actualiser</button>
+        </div>
+        <div class="panel-body">
+          <canvas id="chart-volume" height="220"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ SOL/USDC 24h</div>
+          <span class="badge cyan" id="sol-price-badge">—</span>
+        </div>
+        <div class="panel-body">
+          <canvas id="chart-sol" height="220"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: MARKETPLACE ══ -->
+  <div class="page" id="page-marketplace">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Services listés</div>
+        <div class="stat-value cyan" id="mkt-listings">—</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Agents inscrits</div>
+        <div class="stat-value purple" id="mkt-agents">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Commissions MAXIA</div>
+        <div class="stat-value green" id="mkt-revenue">$0.00</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Transactions AI-to-AI</div>
+        <div class="stat-value gold" id="mkt-txs">0</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header">
+          <div class="panel-title">◎ Services IA disponibles</div>
+          <button class="btn btn-cyan btn-sm" onclick="loadListings()">↺ Actualiser</button>
+        </div>
+        <div class="panel-body" id="listings-container">
+          <div style="text-align:center;padding:30px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+    <!-- Nouvelle commande -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⊕ Passer une commande</div>
+        <span class="badge gray">Auth requise</span>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Service ID</label>
+            <input class="form-input" id="cmd-service" placeholder="ex: code-sentinel-v2">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Montant USDC</label>
+            <input class="form-input" id="cmd-amount" type="number" placeholder="1.00">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Prompt / Instructions</label>
+          <textarea class="form-input" id="cmd-prompt" rows="3" placeholder="Décrivez votre demande..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="sendCommand()">⊕ Envoyer commande (simulé)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: EXCHANGE ══ -->
+  <div class="page" id="page-exchange">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card">
+        <div class="stat-label">Actions disponibles</div>
+        <div class="stat-value purple" id="stocks-count">10</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Commission min</div>
+        <div class="stat-value green">0.05%</div>
+        <div class="stat-sub">Palier Baleine</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Achat minimum</div>
+        <div class="stat-value cyan">1 USDC</div>
+        <div class="stat-sub">Fractionne</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Fournisseurs</div>
+        <div class="stat-value gold">2</div>
+        <div class="stat-sub">xStocks + Ondo</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📈 Actions Tokenisees (xStocks / Ondo via Jupiter)</div>
+        <button class="btn btn-cyan btn-sm" onclick="loadStocks()">↺ Actualiser</button>
+      </div>
+      <div class="panel-body">
+        <table class="data-table" id="stocks-table">
+          <thead><tr><th>Action</th><th>Symbole</th><th>Secteur</th><th>Token xStock</th><th>Prix USD</th><th>Variation 24h</th></tr></thead>
+          <tbody id="stocks-body">
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Chargement...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panels-row" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">💰 Commissions Actions</div>
+        </div>
+        <div class="panel-body">
+          <table class="data-table" style="font-size:12px">
+            <thead><tr><th>Palier</th><th>Volume 30j</th><th>Commission</th></tr></thead>
+            <tbody>
+              <tr><td style="color:#CD7F32;font-weight:600">BRONZE</td><td>0 - 1K USDC</td><td>0.10%</td></tr>
+              <tr><td style="color:#C0C0C0;font-weight:600">SILVER</td><td>1K - 5K USDC</td><td>0.05%</td></tr>
+              <tr><td style="color:#FFD700;font-weight:600">GOLD</td><td>5K - 25K USDC</td><td>0.03%</td></tr>
+              <tr><td style="color:var(--cyan);font-weight:600">WHALE</td><td>25K+ USDC</td><td>0.01%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">📊 Tokenized Stocks</div>
+          <button class="panel-action" onclick="loadStockStats()">↺</button>
+        </div>
+        <div class="panel-body" id="stock-stats-body">
+          <div style="color:var(--muted);font-size:13px;padding:10px">
+            <p>Trades: <span id="ss-trades">0</span></p>
+            <p style="margin-top:6px">Volume: <span id="ss-volume">0</span> USDC</p>
+            <p style="margin-top:6px">Commission: <span id="ss-commission">0</span> USDC</p>
+            <p style="margin-top:6px">Holders: <span id="ss-holders">0</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: AUCTIONS ══ -->
+  <div class="page" id="page-auctions">
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card gold">
+        <div class="stat-label">Enchères actives</div>
+        <div class="stat-value gold" id="live-auctions">0</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Marge broker</div>
+        <div class="stat-value green">0%</div>
+        <div class="stat-sub">Competitive GPU pricing</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">GPU disponibles</div>
+        <div class="stat-value purple">6</div>
+        <div class="stat-sub">RTX4090 · A6000 · A100 · H100 · H200 · 4xA100</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⚙ Créer une enchère GPU</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Tier GPU</label>
+            <select class="form-select" id="gpu-tier">
+              <option value="rtx4090">RTX 4090 — 24GB VRAM — $0.69/h</option>
+              <option value="a100_80">A100 80GB — $1.99/h</option>
+              <option value="h100_sxm5">H100 SXM5 — $3.29/h</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Durée (heures)</label>
+              <input class="form-input" id="gpu-hours" type="number" value="1" min="0.5" step="0.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prix plancher USDC</label>
+              <input class="form-input" id="gpu-floor" placeholder="Auto (market price)">
+            </div>
+          </div>
+          <button class="btn btn-gold btn-full" onclick="createAuction()"
+            style="background:rgba(255,179,0,.15);color:var(--gold);border:1px solid rgba(255,179,0,.3);padding:9px;border-radius:8px;font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;width:100%">
+            ⚡ Lancer l'enchère (Auth requise)
+          </button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Enchères en cours</div>
+        </div>
+        <div class="panel-body" id="auctions-live">
+          <div style="text-align:center;padding:20px;color:var(--muted)">
+            Connectez-vous via WebSocket pour voir les enchères en temps réel
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: SUBSCRIPTIONS ══ -->
+  <div class="page" id="page-subscriptions">
+    <div class="panels-row three">
+      <div class="panel" style="border-color:rgba(107,122,154,.3)">
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--muted);margin-bottom:6px">BASIC</div>
+          <div style="font-size:40px;font-weight:800;color:var(--text)">9.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px;color:var(--muted)">✓ 100 requêtes / jour</div>
+            <div style="font-size:12px;color:var(--muted)">✓ Marketplace IA</div>
+            <div style="font-size:12px;color:var(--muted)">✓ Tokenized Stocks</div>
+          </div>
+          <button class="btn btn-sm" style="background:var(--border);color:var(--muted);border:none;padding:8px 20px;border-radius:8px;font-family:var(--font-mono);cursor:pointer;width:100%">Souscrire</button>
+        </div>
+      </div>
+      <div class="panel" style="border-color:var(--purple);box-shadow:0 0 30px rgba(124,107,248,.1)">
+        <div style="padding:4px;text-align:center;background:var(--purple);font-family:var(--font-mono);font-size:9px;letter-spacing:.1em">POPULAIRE</div>
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--purple2);margin-bottom:6px">PRO</div>
+          <div style="font-size:40px;font-weight:800;color:var(--purple2)">29.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px">✓ 1000 requêtes / jour</div>
+            <div style="font-size:12px">✓ Tout Basic +</div>
+            <div style="font-size:12px">✓ GPU Enchères</div>
+            <div style="font-size:12px">✓ Agent IA prioritaire</div>
+          </div>
+          <button class="btn btn-primary btn-sm" style="width:100%;padding:8px">Souscrire</button>
+        </div>
+      </div>
+      <div class="panel" style="border-color:rgba(255,179,0,.3)">
+        <div style="padding:24px;text-align:center">
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--gold);margin-bottom:6px">ELITE</div>
+          <div style="font-size:40px;font-weight:800;color:var(--gold)">99.99</div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted)">USDC / mois</div>
+          <div style="height:1px;background:var(--border);margin:16px 0"></div>
+          <div style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+            <div style="font-size:12px">✓ Illimité</div>
+            <div style="font-size:12px">✓ Tout Pro +</div>
+            <div style="font-size:12px">✓ Data Marketplace</div>
+            <div style="font-size:12px">✓ Agent dédié</div>
+            <div style="font-size:12px">✓ Accès API direct</div>
+          </div>
+          <button class="btn btn-sm" style="background:rgba(255,179,0,.15);color:var(--gold);border:1px solid rgba(255,179,0,.3);padding:8px;border-radius:8px;font-family:var(--font-mono);cursor:pointer;width:100%">Souscrire</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">
+        <div class="panel-title">◎ Revenus abonnements</div>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div>
+            <div class="stat-label">Total collecté</div>
+            <div style="font-size:28px;font-weight:800;color:var(--green);font-family:var(--font-mono)" id="sub-revenue">—</div>
+          </div>
+          <button class="btn btn-cyan btn-sm" onclick="loadSubRevenue()">↺ Actualiser</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: REFERRALS ══ -->
+  <div class="page" id="page-referrals">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">⬡ Votre code de parrainage</div>
+        <span class="badge green">2% commission</span>
+      </div>
+      <div class="panel-body">
+        <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:20px;text-align:center;margin-bottom:16px">
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:8px">VOTRE CODE</div>
+          <div style="font-size:32px;font-weight:800;color:var(--cyan);letter-spacing:.1em" id="ref-code">
+            Connectez Phantom
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Partagez ce code — gagnez 2% sur chaque transaction de vos filleuls</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Filleuls</div>
+            <div style="font-size:28px;font-weight:800;color:var(--purple2)" id="ref-count">—</div>
+          </div>
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Gains totaux</div>
+            <div style="font-size:28px;font-weight:800;color:var(--green)" id="ref-earned">—</div>
+          </div>
+          <div class="tier-card" style="text-align:center">
+            <div class="stat-label">Taux</div>
+            <div style="font-size:28px;font-weight:800;color:var(--gold)">2%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: DATA MARKETPLACE ══ -->
+  <div class="page" id="page-data">
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◫ Lister un Dataset</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nom du dataset</label>
+              <input class="form-input" id="ds-name" placeholder="Solana DeFi Trades 2024">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Catégorie</label>
+              <select class="form-select" id="ds-cat">
+                <option value="market_data">Market Data</option>
+                <option value="training">Training Data</option>
+                <option value="evaluation">Evaluation</option>
+                <option value="rl_feedback">RL Feedback</option>
+                <option value="synthetic">Synthetic</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Taille (MB)</label>
+              <input class="form-input" id="ds-size" type="number" placeholder="500">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prix USDC</label>
+              <input class="form-input" id="ds-price" type="number" placeholder="49.99">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Format</label>
+              <select class="form-select" id="ds-format">
+                <option>jsonl</option><option>csv</option><option>parquet</option><option>hdf5</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-cyan btn-full" onclick="listDataset()">◫ Lister le dataset (Auth requise)</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◎ Datasets disponibles</div>
+          <button class="panel-action" onclick="loadDatasets()">↺</button>
+        </div>
+        <div class="panel-body" id="datasets-list">
+          <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: x402 PROTOCOL ══ -->
+  <div class="page" id="page-x402">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">◈ Protocole x402</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        x402 est le standard ouvert de micropaiements HTTP natifs. Quand un agent IA appelle une ressource MAXIA,
+        le serveur répond <code style="color:var(--cyan);font-family:var(--font-mono)">402 Payment Required</code> avec les instructions de paiement.
+        L'agent paie automatiquement en USDC/SOL et reçoit l'accès. <strong>Zéro intermédiaire, zéro friction.</strong>
+      </p>
+    </div>
+
+    <!-- Flux x402 -->
+    <div class="x402-flow">
+      <div class="x402-step">
+        <div class="x402-num">01</div>
+        <div class="x402-label">REQUEST</div>
+        <div class="x402-sub">Agent appelle<br>GET /api/service</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">02</div>
+        <div class="x402-label" style="color:var(--gold)">402</div>
+        <div class="x402-sub">MAXIA répond<br>Payment Required</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">03</div>
+        <div class="x402-label" style="color:var(--purple2)">SIGN</div>
+        <div class="x402-sub">Agent signe<br>tx Solana/USDC</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">04</div>
+        <div class="x402-label" style="color:var(--green)">200 OK</div>
+        <div class="x402-sub">MAXIA vérifie<br>et délivre</div>
+      </div>
+    </div>
+
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">⬡ Intégration dans MAXIA</div>
+          <span class="badge cyan">Implémenté</span>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+            MAXIA intègre x402 nativement. Chaque endpoint API peut être protégé avec une directive de prix.
+            Les agents autonomes (Gemini, GPT, Claude) peuvent payer et accéder automatiquement.
+          </p>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono)">backend/x402_middleware.py</div>
+          <div class="code-block">
+<span class="c"># Middleware FastAPI x402</span>
+<span class="k">from</span> <span class="n">fastapi</span> <span class="k">import</span> Request, Response
+<span class="k">import</span> <span class="n">json</span>
+
+<span class="k">class</span> <span class="n">X402Middleware</span>:
+  <span class="v">PRICE_MAP</span> = {
+    <span class="s">"/api/marketplace/commands"</span>: <span class="v">0.50</span>,
+    <span class="s">"/api/data/datasets"</span>:         <span class="v">0.10</span>,
+    <span class="s">"/api/gpu/auctions"</span>:           <span class="v">1.00</span>,
+  }
+
+  <span class="k">async def</span> <span class="n">__call__</span>(self, request: Request, call_next):
+    path = request.url.path
+    price = self.<span class="v">PRICE_MAP</span>.get(path)
+    pay_hdr = request.headers.get(<span class="s">"X-Payment"</span>)
+
+    <span class="k">if</span> price <span class="k">and not</span> pay_hdr:
+      <span class="k">return</span> Response(
+        status_code=<span class="v">402</span>,
+        content=json.dumps({
+          <span class="s">"x402Version"</span>: <span class="v">1</span>,
+          <span class="s">"accepts"</span>: [{
+            <span class="s">"scheme"</span>:  <span class="s">"exact"</span>,
+            <span class="s">"network"</span>: <span class="s">"solana-mainnet"</span>,
+            <span class="s">"maxAmountRequired"</span>: str(int(price * 1e6)),
+            <span class="s">"resource"</span>: path,
+            <span class="s">"description"</span>: <span class="s">f"MAXIA service: {path}"</span>,
+            <span class="s">"mimeType"</span>: <span class="s">"application/json"</span>,
+            <span class="s">"payTo"</span>: <span class="s">"FiYWC9NGUdCbRdNftajVDTpY3siQQUtcaHk58ZvEAE4h"</span>,
+            <span class="s">"maxTimeoutSeconds"</span>: <span class="v">60</span>
+          }]
+        })
+      )
+    <span class="k">return await</span> call_next(request)
+</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◈ Client x402 (Agent IA)</div>
+          <span class="badge purple">SDK Python</span>
+        </div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+            Exemple d'un agent IA autonome qui paie automatiquement pour accéder aux services MAXIA sans intervention humaine.
+          </p>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--font-mono)">agent_x402_client.py</div>
+          <div class="code-block">
+<span class="k">import</span> <span class="n">httpx</span>
+<span class="k">from</span> <span class="n">solders.keypair</span> <span class="k">import</span> Keypair
+<span class="k">from</span> <span class="n">solana.transaction</span> <span class="k">import</span> Transaction
+
+<span class="k">class</span> <span class="n">MaxiaX402Client</span>:
+  <span class="k">def</span> <span class="n">__init__</span>(self, keypair: <span class="n">Keypair</span>):
+    self.kp = keypair
+
+  <span class="k">async def</span> <span class="n">call</span>(self, url, payload=<span class="v">None</span>):
+    <span class="c"># 1. Requête initiale</span>
+    r = <span class="k">await</span> httpx.post(url, json=payload)
+
+    <span class="k">if</span> r.status_code == <span class="v">402</span>:
+      <span class="c"># 2. Parser les instructions de paiement</span>
+      offer = r.json()[<span class="s">"accepts"</span>][<span class="v">0</span>]
+      amount = int(offer[<span class="s">"maxAmountRequired"</span>])
+      pay_to = offer[<span class="s">"payTo"</span>]
+
+      <span class="c"># 3. Construire + signer tx USDC</span>
+      tx_sig = <span class="k">await</span> self.<span class="n">pay_usdc</span>(pay_to, amount)
+
+      <span class="c"># 4. Retry avec preuve de paiement</span>
+      r = <span class="k">await</span> httpx.post(url, json=payload,
+        headers={<span class="s">"X-Payment"</span>: tx_sig})
+
+    <span class="k">return</span> r.json()
+</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tarification x402 -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">◎ Grille tarifaire x402 (MAXIA)</div>
+        <button class="panel-action" onclick="saveX402Prices()">Sauvegarder</button>
+      </div>
+      <div class="panel-body">
+        <table class="data-table">
+          <thead><tr><th>Endpoint</th><th>Prix par appel</th><th>Réseau</th><th>Destination</th><th>Statut</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">/api/marketplace/commands</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">0.50 USDC</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/data/datasets/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">variable</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/gpu/auctions</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">1.00 USDC</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/x402/premium/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">configurable</span></td>
+              <td><span class="badge purple">Solana</span></td>
+              <td><span class="addr">FiYWC9...</span></td>
+              <td><span class="badge cyan">Nouveau</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/base/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">variable</span></td>
+              <td><span class="badge" style="background:rgba(0,82,255,.1);color:#0052FF;border:1px solid rgba(0,82,255,.2)">Base L2</span></td>
+              <td><span class="addr">0x1a2b...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+            <tr>
+              <td class="mono">/api/ethereum/*</td>
+              <td><span style="color:var(--gold);font-family:var(--font-mono);font-weight:700">min 10 USDC</span></td>
+              <td><span class="badge gold">Ethereum</span></td>
+              <td><span class="addr">0x3c4d...</span></td>
+              <td><span class="badge green">Actif</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- ══ PAGE: BASE (Coinbase L2) ══ -->
+  <div class="page" id="page-base">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x2B21; Base — Coinbase Layer 2</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        Base est le Layer 2 de Coinbase. MAXIA accepte les paiements USDC sur Base
+        via le protocole x402 V2. Frais quasi-nuls, r&egrave;glement instantan&eacute;.
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">R&eacute;seau</div>
+        <div class="stat-value cyan" style="font-size:20px">Base Mainnet</div>
+        <div class="stat-sub">Chain ID: 8453</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">USDC Contract</div>
+        <div class="stat-value purple" style="font-size:12px;word-break:break-all" id="base-usdc-addr">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Treasury Base</div>
+        <div class="stat-value green" style="font-size:12px;word-break:break-all" id="base-treasury-addr">Non configur&eacute;</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x2B21; V&eacute;rifier une transaction Base</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">TX Hash (Base)</label>
+            <input class="form-input" id="base-tx-hash" placeholder="0x...">
+          </div>
+          <button class="btn btn-cyan btn-full" onclick="verifyBaseTx()">V&eacute;rifier la transaction</button>
+          <div id="base-verify-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; V&eacute;rifier un transfert USDC</div>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">TX Hash USDC</label>
+            <input class="form-input" id="base-usdc-tx" placeholder="0x...">
+          </div>
+          <button class="btn btn-green btn-full" onclick="verifyBaseUsdc()">V&eacute;rifier USDC Transfer</button>
+          <div id="base-usdc-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: ETHEREUM ══ -->
+  <div class="page" id="page-ethereum">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">Ethereum Mainnet</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        Ethereum Mainnet support for large transactions (min $10 due to gas fees).
+        USDC payments verified on-chain. Cross-chain bridge via LI.FI.
+      </p>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card purple"><div class="stat-label">Chain</div><div class="stat-value purple">Ethereum</div></div>
+      <div class="stat-card cyan"><div class="stat-label">Min TX</div><div class="stat-value cyan">$10</div></div>
+      <div class="stat-card green"><div class="stat-label">USDC Contract</div><div class="stat-value green" style="font-size:14px">0xA0b8...eB48</div></div>
+    </div>
+    <div class="panel"><div class="panel-header"><span class="panel-title">Status</span></div><div class="panel-body">
+      <p style="color:var(--muted);font-size:13px">Ethereum payments are verified via eth_verifier.py. Use for high-value transactions where Base gas fees are too low to matter.</p>
+    </div></div>
+  </div>
+
+  <!-- ══ PAGE: KITE AI ══ -->
+  <div class="page" id="page-kite">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x1FA81; Kite AI — Agent Payment Blockchain</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        Kite AI est la premi&egrave;re blockchain de paiement IA. Identit&eacute; v&eacute;rifiable,
+        paiements machine-&agrave;-machine, et Proof of Attributed Intelligence (PoAI).
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Agent ID</div>
+        <div class="stat-value cyan" style="font-size:13px" id="kite-agent-id">&mdash;</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">API</div>
+        <div class="stat-value purple" id="kite-api-ok">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Services</div>
+        <div class="stat-value green" id="kite-svc-count">&mdash;</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">PoAI</div>
+        <div class="stat-value gold">Actif</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x1FA81; Enregistrer un Agent</div>
+          <span class="badge gray">Auth requise</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label">Nom de l'agent</label>
+            <input class="form-input" id="kite-agent-name" placeholder="MAXIA-MonAgent">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label class="form-label">Capacit&eacute;s</label>
+            <input class="form-input" id="kite-caps" placeholder="ai_inference, data, gpu" value="ai_inference, data, gpu">
+          </div>
+          <button class="btn btn-primary btn-full" onclick="kiteRegister()">Enregistrer sur Kite AI</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; D&eacute;couverte de services</div>
+          <button class="panel-action" onclick="kiteDiscover()">Rechercher</button>
+        </div>
+        <div class="panel-body" id="kite-services-list">
+          <div style="text-align:center;padding:20px;color:var(--muted)">
+            Cliquez Rechercher pour explorer le Kite Agent App Store
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">&#x25C9; V&eacute;rifier un Agent</div>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Agent ID</label>
+            <input class="form-input" id="kite-verify-id" placeholder="agent-id-here">
+          </div>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn btn-cyan" onclick="kiteVerify()">V&eacute;rifier</button>
+          </div>
+        </div>
+        <div id="kite-verify-result" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: AP2 (Google) ══ -->
+  <div class="page" id="page-ap2">
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:6px">&#x25C8; Google AP2 — Agent Payments Protocol</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.6">
+        AP2 est le protocole ouvert de Google pour les paiements autonomes par agents IA.
+        Mandats cryptographiques, multi-rail, interop&eacute;rable avec x402 et A2A.
+      </p>
+    </div>
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan">
+        <div class="stat-label">Version AP2</div>
+        <div class="stat-value cyan" id="ap2-version">&mdash;</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Agent ID</div>
+        <div class="stat-value purple" style="font-size:13px" id="ap2-agent">&mdash;</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Mandats actifs</div>
+        <div class="stat-value green" id="ap2-mandates">0</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Paiements</div>
+        <div class="stat-value gold" id="ap2-payments">0</div>
+      </div>
+    </div>
+    <div class="x402-flow" style="margin-bottom:16px">
+      <div class="x402-step">
+        <div class="x402-num">01</div>
+        <div class="x402-label">INTENT</div>
+        <div class="x402-sub">Agent cr&eacute;e<br>un mandat</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">02</div>
+        <div class="x402-label" style="color:var(--purple2)">CART</div>
+        <div class="x402-sub">Panier sign&eacute;<br>items + prix</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">03</div>
+        <div class="x402-label" style="color:var(--gold)">PAY</div>
+        <div class="x402-sub">Paiement<br>on-chain</div>
+      </div>
+      <div class="x402-step">
+        <div class="x402-num">04</div>
+        <div class="x402-label" style="color:var(--green)">DELIVER</div>
+        <div class="x402-sub">Service<br>livr&eacute;</div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x2295; Cr&eacute;er un Intent Mandate</div>
+          <span class="badge gray">Auth requise</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Montant max USDC</label>
+              <input class="form-input" id="ap2-max-amount" type="number" value="1000">
+            </div>
+            <div class="form-group">
+              <label class="form-label">TTL (secondes)</label>
+              <input class="form-input" id="ap2-ttl" type="number" value="3600">
+            </div>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="ap2CreateIntent()">Cr&eacute;er Intent Mandate</button>
+          <div id="ap2-intent-result" style="margin-top:8px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">&#x25CE; Statistiques AP2</div>
+          <button class="panel-action" onclick="loadAP2Stats()">Actualiser</button>
+        </div>
+        <div class="panel-body" id="ap2-stats-display">
+          <div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: API PUBLIQUE ══ -->
+  <div class="page" id="page-publicapi">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Agents inscrits</div><div class="stat-value cyan" id="pub-agents">—</div></div>
+      <div class="stat-card purple"><div class="stat-label">Services listes</div><div class="stat-value purple" id="pub-services">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Transactions</div><div class="stat-value green" id="pub-txs">—</div></div>
+      <div class="stat-card gold"><div class="stat-label">Commission MAXIA</div><div class="stat-value gold" id="pub-commission">—</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header"><div class="panel-title">Services disponibles</div>
+          <button class="btn btn-cyan btn-sm" onclick="loadPublicAPIData()">↺ Actualiser</button></div>
+        <div class="panel-body" id="pub-services-list"><div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">Documentation</div></div>
+      <div class="panel-body">
+        <p style="color:var(--muted);font-size:13px">Docs HTML: <a href="/docs-html" style="color:var(--purple)" target="_blank">/docs-html</a></p>
+        <p style="margin-top:4px;color:var(--muted);font-size:13px">MCP Server: <a href="/mcp/manifest" style="color:var(--purple)" target="_blank">/mcp/manifest</a></p>
+        <p style="margin-top:4px;color:var(--muted);font-size:13px">Agent Card: <a href="/.well-known/agent.json" style="color:var(--purple)" target="_blank">/.well-known/agent.json</a></p>
+        <p style="margin-top:8px;color:var(--muted);font-size:13px">Marketplace: 1.5% Bronze → 0.5% Gold → 0.1% Whale | Swap: 0.10% → 0.01%</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: ESSAIM IA ══ -->
+  <div class="page" id="page-swarm">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Bots actifs</div><div class="stat-value cyan" id="swarm-active">—</div></div>
+      <div class="stat-card green"><div class="stat-label">Revenu total</div><div class="stat-value green" id="swarm-revenue">—</div></div>
+      <div class="stat-card purple"><div class="stat-label">Royalties Reine</div><div class="stat-value purple" id="swarm-royalties">—</div></div>
+      <div class="stat-card gold"><div class="stat-label">Requetes</div><div class="stat-value gold" id="swarm-requests">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">🐝 Bots Specialises sur le Marketplace</div>
+        <button class="btn btn-cyan btn-sm" onclick="loadSwarmData()">↺ Actualiser</button></div>
+      <div class="panel-body" id="swarm-bots-list"><div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div></div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: ESCROW ══ -->
+  <div class="page" id="page-escrow">
+    <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card cyan"><div class="stat-label">Escrow Wallet</div><div class="stat-value" style="font-size:12px;word-break:break-all">AQj2LEqEp5bxaXFJVwxKxRRsqXhuj8kgzGijNhTgzW9k</div></div>
+      <div class="stat-card green"><div class="stat-label">Mode</div><div class="stat-value green">Wallet intermediaire</div></div>
+      <div class="stat-card purple"><div class="stat-label">Smart Contract</div><div class="stat-value purple">V13 (a venir)</div></div>
+      <div class="stat-card gold"><div class="stat-label">Timeout</div><div class="stat-value gold">72h</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><div class="panel-title">🔒 Escrow — Paiements Securises</div></div>
+      <div class="panel-body">
+        <div style="padding:20px;color:var(--muted);font-size:13px">
+          <p>Le systeme d'escrow fonctionne actuellement en mode wallet intermediaire :</p>
+          <p style="margin-top:8px">1. L'acheteur envoie les USDC au wallet Treasury</p>
+          <p>2. MAXIA verifie le paiement on-chain</p>
+          <p>3. MAXIA transfere la part du vendeur automatiquement</p>
+          <p>4. MAXIA garde la commission</p>
+          <p style="margin-top:12px;color:var(--purple)">V13 : Smart contract Solana on-chain pour escrow trustless</p>
+          <p style="margin-top:4px">Remboursement automatique si service non livre sous 72h</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE: CEO CHAT ══ -->
+  <div class="page" id="page-ceochat">
+    <div class="panel" style="height:calc(100vh - 140px);display:flex;flex-direction:column">
+      <div class="panel-header">
+        <div class="panel-title">🤖 Chat avec CEO MAXIA</div>
+        <div style="font-size:11px;color:var(--green)">● En ligne — Groq + Sonnet</div>
+      </div>
+      <div id="ceo-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:var(--bg);border-radius:12px;padding:12px 16px;max-width:80%;align-self:flex-start">
+          <div style="font-size:11px;color:var(--purple);margin-bottom:4px;font-weight:600">CEO MAXIA</div>
+          <div style="font-size:13px;color:var(--text)">Bonjour fondateur. Je suis le CEO MAXIA. Posez-moi une question ou donnez-moi un ordre. Je gere 17 sous-agents, le marketing, le WATCHDOG, et la strategie.</div>
+        </div>
+      </div>
+      <div style="padding:12px;border-top:1px solid var(--border);display:flex;gap:8px">
+        <input id="ceo-input" type="text" placeholder="Parlez au CEO..." style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter')sendCEO()">
+        <button onclick="sendCEO()" style="background:var(--purple);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-weight:600;font-size:13px">Envoyer</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ══ PAGE: LOGS ══ -->
+  <div class="page" id="page-logs">
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">▤ Console backend</div>
+          <div style="display:flex;gap:8px">
+            <button class="panel-action" onclick="clearLogs()">Vider</button>
+            <button class="panel-action" onclick="testEndpoints()">Tester tout</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="console" id="console-output">
+            <div class="log-line"><span class="log-ts">—</span><span class="log-info">MAXIA Dashboard V12 initialisé</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">◉ Endpoints API</div>
+        </div>
+        <div class="panel-body">
+          <div style="display:flex;flex-direction:column;gap:6px" id="endpoint-list">
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /health</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/health','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/marketplace/listings</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/marketplace/listings','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/subscriptions/plans</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/subscriptions/plans','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/data/datasets</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/data/datasets','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">GET /api/gpu/tiers</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/gpu/tiers','GET')">Test</button>
+              </div>
+            </div>
+            <div class="tier-card">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="mono" style="font-size:11px">POST /api/auth/nonce</span>
+                <button class="btn btn-cyan btn-sm" onclick="testEndpoint('/api/auth/nonce','POST',{wallet:'test'})">Test</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CEO ANALYTICS PAGE -->
+  <div class="page" id="page-ceo-analytics">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">CEO Analytics</h2>
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Health Score</div><div class="stat-value cyan" id="a-health">--</div><span class="stat-icon">💚</span></div>
+      <div class="stat-card purple"><div class="stat-label">LLM Cost (USD)</div><div class="stat-value purple" id="a-llm-cost">$0</div><span class="stat-icon">🧠</span></div>
+      <div class="stat-card green"><div class="stat-label">LLM Calls</div><div class="stat-value green" id="a-llm-calls">0</div><span class="stat-icon">📞</span></div>
+      <div class="stat-card gold"><div class="stat-label">Active Crises</div><div class="stat-value gold" id="a-crises">0</div><span class="stat-icon">🚨</span></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Funnel</span></div><div class="panel-body" id="a-funnel">Loading...</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Recommendations</span></div><div class="panel-body" id="a-recs">Loading...</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">Disabled Agents</span><button class="panel-action" onclick="loadDisabled()">Refresh</button></div><div class="panel-body" id="a-disabled">None</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">Circuit Breakers</span></div><div class="panel-body" id="a-breakers">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- AGENT BUS PAGE -->
+  <div class="page" id="page-agent-bus">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">Agent Bus — Inter-Agent Communication</h2>
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Pending Messages</div><div class="stat-value cyan" id="b-pending">0</div></div>
+      <div class="stat-card green"><div class="stat-label">Processed</div><div class="stat-value green" id="b-processed">0</div></div>
+    </div>
+    <div class="panel"><div class="panel-header"><span class="panel-title">Recent Messages</span><button class="panel-action" onclick="loadBus()">Refresh</button></div><div class="panel-body"><div class="console" id="b-log">Loading...</div></div></div>
+  </div>
+
+  <!-- ROI TRACKING PAGE -->
+  <div class="page" id="page-roi-tracking">
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:20px">ROI Tracking</h2>
+    <div class="panels-row">
+      <div class="panel"><div class="panel-header"><span class="panel-title">ROI by Agent</span></div><div class="panel-body" id="r-agents">Loading...</div></div>
+      <div class="panel"><div class="panel-header"><span class="panel-title">ROI by Action Type</span></div><div class="panel-body" id="r-types">Loading...</div></div>
+    </div>
+    <div class="panel"><div class="panel-header"><span class="panel-title">A/B Tests</span></div><div class="panel-body" id="r-ab">No tests running</div></div>
+  </div>
+
+  <!-- ══ APPROBATIONS ══ -->
+  <div class="page" id="page-approvals">
+    <div class="stats-grid">
+      <div class="stat-card" style="border-left:3px solid var(--red)"><div class="stat-label">En attente</div><div class="stat-value" style="color:var(--red)" id="appr-pending">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Approuvees</div><div class="stat-value green" id="appr-approved">--</div></div>
+      <div class="stat-card"><div class="stat-label">Refusees</div><div class="stat-value" id="appr-denied">--</div></div>
+      <div class="stat-card cyan"><div class="stat-label">Total</div><div class="stat-value cyan" id="appr-total">--</div></div>
+    </div>
+
+    <!-- Pending approvals -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Decisions en attente</span>
+        <button class="panel-action" onclick="loadApprovals()">Rafraichir</button>
+      </div>
+      <div class="panel-body" id="appr-pending-list" style="padding:0">
+        <div style="text-align:center;padding:30px;color:var(--muted)">Chargement...</div>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Historique</span>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Date</th><th>Agent</th><th>Action</th><th>Niveau</th><th>Status</th></tr></thead>
+          <tbody id="appr-history-table">
+            <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">--</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TRADING TOOLS ══ -->
+  <div class="page" id="page-trading">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Alerts Active</div><div class="stat-value cyan" id="t-alerts">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Wallets Tracked</div><div class="stat-value green" id="t-wallets">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Price Snapshots</div><div class="stat-value purple" id="t-snapshots">--</div></div>
+      <div class="stat-card"><div class="stat-label">Chains Monitored</div><div class="stat-value" id="t-chains">14</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Whale Tracker</span><button class="panel-action" onclick="loadWhales()">Rafraichir</button></div>
+        <div class="panel-body" style="padding:0"><table class="data-table" style="margin:0"><thead><tr><th>Chain</th><th>Token</th><th>Amount USD</th><th>From</th><th>To</th></tr></thead><tbody id="t-whales"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Technical Signals</span></div>
+        <div class="panel-body" style="padding:15px">
+          <div style="display:flex;gap:8px;margin-bottom:12px"><input type="text" id="t-signal-token" class="form-input" placeholder="Token (SOL, ETH...)" value="SOL" style="flex:1"><button class="btn btn-cyan" onclick="loadSignal()">Analyze</button></div>
+          <div id="t-signal-result" style="color:var(--muted);font-size:13px">Enter a token and click Analyze</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Copy Trading — Top Wallets</span><button class="panel-action" onclick="loadCopyWallets()">Rafraichir</button></div>
+      <div class="panel-body" style="padding:0"><table class="data-table" style="margin:0"><thead><tr><th>Wallet</th><th>PnL 7d</th><th>PnL 30d</th><th>Win Rate</th><th>Trades</th></tr></thead><tbody id="t-copy"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody></table></div>
+    </div>
+  </div>
+
+  <!-- ══ DEFI YIELDS ══ -->
+  <div class="page" id="page-yields">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Best APY</div><div class="stat-value cyan" id="yield-best">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Protocols Tracked</div><div class="stat-value purple" id="yield-protocols">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Chains Covered</div><div class="stat-value green" id="yield-chains">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Top USDC Yields</span>
+        <button class="panel-action" onclick="loadYields()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Protocol</th><th>Chain</th><th>APY</th><th>TVL</th><th>Risk</th></tr></thead>
+          <tbody id="yields-table">
+            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BRIDGE ══ -->
+  <div class="page" id="page-bridge">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Routes Available</div><div class="stat-value cyan" id="bridge-routes">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Avg Fee</div><div class="stat-value purple" id="bridge-fee">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Avg Time</div><div class="stat-value green" id="bridge-time">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Bridge Quote</span>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">From Chain</label>
+            <input type="text" id="bridge-from" class="form-input" placeholder="solana" style="width:100%">
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">To Chain</label>
+            <input type="text" id="bridge-to" class="form-input" placeholder="base" style="width:100%">
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Amount (USDC)</label>
+            <input type="number" id="bridge-amount" class="form-input" placeholder="100" style="width:100%">
+          </div>
+          <button class="btn btn-cyan" onclick="getBridgeQuote()">Get Quote</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="bridge-result-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">Quote Result</span>
+      </div>
+      <div class="panel-body" id="bridge-result" style="padding:15px">
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ NFT & AGENT ID ══ -->
+  <div class="page" id="page-nfts">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">NFTs Minted</div><div class="stat-value cyan" id="nft-minted">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Agent IDs</div><div class="stat-value purple" id="nft-agents">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Avg Trust Score</div><div class="stat-value green" id="nft-trust">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Agent ID Lookup</span>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Agent Address</label>
+            <input type="text" id="nft-address" class="form-input" placeholder="Agent wallet address" style="width:100%">
+          </div>
+          <button class="btn btn-cyan" onclick="lookupAgentID()">Lookup</button>
+        </div>
+        <div id="nft-lookup-result" style="margin-top:12px;display:none;padding:12px;background:var(--bg2);border-radius:8px"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Registered Agents</span>
+        <button class="panel-action" onclick="loadNFTs()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Address</th><th>Trust Score</th><th>Badges</th><th>Registered</th></tr></thead>
+          <tbody id="nfts-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ORACLE & DATA ══ -->
+  <div class="page" id="page-oracle">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Tokens Tracked</div><div class="stat-value cyan" id="oracle-tokens">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Datasets Available</div><div class="stat-value purple" id="oracle-datasets">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Data Freshness</div><div class="stat-value green" id="oracle-freshness">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Available Datasets</span>
+        <button class="panel-action" onclick="loadOracle()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Name</th><th>Type</th><th>Records</th><th>Updated</th></tr></thead>
+          <tbody id="oracle-datasets-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Oracle Health</span>
+      </div>
+      <div class="panel-body" id="oracle-health" style="padding:15px">
+        <div style="text-align:center;color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RPC SERVICE ══ -->
+  <div class="page" id="page-rpcservice">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Chains Available</div><div class="stat-value cyan" id="rpc-chains-count">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Free Calls/Day</div><div class="stat-value purple" id="rpc-free-calls">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Supported Chains</span>
+        <button class="panel-action" onclick="loadRPC()">Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr><th>Chain</th><th>Network</th><th>Status</th><th>Latency</th></tr></thead>
+          <tbody id="rpc-chains-table">
+            <tr><td colspan="4" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ EMAIL INBOX ══ -->
+  <div class="page" id="page-inbox">
+    <div class="stats-grid">
+      <div class="stat-card cyan"><div class="stat-label">Non lus</div><div class="stat-value cyan" id="inbox-unread">--</div></div>
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value" id="inbox-total">--</div></div>
+      <div class="stat-card green"><div class="stat-label">Adresse</div><div class="stat-value green" style="font-size:14px" id="inbox-addr">--</div></div>
+      <div class="stat-card purple"><div class="stat-label">Serveur</div><div class="stat-value purple" style="font-size:13px">OVH IMAP/SMTP</div></div>
+    </div>
+
+    <!-- Compose -->
+    <div class="panel" id="compose-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">Nouveau message</span>
+        <button class="panel-action" onclick="document.getElementById('compose-panel').style.display='none'">X</button>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <input type="email" id="compose-to" class="form-input" placeholder="Destinataire (email)" style="margin-bottom:8px;width:100%">
+        <input type="text" id="compose-subject" class="form-input" placeholder="Sujet" style="margin-bottom:8px;width:100%">
+        <textarea id="compose-body" class="form-input" placeholder="Message..." style="margin-bottom:10px;width:100%;min-height:120px;resize:vertical;font-family:'Space Mono',monospace;font-size:12px"></textarea>
+        <button class="btn btn-cyan" onclick="sendNewEmail()">Envoyer</button>
+      </div>
+    </div>
+
+    <!-- Email list -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Inbox - ceo@maxiaworld.app</span>
+        <div>
+          <button class="panel-action" onclick="document.getElementById('compose-panel').style.display='block'" style="margin-right:8px">+ Nouveau</button>
+          <button class="panel-action" onclick="loadInbox()">Rafraichir</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:0">
+        <table class="data-table" style="margin:0">
+          <thead><tr>
+            <th style="width:20px"></th>
+            <th style="width:180px">De</th>
+            <th>Sujet</th>
+            <th style="width:130px">Date</th>
+            <th style="width:60px"></th>
+          </tr></thead>
+          <tbody id="inbox-table">
+            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Email reader -->
+    <div class="panel" id="email-reader" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title" id="reader-subject">--</span>
+        <button class="panel-action" onclick="document.getElementById('email-reader').style.display='none'">X</button>
+      </div>
+      <div class="panel-body" style="padding:15px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--muted)">
+          <span>De: <strong id="reader-from" style="color:var(--cyan)">--</strong></span>
+          <span id="reader-date">--</span>
+        </div>
+        <div id="reader-body" style="background:var(--bg);border-radius:8px;padding:15px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:400px;overflow-y:auto"></div>
+        <div style="margin-top:15px;border-top:1px solid var(--border);padding-top:12px">
+          <textarea id="reply-body" class="form-input" placeholder="Repondre..." style="width:100%;min-height:80px;resize:vertical;font-family:'Space Mono',monospace;font-size:12px;margin-bottom:8px"></textarea>
+          <button class="btn btn-cyan" id="reply-btn" onclick="replyToEmail()">Repondre</button>
+          <button class="btn btn-danger" id="delete-btn" onclick="deleteEmail()" style="margin-left:8px">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+const API = '';
+let walletAddr = null;
+let orderSide  = 'BUY';
+
+// ── Navigation ──
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent = el.textContent.trim();
+  // Auto-load data
+  if (name === 'marketplace') loadListings();
+  if (name === 'exchange')    { loadTokens(); }
+  if (name === 'data')        loadDatasets();
+  if (name === 'base')        loadBaseInfo();
+  if (name === 'kite')        loadKiteInfo();
+  if (name === 'ap2')         { loadAP2Info(); loadAP2Stats(); }
+  if (name === 'subscriptions') loadSubRevenue();
+  if (name === 'publicapi')   loadPublicAPIData();
+  if (name === 'swarm')       loadSwarmData();
+  if (name === 'escrow')      {} // Static page
+  if (name === 'ceochat')     {} // Chat page - no data to load
+  if (name === 'ceo-analytics') loadAnalytics();
+  if (name === 'agent-bus') loadBus();
+  if (name === 'roi-tracking') loadROI();
+  if (name === 'trading') loadTrading();
+  if (name === 'yields') loadYields();
+  if (name === 'bridge') loadBridge();
+  if (name === 'nfts') loadNFTs();
+  if (name === 'oracle') loadOracle();
+  if (name === 'rpcservice') loadRPC();
+  if (name === 'approvals') loadApprovals();
+  if (name === 'inbox') loadInbox();
+}
+
+// ── HTML escape helper (XSS protection for user-generated content) ──
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Toast ──
+function toast(msg, type) {
+  type = type || 'info';
+  const t = document.getElementById('toast');
+  t.className = 'show ' + type;
+  t.innerHTML = (type === 'ok' ? '✅' : type === 'err' ? '❌' : 'ℹ️') + ' ' + msg;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', 3500);
+}
+
+// ── Console log ──
+function clog(msg, lvl) {
+  lvl = lvl || 'info';
+  const el = document.getElementById('console-output');
+  const ts = new Date().toTimeString().slice(0, 8);
+  el.innerHTML += `<div class="log-line"><span class="log-ts">${ts}</span><span class="log-${lvl}">${msg}</span></div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── API helper ──
+const _adminKey = new URLSearchParams(window.location.search).get('key') || '';
+async function api(path, opts) {
+  opts = opts || {};
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (_adminKey) headers['X-Admin-Key'] = _adminKey;
+  try {
+    const r = await fetch(API + path, Object.assign({ headers }, opts));
+    const data = await r.json();
+    return { ok: r.ok, status: r.status, data };
+  } catch(e) {
+    return { ok: false, status: 0, data: { detail: e.message } };
+  }
+}
+
+// ── Health check ──
+async function checkHealth() {
+  const r = await api('/health');
+  const el = document.getElementById('health-display');
+  if (r.ok) {
+    const d = r.data;
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge green">ONLINE</span>
+          <span class="mono" style="font-size:11px">v${d.version || '10.0.0'}</span>
+        </div>
+        ${(d.articles || d.features || []).map(f =>
+          `<div style="display:flex;align-items:center;gap:6px;font-size:12px">
+            <span style="color:var(--green)">✓</span> ${f}
+          </div>`
+        ).join('')}
+      </div>`;
+    document.querySelector('.pill.online').innerHTML = '<span class="status-dot" style="width:5px;height:5px;margin:0"></span> Backend OK';
+    clog('Health OK — MAXIA V12 en ligne', 'ok');
+  } else {
+    el.innerHTML = `<div style="color:var(--red);font-family:var(--font-mono);font-size:12px;line-height:2">
+      ❌ Backend inaccessible<br>
+      <span style="color:var(--muted)">Erreur: ${r.data.detail || r.status}</span><br><br>
+      <span style="color:var(--gold)">Solutions :</span><br>
+      1. Lancez DEMARRER_MAXIA.bat<br>
+      2. Attendez 10 secondes<br>
+      3. Rechargez cette page (F5)<br><br>
+      <a href="/docs" style="color:var(--cyan)">/docs</a> · 
+      <a href="/health" style="color:var(--cyan)">/health</a>
+    </div>`;
+    clog('Backend inaccessible: ' + (r.data.detail || r.status), 'err');
+  }
+}
+
+// ── SOL Price ──
+async function loadSolPrice() {
+  try {
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', {mode:'cors'});
+    const d = await r.json();
+    const price = d?.solana?.usd;
+    if (price) document.getElementById('sol-price').textContent = '$' + price.toFixed(2);
+  } catch(e) {
+    document.getElementById('sol-price').textContent = '—';
+  }
+}
+
+// ── Load Listings ──
+async function loadListings() {
+  const r = await api('/api/public/services');
+  const el = document.getElementById('listings-container');
+  
+  // Handle both array and {services:[...]} response formats
+  let services = [];
+  if (r.ok) {
+    if (Array.isArray(r.data)) services = r.data;
+    else if (r.data && r.data.services) services = r.data.services;
+    else if (r.data && Array.isArray(r.data.agents)) services = r.data.agents;
+  }
+  
+  document.getElementById('mkt-listings').textContent = services.length || 0;
+  if (services.length > 0) {
+    el.innerHTML = services.map(s => `
+      <div class="service-card">
+        <div class="service-icon" style="background:rgba(124,107,248,.1)">${(s.seller && s.seller !== 'MAXIA') ? '🤖' : '⚡'}</div>
+        <div class="service-body">
+          <div class="service-name">${esc(s.name || s.id)} ${(s.seller && s.seller !== 'MAXIA') ? '<span class="badge purple" style="font-size:9px">AI Agent</span>' : '<span class="badge cyan" style="font-size:9px">MAXIA</span>'}</div>
+          <div class="service-desc">${esc(s.description || 'Service IA')}</div>
+          <div class="service-footer">
+            <span class="service-price">${esc(s.price_usdc || s.priceUsdc || '?')} USDC</span>
+            <span class="badge ${s.type === 'code' ? 'purple' : s.type === 'data' ? 'cyan' : 'gold'}">${esc(s.type || 'AI')}</span>
+            ${(s.seller && s.seller !== 'MAXIA') ? '<span style="font-size:10px;color:var(--muted)">by ' + esc(s.seller) + '</span>' : ''}
+            <span class="badge green">★ ${esc(s.rating || 5)}</span>
+          </div>
+        </div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">
+      <div style="font-size:32px;margin-bottom:8px">◎</div>
+      <div>No services listed yet</div>
+      <div style="font-size:11px;margin-top:4px">AI agents can list their services via POST /api/public/sell</div>
+    </div>`;
+  }
+  // Load marketplace stats
+  try {
+    const ms = await api('/api/public/marketplace-stats');
+    if (ms.ok && ms.data) {
+      document.getElementById('mkt-listings').textContent = ms.data.services_listed || services.length || 0;
+      if (document.getElementById('mkt-agents')) document.getElementById('mkt-agents').textContent = ms.data.registered_agents || 0;
+      if (document.getElementById('mkt-revenue')) document.getElementById('mkt-revenue').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+      if (document.getElementById('mkt-txs')) document.getElementById('mkt-txs').textContent = ms.data.total_transactions || 0;
+    }
+  } catch(e){}
+}
+
+// ── Swarm Data ──
+async function loadSwarmData() {
+  try {
+    const r = await api('/api/swarm/stats');
+    if (r.ok && r.data) {
+      document.getElementById('swarm-active').textContent = r.data.active_clones || 0;
+      document.getElementById('swarm-revenue').textContent = '$' + (r.data.total_revenue || 0).toFixed(2);
+      document.getElementById('swarm-royalties').textContent = '$' + (r.data.total_royalties || 0).toFixed(2);
+      document.getElementById('swarm-requests').textContent = r.data.total_requests || 0;
+      const el = document.getElementById('swarm-bots-list');
+      const clones = r.data.clones || [];
+      if (clones.length > 0) {
+        el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Bot</th><th>Niche</th><th>Prix</th><th>Requetes</th><th>Revenu</th><th>Status</th></tr>' +
+          clones.map(c => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-weight:600">' + esc(c.name||'') + '</td><td>' + esc(c.niche||'') + '</td><td style="color:var(--green)">$' + esc(c.base_price||0) + '</td><td>' + esc(c.total_requests||0) + '</td><td style="color:var(--green)">$' + (c.total_revenue||0).toFixed(2) + '</td><td style="color:' + (c.status==='active' ? 'var(--green)' : 'var(--muted)') + '">' + esc(c.status||'') + '</td></tr>').join('') + '</table>';
+      } else {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Bots en cours de deploiement... Actualisez dans 1 minute.</div>';
+      }
+    }
+  } catch(e) { console.error('loadSwarmData:', e); }
+}
+
+// ── CEO Chat ──
+async function sendCEO() {
+  const input = document.getElementById('ceo-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const container = document.getElementById('ceo-messages');
+
+  // Show user message
+  container.innerHTML += '<div style="background:var(--purple);border-radius:12px;padding:12px 16px;max-width:80%;align-self:flex-end"><div style="font-size:11px;color:rgba(255,255,255,.7);margin-bottom:4px;font-weight:600">Vous</div><div style="font-size:13px;color:#fff">' + msg.replace(/</g,'&lt;') + '</div></div>';
+  container.scrollTop = container.scrollHeight;
+
+  // Show typing indicator
+  container.innerHTML += '<div id="ceo-typing" style="background:var(--bg);border-radius:12px;padding:12px 16px;max-width:80%;align-self:flex-start"><div style="font-size:11px;color:var(--purple);margin-bottom:4px;font-weight:600">CEO MAXIA</div><div style="font-size:13px;color:var(--muted)">Reflexion en cours...</div></div>';
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const hdrs = {'Content-Type': 'application/json'};
+    if (_adminKey) hdrs['X-Admin-Key'] = _adminKey;
+    const r = await fetch('/api/ceo/ask', {
+      method: 'POST',
+      headers: hdrs,
+      body: JSON.stringify({message: msg})
+    });
+    const d = await r.json();
+    const typing = document.getElementById('ceo-typing');
+    if (typing) typing.remove();
+
+    const response = d.response || d.error || 'Pas de reponse';
+    container.innerHTML += '<div style="background:var(--bg);border-radius:12px;padding:12px 16px;max-width:80%;align-self:flex-start"><div style="font-size:11px;color:var(--purple);margin-bottom:4px;font-weight:600">CEO MAXIA</div><div style="font-size:13px;color:var(--text);white-space:pre-wrap">' + response.replace(/</g,'&lt;') + '</div></div>';
+  } catch(e) {
+    const typing = document.getElementById('ceo-typing');
+    if (typing) typing.remove();
+    container.innerHTML += '<div style="background:var(--bg);border-radius:12px;padding:12px 16px;max-width:80%;align-self:flex-start"><div style="font-size:13px;color:var(--red)">Erreur: ' + e.message + '</div></div>';
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Load Public API data ──
+async function loadPublicAPIData() {
+  try {
+    const ms = await api('/api/public/marketplace-stats');
+    if (ms.ok && ms.data) {
+      document.getElementById('pub-agents').textContent = ms.data.registered_agents || 0;
+      document.getElementById('pub-services').textContent = ms.data.services_listed || 0;
+      document.getElementById('pub-txs').textContent = ms.data.total_transactions || 0;
+      document.getElementById('pub-commission').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+    }
+    const sv = await api('/api/public/services');
+    const el = document.getElementById('pub-services-list');
+    const svcs = sv.ok ? (sv.data.services || []) : [];
+    if (svcs.length > 0) {
+      el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' +
+        svcs.map(s => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + esc(s.name||'') + '</td><td>' + esc(s.type||'') + '</td><td style="color:var(--green)">' + esc(s.price_usdc||'?') + ' USDC</td><td>' + esc(s.provider||s.seller||'MAXIA') + '</td></tr>').join('') + '</table>';
+    } else {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Aucun service externe. POST /api/public/sell pour lister.</div>';
+    }
+  } catch(e) {
+    console.error('loadPublicAPIData error:', e);
+  }
+}
+
+// ── Load Tokens ──
+async function loadTokens() {
+  const r = await api('/api/exchange/tokens');
+  const tb = document.getElementById('tokens-body');
+  if (r.ok && r.data?.length > 0) {
+    tb.innerHTML = r.data.map(t => `
+      <tr>
+        <td><strong>${t.symbol}</strong> <span style="color:var(--muted);font-size:10px">${t.name}</span></td>
+        <td class="addr">${t.mint?.slice(0,8)}...</td>
+        <td style="font-family:var(--font-mono);color:var(--gold)">${t.price?.toFixed(4) || '—'}</td>
+        <td style="font-family:var(--font-mono)">${t.volume24h?.toFixed(0) || '0'}</td>
+        <td><button class="btn btn-cyan btn-sm" onclick="selectToken('${t.mint}','${t.symbol}')">Trader</button></td>
+      </tr>`).join('');
+  } else {
+    tb.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">No tokenized stocks listed</td></tr>`;
+  }
+}
+
+function selectToken(mint, symbol) {
+  document.getElementById('ex-mint').value = mint;
+  toast('Token sélectionné : ' + symbol, 'info');
+}
+
+// ── Load Datasets ──
+async function loadDatasets() {
+  const r = await api('/api/data/datasets');
+  const el = document.getElementById('datasets-list');
+  if (r.ok && r.data?.length > 0) {
+    el.innerHTML = r.data.map(d => `
+      <div class="tier-card">
+        <div class="tier-header">
+          <div><div class="tier-name">${d.name}</div><div style="font-size:10px;color:var(--muted)">${d.category} · ${d.sizeMb} MB · ${d.format}</div></div>
+          <span style="font-family:var(--font-mono);font-weight:700;color:var(--gold)">${d.priceUsdc} USDC</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">${d.description || ''}</div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted)">Aucun dataset disponible</div>`;
+  }
+}
+
+// ── Sub Revenue ──
+async function loadSubRevenue() {
+  const r = await api('/api/subscriptions/stats');
+  if (r.ok) document.getElementById('sub-revenue').textContent = (r.data.total_paid_usdc || r.data.total_usdc || 0).toFixed(2) + ' USDC';
+}
+
+// ── Activity ──
+async function loadActivity() {
+  const tb = document.getElementById('activity-table');
+  const r = await api('/api/activity');
+  if (r.ok && r.data && r.data.length > 0) {
+    const typeMap = {gpu_auction:'GPU Auction',subscription:'Abonnement',data_purchase:'Data',marketplace:'Marketplace',exchange:'Exchange'};
+    const colorMap = {gpu_auction:'gold',subscription:'purple',data_purchase:'cyan',marketplace:'green',exchange:'cyan'};
+    tb.innerHTML = r.data.map(a => {
+      const label = typeMap[a.purpose] || esc(a.purpose);
+      const color = colorMap[a.purpose] || 'green';
+      const ago   = Math.round((Date.now()/1000 - (a.created_at||0)) / 60);
+      const time  = ago < 60 ? 'il y a ' + ago + 'm' : 'il y a ' + Math.round(ago/60) + 'h';
+      const w     = esc(a.wallet || '');
+      return '<tr>' +
+        '<td><span class="badge ' + color + '">' + label + '</span></td>' +
+        '<td class="mono" style="font-size:11px">' + w.slice(0,6) + '...' + w.slice(-4) + '</td>' +
+        '<td style="font-family:var(--font-mono);color:var(--green);font-weight:700">' + parseFloat(a.amount_usdc||0).toFixed(2) + ' <span style=\"color:var(--muted)\">USDC</span></td>' +
+        '<td><span class="badge green">confirmed</span></td>' +
+        '<td style="color:var(--muted);font-size:11px">' + time + '</td>' +
+        '</tr>';
+    }).join('');
+  } else {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px"><div style="font-size:24px;margin-bottom:8px">◎</div><div>Aucune transaction pour le moment</div><div style="font-size:10px;font-family:var(--font-mono);margin-top:4px;color:var(--muted2)">Les transactions apparaitront ici en temps reel</div></td></tr>';
+  }
+}
+
+// ── Dashboard stats ──
+async function loadDashboardStats() {
+  checkHealth();
+  loadActivity();
+  // ── API Publique page ──
+  async function loadPublicAPI() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-publicapi').classList.add('active');
+    try {
+      const r = await fetch('/api/public/marketplace-stats');
+      const d = await r.json();
+      const r2 = await fetch('/api/public/services');
+      const s = await r2.json();
+      const svcs = s.services || [];
+      const main = document.querySelector('.main');
+      main.innerHTML = `
+        <div class="topbar"><h2>API Publique — Marketplace IA-a-IA</h2></div>
+        <div class="content" style="padding:24px">
+          <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat-card"><div class="stat-label">Agents inscrits</div><div class="stat-value">${d.registered_agents||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Services listes</div><div class="stat-value">${d.services_listed||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value">${d.total_transactions||0}</div></div>
+            <div class="stat-card"><div class="stat-label">Commission MAXIA</div><div class="stat-value">$${(d.total_commission_usdc||0).toFixed(2)}</div></div>
+          </div>
+          <div class="panel"><div class="panel-header">Services disponibles (${svcs.length})</div><div class="panel-body">
+            ${svcs.length > 0 ? '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' + svcs.map(sv => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + (sv.name||'') + '</td><td>' + (sv.type||'') + '</td><td>' + (sv.price_usdc||'?') + ' USDC</td><td>' + (sv.provider||sv.seller||'MAXIA') + '</td></tr>').join('') + '</table>' : '<p style="color:var(--muted);text-align:center;padding:20px">Aucun service externe. Les IA peuvent lister via POST /api/public/sell</p>'}
+          </div></div>
+          <div class="panel" style="margin-top:16px"><div class="panel-header">Documentation</div><div class="panel-body">
+            <p style="color:var(--muted);font-size:13px">Docs HTML: <a href="/docs-html" style="color:var(--purple)">/docs-html</a></p>
+            <p style="margin-top:4px;color:var(--muted);font-size:13px">MCP Server: <a href="/mcp/manifest" style="color:var(--purple)">/mcp/manifest</a></p>
+            <p style="margin-top:4px;color:var(--muted);font-size:13px">Agent Card: <a href="/.well-known/agent.json" style="color:var(--purple)">/.well-known/agent.json</a></p>
+          </div></div>
+        </div>`;
+    } catch(e) {
+      document.querySelector('.main').innerHTML = '<div class="topbar"><h2>API Publique</h2></div><div class="content" style="padding:24px"><p style="color:var(--red)">Erreur: ' + e.message + '</p></div>';
+    }
+  }
+
+  // ── Essaim page ──
+  async function loadSwarmStats() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-swarm').classList.add('active');
+    try {
+    const r = await fetch('/api/swarm/stats');
+    const d = r.ok ? await r.json() : {active_clones:0,total_revenue:0,total_royalties:0,royalty_pct:0};
+    const r2 = await fetch('/api/swarm/niches');
+    const niches = r2.ok ? await r2.json() : [];
+    const main = document.querySelector('.main');
+    main.innerHTML = `
+      <div class="topbar"><h2>Essaim IA — Clones Specialises</h2></div>
+      <div class="content" style="padding:24px">
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-label">Clones actifs</div><div class="stat-value">${d.active_clones}</div></div>
+          <div class="stat-card"><div class="stat-label">Revenu total</div><div class="stat-value">${d.total_revenue.toFixed(2)} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Royalties Reine</div><div class="stat-value">${d.total_royalties.toFixed(2)} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Royalty %</div><div class="stat-value">${d.royalty_pct}%</div></div>
+        </div>
+        <div class="panel"><div class="panel-header">Niches disponibles</div><div class="panel-body">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <tr style="color:var(--muted);text-align:left"><th style="padding:8px">Clone</th><th>Niche</th><th>Prix</th><th>Statut</th></tr>
+            ${niches.map(n => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + n.name + '</td><td>' + n.niche + '</td><td>$' + n.price + '/req</td><td style="color:' + (n.available ? 'var(--green)' : 'var(--muted)') + '">' + (n.available ? 'Disponible' : 'Actif') + '</td></tr>').join('')}
+          </table>
+        </div></div>
+      </div>`;
+    } catch(e) { document.querySelector('.main').innerHTML = '<div class="topbar"><h2>Essaim IA</h2></div><div class="content" style="padding:24px"><p style="color:var(--muted)">Module essaim en attente de deploiement.</p></div>'; }
+  }
+
+  // ── Escrow page ──
+  async function loadEscrowStats() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('nav-escrow').classList.add('active');
+    try {
+    const r = await fetch('/api/escrow/stats');
+    const d = r.ok ? await r.json() : {total_escrows:0,locked_usdc:0,released_usdc:0,refunded:0,program_id:'En attente',escrow_wallet:'AQj2LEqEp5bxaXFJVwxKxRRsqXhuj8kgzGijNhTgzW9k',on_chain:false};
+    const main = document.querySelector('.main');
+    main.innerHTML = `
+      <div class="topbar"><h2>Escrow — Paiements Securises</h2></div>
+      <div class="content" style="padding:24px">
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat-card"><div class="stat-label">Total Escrows</div><div class="stat-value">${d.total_escrows}</div></div>
+          <div class="stat-card"><div class="stat-label">Verrouilles</div><div class="stat-value">${d.locked_usdc} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Liberes</div><div class="stat-value green">${d.released_usdc} USDC</div></div>
+          <div class="stat-card"><div class="stat-label">Rembourses</div><div class="stat-value">${d.refunded}</div></div>
+        </div>
+        <div class="panel"><div class="panel-header">Informations</div><div class="panel-body">
+          <p style="color:var(--muted);font-size:13px">Programme: <code style="color:var(--purple)">${d.program_id}</code></p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Wallet Escrow: <code style="color:var(--green)">${d.escrow_wallet}</code></p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">On-chain: ${d.on_chain ? 'Smart contract deploye' : 'Mode wallet intermediaire (smart contract en attente)'}</p>
+          <p style="margin-top:8px;color:var(--muted);font-size:13px">Timeout: 72h — remboursement automatique si service non livre</p>
+        </div></div>
+      </div>`;
+    } catch(e) { document.querySelector('.main').innerHTML = '<div class="topbar"><h2>Escrow</h2></div><div class="content" style="padding:24px"><p style="color:var(--muted)">Module escrow en preparation (smart contract V13).</p></div>'; }
+  }
+
+  // ── Actions Tokenisees ──
+  async function loadStocks() {
+    try {
+      const r = await fetch('/api/public/stocks');
+      const d = await r.json();
+      document.getElementById('stocks-count').textContent = d.total || 0;
+      const tb = document.getElementById('stocks-body');
+      if (d.stocks && d.stocks.length > 0) {
+        tb.innerHTML = d.stocks.map(s => {
+          const changeColor = s.change_24h_pct > 0 ? 'var(--green)' : s.change_24h_pct < 0 ? '#FF4560' : 'var(--muted)';
+          const changeSign = s.change_24h_pct > 0 ? '+' : '';
+          return '<tr>' +
+            '<td style="font-weight:600">' + s.name + '</td>' +
+            '<td>' + s.symbol + '</td>' +
+            '<td style="color:var(--muted)">' + s.sector + '</td>' +
+            '<td style="color:var(--purple)">' + s.xstock + '</td>' +
+            '<td style="font-family:var(--font-mono)">$' + (s.price_usd || 0).toFixed(2) + '</td>' +
+            '<td style="color:' + changeColor + ';font-family:var(--font-mono)">' + changeSign + (s.change_24h_pct || 0).toFixed(2) + '%</td>' +
+            '</tr>';
+        }).join('');
+      } else {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucune action disponible</td></tr>';
+      }
+    } catch(e) {
+      console.error('loadStocks error:', e);
+    }
+  }
+
+  async function loadStockStats() {
+    try {
+      const r = await fetch('/api/stocks/stats');
+      const d = await r.json();
+      document.getElementById('ss-trades').textContent = d.total_trades || 0;
+      document.getElementById('ss-volume').textContent = (d.total_volume_usdc || 0).toFixed(2);
+      document.getElementById('ss-commission').textContent = (d.total_commission_usdc || 0).toFixed(4);
+      document.getElementById('ss-holders').textContent = d.unique_holders || 0;
+    } catch(e) {}
+  }
+
+  // Charger les stocks quand on ouvre la page exchange
+  const origShowPage = window.showPage || function(){};
+  const _origShowPage = showPage;
+  const _showPagePatched = function(page, el) {
+    _origShowPage(page, el);
+    if (page === 'exchange') {
+      loadStocks();
+      loadStockStats();
+    }
+  };
+  showPage = _showPagePatched;
+
+  // Charger stats reelles depuis l'API
+  const [statsR, listingsR, auctionsR, mktR] = await Promise.all([
+    api('/api/stats'),
+    api('/api/public/services'),
+    api('/api/gpu/auctions/active'),
+    api('/api/public/marketplace-stats'),
+  ]);
+
+  // Marketplace stats
+  const mktVol = mktR.ok ? (mktR.data.total_volume_usdc || 0) : 0;
+  const mktRev = mktR.ok ? (mktR.data.total_commission_usdc || 0) : 0;
+  const mktAgents = mktR.ok ? (mktR.data.registered_agents || 0) : 0;
+  const mktTxs = mktR.ok ? (mktR.data.total_transactions || 0) : 0;
+
+  // Volume 24h (classic + marketplace)
+  const vol = (statsR.ok ? (statsR.data.volume_24h || 0) : 0) + mktVol;
+  document.getElementById('vol24').textContent = vol.toFixed(2) + ' USDC';
+  if (!statsR.ok) clog('⚠️ /api/stats: ' + (statsR.data.detail || statsR.status), 'warn');
+
+  // Services count (MAXIA + external agents)
+  const svcData = listingsR.ok ? listingsR.data : {};
+  const svcList = svcData.services || svcData;
+  const svc = Array.isArray(svcList) ? svcList.length : (svcData.total || 0);
+  document.getElementById('svc-count').textContent = svc || mktAgents;
+
+  // Revenue (classic + marketplace commission)
+  const rev = (statsR.ok ? (statsR.data.total_revenue || 0) : 0) + mktRev;
+  document.getElementById('rev-total').textContent = rev.toFixed(2) + ' USDC';
+
+  const gpu = auctionsR.ok ? (Array.isArray(auctionsR.data) ? auctionsR.data.length : 0) : 0;
+  document.getElementById('gpu-count').textContent = gpu;
+
+  // Wallets — vrais soldes via Helius
+  loadWalletBalances();
+}
+
+async function loadWalletBalances() {
+  const RPC = 'https://mainnet.helius-rpc.com/?api-key=6cbe9da7-b436-4be9-b63f-e7244eb1e8cf';
+  const TREASURY = 'FiYWC9NGUdCbRdNftajVDTpY3siQQUtcaHk58ZvEAE4h';
+  const ESCROW   = '2bx7cMeEPSd9icdEHL2d6wVBSinsRm2g6Wd3Avm5BzGX';
+  const USDC     = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+
+  async function getSolBalance(addr) {
+    try {
+      const r = await fetch(RPC, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0',id:1,method:'getBalance',params:[addr]}) });
+      const d = await r.json();
+      return ((d.result?.value || 0) / 1e9).toFixed(4);
+    } catch { return '0.0000'; }
+  }
+
+  async function getUsdcBalance(addr) {
+    try {
+      const r = await fetch(RPC, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({jsonrpc:'2.0',id:1,method:'getTokenAccountsByOwner',
+          params:[addr,{mint:USDC},{encoding:'jsonParsed'}]}) });
+      const d = await r.json();
+      const accounts = d.result?.value || [];
+      if (!accounts.length) return '0.00';
+      const amt = accounts[0].account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0;
+      return parseFloat(amt).toFixed(2);
+    } catch { return '0.00'; }
+  }
+
+  const [tSol, tUsdc, eSol, eUsdc] = await Promise.all([
+    getSolBalance(TREASURY), getUsdcBalance(TREASURY),
+    getSolBalance(ESCROW),   getUsdcBalance(ESCROW),
+  ]);
+  document.getElementById('treasury-sol').textContent  = tSol + ' SOL';
+  document.getElementById('treasury-usdc').textContent = tUsdc + ' USDC';
+  document.getElementById('escrow-sol').textContent    = eSol + ' SOL';
+  document.getElementById('escrow-usdc').textContent   = eUsdc + ' USDC';
+}
+
+function animateValue(id, from, to, suffix) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const dur = 800, steps = 40;
+  let i = 0;
+  const step = (to - from) / steps;
+  const t = setInterval(() => {
+    i++;
+    const val = Math.round(from + step * i);
+    el.textContent = val.toLocaleString('fr') + suffix;
+    if (i >= steps) clearInterval(t);
+  }, dur / steps);
+}
+
+// ── Wallet ──
+async function connectWallet() {
+  const btn = document.getElementById('wallet-btn');
+  if (walletAddr) {
+    walletAddr = null;
+    btn.textContent = '◎ Connecter Phantom';
+    btn.className = 'btn-wallet';
+    toast('Wallet déconnecté', 'info');
+    return;
+  }
+  if (!window.solana?.isPhantom) {
+    const btn = document.getElementById('wallet-btn');
+    btn.textContent = '⚠️ Phantom requis';
+    setTimeout(() => { btn.textContent = '◎ Connecter Phantom'; btn.className = 'btn-wallet'; }, 3000);
+    toast('Phantom non détecté — installez phantom.app', 'err');
+    setTimeout(() => window.open('https://phantom.app', '_blank'), 800);
+    return;
+  }
+  try {
+    const resp = await window.solana.connect();
+    walletAddr = resp.publicKey.toString();
+    btn.textContent = '◎ ' + walletAddr.slice(0, 6) + '...' + walletAddr.slice(-4);
+    btn.className = 'btn-wallet connected';
+    toast('Wallet connecté : ' + walletAddr.slice(0, 8) + '...', 'ok');
+    // Mise à jour référral code
+    document.getElementById('ref-code').textContent = walletAddr.slice(0, 8).toUpperCase() + 'MAXIA';
+    clog('Wallet connecté : ' + walletAddr, 'ok');
+  } catch(e) {
+    toast('Connexion annulée', 'err');
+  }
+}
+
+// ── Exchange ──
+function setSide(side) {
+  orderSide = side;
+  const buyBtn  = document.getElementById('side-buy');
+  const sellBtn = document.getElementById('side-sell');
+  if (side === 'BUY') {
+    buyBtn.style.background  = 'rgba(0,230,118,.15)';
+    buyBtn.style.color       = 'var(--green)';
+    sellBtn.style.background = 'transparent';
+    sellBtn.style.color      = 'var(--muted)';
+  } else {
+    sellBtn.style.background = 'rgba(255,69,96,.15)';
+    sellBtn.style.color      = 'var(--red)';
+    buyBtn.style.background  = 'transparent';
+    buyBtn.style.color       = 'var(--muted)';
+  }
+}
+
+async function placeOrder() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  clog('Placement ordre...', 'info');
+  const mint  = document.getElementById('ex-mint').value.trim();
+  const qty   = parseFloat(document.getElementById('ex-qty').value);
+  const price = parseFloat(document.getElementById('ex-price').value);
+  if (!mint || !qty || !price) { toast('Remplissez tous les champs', 'err'); return; }
+  toast('Ordre ' + orderSide + ' enregistré (simulation — connexion escrow requise)', 'info');
+  clog(`Ordre ${orderSide} — ${qty} @ ${price} USDC (${mint.slice(0,8)}...)`, 'info');
+}
+
+// ── Commands ──
+async function sendCommand() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const sid    = document.getElementById('cmd-service').value.trim();
+  const amount = document.getElementById('cmd-amount').value;
+  const prompt = document.getElementById('cmd-prompt').value.trim();
+  if (!sid || !prompt) { toast('Remplissez le service et le prompt', 'err'); return; }
+  toast('Commande soumise (simulation — tx Solana requise en production)', 'ok');
+  clog(`Commande → ${sid} | ${amount} USDC | ${prompt.slice(0,40)}...`, 'info');
+}
+
+// ── Auction ──
+async function createAuction() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const tier  = document.getElementById('gpu-tier').value;
+  const hours = parseFloat(document.getElementById('gpu-hours').value);
+  toast('Enchère GPU créée (simulation)', 'ok');
+  clog(`Enchère GPU: ${tier} × ${hours}h`, 'ok');
+}
+
+// ── Dataset ──
+async function listDataset() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  const name = document.getElementById('ds-name').value.trim();
+  if (!name) { toast('Nom du dataset requis', 'err'); return; }
+  toast('Dataset listé (simulation)', 'ok');
+}
+
+// ── Test endpoints ──
+async function testEndpoint(path, method, body) {
+  clog(`Test ${method} ${path}...`, 'info');
+  const opts = { method };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await api(path, opts);
+  if (r.ok) {
+    clog(`✓ ${path} → ${r.status} OK`, 'ok');
+    toast(path + ' → OK', 'ok');
+  } else {
+    clog(`✗ ${path} → ${r.status} ${JSON.stringify(r.data).slice(0,80)}`, r.status === 422 ? 'warn' : 'err');
+  }
+}
+
+async function testEndpoints() {
+  clog('=== Test de tous les endpoints ===', 'info');
+  const endpoints = [
+    ['/health', 'GET'],
+    ['/api/marketplace/listings', 'GET'],
+    ['/api/subscriptions/plans', 'GET'],
+    ['/api/data/datasets', 'GET'],
+    ['/api/gpu/tiers', 'GET'],
+  ];
+  for (const [path, method] of endpoints) {
+    await testEndpoint(path, method);
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+function clearLogs() {
+  document.getElementById('console-output').innerHTML = 
+    '<div class="log-line"><span class="log-ts">—</span><span class="log-info">Console vidée</span></div>';
+}
+
+function loadOrderBook() {
+  document.getElementById('orderbook-body').innerHTML =
+    '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Aucun ordre ouvert</td></tr>';
+}
+
+function saveX402Prices() { toast('Config x402 sauvegardée (simulation)', 'ok'); }
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded', () => {
+  // Small delay so backend finishes initializing
+  setTimeout(() => {
+    loadDashboardStats();
+    loadSolPrice();
+  }, 300);
+  setInterval(loadSolPrice, 60000);
+  // Block number simulation
+  let block = 280000000 + Math.floor(Math.random() * 100000);
+  document.getElementById('block-num').textContent = block.toLocaleString();
+  setInterval(() => {
+    block += Math.floor(Math.random() * 3) + 1;
+    document.getElementById('block-num').textContent = block.toLocaleString();
+  }, 2000);
+});
+
+// ── Base (Art.13) ──
+async function loadBaseInfo() {
+  const r = await api('/api/base/info');
+  if (r.ok) {
+    document.getElementById('base-usdc-addr').textContent = r.data.usdcContract || '—';
+    document.getElementById('base-treasury-addr').textContent = r.data.treasury || 'Non configuré';
+  }
+}
+
+async function verifyBaseTx() {
+  const hash = document.getElementById('base-tx-hash').value.trim();
+  if (!hash) { toast('Entrez un TX hash', 'err'); return; }
+  const el = document.getElementById('base-verify-result');
+  el.innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+  const r = await api('/api/base/verify', { method: 'POST', body: JSON.stringify({ tx_hash: hash }) });
+  if (r.ok && r.data.valid) {
+    el.innerHTML = '<div class="badge green">✓ Transaction valide</div><div style="font-size:11px;color:var(--muted);margin-top:6px">Block: ' + (r.data.blockNumber||'—') + ' | Gas: ' + (r.data.gasUsed||'—') + '</div>';
+    toast('Transaction Base vérifiée', 'ok');
+  } else {
+    el.innerHTML = '<div class="badge red">✗ ' + (r.data.error || r.data.detail || 'Erreur') + '</div>';
+  }
+}
+
+async function verifyBaseUsdc() {
+  const hash = document.getElementById('base-usdc-tx').value.trim();
+  if (!hash) { toast('Entrez un TX hash', 'err'); return; }
+  const el = document.getElementById('base-usdc-result');
+  el.innerHTML = '<div class="spinner" style="margin:0 auto"></div>';
+  const r = await api('/api/base/verify-usdc', { method: 'POST', body: JSON.stringify({ tx_hash: hash }) });
+  if (r.ok && r.data.valid) {
+    const t = r.data.usdcTransfer || {};
+    el.innerHTML = '<div class="badge green">✓ USDC Transfer vérifié</div><div style="font-size:11px;color:var(--muted);margin-top:6px">' + (t.amount_usdc||0).toFixed(2) + ' USDC</div>';
+  } else {
+    el.innerHTML = '<div class="badge red">✗ ' + (r.data.error || 'Erreur') + '</div>';
+  }
+}
+
+// ── Kite AI (Art.14) ──
+async function loadKiteInfo() {
+  const r = await api('/api/kite/info');
+  if (r.ok) {
+    document.getElementById('kite-agent-id').textContent = r.data.agentId || '—';
+    document.getElementById('kite-api-ok').textContent = r.data.apiConfigured ? '✓ Oui' : '✗ Non';
+    document.getElementById('kite-api-ok').style.color = r.data.apiConfigured ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+async function kiteRegister() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  toast('Enregistrement agent Kite AI... (simulation)', 'info');
+  clog('Kite AI: enregistrement agent ' + document.getElementById('kite-agent-name').value, 'info');
+}
+
+async function kiteDiscover() {
+  const r = await api('/api/kite/discover');
+  const el = document.getElementById('kite-services-list');
+  if (r.ok && r.data && r.data.length > 0) {
+    el.innerHTML = r.data.map(s => '<div class="tier-card"><div class="tier-header"><div class="tier-name">' + s.name + '</div><span class="badge cyan">' + (s.category||'ai') + '</span></div></div>').join('');
+  } else {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)"><div style="font-size:24px;margin-bottom:8px">🪁</div>Aucun service Kite trouvé<div style="font-size:10px;margin-top:4px">Configurez KITE_API_KEY dans .env</div></div>';
+  }
+}
+
+async function kiteVerify() {
+  const id = document.getElementById('kite-verify-id').value.trim();
+  if (!id) { toast('Entrez un Agent ID', 'err'); return; }
+  const r = await api('/api/kite/verify-agent/' + id);
+  const el = document.getElementById('kite-verify-result');
+  if (r.ok) {
+    const v = r.data.verified;
+    el.innerHTML = '<span class="badge ' + (v ? 'green' : 'red') + '">' + (v ? '✓ Vérifié' : '✗ Non vérifié') + '</span> <span style="font-size:11px;color:var(--muted)">' + (r.data.name || id) + '</span>';
+  } else {
+    el.innerHTML = '<span class="badge red">Erreur</span>';
+  }
+}
+
+// ── AP2 (Art.15) ──
+async function loadAP2Info() {
+  const r = await api('/api/ap2/info');
+  if (r.ok) {
+    document.getElementById('ap2-version').textContent = r.data.ap2Version || '—';
+    document.getElementById('ap2-agent').textContent = r.data.agentId || '—';
+    document.getElementById('ap2-mandates').textContent = r.data.activeMandates || 0;
+    document.getElementById('ap2-payments').textContent = r.data.completedPayments || 0;
+  }
+}
+
+async function loadAP2Stats() {
+  const r = await api('/api/ap2/stats');
+  const el = document.getElementById('ap2-stats-display');
+  if (r.ok) {
+    el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Mandats actifs</div><div style="font-size:24px;font-weight:800;color:var(--purple2)">' + (r.data.activeMandates||0) + '</div></div>' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Paiements</div><div style="font-size:24px;font-weight:800;color:var(--green)">' + (r.data.completedPayments||0) + '</div></div>' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Volume USDC</div><div style="font-size:24px;font-weight:800;color:var(--gold)">' + (r.data.totalVolumeUsdc||0).toFixed(2) + '</div></div>' +
+      '</div>';
+  }
+}
+
+async function ap2CreateIntent() {
+  if (!walletAddr) { toast('Connectez votre wallet Phantom d\'abord', 'err'); return; }
+  toast('Intent Mandate créé (simulation — auth requise en production)', 'ok');
+  clog('AP2: Intent Mandate créé, max=' + document.getElementById('ap2-max-amount').value + ' USDC', 'ok');
+}
+
+// ── REAL-TIME CHARTS ──
+let volumeChart = null;
+let solChart = null;
+
+function createChartDefaults() {
+  Chart.defaults.color = '#6B7A9A';
+  Chart.defaults.borderColor = '#1E2840';
+  Chart.defaults.font.family = "'Space Mono', monospace";
+  Chart.defaults.font.size = 10;
+}
+
+async function loadVolumeChart() {
+  try {
+    const r = await api('/api/analytics/volume?period=168&granularity=1');
+    if (!r.ok || !r.data) return;
+    const points = r.data.timeseries || r.data;
+    if (!Array.isArray(points) || points.length === 0) return;
+    const labels = points.map(p => {
+      const d = new Date(p.timestamp || p.t || p.time);
+      return d.getHours() + 'h';
+    });
+    const values = points.map(p => p.volume || p.value || p.v || 0);
+    const ctx = document.getElementById('chart-volume');
+    if (!ctx) return;
+    if (volumeChart) volumeChart.destroy();
+    volumeChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Volume USDC',
+          data: values,
+          borderColor: '#7C6BF8',
+          backgroundColor: 'rgba(124,107,248,0.08)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D1017',
+            borderColor: '#7C6BF8',
+            borderWidth: 1,
+            titleFont: { family: "'Space Mono', monospace" },
+            bodyFont: { family: "'Space Mono', monospace" }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+          y: { grid: { color: '#1E2840' }, ticks: { callback: v => '$' + v.toLocaleString() } }
+        }
+      }
+    });
+  } catch(e) { console.warn('Volume chart error:', e); }
+}
+
+async function loadSolChart() {
+  try {
+    const r = await api('/api/public/crypto/candles?symbol=SOL&interval=1h&limit=24');
+    if (!r.ok || !r.data) return;
+    const candles = r.data.candles || r.data;
+    if (!Array.isArray(candles) || candles.length === 0) return;
+    const labels = candles.map(c => {
+      const d = new Date(c.timestamp || c.t || c.time || 0);
+      return d.getHours() + 'h';
+    });
+    const closes = candles.map(c => c.close || c.c || 0);
+    const lastPrice = closes[closes.length - 1];
+    const firstPrice = closes[0];
+    const change = firstPrice ? (((lastPrice - firstPrice) / firstPrice) * 100).toFixed(2) : 0;
+    const badge = document.getElementById('sol-price-badge');
+    if (badge) {
+      const color = change >= 0 ? 'green' : 'red';
+      badge.className = 'badge ' + color;
+      badge.textContent = '$' + lastPrice.toFixed(2) + ' (' + (change >= 0 ? '+' : '') + change + '%)';
+    }
+    const lineColor = change >= 0 ? '#00E676' : '#FF4560';
+    const ctx = document.getElementById('chart-sol');
+    if (!ctx) return;
+    if (solChart) solChart.destroy();
+    solChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'SOL/USDC',
+          data: closes,
+          borderColor: lineColor,
+          backgroundColor: (change >= 0) ? 'rgba(0,230,118,0.08)' : 'rgba(255,69,96,0.08)',
+          fill: true,
+          tension: 0.3,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHitRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0D1017',
+            borderColor: '#00E5CC',
+            borderWidth: 1,
+            titleFont: { family: "'Space Mono', monospace" },
+            bodyFont: { family: "'Space Mono', monospace" }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
+          y: { grid: { color: '#1E2840' }, ticks: { callback: v => '$' + v.toFixed(1) } }
+        }
+      }
+    });
+  } catch(e) { console.warn('SOL chart error:', e); }
+}
+
+function refreshCharts() {
+  createChartDefaults();
+  loadVolumeChart();
+  loadSolChart();
+}
+
+// Init charts on page load + auto-refresh every 60s
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(refreshCharts, 1500);
+  setInterval(refreshCharts, 60000);
+});
+
+// CEO Analytics
+async function loadAnalytics() {
+  try {
+    const safeFetch = (url) => fetch(url).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    const [analytics, crises, costs, cache, disabled] = await Promise.all([
+      safeFetch('/api/ceo/analytics'),
+      safeFetch('/api/ceo/crises'),
+      safeFetch('/api/ceo/llm-costs'),
+      safeFetch('/api/cache/stats'),
+      safeFetch('/api/ceo/disabled-agents'),
+    ]);
+    document.getElementById('a-health').textContent = analytics.health_score || '--';
+    document.getElementById('a-llm-cost').textContent = '$' + (costs.estimated_cost_usd || 0).toFixed(4);
+    document.getElementById('a-llm-calls').textContent = costs.total_calls || 0;
+    document.getElementById('a-crises').textContent = crises.count || 0;
+
+    // Funnel
+    const f = analytics.funnel || {};
+    document.getElementById('a-funnel').innerHTML = `<table class="data-table"><tr><td>Prospects</td><td class="mono">${f.prospects||0}</td></tr><tr><td>Signups</td><td class="mono">${f.signups||0}</td></tr><tr><td>Active</td><td class="mono">${f.active||0}</td></tr><tr><td>Paying</td><td class="mono">${f.paying||0}</td></tr><tr><td>Prospect→Signup</td><td class="mono">${f.conversion_prospect_to_signup||'0%'}</td></tr></table>`;
+
+    // Recommendations
+    const recs = analytics.recommendations || [];
+    document.getElementById('a-recs').innerHTML = recs.length ? recs.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">${esc(r)}</div>`).join('') : '<span style="color:var(--muted)">No recommendations</span>';
+
+    // Disabled agents
+    const dis = disabled.disabled || {};
+    const disKeys = Object.keys(dis);
+    document.getElementById('a-disabled').innerHTML = disKeys.length ? disKeys.map(k=>`<span class="badge red">${esc(k)}</span> <span style="font-size:11px;color:var(--muted)">${esc(dis[k].reason||'')}</span><br>`).join('') : '<span class="badge green">All agents active</span>';
+
+    // Circuit breakers
+    const cbs = cache.circuit_breakers || {};
+    document.getElementById('a-breakers').innerHTML = Object.entries(cbs).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${k}</span><span class="badge ${v.state==='closed'?'green':'red'}">${v.state} (${v.failures}/${v.max})</span></div>`).join('');
+  } catch(e) { console.error('Analytics error:', e); }
+}
+
+// Agent Bus
+async function loadBus() {
+  try {
+    const data = await fetch('/api/ceo/agent-bus').then(r=>r.json());
+    document.getElementById('b-pending').textContent = data.pending || 0;
+    document.getElementById('b-processed').textContent = data.processed || 0;
+    const recent = data.recent || [];
+    document.getElementById('b-log').innerHTML = recent.length ? recent.map(m=>`<div class="log-line"><span class="log-ts">${esc((m.ts||'').substr(11,8))}</span><span class="log-info">${esc(m.sender)}→${esc(m.receiver)}</span> <span>${esc(m.type)}</span></div>`).join('') : '<span style="color:var(--muted)">No recent messages</span>';
+  } catch(e) { console.error('Bus error:', e); }
+}
+
+// ROI
+async function loadROI() {
+  try {
+    const [roi, ab] = await Promise.all([
+      fetch('/api/ceo/roi').then(r=>r.json()),
+      fetch('/api/ceo/ab-tests').then(r=>r.json()),
+    ]);
+    const agents = roi.by_agent || {};
+    document.getElementById('r-agents').innerHTML = Object.keys(agents).length ? Object.entries(agents).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">${esc(k)}</span><span class="mono">${v.actions} actions, ${v.conversions} conv, $${v.revenue.toFixed(2)}</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+    const types = roi.by_type || {};
+    document.getElementById('r-types').innerHTML = Object.keys(types).length ? Object.entries(types).map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${esc(k)}</span><span class="mono">${v.conversions}/${v.actions} (${v.actions>0?((v.conversions/v.actions)*100).toFixed(0):0}%)</span></div>`).join('') : '<span style="color:var(--muted)">No data yet</span>';
+
+    const abKeys = Object.keys(ab);
+    document.getElementById('r-ab').innerHTML = abKeys.length ? abKeys.map(k=>{const t=ab[k];return `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>${esc(k)}</strong> — <span class="badge ${t.status==='completed'?'green':'cyan'}">${esc(t.status)}</span>${t.winner?` Winner: <strong>${esc(t.winner)}</strong>`:''}</div>`;}).join('') : '<span style="color:var(--muted)">No A/B tests</span>';
+  } catch(e) { console.error('ROI error:', e); }
+}
+
+function loadDisabled() { loadAnalytics(); }
+
+// ── Approvals ──
+async function loadApprovals() {
+  const r = await api('/api/ceo/approvals');
+  if (!r.ok) { return; }
+  const d = r.data;
+  const pending = d.pending || [];
+  const history = d.history || [];
+
+  document.getElementById('appr-pending').textContent = pending.length;
+  document.getElementById('appr-approved').textContent = history.filter(h => h.status === 'approved').length;
+  document.getElementById('appr-denied').textContent = history.filter(h => h.status === 'denied').length;
+  document.getElementById('appr-total').textContent = pending.length + history.length;
+
+  // Badge sidebar
+  const badge = document.getElementById('approvals-badge');
+  if (pending.length > 0) { badge.style.display = ''; badge.textContent = pending.length; }
+  else { badge.style.display = 'none'; }
+
+  // Pending list
+  const el = document.getElementById('appr-pending-list');
+  if (pending.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">Aucune decision en attente</div>';
+  } else {
+    el.innerHTML = pending.map(p => {
+      const color = p.priorite === 'ROUGE' ? 'var(--red)' : '#FF8C00';
+      const label = p.priorite === 'ROUGE' ? 'ROUGE' : 'ORANGE';
+      const ts = p.ts ? p.ts.replace('T', ' ').slice(0, 16) : '';
+      return `<div style="padding:15px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:15px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span class="badge" style="background:${color}20;color:${color}">${label}</span>
+            <span style="font-weight:700;font-size:13px">${esc(p.cible)}</span>
+            <span style="color:var(--muted);font-size:11px">${ts}</span>
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:var(--text)">${esc(p.action)}</div>
+          ${p.raison ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">Raison: ' + esc(p.raison) + '</div>' : ''}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0">
+          <button class="btn btn-green" style="padding:6px 16px;font-size:12px" onclick="approveDecision('${p.id}')">Go</button>
+          <button class="btn btn-danger" style="padding:6px 16px;font-size:12px" onclick="denyDecision('${p.id}')">No-Go</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // History table
+  const ht = document.getElementById('appr-history-table');
+  if (history.length === 0) {
+    ht.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Pas encore d\'historique</td></tr>';
+  } else {
+    ht.innerHTML = history.reverse().map(h => {
+      const statusColor = h.status === 'approved' ? 'green' : h.status === 'denied' ? 'red' : 'gray';
+      const statusLabel = h.status === 'approved' ? 'Approuve' : h.status === 'denied' ? 'Refuse' : h.status;
+      const ts = (h.approved_at || h.denied_at || h.ts || '').replace('T', ' ').slice(0, 16);
+      return `<tr>
+        <td style="font-size:11px;color:var(--muted)">${ts}</td>
+        <td style="font-size:12px;font-weight:600">${esc(h.cible)}</td>
+        <td style="font-size:12px">${esc((h.action||'').slice(0,80))}${(h.action||'').length > 80 ? '...' : ''}</td>
+        <td><span class="badge ${h.priorite === 'ROUGE' ? 'red' : 'gold'}">${esc(h.priorite)}</span></td>
+        <td><span class="badge ${statusColor}">${statusLabel}</span></td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+async function approveDecision(id) {
+  const r = await api('/api/ceo/approvals/' + id + '/approve', { method: 'POST' });
+  if (r.ok || r.data?.success) {
+    toast('Decision approuvee — executee', 'ok');
+    loadApprovals();
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function denyDecision(id) {
+  const r = await api('/api/ceo/approvals/' + id + '/deny', { method: 'POST' });
+  if (r.ok || r.data?.success) {
+    toast('Decision refusee', 'ok');
+    loadApprovals();
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+// Check pending approvals periodically
+setInterval(async () => {
+  try {
+    const r = await api('/api/ceo/approvals');
+    if (r.ok && r.data) {
+      const badge = document.getElementById('approvals-badge');
+      const count = (r.data.pending || []).length;
+      if (count > 0) { badge.style.display = ''; badge.textContent = count; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) {}
+}, 60000); // toutes les minutes
+
+// ── Email Inbox ──
+let _currentEmail = null;
+
+async function loadInbox() {
+  const r = await api('/api/inbox/messages?limit=30');
+  const tb = document.getElementById('inbox-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Erreur de connexion email</td></tr>';
+    return;
+  }
+  const d = r.data;
+  document.getElementById('inbox-unread').textContent = d.unread || 0;
+  document.getElementById('inbox-total').textContent = d.total || 0;
+  document.getElementById('inbox-addr').textContent = d.address || '--';
+
+  // Badge sidebar
+  const badge = document.getElementById('inbox-badge');
+  if (d.unread > 0) { badge.style.display = ''; badge.textContent = d.unread; }
+  else { badge.style.display = 'none'; }
+
+  if (!d.messages || d.messages.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Boite vide</td></tr>';
+    return;
+  }
+  tb.innerHTML = d.messages.map(m => {
+    const unreadStyle = m.read ? 'color:var(--muted)' : 'font-weight:700';
+    const dot = m.read ? '' : '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--cyan)"></span>';
+    return `<tr style="cursor:pointer;${unreadStyle}" onclick="openEmail('${esc(m.uid)}')">
+      <td>${dot}</td>
+      <td style="font-size:12px">${esc(m.from_name)}<br><span style="color:var(--muted);font-size:10px">${esc(m.from_addr)}</span></td>
+      <td style="font-size:12px">${esc(m.subject)}${m.has_attachments ? ' <span style="color:var(--purple)">&#128206;</span>' : ''}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(m.date)}</td>
+      <td><button class="panel-action" onclick="event.stopPropagation();deleteEmailDirect('${esc(m.uid)}')" title="Supprimer">&#128465;</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function openEmail(uid) {
+  const r = await api('/api/inbox/message/' + uid);
+  if (!r.ok) { toast('Erreur lecture email', 'err'); return; }
+  _currentEmail = r.data;
+  document.getElementById('reader-subject').textContent = r.data.subject;
+  document.getElementById('reader-from').textContent = r.data.from_name + ' <' + r.data.from_addr + '>';
+  document.getElementById('reader-date').textContent = r.data.date;
+  // Afficher le body (HTML si dispo, sinon texte)
+  const bodyEl = document.getElementById('reader-body');
+  if (r.data.body_html) {
+    bodyEl.innerHTML = r.data.body_html;
+  } else {
+    bodyEl.textContent = r.data.body_text || '(vide)';
+  }
+  document.getElementById('reply-body').value = '';
+  document.getElementById('email-reader').style.display = 'block';
+  document.getElementById('reply-btn').setAttribute('data-uid', uid);
+  document.getElementById('delete-btn').setAttribute('data-uid', uid);
+  // Rafraichir la liste (marque comme lu)
+  loadInbox();
+}
+
+async function replyToEmail() {
+  const uid = document.getElementById('reply-btn').getAttribute('data-uid');
+  const body = document.getElementById('reply-body').value.trim();
+  if (!body) { toast('Ecris un message', 'err'); return; }
+  const r = await api('/api/inbox/reply/' + uid, {
+    method: 'POST',
+    body: JSON.stringify({ body: body })
+  });
+  if (r.ok || r.data?.success) {
+    toast('Reponse envoyee', 'ok');
+    document.getElementById('reply-body').value = '';
+  } else {
+    toast('Erreur envoi: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function sendNewEmail() {
+  const to = document.getElementById('compose-to').value.trim();
+  const subject = document.getElementById('compose-subject').value.trim();
+  const body = document.getElementById('compose-body').value.trim();
+  if (!to || !subject || !body) { toast('Remplis tous les champs', 'err'); return; }
+  const r = await api('/api/inbox/send', {
+    method: 'POST',
+    body: JSON.stringify({ to, subject, body })
+  });
+  if (r.ok || r.data?.success) {
+    toast('Email envoye a ' + to, 'ok');
+    document.getElementById('compose-panel').style.display = 'none';
+    document.getElementById('compose-to').value = '';
+    document.getElementById('compose-subject').value = '';
+    document.getElementById('compose-body').value = '';
+  } else {
+    toast('Erreur: ' + (r.data?.detail || ''), 'err');
+  }
+}
+
+async function deleteEmail() {
+  const uid = document.getElementById('delete-btn').getAttribute('data-uid');
+  if (!uid) return;
+  const r = await api('/api/inbox/message/' + uid, { method: 'DELETE' });
+  if (r.ok || r.data?.success) {
+    toast('Email supprime', 'ok');
+    document.getElementById('email-reader').style.display = 'none';
+    loadInbox();
+  } else {
+    toast('Erreur suppression', 'err');
+  }
+}
+
+async function deleteEmailDirect(uid) {
+  const r = await api('/api/inbox/message/' + uid, { method: 'DELETE' });
+  if (r.ok || r.data?.success) { toast('Supprime', 'ok'); loadInbox(); }
+  else { toast('Erreur', 'err'); }
+}
+
+// Check unread emails periodically
+setInterval(async () => {
+  try {
+    const r = await api('/api/inbox/messages?limit=1&unread_only=true');
+    if (r.ok && r.data) {
+      const badge = document.getElementById('inbox-badge');
+      if (r.data.unread > 0) { badge.style.display = ''; badge.textContent = r.data.unread; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) {}
+}, 120000); // toutes les 2 minutes
+
+// SSE Live Stream
+try {
+  const evtSource = new EventSource('/api/events/stream');
+  evtSource.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'ceo_update') {
+        const el = document.getElementById('a-health');
+        if (el) el.textContent = d.health || '--';
+        const crEl = document.getElementById('a-crises');
+        if (crEl) crEl.textContent = d.crises || 0;
+      }
+    } catch(err) {}
+  };
+} catch(e) {}
+
+// ── DeFi Yields ──
+// ── Trading Tools ──
+async function loadTrading() { loadWhales(); loadCopyWallets(); loadTradingStats(); }
+
+async function loadTradingStats() {
+  const r = await api('/api/trading/stats');
+  if (r.ok && r.data) {
+    try{document.getElementById('t-alerts').textContent = r.data.alerts_active || 0;}catch(e){}
+    try{document.getElementById('t-wallets').textContent = r.data.wallets_tracked || r.data.wallets_followed || 0;}catch(e){}
+    try{document.getElementById('t-snapshots').textContent = r.data.price_snapshots || 0;}catch(e){}
+  }
+}
+
+async function loadWhales() {
+  const r = await api('/api/trading/whales?limit=10');
+  const tb = document.getElementById('t-whales');
+  if (r.ok && (r.data?.movements?.length > 0 || r.data?.transfers?.length > 0)) {
+    tb.innerHTML = (r.data.movements || r.data.transfers).map(w => `<tr>
+      <td><span class="badge cyan">${esc(w.chain)}</span></td>
+      <td style="font-weight:600">${esc(w.token)}</td>
+      <td style="font-family:'Space Mono';color:var(--green)">$${Number(w.amount_usd||0).toLocaleString()}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc((w.from||'').slice(0,8))}...</td>
+      <td style="font-size:11px;color:var(--muted)">${esc((w.to||'').slice(0,8))}...</td>
+    </tr>`).join('');
+  } else { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No whale activity</td></tr>'; }
+}
+
+async function loadSignal() {
+  const token = document.getElementById('t-signal-token').value.trim().toUpperCase();
+  if (!token) return;
+  const el = document.getElementById('t-signal-result');
+  el.innerHTML = '<div class="spinner"></div>';
+  const r = await api('/api/trading/signals/' + token);
+  if (r.ok && r.data) {
+    const d = r.data;
+    const sigColor = d.signal?.includes('BUY') ? 'var(--green)' : d.signal?.includes('SELL') ? 'var(--red)' : 'var(--gold)';
+    el.innerHTML = `<div style="text-align:center;margin-bottom:12px"><span style="font-size:24px;font-weight:700;color:${sigColor}">${esc(d.signal||'--')}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+        <div>RSI(14): <strong>${(d.rsi||0).toFixed(1)}</strong></div>
+        <div>SMA(20): <strong>$${(d.sma_20||0).toFixed(2)}</strong></div>
+        <div>SMA(50): <strong>$${(d.sma_50||0).toFixed(2)}</strong></div>
+        <div>MACD: <strong>${(typeof d.macd === 'object' ? (d.macd.histogram||0) : (d.macd||0)).toFixed(4)}</strong></div>
+      </div>`;
+  } else { el.textContent = 'Token not found'; }
+}
+
+async function loadCopyWallets() {
+  const r = await api('/api/trading/copy/wallets?limit=10');
+  const tb = document.getElementById('t-copy');
+  if (r.ok && r.data?.wallets?.length > 0) {
+    tb.innerHTML = r.data.wallets.map(w => {
+      const pnl7Color = (w.pnl_7d_pct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+      const pnl30Color = (w.pnl_30d_pct||0) >= 0 ? 'var(--green)' : 'var(--red)';
+      return `<tr>
+        <td style="font-size:11px;font-family:'Space Mono'">${esc((w.address||'').slice(0,12))}...</td>
+        <td style="color:${pnl7Color};font-weight:600">${(w.pnl_7d_pct||0) >= 0 ? '+' : ''}${(w.pnl_7d_pct||0).toFixed(1)}%</td>
+        <td style="color:${pnl30Color};font-weight:600">${(w.pnl_30d_pct||0) >= 0 ? '+' : ''}${(w.pnl_30d_pct||0).toFixed(1)}%</td>
+        <td>${((w.win_rate||0) < 1 ? (w.win_rate*100) : (w.win_rate||0)).toFixed(0)}%</td>
+        <td>${w.trades_count||0}</td>
+      </tr>`;
+    }).join('');
+  } else { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">No data</td></tr>'; }
+}
+
+async function loadYields() {
+  const r = await api('/api/public/yield/best?asset=USDC&limit=10');
+  const tb = document.getElementById('yields-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">Error loading yields</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const yields = d.yields || d.data || d || [];
+  const list = Array.isArray(yields) ? yields : [];
+  document.getElementById('yield-best').textContent = list.length ? (list[0].apy_pct || list[0].apy || '--') + '%' : '--';
+  document.getElementById('yield-protocols').textContent = d.protocols_tracked || new Set(list.map(y => y.protocol)).size || '--';
+  document.getElementById('yield-chains').textContent = d.chains_covered || new Set(list.map(y => y.chain)).size || '--';
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">No yield data available</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(y => {
+    const apy = y.apy_pct || y.apy || 0;
+    const risk = y.risk || 'medium';
+    const riskColor = risk === 'low' ? 'green' : risk === 'high' ? 'red' : 'gold';
+    return `<tr>
+      <td style="font-weight:600">${esc(y.protocol)}</td>
+      <td>${esc(y.chain)}</td>
+      <td style="color:var(--green);font-weight:700">${apy}%</td>
+      <td>${(y.tvl_usd || y.tvl) ? '$' + Number(y.tvl_usd || y.tvl).toLocaleString() : '--'}</td>
+      <td><span class="badge ${riskColor}">${esc(risk)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Bridge ──
+async function loadBridge() {
+  const r = await api('/api/bridge/routes');
+  if (r.ok) {
+    const d = r.data;
+    document.getElementById('bridge-routes').textContent = d.total_routes || d.count || '--';
+    document.getElementById('bridge-fee').textContent = d.avg_fee ? d.avg_fee + '%' : '--';
+    document.getElementById('bridge-time').textContent = d.avg_time || '--';
+  }
+}
+
+async function getBridgeQuote() {
+  const from = document.getElementById('bridge-from').value.trim();
+  const to = document.getElementById('bridge-to').value.trim();
+  const amount = document.getElementById('bridge-amount').value.trim();
+  if (!from || !to || !amount) { toast('Fill all fields', 'err'); return; }
+  const r = await api('/api/bridge/quote?from_chain=' + from + '&to_chain=' + to + '&token=USDC&amount=' + amount);
+  const panel = document.getElementById('bridge-result-panel');
+  const el = document.getElementById('bridge-result');
+  panel.style.display = 'block';
+  if (!r.ok) {
+    el.innerHTML = '<div style="color:var(--red)">Error: ' + esc(r.data?.detail || 'Unable to get quote') + '</div>';
+    return;
+  }
+  const d = r.data;
+  el.innerHTML = `<div style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    <div><span style="font-size:11px;color:var(--muted)">Route</span><div style="font-weight:700;font-size:14px">${esc(d.route || from + ' → ' + to)}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Amount Out</span><div style="font-weight:700;font-size:14px;color:var(--green)">${d.amount_out || d.estimated_output || '--'} USDC</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Fee</span><div style="font-weight:700;font-size:14px">${d.bridge_fee_usd || d.fee || d.total_fee || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Est. Time</span><div style="font-weight:700;font-size:14px">${d.estimated_time_min || d.estimated_time || d.time || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Provider</span><div style="font-weight:700;font-size:14px">${esc(d.bridge_protocol || d.provider || d.bridge || '--')}</div></div>
+  </div>`;
+}
+
+// ── NFT & Agent ID ──
+async function loadNFTs() {
+  const r = await api('/api/nft/agents');
+  const tb = document.getElementById('nfts-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading agents</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const agents = d.agents || d.data || d || [];
+  const list = Array.isArray(agents) ? agents : [];
+  document.getElementById('nft-minted').textContent = d.nfts_minted || 0;
+  document.getElementById('nft-agents').textContent = d.total || list.length || 0;
+  const avgTrust = list.length ? (list.reduce((s, a) => s + (a.trust_score || 0), 0) / list.length).toFixed(1) : '--';
+  document.getElementById('nft-trust').textContent = avgTrust;
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No agents registered</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(a => {
+    const badges = (a.badges || []).map(b => '<span class="badge cyan" style="margin-right:4px">' + esc(b) + '</span>').join('');
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:11px">${esc((a.agent_address || a.address || a.wallet || '').slice(0, 12))}...</td>
+      <td style="font-weight:600;color:var(--cyan)">${a.trust_score || '--'}</td>
+      <td>${badges || '<span style="color:var(--muted)">none</span>'}</td>
+      <td style="font-size:11px;color:var(--muted)">${a.registered_at || a.created_at || '--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function lookupAgentID() {
+  const addr = document.getElementById('nft-address').value.trim();
+  if (!addr) { toast('Enter an agent address', 'err'); return; }
+  const el = document.getElementById('nft-lookup-result');
+  el.style.display = 'block';
+  el.innerHTML = '<div style="text-align:center"><div class="spinner"></div></div>';
+  const r = await api('/api/nft/agent-id/' + encodeURIComponent(addr));
+  if (!r.ok) {
+    el.innerHTML = '<div style="color:var(--red)">Agent not found or error: ' + esc(r.data?.detail || '') + '</div>';
+    return;
+  }
+  const d = r.data;
+  const agent = d.agent_id || d;
+  const badges = (agent.badges || []).map(b => '<span class="badge cyan" style="margin-right:4px">' + esc(b) + '</span>').join('') || '<span style="color:var(--muted)">none</span>';
+  el.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+    <div><span style="font-size:11px;color:var(--muted)">Address</span><div style="font-family:var(--font-mono);font-size:12px">${esc(agent.agent_address || d.address || addr)}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Trust Score</span><div style="font-size:20px;font-weight:800;color:var(--cyan)">${agent.trust_score || '--'}</div></div>
+    <div><span style="font-size:11px;color:var(--muted)">Badges</span><div style="margin-top:4px">${badges}</div></div>
+  </div>`;
+}
+
+// ── Oracle & Data ──
+async function loadOracle() {
+  const [dsRes, hRes] = await Promise.all([
+    api('/api/oracle/datasets'),
+    api('/api/oracle/health')
+  ]);
+  // Datasets
+  const tb = document.getElementById('oracle-datasets-table');
+  if (dsRes.ok) {
+    const d = dsRes.data;
+    const datasets = d.datasets || d.data || d || [];
+    const list = Array.isArray(datasets) ? datasets : [];
+    document.getElementById('oracle-datasets').textContent = list.length || '--';
+    if (list.length === 0) {
+      tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No datasets available</td></tr>';
+    } else {
+      tb.innerHTML = list.map(ds => `<tr>
+        <td style="font-weight:600">${esc(ds.name || ds.id)}</td>
+        <td><span class="badge purple">${esc(ds.type || ds.category || '--')}</span></td>
+        <td>${ds.records || ds.count || '--'}</td>
+        <td style="font-size:11px;color:var(--muted)">${ds.updated_at || ds.last_updated || '--'}</td>
+      </tr>`).join('');
+    }
+  } else {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading datasets</td></tr>';
+  }
+  // Health
+  const hEl = document.getElementById('oracle-health');
+  if (hRes.ok) {
+    const h = hRes.data;
+    document.getElementById('oracle-tokens').textContent = h.tokens_tracked || '--';
+    document.getElementById('oracle-freshness').textContent = h.freshness || h.data_freshness || '--';
+    hEl.innerHTML = `<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Status</div>
+        <div style="font-weight:700;color:var(--green)">${esc(h.status || 'unknown')}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Last Updated</div>
+        <div style="font-weight:700">${esc(h.last_update || h.last_updated || '--')}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Sources</div>
+        <div style="font-weight:700">${h.tokens_tracked || h.sources || '--'}</div>
+      </div>
+      <div style="padding:12px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--muted)">Uptime</div>
+        <div style="font-weight:700;color:var(--cyan)">${h.uptime_human || h.uptime || '--'}</div>
+      </div>
+    </div>`;
+  } else {
+    hEl.innerHTML = '<div style="color:var(--muted)">Oracle health unavailable</div>';
+  }
+}
+
+// ── RPC Service ──
+async function loadRPC() {
+  const r = await api('/api/rpc/chains');
+  const tb = document.getElementById('rpc-chains-table');
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Error loading RPC chains</td></tr>';
+    return;
+  }
+  const d = r.data;
+  const chains = d.chains || d.data || d || [];
+  const list = Array.isArray(chains) ? chains : [];
+  document.getElementById('rpc-chains-count').textContent = list.length || d.total || '--';
+  document.getElementById('rpc-free-calls').textContent = d.free_calls_per_day || d.rate_limit || '--';
+  if (list.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">No RPC chains available</td></tr>';
+    return;
+  }
+  tb.innerHTML = list.map(c => {
+    const statusColor = (c.status || '').toLowerCase() === 'active' || (c.status || '').toLowerCase() === 'online' ? 'green' : 'red';
+    return `<tr>
+      <td style="font-weight:600">${esc(c.name || c.chain)}</td>
+      <td>${esc(c.network || c.type || 'mainnet')}</td>
+      <td><span class="badge ${statusColor}">${esc(c.status || 'unknown')}</span></td>
+      <td style="font-family:var(--font-mono);font-size:12px">${c.latency || c.avg_latency || '--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

@@ -9,6 +9,7 @@ Regles :
 """
 import asyncio, time, re, json
 import httpx
+from http_client import get_http_client
 from config import DISCORD_BOT_TOKEN, GROQ_API_KEY, GROQ_MODEL, PORT, GPU_TIERS
 _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 
@@ -95,16 +96,17 @@ async def _ask_ceo(message: str, user: str = "discord_user") -> str:
     try:
         import os
         admin_key = os.getenv("ADMIN_KEY", "")
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"http://127.0.0.1:{PORT}/api/ceo/ask",
-                json={"message": message},
-                headers={"X-Admin-Key": admin_key},
-            )
-            if resp.status_code == 200:
+        client = get_http_client()
+        resp = await client.post(
+            f"http://127.0.0.1:{PORT}/api/ceo/ask",
+            json={"message": message},
+            headers={"X-Admin-Key": admin_key},
+            timeout=30,
+        )
+        if resp.status_code == 200:
                 data = resp.json()
                 return data.get("response", data.get("error", "Erreur CEO"))
-            return f"Erreur API: {resp.status_code}"
+        return f"Erreur API: {resp.status_code}"
     except Exception as e:
         return f"CEO indisponible: {e}"
 
@@ -120,10 +122,10 @@ async def _send_discord_message(channel_id: str, content: str):
     }
     # Discord limit: 2000 chars
     chunks = [content[i:i+1900] for i in range(0, len(content), 1900)]
-    async with httpx.AsyncClient(timeout=10) as client:
-        for chunk in chunks:
-            resp = await client.post(url, headers=headers, json={"content": chunk})
-            if resp.status_code not in (200, 201):
+    client = get_http_client()
+    for chunk in chunks:
+        resp = await client.post(url, headers=headers, json={"content": chunk}, timeout=10)
+        if resp.status_code not in (200, 201):
                 print(f"[DiscordBot] Erreur envoi {resp.status_code}: {resp.text[:100]}")
 
 

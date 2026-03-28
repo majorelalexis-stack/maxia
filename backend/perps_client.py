@@ -11,6 +11,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
+from http_client import get_http_client
 
 from error_utils import safe_error
 
@@ -80,8 +81,8 @@ async def _fetch_pyth_price(symbol: str) -> float:
 async def _fetch_jup_stats() -> dict:
     """Tente de recuperer les stats Jupiter Perps. Retourne {} si indisponible."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(_JUP_PERPS_STATS)
+        client = get_http_client()
+        resp = await client.get(_JUP_PERPS_STATS, timeout=10)
         if resp.status_code == 200:
             return resp.json()
     except Exception as exc:

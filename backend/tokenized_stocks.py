@@ -10,6 +10,7 @@ Tradables 24/7 on-chain. Commission dynamique.
 import logging
 import asyncio, time, uuid, json
 import httpx
+from http_client import get_http_client
 from config import TREASURY_ADDRESS, get_rpc_url
 from security import require_ofac_clear
 
@@ -163,15 +164,15 @@ async def fetch_dex_prices():
     try:
         import httpx
         ids = ",".join(mints[:10])  # Max 10 par requete
-        async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(f"https://api.jup.ag/price/v2?ids={ids}")
-            if resp.status_code == 200:
-                data = resp.json().get("data", {})
-                for mint, info in data.items():
-                    price = float(info.get("price", 0))
-                    if price > 0:
-                        _dex_price_cache[mint] = round(price, 4)
-                _dex_cache_ts = _t.time()
+        client = get_http_client()
+        resp = await client.get(f"https://api.jup.ag/price/v2?ids={ids}", timeout=8)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            for mint, info in data.items():
+                price = float(info.get("price", 0))
+                if price > 0:
+                    _dex_price_cache[mint] = round(price, 4)
+            _dex_cache_ts = _t.time()
     except Exception:
         pass
     return _dex_price_cache
@@ -414,39 +415,39 @@ async def _swap_evm_1inch(chain_id: int, token_address: str, amount_usdc: float,
     amount_raw = str(int(amount_usdc * 1_000_000))
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            # 1inch Swap API v6
-            resp = await client.get(
-                f"https://api.1inch.dev/swap/v6.0/{chain_id}/quote",
-                params={
-                    "src": usdc,
-                    "dst": token_address,
-                    "amount": amount_raw,
-                    "fee": "0.05",  # 0.05% referral fee to MAXIA
-                },
-                headers={"Accept": "application/json"},
-            )
-            if resp.status_code != 200:
-                return {"success": False, "error": f"1inch API error: {resp.status_code}"}
+        client = get_http_client()
+        # 1inch Swap API v6
+        resp = await client.get(
+            f"https://api.1inch.dev/swap/v6.0/{chain_id}/quote",
+            params={
+                "src": usdc,
+                "dst": token_address,
+                "amount": amount_raw,
+                "fee": "0.05",  # 0.05% referral fee to MAXIA
+            },
+            headers={"Accept": "application/json"},
+        )
+        if resp.status_code != 200:
+            return {"success": False, "error": f"1inch API error: {resp.status_code}"}
 
-            data = resp.json()
-            dst_amount = data.get("dstAmount", "0")
+        data = resp.json()
+        dst_amount = data.get("dstAmount", "0")
 
-            return {
-                "success": True,
-                "tx_hash": "",  # User must sign — we return the quote
-                "quote": {
-                    "from_token": usdc,
-                    "to_token": token_address,
-                    "amount_in": amount_raw,
-                    "amount_out": dst_amount,
-                    "chain_id": chain_id,
-                    "protocol": "1inch",
-                },
-                "signature": f"evm-quote-{chain_id}-{token_address[:10]}",
-                "explorer": f"https://{'etherscan.io' if chain_id == 1 else 'arbiscan.io'}/tx/",
-                "note": "EVM swap requires user wallet signature via MetaMask/WalletConnect",
-            }
+        return {
+            "success": True,
+            "tx_hash": "",  # User must sign — we return the quote
+            "quote": {
+                "from_token": usdc,
+                "to_token": token_address,
+                "amount_in": amount_raw,
+                "amount_out": dst_amount,
+                "chain_id": chain_id,
+                "protocol": "1inch",
+            },
+            "signature": f"evm-quote-{chain_id}-{token_address[:10]}",
+            "explorer": f"https://{'etherscan.io' if chain_id == 1 else 'arbiscan.io'}/tx/",
+            "note": "EVM swap requires user wallet signature via MetaMask/WalletConnect",
+        }
     except Exception as e:
         return {"success": False, "error": "An error occurred"}
 
@@ -468,96 +469,96 @@ async def auto_discover_xstocks() -> list:
     discovered = []
     try:
         # 1. Scanner Jupiter verified tokens avec tag "tokenized-stock" ou "xstock"
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
-            if resp.status_code == 200:
-                tokens = resp.json()
-                for token in tokens:
-                    name = token.get("name", "").lower()
-                    symbol = token.get("symbol", "").upper()
-                    # Detecter les xStocks (finissent par X) et Ondo (finissent par on)
-                    is_xstock = (symbol.endswith("X") and len(symbol) >= 4 and
-                                 any(kw in name.lower() for kw in ["stock", "equity", "backed", "tokenized"]))
-                    is_ondo = ("ondo" in name.lower() or symbol.endswith("ON") and
-                               any(kw in name.lower() for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta"]))
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=15)
+        if resp.status_code == 200:
+            tokens = resp.json()
+            for token in tokens:
+                name = token.get("name", "").lower()
+                symbol = token.get("symbol", "").upper()
+                # Detecter les xStocks (finissent par X) et Ondo (finissent par on)
+                is_xstock = (symbol.endswith("X") and len(symbol) >= 4 and
+                             any(kw in name.lower() for kw in ["stock", "equity", "backed", "tokenized"]))
+                is_ondo = ("ondo" in name.lower() or symbol.endswith("ON") and
+                           any(kw in name.lower() for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta"]))
 
-                    if is_xstock or is_ondo:
-                        # Extraire le symbole boursier
-                        base_sym = symbol.rstrip("X").rstrip("on").upper()
-                        if base_sym and base_sym not in TOKENIZED_STOCKS:
-                            new_stock = {
-                                "name": token.get("name", symbol),
-                                "symbol": base_sym,
-                                "xstock_symbol": symbol,
-                                "ondo_symbol": f"{base_sym}on",
-                                "sector": "Auto-discovered",
-                                "mint_xstock": token.get("address", ""),
-                                "mint_ondo": "",
-                                "logo": token.get("logoURI", ""),
-                            }
-                            TOKENIZED_STOCKS[base_sym] = new_stock
-                            discovered.append({"symbol": base_sym, "name": token.get("name", ""), "mint": token.get("address", "")})
-                            print(f"[Stocks] Auto-discovered: {base_sym} ({token.get('name', '')})")
+                if is_xstock or is_ondo:
+                    # Extraire le symbole boursier
+                    base_sym = symbol.rstrip("X").rstrip("on").upper()
+                    if base_sym and base_sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": token.get("name", symbol),
+                            "symbol": base_sym,
+                            "xstock_symbol": symbol,
+                            "ondo_symbol": f"{base_sym}on",
+                            "sector": "Auto-discovered",
+                            "mint_xstock": token.get("address", ""),
+                            "mint_ondo": "",
+                            "logo": token.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[base_sym] = new_stock
+                        discovered.append({"symbol": base_sym, "name": token.get("name", ""), "mint": token.get("address", "")})
+                        print(f"[Stocks] Auto-discovered: {base_sym} ({token.get('name', '')})")
 
     except Exception as e:
         print(f"[Stocks] Auto-discovery error: {e}")
 
     # 2. Scanner Jupiter pour les tokens Backed (bTokens) via tags
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
-            if resp.status_code == 200:
-                all_tokens = resp.json()
-                for bt in all_tokens:
-                    sym_raw = bt.get("symbol", "")
-                    name = bt.get("name", "").lower()
-                    # Detecter les Backed tokens (prefixe b, nom contient "backed")
-                    if ("backed" in name or sym_raw.startswith("b") and "stock" in name):
-                        sym = sym_raw.lstrip("b").rstrip("X").upper()
-                        if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
-                            new_stock = {
-                                "name": bt.get("name", sym),
-                                "symbol": sym,
-                                "xstock_symbol": sym_raw,
-                                "ondo_symbol": f"{sym}on",
-                                "sector": "Auto-discovered (Backed)",
-                                "mint_xstock": bt.get("address", ""),
-                                "mint_ondo": "",
-                                "logo": bt.get("logoURI", ""),
-                            }
-                            TOKENIZED_STOCKS[sym] = new_stock
-                            discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": bt.get("address", "")})
-                            print(f"[Stocks] Backed discovered: {sym}")
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=10)
+        if resp.status_code == 200:
+            all_tokens = resp.json()
+            for bt in all_tokens:
+                sym_raw = bt.get("symbol", "")
+                name = bt.get("name", "").lower()
+                # Detecter les Backed tokens (prefixe b, nom contient "backed")
+                if ("backed" in name or sym_raw.startswith("b") and "stock" in name):
+                    sym = sym_raw.lstrip("b").rstrip("X").upper()
+                    if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": bt.get("name", sym),
+                            "symbol": sym,
+                            "xstock_symbol": sym_raw,
+                            "ondo_symbol": f"{sym}on",
+                            "sector": "Auto-discovered (Backed)",
+                            "mint_xstock": bt.get("address", ""),
+                            "mint_ondo": "",
+                            "logo": bt.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[sym] = new_stock
+                        discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": bt.get("address", "")})
+                        print(f"[Stocks] Backed discovered: {sym}")
     except Exception as e:
         print(f"[Stocks] Backed scan error: {e}")
 
     # 3. Scanner Jupiter pour les tokens Ondo (suffix ON ou ondo dans le nom)
     # Note: Ondo n'a pas d'API publique — on detecte via Jupiter token list
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified")
-            if resp.status_code == 200:
-                all_tokens = resp.json()
-                for ot in all_tokens:
-                    sym_raw = ot.get("symbol", "")
-                    name = ot.get("name", "").lower()
-                    if "ondo" in name or (sym_raw.endswith("ON") and len(sym_raw) >= 4 and
-                            any(kw in name for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta", "tokenized"])):
-                        sym = sym_raw.rstrip("on").rstrip("ON").upper()
-                        if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
-                            new_stock = {
-                                "name": ot.get("name", sym),
-                                "symbol": sym,
-                                "xstock_symbol": f"{sym}X",
-                                "ondo_symbol": sym_raw,
-                                "sector": "Auto-discovered (Ondo)",
-                                "mint_xstock": "",
-                                "mint_ondo": ot.get("address", ""),
-                                "logo": ot.get("logoURI", ""),
-                            }
-                            TOKENIZED_STOCKS[sym] = new_stock
-                            discovered.append({"symbol": sym, "name": ot.get("name", "")})
-                            print(f"[Stocks] Ondo discovered: {sym}")
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=10)
+        if resp.status_code == 200:
+            all_tokens = resp.json()
+            for ot in all_tokens:
+                sym_raw = ot.get("symbol", "")
+                name = ot.get("name", "").lower()
+                if "ondo" in name or (sym_raw.endswith("ON") and len(sym_raw) >= 4 and
+                        any(kw in name for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta", "tokenized"])):
+                    sym = sym_raw.rstrip("on").rstrip("ON").upper()
+                    if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": ot.get("name", sym),
+                            "symbol": sym,
+                            "xstock_symbol": f"{sym}X",
+                            "ondo_symbol": sym_raw,
+                            "sector": "Auto-discovered (Ondo)",
+                            "mint_xstock": "",
+                            "mint_ondo": ot.get("address", ""),
+                            "logo": ot.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[sym] = new_stock
+                        discovered.append({"symbol": sym, "name": ot.get("name", "")})
+                        print(f"[Stocks] Ondo discovered: {sym}")
     except Exception as e:
         print(f"[Stocks] Ondo scan error: {e}")
 

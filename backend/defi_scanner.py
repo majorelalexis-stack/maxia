@@ -5,6 +5,7 @@ Exposes tools for AI agents to find the best yields.
 """
 import asyncio, time
 import httpx
+from http_client import get_http_client
 
 DEFI_LLAMA_API = "https://yields.llama.fi"
 
@@ -28,26 +29,26 @@ async def _fetch_defillama_yields() -> dict:
     if _defillama_cache and time.time() - _defillama_cache_ts < 600:  # 10 min cache
         return _defillama_cache
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://yields.llama.fi/pools")
-            resp.raise_for_status()
-            pools = resp.json().get("data", [])
-            # Index par protocol+symbol pour lookup rapide
-            result = {}
-            for p in pools:
-                key = f"{p.get('project', '').lower()}_{p.get('symbol', '').lower()}"
-                if key not in result or p.get("apy", 0) > result[key].get("apy", 0):
-                    result[key] = {
-                        "protocol": p.get("project", ""),
-                        "symbol": p.get("symbol", ""),
-                        "apy": round(p.get("apy", 0), 2),
-                        "tvl": round(p.get("tvlUsd", 0), 0),
-                        "chain": p.get("chain", ""),
-                    }
-            _defillama_cache = result
-            _defillama_cache_ts = time.time()
-            print(f"[DeFi] Cache DeFiLlama: {len(result)} pools indexes")
-            return result
+        client = get_http_client()
+        resp = await client.get("https://yields.llama.fi/pools", timeout=15)
+        resp.raise_for_status()
+        pools = resp.json().get("data", [])
+        # Index par protocol+symbol pour lookup rapide
+        result = {}
+        for p in pools:
+            key = f"{p.get('project', '').lower()}_{p.get('symbol', '').lower()}"
+            if key not in result or p.get("apy", 0) > result[key].get("apy", 0):
+                result[key] = {
+                    "protocol": p.get("project", ""),
+                    "symbol": p.get("symbol", ""),
+                    "apy": round(p.get("apy", 0), 2),
+                    "tvl": round(p.get("tvlUsd", 0), 0),
+                    "chain": p.get("chain", ""),
+                }
+        _defillama_cache = result
+        _defillama_cache_ts = time.time()
+        print(f"[DeFi] Cache DeFiLlama: {len(result)} pools indexes")
+        return result
     except Exception as e:
         print(f"[DeFi] DeFiLlama fallback fetch error: {e}")
         return _defillama_cache or {}
@@ -61,65 +62,65 @@ async def _fetch_native_staking() -> list:
 
     yields = []
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            # Marinade Finance (mSOL) — Solana native staking
-            try:
-                resp = await client.get("https://api.marinade.finance/tlv")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    apy = data.get("avg_staking_apy", 0.07) * 100  # decimal to %
-                    tvl = data.get("total_sol", 0) * 140  # approx SOL price
-                    yields.append({
-                        "pool": "marinade-msol", "project": "marinade-finance",
-                        "chain": "Solana", "symbol": "SOL-mSOL", "type": "staking",
-                        "apy": round(apy, 2), "tvl_usd": round(tvl, 0),
-                        "apy_base": round(apy, 2), "apy_reward": 0,
-                        "il_risk": "no", "stable_coin": False,
-                        "risk": "LOW", "risk_score": 10,
-                        "description": "Liquid staking SOL via Marinade. Earn staking rewards while keeping SOL liquid as mSOL.",
-                        "url": "https://marinade.finance/app/stake/",
-                    })
-            except Exception:
-                pass
+        client = get_http_client()
+        # Marinade Finance (mSOL) — Solana native staking
+        try:
+            resp = await client.get("https://api.marinade.finance/tlv", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                apy = data.get("avg_staking_apy", 0.07) * 100  # decimal to %
+                tvl = data.get("total_sol", 0) * 140  # approx SOL price
+                yields.append({
+                    "pool": "marinade-msol", "project": "marinade-finance",
+                    "chain": "Solana", "symbol": "SOL-mSOL", "type": "staking",
+                    "apy": round(apy, 2), "tvl_usd": round(tvl, 0),
+                    "apy_base": round(apy, 2), "apy_reward": 0,
+                    "il_risk": "no", "stable_coin": False,
+                    "risk": "LOW", "risk_score": 10,
+                    "description": "Liquid staking SOL via Marinade. Earn staking rewards while keeping SOL liquid as mSOL.",
+                    "url": "https://marinade.finance/app/stake/",
+                })
+        except Exception:
+            pass
 
-            # Jito (JitoSOL) — MEV-boosted staking
-            try:
-                resp = await client.get("https://kobe.mainnet.jito.network/api/v1/stake_pool")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    apy = float(data.get("apy", 0.08)) * 100
-                    tvl = float(data.get("total_lamports", 0)) / 1e9 * 140
-                    yields.append({
-                        "pool": "jito-jitosol", "project": "jito",
-                        "chain": "Solana", "symbol": "SOL-JitoSOL", "type": "staking",
-                        "apy": round(apy, 2), "tvl_usd": round(tvl, 0),
-                        "apy_base": round(apy - 1, 2), "apy_reward": 1.0,
-                        "il_risk": "no", "stable_coin": False,
-                        "risk": "LOW", "risk_score": 10,
-                        "description": "MEV-boosted liquid staking. Higher APY than regular staking thanks to MEV tips.",
-                        "url": "https://www.jito.network/staking/",
-                    })
-            except Exception:
-                pass
+        # Jito (JitoSOL) — MEV-boosted staking
+        try:
+            resp = await client.get("https://kobe.mainnet.jito.network/api/v1/stake_pool", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                apy = float(data.get("apy", 0.08)) * 100
+                tvl = float(data.get("total_lamports", 0)) / 1e9 * 140
+                yields.append({
+                    "pool": "jito-jitosol", "project": "jito",
+                    "chain": "Solana", "symbol": "SOL-JitoSOL", "type": "staking",
+                    "apy": round(apy, 2), "tvl_usd": round(tvl, 0),
+                    "apy_base": round(apy - 1, 2), "apy_reward": 1.0,
+                    "il_risk": "no", "stable_coin": False,
+                    "risk": "LOW", "risk_score": 10,
+                    "description": "MEV-boosted liquid staking. Higher APY than regular staking thanks to MEV tips.",
+                    "url": "https://www.jito.network/staking/",
+                })
+        except Exception:
+            pass
 
-            # Lido (stETH) — Ethereum staking
-            try:
-                resp = await client.get("https://eth-api.lido.fi/v1/protocol/steth/apr/sma")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    apy = data.get("data", {}).get("smaApr", 3.5)
-                    yields.append({
-                        "pool": "lido-steth", "project": "lido",
-                        "chain": "Ethereum", "symbol": "ETH-stETH", "type": "staking",
-                        "apy": round(float(apy), 2), "tvl_usd": 32_000_000_000,
-                        "apy_base": round(float(apy), 2), "apy_reward": 0,
-                        "il_risk": "no", "stable_coin": False,
-                        "risk": "LOW", "risk_score": 5,
-                        "description": "Liquid staking ETH via Lido. Largest ETH staking protocol ($32B TVL).",
-                        "url": "https://stake.lido.fi/",
-                    })
-            except Exception:
-                pass
+        # Lido (stETH) — Ethereum staking
+        try:
+            resp = await client.get("https://eth-api.lido.fi/v1/protocol/steth/apr/sma", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                apy = data.get("data", {}).get("smaApr", 3.5)
+                yields.append({
+                    "pool": "lido-steth", "project": "lido",
+                    "chain": "Ethereum", "symbol": "ETH-stETH", "type": "staking",
+                    "apy": round(float(apy), 2), "tvl_usd": 32_000_000_000,
+                    "apy_base": round(float(apy), 2), "apy_reward": 0,
+                    "il_risk": "no", "stable_coin": False,
+                    "risk": "LOW", "risk_score": 5,
+                    "description": "Liquid staking ETH via Lido. Largest ETH staking protocol ($32B TVL).",
+                    "url": "https://stake.lido.fi/",
+                })
+        except Exception:
+            pass
 
     except Exception as e:
         print(f"[DeFi] Staking fetch error: {e}")
@@ -321,16 +322,16 @@ async def get_best_yields(asset: str = "USDC", chain: str = "", min_tvl: float =
         pools = _yield_cache
     else:
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(f"{DEFI_LLAMA_API}/pools")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    pools = data.get("data", [])
-                    _yield_cache = pools
-                    _yield_cache_ts = time.time()
-                    print(f"[DeFi] Loaded {len(pools)} pools from DeFiLlama")
-                else:
-                    pools = []
+            client = get_http_client()
+            resp = await client.get(f"{DEFI_LLAMA_API}/pools", timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                pools = data.get("data", [])
+                _yield_cache = pools
+                _yield_cache_ts = time.time()
+                print(f"[DeFi] Loaded {len(pools)} pools from DeFiLlama")
+            else:
+                pools = []
         except Exception as e:
             print(f"[DeFi] DeFiLlama error: {e}")
             pools = []
@@ -404,9 +405,9 @@ async def get_best_yields(asset: str = "USDC", chain: str = "", min_tvl: float =
 async def get_protocol_stats(protocol: str = "aave") -> dict:
     """Get stats for a specific DeFi protocol."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"https://api.llama.fi/protocol/{protocol}")
-            if resp.status_code == 200:
+        client = get_http_client()
+        resp = await client.get(f"https://api.llama.fi/protocol/{protocol}", timeout=10)
+        if resp.status_code == 200:
                 data = resp.json()
                 return {
                     "name": data.get("name", protocol),
@@ -423,9 +424,9 @@ async def get_protocol_stats(protocol: str = "aave") -> dict:
 async def get_chain_tvl() -> list:
     """Get TVL by chain."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get("https://api.llama.fi/v2/chains")
-            if resp.status_code == 200:
+        client = get_http_client()
+        resp = await client.get("https://api.llama.fi/v2/chains", timeout=10)
+        if resp.status_code == 200:
                 data = resp.json()
                 chains = []
                 for c in data[:20]:

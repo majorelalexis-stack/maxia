@@ -126,53 +126,53 @@ async def check_whales():
                 await asyncio.sleep(60)
                 continue
             from config import get_rpc_url
-            import httpx
+            from http_client import get_http_client
             rpc = get_rpc_url()
             for mon in monitors:
                 try:
                     wallet = mon["wallet_address"]
-                    async with httpx.AsyncClient(timeout=10) as client:
-                        resp = await client.post(rpc, json={
+                    client = get_http_client()
+                    resp = await client.post(rpc, json={
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "getSignaturesForAddress",
+                        "params": [wallet, {"limit": 5}],
+                    }, timeout=10)
+                    sigs = resp.json().get("result", [])
+                    for sig_info in sigs:
+                        sig = sig_info.get("signature", "")
+                        exists = await db.raw_execute_fetchall(
+                            "SELECT 1 FROM whale_alerts WHERE tx_signature=?", (sig,))
+                        if exists:
+                            continue
+                        # Check transaction details
+                        resp2 = await client.post(rpc, json={
                             "jsonrpc": "2.0", "id": 1,
-                            "method": "getSignaturesForAddress",
-                            "params": [wallet, {"limit": 5}],
-                        })
-                        sigs = resp.json().get("result", [])
-                        for sig_info in sigs:
-                            sig = sig_info.get("signature", "")
-                            exists = await db.raw_execute_fetchall(
-                                "SELECT 1 FROM whale_alerts WHERE tx_signature=?", (sig,))
-                            if exists:
-                                continue
-                            # Check transaction details
-                            resp2 = await client.post(rpc, json={
-                                "jsonrpc": "2.0", "id": 1,
-                                "method": "getTransaction",
-                                "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                            })
-                            tx = resp2.json().get("result")
-                            if not tx:
-                                continue
-                            # Estimate value (simplified)
-                            pre = tx.get("meta", {}).get("preBalances", [0])
-                            post = tx.get("meta", {}).get("postBalances", [0])
-                            if pre and post:
-                                diff = abs(pre[0] - post[0]) / 1e9  # lamports to SOL
-                                value_usdc = diff * 150  # rough SOL price estimate
-                                if value_usdc >= mon["threshold_usdc"]:
-                                    aid = str(uuid.uuid4())
-                                    await db.raw_execute(
-                                        "INSERT OR IGNORE INTO whale_alerts(id,monitor_id,wallet,action,amount_usdc,tx_signature) VALUES(?,?,?,?,?,?)",
-                                        (aid, mon["id"], wallet, "large_transfer", round(value_usdc, 2), sig))
-                                    # Notify via callback
-                                    if mon["callback_url"]:
-                                        try:
-                                            await client.post(mon["callback_url"], json={
-                                                "event": "whale_move", "wallet": wallet,
-                                                "amount_usdc": round(value_usdc, 2),
-                                                "tx": sig, "chain": mon["chain"],
-                                            }, timeout=5)
-                                        except Exception:
+                            "method": "getTransaction",
+                            "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
+                        }, timeout=10)
+                        tx = resp2.json().get("result")
+                        if not tx:
+                            continue
+                        # Estimate value (simplified)
+                        pre = tx.get("meta", {}).get("preBalances", [0])
+                        post = tx.get("meta", {}).get("postBalances", [0])
+                        if pre and post:
+                            diff = abs(pre[0] - post[0]) / 1e9  # lamports to SOL
+                            value_usdc = diff * 150  # rough SOL price estimate
+                            if value_usdc >= mon["threshold_usdc"]:
+                                aid = str(uuid.uuid4())
+                                await db.raw_execute(
+                                    "INSERT OR IGNORE INTO whale_alerts(id,monitor_id,wallet,action,amount_usdc,tx_signature) VALUES(?,?,?,?,?,?)",
+                                    (aid, mon["id"], wallet, "large_transfer", round(value_usdc, 2), sig))
+                                # Notify via callback
+                                if mon["callback_url"]:
+                                    try:
+                                        await client.post(mon["callback_url"], json={
+                                            "event": "whale_move", "wallet": wallet,
+                                            "amount_usdc": round(value_usdc, 2),
+                                            "tx": sig, "chain": mon["chain"],
+                                        }, timeout=5)
+                                    except Exception:
                                             pass
                     await asyncio.sleep(1)
                 except Exception as e:

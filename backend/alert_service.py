@@ -11,6 +11,7 @@ import time
 import asyncio
 import os
 import httpx
+from http_client import get_http_client
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 ALERT_PRICE_MONTHLY_USDC = 0.99
@@ -72,9 +73,10 @@ async def _send_telegram(chat_id: str, text: str):
     if not TELEGRAM_BOT_TOKEN:
         return
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+        client = get_http_client()
+        await client.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            timeout=10)
     except Exception:
         pass

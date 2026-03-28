@@ -12,6 +12,7 @@ Fonctionnalites :
 import asyncio, time, logging
 import httpx
 from config import RUNPOD_API_KEY
+from http_client import get_http_client
 
 log = logging.getLogger("runpod")
 
@@ -55,9 +56,9 @@ class RunPodClient:
     async def _query(self, query: str) -> dict:
         """Execute une requete GraphQL RunPod."""
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(BASE_URL, json={"query": query}, headers=self.headers)
-                return resp.json()
+            client = get_http_client()
+            resp = await client.post(BASE_URL, json={"query": query}, headers=self.headers, timeout=30)
+            return resp.json()
         except Exception as e:
             return {"errors": [{"message": str(e)}]}
 
@@ -433,32 +434,33 @@ async def fetch_live_gpu_prices() -> dict:
     """
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post(
-                BASE_URL,
-                headers={"Authorization": f"Bearer {RUNPOD_API_KEY}"},
-                json={"query": query},
-            )
-            if r.status_code == 200:
-                data = r.json()
-                gpu_types = data.get("data", {}).get("gpuTypes", [])
-                prices = {}
-                for gpu in gpu_types:
-                    name = gpu.get("displayName", "")
-                    lowest = gpu.get("lowestPrice") or {}
-                    prices[name] = {
-                        "display_name": name,
-                        "vram_gb": gpu.get("memoryInGb", 0),
-                        "secure_cloud": gpu.get("secureCloud", False),
-                        "community_cloud": gpu.get("communityCloud", False),
-                        "min_price": lowest.get("minimumBidPrice", 0) or 0,
-                        "on_demand_price": lowest.get("uninterruptablePrice", 0) or 0,
-                        "available": gpu.get("secureCloud", False) or gpu.get("communityCloud", False),
-                    }
-                _gpu_price_cache = prices
-                _gpu_cache_ts = _time.time()
-                print(f"[RunPod] Live prices fetched: {len(prices)} GPU types")
-                return prices
+        client = get_http_client()
+        r = await client.post(
+            BASE_URL,
+            headers={"Authorization": f"Bearer {RUNPOD_API_KEY}"},
+            json={"query": query},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            gpu_types = data.get("data", {}).get("gpuTypes", [])
+            prices = {}
+            for gpu in gpu_types:
+                name = gpu.get("displayName", "")
+                lowest = gpu.get("lowestPrice") or {}
+                prices[name] = {
+                    "display_name": name,
+                    "vram_gb": gpu.get("memoryInGb", 0),
+                    "secure_cloud": gpu.get("secureCloud", False),
+                    "community_cloud": gpu.get("communityCloud", False),
+                    "min_price": lowest.get("minimumBidPrice", 0) or 0,
+                    "on_demand_price": lowest.get("uninterruptablePrice", 0) or 0,
+                    "available": gpu.get("secureCloud", False) or gpu.get("communityCloud", False),
+                }
+            _gpu_price_cache = prices
+            _gpu_cache_ts = _time.time()
+            print(f"[RunPod] Live prices fetched: {len(prices)} GPU types")
+            return prices
     except Exception as e:
         print(f"[RunPod] Live pricing error: {e}")
 

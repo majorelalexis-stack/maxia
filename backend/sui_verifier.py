@@ -11,6 +11,7 @@ import time
 
 import httpx
 from error_utils import safe_error
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.sui_verifier")
 
@@ -30,7 +31,7 @@ _last_request_time = 0.0
 _MIN_REQUEST_INTERVAL = 0.25  # 250ms between requests
 
 
-async def _rate_limited_post(client: httpx.AsyncClient, url: str, payload: dict) -> httpx.Response:
+async def _rate_limited_post(url: str, payload: dict, timeout: float = 20) -> httpx.Response:
     """POST with basic rate limiting to avoid RPC throttling."""
     global _last_request_time
     now = time.monotonic()
@@ -38,10 +39,11 @@ async def _rate_limited_post(client: httpx.AsyncClient, url: str, payload: dict)
     if elapsed < _MIN_REQUEST_INTERVAL:
         await asyncio.sleep(_MIN_REQUEST_INTERVAL - elapsed)
     _last_request_time = time.monotonic()
-    return await client.post(url, json=payload)
+    client = get_http_client()
+    return await client.post(url, json=payload, timeout=timeout)
 
 
-async def _sui_rpc_call(client: httpx.AsyncClient, method: str, params: list, rpc_url: str = "") -> dict:
+async def _sui_rpc_call(method: str, params: list, rpc_url: str = "", timeout: float = 20) -> dict:
     """Execute a SUI JSON-RPC call with fallback."""
     payload = {
         "jsonrpc": "2.0",
@@ -55,7 +57,7 @@ async def _sui_rpc_call(client: httpx.AsyncClient, method: str, params: list, rp
     last_error = None
     for url in urls:
         try:
-            resp = await _rate_limited_post(client, url, payload)
+            resp = await _rate_limited_post(url, payload, timeout=timeout)
             if resp.status_code == 200:
                 data = resp.json()
                 if "error" in data:
@@ -90,23 +92,22 @@ async def verify_sui_transaction(
         return {"verified": False, "error": "Invalid transaction digest"}
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await _sui_rpc_call(
-                client,
-                "sui_getTransactionBlock",
-                [tx_digest, {
-                    "showEffects": True,
-                    "showInput": True,
-                    "showBalanceChanges": True,
-                }],
-            )
+        data = await _sui_rpc_call(
+            "sui_getTransactionBlock",
+            [tx_digest, {
+                "showEffects": True,
+                "showInput": True,
+                "showBalanceChanges": True,
+            }],
+            timeout=20,
+        )
 
-            if "error" in data and isinstance(data["error"], str):
-                return {"verified": False, "error": data["error"]}
+        if "error" in data and isinstance(data["error"], str):
+            return {"verified": False, "error": data["error"]}
 
-            result = data.get("result")
-            if not result:
-                return {"verified": False, "error": "Transaction not found on SUI"}
+        result = data.get("result")
+        if not result:
+            return {"verified": False, "error": "Transaction not found on SUI"}
 
             # ── Check execution status ──
             effects = result.get("effects", {})
@@ -202,72 +203,71 @@ async def verify_usdc_transfer_sui(
         return {"verified": False, "error": "Invalid transaction digest"}
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await _sui_rpc_call(
-                client,
-                "sui_getTransactionBlock",
-                [tx_digest, {
-                    "showEffects": True,
-                    "showInput": True,
-                    "showBalanceChanges": True,
-                }],
-            )
+        data = await _sui_rpc_call(
+            "sui_getTransactionBlock",
+            [tx_digest, {
+                "showEffects": True,
+                "showInput": True,
+                "showBalanceChanges": True,
+            }],
+            timeout=20,
+        )
 
-            if "error" in data and isinstance(data["error"], str):
-                return {"verified": False, "error": data["error"]}
+        if "error" in data and isinstance(data["error"], str):
+            return {"verified": False, "error": data["error"]}
 
-            result = data.get("result")
-            if not result:
-                return {"verified": False, "error": "Transaction not found"}
+        result = data.get("result")
+        if not result:
+            return {"verified": False, "error": "Transaction not found"}
 
-            # Check status
-            status = result.get("effects", {}).get("status", {}).get("status", "")
-            if status != "success":
+        # Check status
+        status = result.get("effects", {}).get("status", {}).get("status", "")
+        if status != "success":
                 return {"verified": False, "error": f"Transaction failed: {status}"}
 
             # Find USDC balance changes
-            changes = result.get("balanceChanges", [])
-            usdc_found = False
-            receiver = ""
-            usdc_amount = 0.0
+        changes = result.get("balanceChanges", [])
+        usdc_found = False
+        receiver = ""
+        usdc_amount = 0.0
 
-            for change in changes:
-                coin_type = change.get("coinType", "")
-                change_amount = int(change.get("amount", 0))
+        for change in changes:
+            coin_type = change.get("coinType", "")
+            change_amount = int(change.get("amount", 0))
 
-                if SUI_USDC_TYPE in coin_type and change_amount > 0:
-                    usdc_found = True
-                    usdc_amount = change_amount / 1e6  # USDC = 6 decimals
-                    owner = change.get("owner", {})
-                    if isinstance(owner, dict):
-                        receiver = owner.get("AddressOwner", "")
-                    elif isinstance(owner, str):
-                        receiver = owner
+            if SUI_USDC_TYPE in coin_type and change_amount > 0:
+                usdc_found = True
+                usdc_amount = change_amount / 1e6  # USDC = 6 decimals
+                owner = change.get("owner", {})
+                if isinstance(owner, dict):
+                    receiver = owner.get("AddressOwner", "")
+                elif isinstance(owner, str):
+                    receiver = owner
 
-            if not usdc_found:
-                return {"verified": False, "error": "No USDC transfer found in transaction"}
+        if not usdc_found:
+            return {"verified": False, "error": "No USDC transfer found in transaction"}
 
-            if expected_dest and receiver != expected_dest:
-                return {
-                    "verified": False,
-                    "error": f"Wrong USDC recipient: expected {expected_dest}, got {receiver}",
-                }
-
-            if min_amount > 0 and usdc_amount < min_amount * 0.99:
-                return {
-                    "verified": False,
-                    "error": f"Insufficient USDC: expected {min_amount}, got {usdc_amount}",
-                }
-
+        if expected_dest and receiver != expected_dest:
             return {
-                "verified": True,
-                "tx_digest": tx_digest,
-                "receiver": receiver,
-                "amount": usdc_amount,
-                "currency": "USDC",
-                "chain": SUI_CHAIN_ID,
-                "coin_type": SUI_USDC_TYPE,
+                "verified": False,
+                "error": f"Wrong USDC recipient: expected {expected_dest}, got {receiver}",
             }
+
+        if min_amount > 0 and usdc_amount < min_amount * 0.99:
+            return {
+                "verified": False,
+                "error": f"Insufficient USDC: expected {min_amount}, got {usdc_amount}",
+            }
+
+        return {
+            "verified": True,
+            "tx_digest": tx_digest,
+            "receiver": receiver,
+            "amount": usdc_amount,
+            "currency": "USDC",
+            "chain": SUI_CHAIN_ID,
+            "coin_type": SUI_USDC_TYPE,
+        }
 
     except Exception as e:
         result = safe_error(e, "sui_verify_usdc")
@@ -289,26 +289,25 @@ async def get_sui_balance(address: str) -> dict:
         return {"address": address, "error": "Address required"}
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            data = await _sui_rpc_call(
-                client,
-                "suix_getBalance",
-                [address, SUI_NATIVE_TYPE],
-            )
+        data = await _sui_rpc_call(
+            "suix_getBalance",
+            [address, SUI_NATIVE_TYPE],
+            timeout=15,
+        )
 
-            if "error" in data and isinstance(data["error"], str):
-                return {"address": address, "error": data["error"]}
+        if "error" in data and isinstance(data["error"], str):
+            return {"address": address, "error": data["error"]}
 
-            result = data.get("result", {})
-            total_balance = int(result.get("totalBalance", 0))
-            balance = total_balance / 1e9  # MIST to SUI
+        result = data.get("result", {})
+        total_balance = int(result.get("totalBalance", 0))
+        balance = total_balance / 1e9  # MIST to SUI
 
-            return {
-                "address": address,
-                "sui": balance,
-                "chain": SUI_CHAIN_ID,
-                "coin_object_count": result.get("coinObjectCount", 0),
-            }
+        return {
+            "address": address,
+            "sui": balance,
+            "chain": SUI_CHAIN_ID,
+            "coin_object_count": result.get("coinObjectCount", 0),
+        }
 
     except Exception as e:
         result = safe_error(e, "sui_balance")
@@ -324,26 +323,25 @@ async def get_sui_usdc_balance(address: str) -> dict:
         return {"address": address, "error": "Address required"}
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            data = await _sui_rpc_call(
-                client,
-                "suix_getBalance",
-                [address, SUI_USDC_TYPE],
-            )
+        data = await _sui_rpc_call(
+            "suix_getBalance",
+            [address, SUI_USDC_TYPE],
+            timeout=15,
+        )
 
-            if "error" in data and isinstance(data["error"], str):
-                return {"address": address, "usdc": 0.0, "chain": SUI_CHAIN_ID}
+        if "error" in data and isinstance(data["error"], str):
+            return {"address": address, "usdc": 0.0, "chain": SUI_CHAIN_ID}
 
-            result = data.get("result", {})
-            total_balance = int(result.get("totalBalance", 0))
-            balance = total_balance / 1e6  # USDC = 6 decimals
+        result = data.get("result", {})
+        total_balance = int(result.get("totalBalance", 0))
+        balance = total_balance / 1e6  # USDC = 6 decimals
 
-            return {
-                "address": address,
-                "usdc": balance,
-                "chain": SUI_CHAIN_ID,
-                "coin_type": SUI_USDC_TYPE,
-            }
+        return {
+            "address": address,
+            "usdc": balance,
+            "chain": SUI_CHAIN_ID,
+            "coin_type": SUI_USDC_TYPE,
+        }
 
     except Exception as e:
         logger.error(f"SUI USDC balance error for {address}: {e}")

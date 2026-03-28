@@ -6,6 +6,7 @@ from config import (
     LIFI_API_URL, BRIDGE_ENABLED, TREASURY_ADDRESS,
     TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
 )
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.cross_chain")
 
@@ -60,12 +61,13 @@ class CrossChainHandler:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(
-                    f"{LIFI_API_URL}/quote",
-                    params=params,
-                )
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.get(
+                f"{LIFI_API_URL}/quote",
+                params=params,
+                timeout=15,
+            )
+            data = resp.json()
 
             if resp.status_code == 200 and data.get("estimate"):
                 bridge_id = str(uuid.uuid4())
@@ -198,9 +200,9 @@ class CrossChainHandler:
         if not BRIDGE_ENABLED:
             return {"ok": False, "error": "Bridge desactive"}
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(f"{LIFI_API_URL}/chains")
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.get(f"{LIFI_API_URL}/chains", timeout=10)
+            data = resp.json()
             chains = data.get("chains", [])
             return {
                 "ok": True,

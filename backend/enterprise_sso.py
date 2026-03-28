@@ -117,11 +117,11 @@ def _get_discovery_url() -> str:
 async def _http_get(url: str) -> dict:
     """GET HTTP asynchrone. Utilise httpx si dispo, sinon aiohttp, sinon urllib."""
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            return resp.json()
+        from http_client import get_http_client
+        client = get_http_client()
+        resp = await client.get(url, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
     except ImportError:
         pass
 
@@ -144,11 +144,11 @@ async def _http_get(url: str) -> dict:
 async def _http_post(url: str, data: dict) -> dict:
     """POST HTTP asynchrone pour l'echange de code."""
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, data=data)
-            resp.raise_for_status()
-            return resp.json()
+        from http_client import get_http_client
+        client = get_http_client()
+        resp = await client.post(url, data=data, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
     except ImportError:
         pass
 

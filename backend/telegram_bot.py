@@ -8,6 +8,7 @@ Le bot gere un canal @MAXIA_alerts avec :
 """
 import asyncio, time, json
 import httpx
+from http_client import get_http_client
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL, PORT
 
 _running = False
@@ -37,14 +38,14 @@ async def send_telegram(text: str, parse_mode: str = "HTML") -> bool:
             "parse_mode": parse_mode,
             "disable_web_page_preview": True,
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code == 200:
-                print(f"[Telegram] Message envoye")
-                return True
-            else:
-                print(f"[Telegram] Erreur {resp.status_code}: {resp.text[:100]}")
-                return False
+        client = get_http_client()
+        resp = await client.post(url, json=payload, timeout=10)
+        if resp.status_code == 200:
+            print(f"[Telegram] Message envoye")
+            return True
+        else:
+            print(f"[Telegram] Erreur {resp.status_code}: {resp.text[:100]}")
+            return False
     except Exception as e:
         print(f"[Telegram] Erreur: {e}")
         return False
@@ -140,92 +141,92 @@ async def handle_telegram_updates():
     print("[Telegram] Incoming message handler started")
     while True:
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                params = {"offset": last_update_id + 1, "timeout": 20}
-                resp = await client.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", params=params)
-                if resp.status_code != 200:
-                    await asyncio.sleep(5)
-                    continue
-                data = resp.json()
-                for update in data.get("result", []):
-                    last_update_id = update["update_id"]
+            client = get_http_client()
+            params = {"offset": last_update_id + 1, "timeout": 20}
+            resp = await client.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", params=params, timeout=30)
+            if resp.status_code != 200:
+                await asyncio.sleep(5)
+                continue
+            data = resp.json()
+            for update in data.get("result", []):
+                last_update_id = update["update_id"]
 
-                    # Handle callback queries (Go/No-Go buttons)
-                    callback = update.get("callback_query")
-                    if callback:
-                        cb_data = callback.get("data", "")
-                        cb_id = callback.get("id", "")
-                        cb_chat = callback.get("message", {}).get("chat", {}).get("id", "")
-                        cb_msg_id = callback.get("message", {}).get("message_id", "")
-                        try:
-                            # Answer the callback
-                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                json={"callback_query_id": cb_id, "text": "Processing..."})
-
-                            if cb_data.startswith("go:"):
-                                decision_id = cb_data[3:]
-                                from ceo_maxia import _pending_decisions, execute, ceo
-                                pending = _pending_decisions.pop(decision_id, None)
-                                if pending:
-                                    await execute([pending["decision"]], ceo.memory)
-                                    await _send_to_chat(cb_chat, f"\u2705 GO — {pending['titre']} — Executee")
-                                else:
-                                    await _send_to_chat(cb_chat, f"\u2705 GO — Decision acceptee")
-                                # Update the original message
-                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
-                                    json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
-
-                            elif cb_data.startswith("nogo:"):
-                                decision_id = cb_data[5:]
-                                _pending_decisions.pop(decision_id, None) if hasattr(_pending_decisions, 'pop') else None
-                                try:
-                                    from ceo_maxia import _pending_decisions
-                                    _pending_decisions.pop(decision_id, None)
-                                except Exception:
-                                    pass
-                                await _send_to_chat(cb_chat, f"\u274c NO-GO — Decision rejetee")
-                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
-                                    json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
-
-                            # Handle CEO Local approval buttons (approve:/deny:)
-                            elif cb_data.startswith("approve:"):
-                                action_id = cb_data[8:]
-                                _local_approval_results[action_id] = "approved"
-                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                    json={"callback_query_id": cb_id, "text": "Approuve!"})
-                                if cb_msg_id and cb_chat:
-                                    await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
-                                        json={"chat_id": cb_chat, "message_id": cb_msg_id,
-                                              "text": f"\u2705 APPROUVE — {action_id}"})
-                                print(f"[Telegram] CEO Local approve: {action_id}")
-
-                            elif cb_data.startswith("deny:"):
-                                action_id = cb_data[5:]
-                                _local_approval_results[action_id] = "denied"
-                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
-                                    json={"callback_query_id": cb_id, "text": "Refuse!"})
-                                if cb_msg_id and cb_chat:
-                                    await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
-                                        json={"chat_id": cb_chat, "message_id": cb_msg_id,
-                                              "text": f"\u274c REFUSE — {action_id}"})
-                                print(f"[Telegram] CEO Local deny: {action_id}")
-
-                        except Exception as e:
-                            print(f"[Telegram] Callback error: {e}")
-                        continue
-
-                    msg = update.get("message", {})
-                    text = msg.get("text", "")
-                    chat_id = msg.get("chat", {}).get("id", "")
-                    user = msg.get("from", {}).get("first_name", "unknown")
-                    if not text or not chat_id:
-                        continue
-                    # Route to CEO
+                # Handle callback queries (Go/No-Go buttons)
+                callback = update.get("callback_query")
+                if callback:
+                    cb_data = callback.get("data", "")
+                    cb_id = callback.get("id", "")
+                    cb_chat = callback.get("message", {}).get("chat", {}).get("id", "")
+                    cb_msg_id = callback.get("message", {}).get("message_id", "")
                     try:
-                        ceo_response = await _ask_ceo(text, user)
-                        await _send_to_chat(chat_id, ceo_response)
+                        # Answer the callback
+                        await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                            json={"callback_query_id": cb_id, "text": "Processing..."})
+
+                        if cb_data.startswith("go:"):
+                            decision_id = cb_data[3:]
+                            from ceo_maxia import _pending_decisions, execute, ceo
+                            pending = _pending_decisions.pop(decision_id, None)
+                            if pending:
+                                await execute([pending["decision"]], ceo.memory)
+                                await _send_to_chat(cb_chat, f"\u2705 GO — {pending['titre']} — Executee")
+                            else:
+                                await _send_to_chat(cb_chat, f"\u2705 GO — Decision acceptee")
+                            # Update the original message
+                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+                                json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
+
+                        elif cb_data.startswith("nogo:"):
+                            decision_id = cb_data[5:]
+                            _pending_decisions.pop(decision_id, None) if hasattr(_pending_decisions, 'pop') else None
+                            try:
+                                from ceo_maxia import _pending_decisions
+                                _pending_decisions.pop(decision_id, None)
+                            except Exception:
+                                pass
+                            await _send_to_chat(cb_chat, f"\u274c NO-GO — Decision rejetee")
+                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup",
+                                json={"chat_id": cb_chat, "message_id": cb_msg_id, "reply_markup": "{}"})
+
+                        # Handle CEO Local approval buttons (approve:/deny:)
+                        elif cb_data.startswith("approve:"):
+                            action_id = cb_data[8:]
+                            _local_approval_results[action_id] = "approved"
+                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                json={"callback_query_id": cb_id, "text": "Approuve!"})
+                            if cb_msg_id and cb_chat:
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                    json={"chat_id": cb_chat, "message_id": cb_msg_id,
+                                          "text": f"\u2705 APPROUVE — {action_id}"})
+                            print(f"[Telegram] CEO Local approve: {action_id}")
+
+                        elif cb_data.startswith("deny:"):
+                            action_id = cb_data[5:]
+                            _local_approval_results[action_id] = "denied"
+                            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/answerCallbackQuery",
+                                json={"callback_query_id": cb_id, "text": "Refuse!"})
+                            if cb_msg_id and cb_chat:
+                                await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText",
+                                    json={"chat_id": cb_chat, "message_id": cb_msg_id,
+                                          "text": f"\u274c REFUSE — {action_id}"})
+                            print(f"[Telegram] CEO Local deny: {action_id}")
+
                     except Exception as e:
-                        await _send_to_chat(chat_id, f"Erreur: {e}")
+                        print(f"[Telegram] Callback error: {e}")
+                    continue
+
+                msg = update.get("message", {})
+                text = msg.get("text", "")
+                chat_id = msg.get("chat", {}).get("id", "")
+                user = msg.get("from", {}).get("first_name", "unknown")
+                if not text or not chat_id:
+                    continue
+                # Route to CEO
+                try:
+                    ceo_response = await _ask_ceo(text, user)
+                    await _send_to_chat(chat_id, ceo_response)
+                except Exception as e:
+                    await _send_to_chat(chat_id, f"Erreur: {e}")
         except Exception as e:
             print(f"[Telegram] Update error: {e}")
         await asyncio.sleep(1)
@@ -233,11 +234,11 @@ async def handle_telegram_updates():
 
 async def _ask_ceo(message: str, user: str) -> str:
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(f"http://127.0.0.1:{PORT}/api/ceo/ask", json={"message": message})
-            if resp.status_code == 200:
-                return resp.json().get("response", "Erreur CEO")
-            return f"Erreur API: {resp.status_code}"
+        client = get_http_client()
+        resp = await client.post(f"http://127.0.0.1:{PORT}/api/ceo/ask", json={"message": message}, timeout=30)
+        if resp.status_code == 200:
+            return resp.json().get("response", "Erreur CEO")
+        return f"Erreur API: {resp.status_code}"
     except Exception as e:
         return f"CEO indisponible: {e}"
 
@@ -247,10 +248,10 @@ async def _send_to_chat(chat_id, text: str):
         return
     # Split long messages
     chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
-    async with httpx.AsyncClient(timeout=10) as client:
-        for chunk in chunks:
-            await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": chunk})
+    client = get_http_client()
+    for chunk in chunks:
+        await client.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": chunk})
 
 
 async def run_telegram_bot():
@@ -313,10 +314,10 @@ async def run_telegram_bot():
             day = time.strftime("%Y-%m-%d")
             if hour == 20 and day != str(last_daily):
                 try:
-                    async with httpx.AsyncClient(timeout=10) as client:
-                        r1 = await client.get(f"http://127.0.0.1:{PORT}/api/stats")
-                        r2 = await client.get(f"http://127.0.0.1:{PORT}/api/public/marketplace-stats")
-                        stats = {**r1.json(), **r2.json()}
+                    client = get_http_client()
+                    r1 = await client.get(f"http://127.0.0.1:{PORT}/api/stats", timeout=10)
+                    r2 = await client.get(f"http://127.0.0.1:{PORT}/api/public/marketplace-stats", timeout=10)
+                    stats = {**r1.json(), **r2.json()}
                     await send_daily_report(stats)
                     last_daily = day
                 except Exception:

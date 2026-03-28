@@ -1705,7 +1705,7 @@ async def health(request: Request):
 @app.get("/api/public/status")
 async def public_status():
     """Live status of all MAXIA systems — chains, oracles, APIs."""
-    import httpx
+    from http_client import get_http_client
 
     # Check each chain's RPC
     chains_status = {}
@@ -1719,17 +1719,17 @@ async def public_status():
         "bnb": "https://bsc-dataseed.binance.org",
     }
 
-    async with httpx.AsyncClient(timeout=5) as client:
-        for chain, rpc in chain_rpcs.items():
-            try:
-                r = await client.post(rpc, json={
-                    "jsonrpc": "2.0", "id": 1,
-                    "method": "eth_blockNumber" if chain != "solana" else "getSlot",
-                    "params": [] if chain != "solana" else [{"commitment": "processed"}],
-                })
-                chains_status[chain] = {"status": "operational", "latency_ms": int(r.elapsed.total_seconds() * 1000)}
-            except Exception:
-                chains_status[chain] = {"status": "degraded", "latency_ms": -1}
+    client = get_http_client()
+    for chain, rpc in chain_rpcs.items():
+        try:
+            r = await client.post(rpc, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "eth_blockNumber" if chain != "solana" else "getSlot",
+                "params": [] if chain != "solana" else [{"commitment": "processed"}],
+            }, timeout=5)
+            chains_status[chain] = {"status": "operational", "latency_ms": int(r.elapsed.total_seconds() * 1000)}
+        except Exception:
+            chains_status[chain] = {"status": "degraded", "latency_ms": -1}
 
     # Oracle status
     oracles = {
@@ -1737,15 +1737,14 @@ async def public_status():
         "coingecko": {"url": "https://api.coingecko.com/api/v3/ping", "status": "unknown"},
         "defillama": {"url": "https://api.llama.fi/protocols", "status": "unknown"},
     }
-    async with httpx.AsyncClient(timeout=5) as client:
-        for name, info in oracles.items():
-            try:
-                r = await client.get(info["url"])
-                oracles[name]["status"] = "operational" if r.status_code == 200 else "degraded"
-                oracles[name]["latency_ms"] = int(r.elapsed.total_seconds() * 1000)
-            except Exception:
-                oracles[name]["status"] = "down"
-                oracles[name]["latency_ms"] = -1
+    for name, info in oracles.items():
+        try:
+            r = await client.get(info["url"], timeout=5)
+            oracles[name]["status"] = "operational" if r.status_code == 200 else "degraded"
+            oracles[name]["latency_ms"] = int(r.elapsed.total_seconds() * 1000)
+        except Exception:
+            oracles[name]["status"] = "down"
+            oracles[name]["latency_ms"] = -1
 
     # Services status
     services = {

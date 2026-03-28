@@ -13,6 +13,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from http_client import get_http_client
 from pydantic import BaseModel, Field
 
 from security import require_ofac_clear
@@ -281,17 +282,18 @@ async def _call_0x_quote(chain_id: int, sell_address: str, buy_address: str,
         params["taker"] = taker_address
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                f"{ZERO_EX_BASE_URL}/swap/permit2/quote",
-                headers=headers,
-                params=params,
-            )
-            data = resp.json()
-            if resp.status_code != 200:
+        client = get_http_client()
+        resp = await client.get(
+            f"{ZERO_EX_BASE_URL}/swap/permit2/quote",
+            headers=headers,
+            params=params,
+            timeout=15.0,
+        )
+        data = resp.json()
+        if resp.status_code != 200:
                 error_msg = data.get("reason", data.get("message", str(data)))
                 raise HTTPException(502, f"0x API error: {error_msg}")
-            return data
+        return data
     except httpx.TimeoutException:
         raise HTTPException(504, "0x API timeout — reessayez dans quelques secondes")
     except HTTPException:
@@ -313,17 +315,18 @@ async def _call_0x_price(chain_id: int, sell_address: str, buy_address: str,
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{ZERO_EX_BASE_URL}/swap/permit2/price",
-                headers=headers,
-                params=params,
-            )
-            data = resp.json()
-            if resp.status_code != 200:
+        client = get_http_client()
+        resp = await client.get(
+            f"{ZERO_EX_BASE_URL}/swap/permit2/price",
+            headers=headers,
+            params=params,
+            timeout=10.0,
+        )
+        data = resp.json()
+        if resp.status_code != 200:
                 error_msg = data.get("reason", data.get("message", str(data)))
                 raise HTTPException(502, f"0x API price error: {error_msg}")
-            return data
+        return data
     except httpx.TimeoutException:
         raise HTTPException(504, "0x API timeout — reessayez dans quelques secondes")
     except HTTPException:

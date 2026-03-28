@@ -10,6 +10,7 @@ Les IA paient un abonnement mensuel ou par alerte.
 """
 import asyncio, time, uuid
 import httpx
+from http_client import get_http_client
 from config import get_rpc_url
 
 # Wallets surveilles: {monitor_id: {wallet, owner_api_key, webhook_url, ...}}
@@ -123,9 +124,9 @@ async def _get_balance(wallet: str) -> float:
     rpc = get_rpc_url()
     try:
         payload = {"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [wallet]}
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=10)
+        data = resp.json()
         return data.get("result", {}).get("value", 0) / 1e9
     except Exception:
         return -1
@@ -140,9 +141,9 @@ async def _get_recent_signatures(wallet: str, limit: int = 5) -> list:
             "method": "getSignaturesForAddress",
             "params": [wallet, {"limit": limit}],
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=10)
+        data = resp.json()
         return data.get("result", [])
     except Exception:
         return []
@@ -172,8 +173,8 @@ async def _send_alert(monitor: dict, alert_type: str, details: dict):
     # Envoyer le webhook si configure
     if monitor.get("webhook_url"):
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(monitor["webhook_url"], json=alert)
+            client = get_http_client()
+            await client.post(monitor["webhook_url"], json=alert, timeout=10)
         except Exception as e:
             print(f"[WalletMonitor] Webhook error: {e}")
 

@@ -7,6 +7,7 @@ Ce service utilise Together AI (si cle configuree) ou Pollinations.ai
 import logging
 import asyncio, time, uuid, base64, os
 import httpx
+from http_client import get_http_client
 
 # Together AI — tier gratuit disponible
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
@@ -131,8 +132,8 @@ async def _generate_together(prompt: str, model_id: str,
         if seed > 0:
             payload["seed"] = seed
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(TOGETHER_URL, json=payload, headers=headers)
+        client = get_http_client()
+        resp = await client.post(TOGETHER_URL, json=payload, headers=headers, timeout=60)
 
         if resp.status_code == 200:
             data = resp.json()
@@ -188,8 +189,8 @@ async def _generate_pollinations(prompt: str, width: int, height: int, seed: int
         if seed > 0:
             url += f"&seed={seed}"
 
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url)
+        client = get_http_client()
+        resp = await client.get(url, timeout=30)
 
         if resp.status_code == 200 and len(resp.content) > 1000:
             b64 = base64.b64encode(resp.content).decode()

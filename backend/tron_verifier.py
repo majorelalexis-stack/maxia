@@ -2,6 +2,7 @@
 import logging
 import asyncio, logging, time
 import httpx
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.tron_verifier")
 
@@ -16,85 +17,87 @@ async def verify_tron_transaction(
 ) -> dict:
     """Verifie une transaction sur le reseau TRON (TRX natif ou TRC-20)."""
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            # 1. Recuperer la transaction brute
-            resp = await client.post(
-                f"{TRON_API_URLS[0]}/wallet/gettransactionbyid",
-                json={"value": tx_id},
+        client = get_http_client()
+        # 1. Recuperer la transaction brute
+        resp = await client.post(
+            f"{TRON_API_URLS[0]}/wallet/gettransactionbyid",
+            json={"value": tx_id},
+            timeout=20,
+        )
+        data = resp.json()
+
+        if not data or not data.get("txID"):
+            return {"verified": False, "error": "Transaction not found"}
+
+        # 2. Recuperer le receipt pour confirmation
+        resp2 = await client.post(
+            f"{TRON_API_URLS[0]}/wallet/gettransactioninfobyid",
+            json={"value": tx_id},
+            timeout=20,
+        )
+        info = resp2.json()
+
+        if info.get("receipt", {}).get("result") != "SUCCESS":
+            return {"verified": False, "error": "Transaction not confirmed"}
+
+        # 3. Extraire les details du contrat
+        contract = data.get("raw_data", {}).get("contract", [{}])[0]
+        contract_type = contract.get("type", "")
+        params = contract.get("parameter", {}).get("value", {})
+
+        if contract_type == "TransferContract":
+            # Transfert TRX natif
+            sender = _hex_to_base58(params.get("owner_address", ""))
+            receiver = _hex_to_base58(params.get("to_address", ""))
+            amount = params.get("amount", 0) / 1e6  # SUN -> TRX
+            currency = "TRX"
+
+        elif contract_type == "TriggerSmartContract":
+            # Transfert TRC-20 (USDT/USDC)
+            contract_addr = _hex_to_base58(
+                params.get("contract_address", "")
             )
-            data = resp.json()
+            sender = _hex_to_base58(params.get("owner_address", ""))
 
-            if not data or not data.get("txID"):
-                return {"verified": False, "error": "Transaction not found"}
-
-            # 2. Recuperer le receipt pour confirmation
-            resp2 = await client.post(
-                f"{TRON_API_URLS[0]}/wallet/gettransactioninfobyid",
-                json={"value": tx_id},
-            )
-            info = resp2.json()
-
-            if info.get("receipt", {}).get("result") != "SUCCESS":
-                return {"verified": False, "error": "Transaction not confirmed"}
-
-            # 3. Extraire les details du contrat
-            contract = data.get("raw_data", {}).get("contract", [{}])[0]
-            contract_type = contract.get("type", "")
-            params = contract.get("parameter", {}).get("value", {})
-
-            if contract_type == "TransferContract":
-                # Transfert TRX natif
-                sender = _hex_to_base58(params.get("owner_address", ""))
-                receiver = _hex_to_base58(params.get("to_address", ""))
-                amount = params.get("amount", 0) / 1e6  # SUN -> TRX
-                currency = "TRX"
-
-            elif contract_type == "TriggerSmartContract":
-                # Transfert TRC-20 (USDT/USDC)
-                contract_addr = _hex_to_base58(
-                    params.get("contract_address", "")
-                )
-                sender = _hex_to_base58(params.get("owner_address", ""))
-
-                # Decoder transfer(address,uint256) depuis call_data
-                call_data = params.get("data", "")
-                if len(call_data) >= 136:
-                    receiver = _hex_to_base58("41" + call_data[32:72])
-                    amount = int(call_data[72:136], 16) / 1e6
-                else:
-                    return {
-                        "verified": False,
-                        "error": "Cannot decode TRC-20 transfer",
-                    }
-
-                # Identifier le token
-                if contract_addr == "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t":
-                    currency = "USDT"
-                elif contract_addr == "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8":
-                    currency = "USDC"
-                else:
-                    currency = "TRC20"
-
+            # Decoder transfer(address,uint256) depuis call_data
+            call_data = params.get("data", "")
+            if len(call_data) >= 136:
+                receiver = _hex_to_base58("41" + call_data[32:72])
+                amount = int(call_data[72:136], 16) / 1e6
             else:
                 return {
                     "verified": False,
-                    "error": f"Unsupported contract type: {contract_type}",
+                    "error": "Cannot decode TRC-20 transfer",
                 }
 
-            # 4. Validations
-            if expected_dest and receiver != expected_dest:
-                return {"verified": False, "error": "Wrong recipient"}
-            if expected_amount > 0 and amount < expected_amount * 0.99:
-                return {"verified": False, "error": "Insufficient amount"}
+            # Identifier le token
+            if contract_addr == "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t":
+                currency = "USDT"
+            elif contract_addr == "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8":
+                currency = "USDC"
+            else:
+                currency = "TRC20"
 
+        else:
             return {
-                "verified": True,
-                "tx_id": tx_id,
-                "sender": sender,
-                "receiver": receiver,
-                "amount": amount,
-                "currency": currency,
+                "verified": False,
+                "error": f"Unsupported contract type: {contract_type}",
             }
+
+        # 4. Validations
+        if expected_dest and receiver != expected_dest:
+            return {"verified": False, "error": "Wrong recipient"}
+        if expected_amount > 0 and amount < expected_amount * 0.99:
+            return {"verified": False, "error": "Insufficient amount"}
+
+        return {
+            "verified": True,
+            "tx_id": tx_id,
+            "sender": sender,
+            "receiver": receiver,
+            "amount": amount,
+            "currency": currency,
+        }
 
     except Exception as e:
         logger.error(f"TRON verification error: {e}")
@@ -123,14 +126,15 @@ def _hex_to_base58(hex_addr: str) -> str:
 async def get_tron_balance(address: str) -> dict:
     """Recupere le solde TRX d'un wallet TRON."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{TRON_API_URLS[0]}/wallet/getaccount",
-                json={"address": address, "visible": True},
-            )
-            data = resp.json()
-            balance = data.get("balance", 0) / 1e6
-            return {"address": address, "trx": balance}
+        client = get_http_client()
+        resp = await client.post(
+            f"{TRON_API_URLS[0]}/wallet/getaccount",
+            json={"address": address, "visible": True},
+            timeout=15,
+        )
+        data = resp.json()
+        balance = data.get("balance", 0) / 1e6
+        return {"address": address, "trx": balance}
     except Exception as e:
         return {"address": address, "error": "An error occurred"}
 

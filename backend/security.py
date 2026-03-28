@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException, Request
 import httpx
+from http_client import get_http_client
 from config import (
     BLOCKED_WORDS, BLOCKED_PATTERNS,
     GROWTH_MAX_SPEND_DAY, GROWTH_MAX_SPEND_TX,
@@ -694,43 +695,43 @@ async def check_chainalysis_oracle(address: str, chain: str = "ethereum") -> dic
     call_data = f"{_IS_SANCTIONED_SELECTOR}000000000000000000000000{addr_clean}"
 
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            payload = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "eth_call",
-                "params": [
-                    {"to": oracle_address, "data": call_data},
-                    "latest",
-                ],
-            }
-            resp = await client.post(rpc_url, json=payload)
-            if resp.status_code != 200:
+        client = get_http_client()
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_call",
+            "params": [
+                {"to": oracle_address, "data": call_data},
+                "latest",
+            ],
+        }
+        resp = await client.post(rpc_url, json=payload, timeout=8)
+        if resp.status_code != 200:
                 return {"error": f"RPC HTTP {resp.status_code}", "sanctioned": False}
 
-            result = resp.json().get("result", "0x")
+        result = resp.json().get("result", "0x")
 
-            # Le retour est un bool encode: 0x...0001 = true, 0x...0000 = false
-            if result and len(result) >= 66:
-                is_sanctioned = int(result, 16) != 0
-            elif result == "0x":
-                # Contrat non deploye ou erreur — ne pas bloquer
-                return {"error": "Empty response from oracle", "sanctioned": False}
-            else:
-                is_sanctioned = int(result, 16) != 0 if result else False
+        # Le retour est un bool encode: 0x...0001 = true, 0x...0000 = false
+        if result and len(result) >= 66:
+            is_sanctioned = int(result, 16) != 0
+        elif result == "0x":
+            # Contrat non deploye ou erreur — ne pas bloquer
+            return {"error": "Empty response from oracle", "sanctioned": False}
+        else:
+            is_sanctioned = int(result, 16) != 0 if result else False
 
-            if is_sanctioned:
-                audit_log(
-                    "chainalysis_hit", "system",
-                    f"Chainalysis Oracle: sanctioned on {chain}: {address[:20]}..."
-                )
+        if is_sanctioned:
+            audit_log(
+                "chainalysis_hit", "system",
+                f"Chainalysis Oracle: sanctioned on {chain}: {address[:20]}..."
+            )
 
-            return {
-                "sanctioned": is_sanctioned,
-                "source": "chainalysis_oracle",
-                "chain": chain_lower,
-                "oracle": oracle_address,
-            }
+        return {
+            "sanctioned": is_sanctioned,
+            "source": "chainalysis_oracle",
+            "chain": chain_lower,
+            "oracle": oracle_address,
+        }
 
     except httpx.TimeoutException:
         return {"error": f"Chainalysis Oracle timeout on {chain}", "sanctioned": False}
@@ -884,23 +885,23 @@ async def refresh_ofac_list() -> dict:
     initial_count = len(_OFAC_SANCTIONED_ADDRESSES)
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            for filename in files:
-                try:
-                    resp = await client.get(f"{base_url}/{filename}")
-                    if resp.status_code == 200:
-                        lines = resp.text.strip().split("\n")
-                        for line in lines:
-                            addr = line.strip()
-                            if addr and not addr.startswith("#"):
-                                addr_lower = addr.lower()
-                                if addr_lower not in _OFAC_SANCTIONED_ADDRESSES:
-                                    _OFAC_SANCTIONED_ADDRESSES.add(addr_lower)
-                                    added += 1
-                        sources_fetched.append(filename)
-                    # 404 = fichier pas encore disponible, ignorer silencieusement
-                except Exception:
-                    continue
+        client = get_http_client()
+        for filename in files:
+            try:
+                resp = await client.get(f"{base_url}/{filename}", timeout=15)
+                if resp.status_code == 200:
+                    lines = resp.text.strip().split("\n")
+                    for line in lines:
+                        addr = line.strip()
+                        if addr and not addr.startswith("#"):
+                            addr_lower = addr.lower()
+                            if addr_lower not in _OFAC_SANCTIONED_ADDRESSES:
+                                _OFAC_SANCTIONED_ADDRESSES.add(addr_lower)
+                                added += 1
+                    sources_fetched.append(filename)
+                # 404 = fichier pas encore disponible, ignorer silencieusement
+            except Exception:
+                continue
 
     except Exception as e:
         print(f"[OFAC] Refresh error: {e}")

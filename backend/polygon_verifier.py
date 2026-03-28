@@ -8,6 +8,7 @@ from config import (
     X402_FACILITATOR_URL, TREASURY_ADDRESS_POLYGON,
 )
 from error_utils import safe_error
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.polygon_verifier")
 
@@ -59,9 +60,9 @@ async def _rpc_post(payload: dict, timeout: float = 20) -> dict:
     last_error = None
     for rpc_url in POLYGON_RPC_URLS:
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(rpc_url, json=payload)
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=timeout)
+            data = resp.json()
             if "error" in data and data["error"]:
                 logger.warning(f"[PolygonVerifier] RPC {rpc_url} returned error: {data['error']}")
                 last_error = Exception(f"RPC error: {data['error']}")
@@ -214,16 +215,17 @@ async def x402_verify_payment_polygon(payment_header: str, expected_amount_usdc:
         logger.warning(f"[x402] Facilitator URL is not HTTPS: {X402_FACILITATOR_URL}")
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                f"{X402_FACILITATOR_URL}/verify",
-                json={
-                    "paymentPayload": payment_header,
-                    "network": "polygon-mainnet",
-                    "expectedAmount": str(int(expected_amount_usdc * 1e6)),
-                },
-            )
-            result = resp.json()
+        client = get_http_client()
+        resp = await client.post(
+            f"{X402_FACILITATOR_URL}/verify",
+            json={
+                "paymentPayload": payment_header,
+                "network": "polygon-mainnet",
+                "expectedAmount": str(int(expected_amount_usdc * 1e6)),
+            },
+            timeout=20,
+        )
+        result = resp.json()
         if resp.status_code == 200 and result.get("valid"):
             logger.info(f"[x402] Polygon payment verified via facilitator: {result.get('txHash', '')[:16]}...")
             return {

@@ -1,6 +1,7 @@
 """MAXIA Oracle & Data Marketplace — Donnees de prix et datasets pour protocols et agents IA."""
 import time, uuid
 import httpx
+from http_client import get_http_client
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -318,43 +319,43 @@ async def _build_defi_yields_dataset() -> dict:
         ("sanctum", "inf", "Sanctum", "Solana", "INF", "medium"),
     ]
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://yields.llama.fi/pools")
-            resp.raise_for_status()
-            pools = resp.json().get("data", [])
-            # Index par project_symbol
-            pool_index = {}
-            for p in pools:
-                key = f"{p.get('project', '').lower()}_{p.get('symbol', '').lower()}"
-                if key not in pool_index or p.get("apy", 0) > pool_index[key].get("apy", 0):
-                    pool_index[key] = p
+        client = get_http_client()
+        resp = await client.get("https://yields.llama.fi/pools", timeout=15)
+        resp.raise_for_status()
+        pools = resp.json().get("data", [])
+        # Index par project_symbol
+        pool_index = {}
+        for p in pools:
+            key = f"{p.get('project', '').lower()}_{p.get('symbol', '').lower()}"
+            if key not in pool_index or p.get("apy", 0) > pool_index[key].get("apy", 0):
+                pool_index[key] = p
 
-            for project_key, symbol_key, display_name, chain, asset, risk in _TARGET_POOLS:
-                lookup_key = f"{project_key}_{symbol_key}"
-                pool_data = pool_index.get(lookup_key, {})
-                apy = round(pool_data.get("apy", 0), 2)
-                tvl = round(pool_data.get("tvlUsd", 0), 0)
-                if apy > 0:
-                    defi_entries.append({
-                        "protocol": display_name, "chain": chain, "asset": asset,
-                        "apy_pct": apy, "tvl_usd": tvl, "risk": risk,
-                        "source": "defillama_live",
-                    })
+        for project_key, symbol_key, display_name, chain, asset, risk in _TARGET_POOLS:
+            lookup_key = f"{project_key}_{symbol_key}"
+            pool_data = pool_index.get(lookup_key, {})
+            apy = round(pool_data.get("apy", 0), 2)
+            tvl = round(pool_data.get("tvlUsd", 0), 0)
+            if apy > 0:
+                defi_entries.append({
+                    "protocol": display_name, "chain": chain, "asset": asset,
+                    "apy_pct": apy, "tvl_usd": tvl, "risk": risk,
+                    "source": "defillama_live",
+                })
 
-            # Si on a aussi des pools Aave Polygon/Arbitrum, les chercher
-            for p in pools:
-                proj = (p.get("project") or "").lower()
-                chain_raw = (p.get("chain") or "").lower()
-                sym = (p.get("symbol") or "").upper()
-                apy = p.get("apy", 0)
-                tvl = p.get("tvlUsd", 0)
-                if proj == "aave-v3" and "USDC" in sym and tvl > 100_000_000:
-                    if chain_raw == "polygon":
-                        defi_entries.append({"protocol": "Aave V3", "chain": "Polygon", "asset": "USDC",
-                                             "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
-                    elif chain_raw == "arbitrum":
-                        defi_entries.append({"protocol": "Aave V3", "chain": "Arbitrum", "asset": "USDC",
-                                             "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
+        # Si on a aussi des pools Aave Polygon/Arbitrum, les chercher
+        for p in pools:
+            proj = (p.get("project") or "").lower()
+            chain_raw = (p.get("chain") or "").lower()
+            sym = (p.get("symbol") or "").upper()
+            apy = p.get("apy", 0)
+            tvl = p.get("tvlUsd", 0)
+            if proj == "aave-v3" and "USDC" in sym and tvl > 100_000_000:
+                if chain_raw == "polygon":
+                    defi_entries.append({"protocol": "Aave V3", "chain": "Polygon", "asset": "USDC",
+                                         "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
+                elif chain_raw == "arbitrum":
+                    defi_entries.append({"protocol": "Aave V3", "chain": "Arbitrum", "asset": "USDC",
+                                         "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
     except Exception as e:
         print(f"[Oracle] DeFiLlama fetch error pour dataset yields: {e}")
 

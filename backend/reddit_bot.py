@@ -17,6 +17,7 @@ Bot posts max 2x/week per subreddit to avoid bans.
 import logging
 import asyncio, time, os, json, random
 import httpx
+from http_client import get_http_client
 from error_utils import safe_error
 
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
@@ -134,20 +135,20 @@ async def _generate_post_body(template: dict) -> str:
     )
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 600,
-                    "temperature": 0.7,
-                },
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["choices"][0]["message"]["content"].strip()
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 600,
+                "temperature": 0.7,
+            },
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
         print(f"[Reddit] Groq error: {e}")
 
@@ -193,22 +194,22 @@ async def _generate_comment(post_title: str, post_body: str) -> str:
     )
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 200,
-                    "temperature": 0.7,
-                },
-            )
-            if resp.status_code == 200:
-                text = resp.json()["choices"][0]["message"]["content"].strip()
-                if "SKIP" in text:
-                    return ""
-                return text
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 200,
+                "temperature": 0.7,
+            },
+        )
+        if resp.status_code == 200:
+            text = resp.json()["choices"][0]["message"]["content"].strip()
+            if "SKIP" in text:
+                return ""
+            return text
     except Exception:
         pass
     return ""
@@ -220,42 +221,42 @@ async def post_to_reddit(subreddit: str, title: str, body: str) -> dict:
         return {"error": "Reddit API keys not configured"}
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            # Get access token
-            auth_resp = await client.post(
-                "https://www.reddit.com/api/v1/access_token",
-                auth=(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET),
-                data={
-                    "grant_type": "password",
-                    "username": REDDIT_USERNAME,
-                    "password": REDDIT_PASSWORD,
-                },
-                headers={"User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}"},
-            )
-            token = auth_resp.json().get("access_token")
-            if not token:
-                return {"error": "Auth failed", "detail": auth_resp.json()}
+        client = get_http_client()
+        # Get access token
+        auth_resp = await client.post(
+            "https://www.reddit.com/api/v1/access_token",
+            auth=(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET),
+            data={
+                "grant_type": "password",
+                "username": REDDIT_USERNAME,
+                "password": REDDIT_PASSWORD,
+            },
+            headers={"User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}"},
+        )
+        token = auth_resp.json().get("access_token")
+        if not token:
+            return {"error": "Auth failed", "detail": auth_resp.json()}
 
-            # Submit post
-            post_resp = await client.post(
-                "https://oauth.reddit.com/api/submit",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}",
-                },
-                data={
-                    "kind": "self",
-                    "sr": subreddit,
-                    "title": title,
-                    "text": body,
-                },
-            )
-            result = post_resp.json()
-            success = result.get("success", False)
-            url = ""
-            if result.get("json", {}).get("data", {}).get("url"):
-                url = result["json"]["data"]["url"]
-            return {"success": success, "url": url, "subreddit": subreddit}
+        # Submit post
+        post_resp = await client.post(
+            "https://oauth.reddit.com/api/submit",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}",
+            },
+            data={
+                "kind": "self",
+                "sr": subreddit,
+                "title": title,
+                "text": body,
+            },
+        )
+        result = post_resp.json()
+        success = result.get("success", False)
+        url = ""
+        if result.get("json", {}).get("data", {}).get("url"):
+            url = result["json"]["data"]["url"]
+        return {"success": success, "url": url, "subreddit": subreddit}
     except Exception as e:
         return safe_error(e, "operation")
 

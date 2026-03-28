@@ -30,6 +30,7 @@ from typing import Optional
 import httpx
 
 from error_utils import safe_error
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.evm_verifier")
 
@@ -144,13 +145,13 @@ class EvmVerifier:
 
         for rpc_url in self.rpc_urls:
             try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    resp = await client.post(rpc_url, json=payload)
-                    # Guard against non-JSON or error HTTP responses
-                    if resp.status_code != 200 or not resp.text.strip().startswith("{"):
-                        last_error = Exception(f"RPC {rpc_url}: HTTP {resp.status_code}")
-                        continue
-                    data = resp.json()
+                client = get_http_client()
+                resp = await client.post(rpc_url, json=payload, timeout=timeout)
+                # Guard against non-JSON or error HTTP responses
+                if resp.status_code != 200 or not resp.text.strip().startswith("{"):
+                    last_error = Exception(f"RPC {rpc_url}: HTTP {resp.status_code}")
+                    continue
+                data = resp.json()
                 if "error" in data and data["error"]:
                     logger.warning(f"{tag} RPC {rpc_url} returned error: {data['error']}")
                     last_error = Exception(f"RPC error: {data['error']}")
@@ -405,16 +406,17 @@ class EvmVerifier:
         # Try facilitator first
         if facilitator_url:
             try:
-                async with httpx.AsyncClient(timeout=self._DEFAULT_TIMEOUT) as client:
-                    resp = await client.post(
-                        f"{facilitator_url}/verify",
-                        json={
-                            "paymentPayload": payment_header,
-                            "network": self.network_id,
-                            "expectedAmount": str(int(expected_amount_usdc * 1e6)),
-                        },
-                    )
-                    result = resp.json()
+                client = get_http_client()
+                resp = await client.post(
+                    f"{facilitator_url}/verify",
+                    json={
+                        "paymentPayload": payment_header,
+                        "network": self.network_id,
+                        "expectedAmount": str(int(expected_amount_usdc * 1e6)),
+                    },
+                    timeout=self._DEFAULT_TIMEOUT,
+                )
+                result = resp.json()
                 if resp.status_code == 200 and result.get("valid"):
                     logger.info(
                         f"{tag} Payment verified via facilitator: "

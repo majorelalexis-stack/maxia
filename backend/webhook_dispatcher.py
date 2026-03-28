@@ -11,6 +11,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
+from http_client import get_http_client
 
 # ── Constants ──
 
@@ -163,8 +164,8 @@ async def _deliver(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=DELIVERY_TIMEOUT) as client:
-            resp = await client.post(callback_url, content=payload_bytes, headers=headers)
+        client = get_http_client()
+        resp = await client.post(callback_url, content=payload_bytes, headers=headers, timeout=DELIVERY_TIMEOUT)
 
         if 200 <= resp.status_code < 300:
             await db.raw_execute(
@@ -331,8 +332,8 @@ async def test_webhook(callback_url: str) -> dict:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=DELIVERY_TIMEOUT) as client:
-            resp = await client.post(validated_url, content=payload_bytes, headers=headers)
+        client = get_http_client()
+        resp = await client.post(validated_url, content=payload_bytes, headers=headers, timeout=DELIVERY_TIMEOUT)
 
         return {
             "url": validated_url,

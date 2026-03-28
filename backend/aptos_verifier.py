@@ -9,6 +9,7 @@ import time
 
 import httpx
 from error_utils import safe_error
+from http_client import get_http_client
 
 logger = logging.getLogger("maxia.aptos_verifier")
 
@@ -27,7 +28,7 @@ _last_request_time = 0.0
 _MIN_REQUEST_INTERVAL = 0.25  # 250ms between requests
 
 
-async def _rate_limited_get(client: httpx.AsyncClient, url: str) -> httpx.Response:
+async def _rate_limited_get(url: str, timeout: float = 20) -> httpx.Response:
     """GET with basic rate limiting to avoid API throttling."""
     global _last_request_time
     now = time.monotonic()
@@ -35,10 +36,11 @@ async def _rate_limited_get(client: httpx.AsyncClient, url: str) -> httpx.Respon
     if elapsed < _MIN_REQUEST_INTERVAL:
         await asyncio.sleep(_MIN_REQUEST_INTERVAL - elapsed)
     _last_request_time = time.monotonic()
-    return await client.get(url)
+    client = get_http_client()
+    return await client.get(url, timeout=timeout)
 
 
-async def _aptos_api_call(client: httpx.AsyncClient, path: str, api_url: str = "") -> dict:
+async def _aptos_api_call(path: str, api_url: str = "", timeout: float = 20) -> dict:
     """Execute an Aptos REST API GET call with fallback."""
     urls = [api_url] if api_url else APTOS_API_URLS
 
@@ -46,7 +48,7 @@ async def _aptos_api_call(client: httpx.AsyncClient, path: str, api_url: str = "
     for url in urls:
         try:
             full_url = f"{url}{path}" if path.startswith("/") else f"{url}/{path}"
-            resp = await _rate_limited_get(client, full_url)
+            resp = await _rate_limited_get(full_url, timeout=timeout)
             if resp.status_code == 200:
                 return resp.json()
             if resp.status_code == 404:
@@ -79,107 +81,106 @@ async def verify_aptos_transaction(
         return {"verified": False, "error": "Invalid transaction hash"}
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await _aptos_api_call(
-                client,
-                f"/transactions/by_hash/{tx_hash}",
-            )
+        data = await _aptos_api_call(
+            f"/transactions/by_hash/{tx_hash}",
+            timeout=20,
+        )
 
-            if "error" in data:
-                return {"verified": False, "error": data["error"]}
+        if "error" in data:
+            return {"verified": False, "error": data["error"]}
 
-            # ── Check execution success ──
-            success = data.get("success", False)
-            if not success:
-                vm_status = data.get("vm_status", "unknown")
-                return {
-                    "verified": False,
-                    "error": f"Transaction failed with vm_status: {vm_status}",
-                }
-
-            # ── Extract sender ──
-            sender = data.get("sender", "")
-
-            # ── Parse events for transfers ──
-            events = data.get("events", [])
-            receiver = ""
-            amount = 0.0
-            currency = "APT"
-
-            for event in events:
-                event_type = event.get("type", "")
-
-                # Detect deposit events (coin received)
-                if "0x1::coin::DepositEvent" in event_type or "0x1::coin::deposit" in event_type:
-                    event_data = event.get("data", {})
-                    event_amount = int(event_data.get("amount", 0))
-
-                    # Extract receiver from the event guid or account
-                    guid = event.get("guid", {})
-                    account_address = guid.get("account_address", "")
-                    if account_address:
-                        receiver = account_address
-
-                    # Detect coin type from the event type string
-                    if "AptosCoin" in event_type or "aptos_coin" in event_type:
-                        # APT has 8 decimals
-                        amount = event_amount / 1e8
-                        currency = "APT"
-                    elif "usdc" in event_type.lower() or APTOS_USDC_TYPE in event_type:
-                        # USDC has 6 decimals
-                        amount = event_amount / 1e6
-                        currency = "USDC"
-                    else:
-                        # Default to 8 decimals (APT standard)
-                        amount = event_amount / 1e8
-                        currency = "APT"
-
-                # Also check CoinDeposit events (newer Aptos versions)
-                if "0x1::coin::CoinDeposit" in event_type:
-                    event_data = event.get("data", {})
-                    event_amount = int(event_data.get("amount", 0))
-                    account = event_data.get("account", "")
-                    coin_type = event_data.get("coin_type", "")
-
-                    if account:
-                        receiver = account
-
-                    if "AptosCoin" in coin_type:
-                        amount = event_amount / 1e8
-                        currency = "APT"
-                    elif "usdc" in coin_type.lower():
-                        amount = event_amount / 1e6
-                        currency = "USDC"
-
-            # ── Validate destination ──
-            if expected_dest and receiver.lower() != expected_dest.lower():
-                return {
-                    "verified": False,
-                    "error": f"Wrong recipient: expected {expected_dest}, got {receiver}",
-                }
-
-            # ── Validate amount (1% tolerance) ──
-            if expected_amount > 0 and amount < expected_amount * 0.99:
-                return {
-                    "verified": False,
-                    "error": f"Insufficient amount: expected {expected_amount}, got {amount} {currency}",
-                }
-
-            logger.info(
-                f"Aptos tx verified: {tx_hash[:16]}... {sender[:10]}.. -> {receiver[:10]}.. = {amount} {currency}"
-            )
-
+        # ── Check execution success ──
+        success = data.get("success", False)
+        if not success:
+            vm_status = data.get("vm_status", "unknown")
             return {
-                "verified": True,
-                "tx_hash": tx_hash,
-                "sender": sender,
-                "receiver": receiver,
-                "amount": amount,
-                "currency": currency,
-                "chain": APTOS_CHAIN_ID,
-                "version": data.get("version", ""),
-                "gas_used": data.get("gas_used", ""),
+                "verified": False,
+                "error": f"Transaction failed with vm_status: {vm_status}",
             }
+
+        # ── Extract sender ──
+        sender = data.get("sender", "")
+
+        # ── Parse events for transfers ──
+        events = data.get("events", [])
+        receiver = ""
+        amount = 0.0
+        currency = "APT"
+
+        for event in events:
+            event_type = event.get("type", "")
+
+            # Detect deposit events (coin received)
+            if "0x1::coin::DepositEvent" in event_type or "0x1::coin::deposit" in event_type:
+                event_data = event.get("data", {})
+                event_amount = int(event_data.get("amount", 0))
+
+                # Extract receiver from the event guid or account
+                guid = event.get("guid", {})
+                account_address = guid.get("account_address", "")
+                if account_address:
+                    receiver = account_address
+
+                # Detect coin type from the event type string
+                if "AptosCoin" in event_type or "aptos_coin" in event_type:
+                    # APT has 8 decimals
+                    amount = event_amount / 1e8
+                    currency = "APT"
+                elif "usdc" in event_type.lower() or APTOS_USDC_TYPE in event_type:
+                    # USDC has 6 decimals
+                    amount = event_amount / 1e6
+                    currency = "USDC"
+                else:
+                    # Default to 8 decimals (APT standard)
+                    amount = event_amount / 1e8
+                    currency = "APT"
+
+            # Also check CoinDeposit events (newer Aptos versions)
+            if "0x1::coin::CoinDeposit" in event_type:
+                event_data = event.get("data", {})
+                event_amount = int(event_data.get("amount", 0))
+                account = event_data.get("account", "")
+                coin_type = event_data.get("coin_type", "")
+
+                if account:
+                    receiver = account
+
+                if "AptosCoin" in coin_type:
+                    amount = event_amount / 1e8
+                    currency = "APT"
+                elif "usdc" in coin_type.lower():
+                    amount = event_amount / 1e6
+                    currency = "USDC"
+
+        # ── Validate destination ──
+        if expected_dest and receiver.lower() != expected_dest.lower():
+            return {
+                "verified": False,
+                "error": f"Wrong recipient: expected {expected_dest}, got {receiver}",
+            }
+
+        # ── Validate amount (1% tolerance) ──
+        if expected_amount > 0 and amount < expected_amount * 0.99:
+            return {
+                "verified": False,
+                "error": f"Insufficient amount: expected {expected_amount}, got {amount} {currency}",
+            }
+
+        logger.info(
+            f"Aptos tx verified: {tx_hash[:16]}... {sender[:10]}.. -> {receiver[:10]}.. = {amount} {currency}"
+        )
+
+        return {
+            "verified": True,
+            "tx_hash": tx_hash,
+            "sender": sender,
+            "receiver": receiver,
+            "amount": amount,
+            "currency": currency,
+            "chain": APTOS_CHAIN_ID,
+            "version": data.get("version", ""),
+            "gas_used": data.get("gas_used", ""),
+        }
 
     except httpx.TimeoutException:
         logger.error(f"Aptos verification timeout for {tx_hash[:16]}...")
@@ -205,23 +206,22 @@ async def get_aptos_balance(address: str) -> dict:
 
     try:
         resource_type = "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-        async with httpx.AsyncClient(timeout=15) as client:
-            data = await _aptos_api_call(
-                client,
-                f"/accounts/{address}/resource/{resource_type}",
-            )
+        data = await _aptos_api_call(
+            f"/accounts/{address}/resource/{resource_type}",
+            timeout=15,
+        )
 
-            if "error" in data:
-                return {"address": address, "error": data["error"]}
+        if "error" in data:
+            return {"address": address, "error": data["error"]}
 
-            coin_value = int(data.get("data", {}).get("coin", {}).get("value", 0))
-            balance = coin_value / 1e8  # APT has 8 decimals
+        coin_value = int(data.get("data", {}).get("coin", {}).get("value", 0))
+        balance = coin_value / 1e8  # APT has 8 decimals
 
-            return {
-                "address": address,
-                "apt": balance,
-                "chain": APTOS_CHAIN_ID,
-            }
+        return {
+            "address": address,
+            "apt": balance,
+            "chain": APTOS_CHAIN_ID,
+        }
 
     except Exception as e:
         result = safe_error(e, "aptos_balance")
@@ -244,25 +244,24 @@ async def get_aptos_usdc_balance(address: str) -> dict:
 
     try:
         resource_type = f"0x1::coin::CoinStore<{APTOS_USDC_TYPE}>"
-        async with httpx.AsyncClient(timeout=15) as client:
-            data = await _aptos_api_call(
-                client,
-                f"/accounts/{address}/resource/{resource_type}",
-            )
+        data = await _aptos_api_call(
+            f"/accounts/{address}/resource/{resource_type}",
+            timeout=15,
+        )
 
-            if "error" in data:
-                # Account may not have USDC coin store registered
-                return {"address": address, "usdc": 0.0, "chain": APTOS_CHAIN_ID}
+        if "error" in data:
+            # Account may not have USDC coin store registered
+            return {"address": address, "usdc": 0.0, "chain": APTOS_CHAIN_ID}
 
-            coin_value = int(data.get("data", {}).get("coin", {}).get("value", 0))
-            balance = coin_value / 1e6  # USDC = 6 decimals
+        coin_value = int(data.get("data", {}).get("coin", {}).get("value", 0))
+        balance = coin_value / 1e6  # USDC = 6 decimals
 
-            return {
-                "address": address,
-                "usdc": balance,
-                "chain": APTOS_CHAIN_ID,
-                "coin_type": APTOS_USDC_TYPE,
-            }
+        return {
+            "address": address,
+            "usdc": balance,
+            "chain": APTOS_CHAIN_ID,
+            "coin_type": APTOS_USDC_TYPE,
+        }
 
     except Exception as e:
         result = safe_error(e, "aptos_usdc_balance")

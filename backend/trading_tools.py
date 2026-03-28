@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import Optional
 
 import httpx
+from http_client import get_http_client
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -96,21 +97,21 @@ async def _fetch_coingecko_history(token: str) -> list[float]:
 
     url = f"https://api.coingecko.com/api/v3/coins/{cg_id}/market_chart?vs_currency=usd&days=30"
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url)
-            if resp.status_code == 200:
-                data = resp.json()
-                # data["prices"] = [[timestamp_ms, price], ...]
-                raw_prices = data.get("prices", [])
-                if raw_prices:
-                    prices = [p[1] for p in raw_prices]
-                    _cg_history_cache[token] = {"prices": prices, "ts": now}
-                    print(f"[TradingSignals] CoinGecko history: {len(prices)} data points for {token}")
-                    return prices
-            elif resp.status_code == 429:
-                print(f"[TradingSignals] CoinGecko rate-limited for {token}")
-            else:
-                print(f"[TradingSignals] CoinGecko history HTTP {resp.status_code} for {token}")
+        client = get_http_client()
+        resp = await client.get(url, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            # data["prices"] = [[timestamp_ms, price], ...]
+            raw_prices = data.get("prices", [])
+            if raw_prices:
+                prices = [p[1] for p in raw_prices]
+                _cg_history_cache[token] = {"prices": prices, "ts": now}
+                print(f"[TradingSignals] CoinGecko history: {len(prices)} data points for {token}")
+                return prices
+        elif resp.status_code == 429:
+            print(f"[TradingSignals] CoinGecko rate-limited for {token}")
+        else:
+            print(f"[TradingSignals] CoinGecko history HTTP {resp.status_code} for {token}")
     except Exception as e:
         print(f"[TradingSignals] CoinGecko history error for {token}: {e}")
 
@@ -182,31 +183,31 @@ async def _fetch_real_solana_whales() -> list[dict]:
         rpc_url = "https://api.mainnet-beta.solana.com"
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            for program_name, program_id in _SOLANA_DEX_PROGRAMS.items():
-                try:
-                    resp = await client.post(rpc_url, json={
-                        "jsonrpc": "2.0", "id": 1,
-                        "method": "getSignaturesForAddress",
-                        "params": [program_id, {"limit": 10}],
-                    })
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        sigs = data.get("result", [])
-                        for sig_info in sigs:
-                            sig = sig_info.get("signature", "")
-                            block_time = sig_info.get("blockTime", int(now))
-                            if sig:
-                                movements.append({
-                                    "chain": "solana",
-                                    "tx_hash": sig,
-                                    "program": program_name,
-                                    "timestamp": block_time or int(now),
-                                    "confirmed": True,
-                                    "source": "solana_rpc",
-                                })
-                except Exception as e:
-                    print(f"[WhaleTracker] RPC error for {program_name}: {e}")
+        client = get_http_client()
+        for program_name, program_id in _SOLANA_DEX_PROGRAMS.items():
+            try:
+                resp = await client.post(rpc_url, json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "getSignaturesForAddress",
+                    "params": [program_id, {"limit": 10}],
+                })
+                if resp.status_code == 200:
+                    data = resp.json()
+                    sigs = data.get("result", [])
+                    for sig_info in sigs:
+                        sig = sig_info.get("signature", "")
+                        block_time = sig_info.get("blockTime", int(now))
+                        if sig:
+                            movements.append({
+                                "chain": "solana",
+                                "tx_hash": sig,
+                                "program": program_name,
+                                "timestamp": block_time or int(now),
+                                "confirmed": True,
+                                "source": "solana_rpc",
+                            })
+            except Exception as e:
+                print(f"[WhaleTracker] RPC error for {program_name}: {e}")
     except Exception as e:
         print(f"[WhaleTracker] Solana RPC connection error: {e}")
 
@@ -751,17 +752,17 @@ async def _resolve_pool(token: str, network: str = "solana") -> str:
 
     # Fetch top pool from DexPaprika
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{DEXPAPRIKA_BASE}/networks/{network}/tokens/{mint}/pools", params={"limit": 1})
-            if resp.status_code == 200:
-                data = resp.json()
-                pools = data.get("pools", data) if isinstance(data, dict) else data
-                if pools and len(pools) > 0:
-                    pool_id = pools[0].get("id", "")
-                    if pool_id:
-                        _pool_cache[mint] = {"pool": pool_id, "ts": time.time()}
-                        print(f"[DexPaprika] {token} -> pool {pool_id[:20]}...")
-                        return pool_id
+        client = get_http_client()
+        resp = await client.get(f"{DEXPAPRIKA_BASE}/networks/{network}/tokens/{mint}/pools", params={"limit": 1}, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            pools = data.get("pools", data) if isinstance(data, dict) else data
+            if pools and len(pools) > 0:
+                pool_id = pools[0].get("id", "")
+                if pool_id:
+                    _pool_cache[mint] = {"pool": pool_id, "ts": time.time()}
+                    print(f"[DexPaprika] {token} -> pool {pool_id[:20]}...")
+                    return pool_id
     except Exception as e:
         print(f"[DexPaprika] Pool resolve error for {token}: {e}")
     return ""
@@ -787,40 +788,40 @@ async def get_candles(
             start_ts = int(time.time() - secs)
             start_date = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(start_ts))
 
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(
-                    f"{DEXPAPRIKA_BASE}/networks/solana/pools/{pool}/ohlcv",
-                    params={"start": start_date, "interval": dex_interval, "limit": min(limit, 366)},
-                )
-                if resp.status_code == 200:
-                    raw = resp.json()
-                    if raw and len(raw) > 0:
-                        candles = []
-                        for c in raw:
-                            # Parse ISO timestamp to unix
-                            ts_str = c.get("time_open", "")
-                            try:
-                                from datetime import datetime
-                                ts = int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp())
-                            except Exception:
-                                ts = 0
-                            candles.append({
-                                "timestamp": ts,
-                                "open": c.get("open", 0),
-                                "high": c.get("high", 0),
-                                "low": c.get("low", 0),
-                                "close": c.get("close", 0),
-                                "volume": c.get("volume", 0),
-                            })
-                        # Get current price
-                        current_price = candles[-1]["close"] if candles else 0
-                        return {
-                            "token": token, "interval": interval,
-                            "current_price": current_price,
-                            "candles_count": len(candles),
-                            "source": "dexpaprika",
-                            "candles": candles,
-                        }
+            client = get_http_client()
+            resp = await client.get(
+                f"{DEXPAPRIKA_BASE}/networks/solana/pools/{pool}/ohlcv",
+                params={"start": start_date, "interval": dex_interval, "limit": min(limit, 366)},
+            )
+            if resp.status_code == 200:
+                raw = resp.json()
+                if raw and len(raw) > 0:
+                    candles = []
+                    for c in raw:
+                        # Parse ISO timestamp to unix
+                        ts_str = c.get("time_open", "")
+                        try:
+                            from datetime import datetime
+                            ts = int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp())
+                        except Exception:
+                            ts = 0
+                        candles.append({
+                            "timestamp": ts,
+                            "open": c.get("open", 0),
+                            "high": c.get("high", 0),
+                            "low": c.get("low", 0),
+                            "close": c.get("close", 0),
+                            "volume": c.get("volume", 0),
+                        })
+                    # Get current price
+                    current_price = candles[-1]["close"] if candles else 0
+                    return {
+                        "token": token, "interval": interval,
+                        "current_price": current_price,
+                        "candles_count": len(candles),
+                        "source": "dexpaprika",
+                        "candles": candles,
+                    }
         except Exception as e:
             print(f"[DexPaprika] OHLCV error for {token}: {e}")
 
@@ -1039,68 +1040,68 @@ async def get_token_risk(mint: str):
     try:
         from config import get_rpc_url
         rpc_url = get_rpc_url()
-        async with httpx.AsyncClient(timeout=15) as client:
-            # 1. Check token supply and decimals
-            resp = await client.post(rpc_url, json={
-                "jsonrpc": "2.0", "id": 1,
-                "method": "getAccountInfo",
-                "params": [mint, {"encoding": "jsonParsed"}],
-            })
-            if resp.status_code == 200:
-                result = resp.json().get("result", {})
-                value = result.get("value")
-                if not value:
-                    return {"mint": mint, "risk_score": 100, "risk_level": "UNKNOWN",
-                            "flags": ["Token account not found"], "info": {}}
-                parsed = value.get("data", {}).get("parsed", {}).get("info", {})
-                supply = int(parsed.get("supply", 0))
-                decimals = parsed.get("decimals", 0)
-                mint_authority = parsed.get("mintAuthority")
-                freeze_authority = parsed.get("freezeAuthority")
+        client = get_http_client()
+        # 1. Check token supply and decimals
+        resp = await client.post(rpc_url, json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getAccountInfo",
+            "params": [mint, {"encoding": "jsonParsed"}],
+        })
+        if resp.status_code == 200:
+            result = resp.json().get("result", {})
+            value = result.get("value")
+            if not value:
+                return {"mint": mint, "risk_score": 100, "risk_level": "UNKNOWN",
+                        "flags": ["Token account not found"], "info": {}}
+            parsed = value.get("data", {}).get("parsed", {}).get("info", {})
+            supply = int(parsed.get("supply", 0))
+            decimals = parsed.get("decimals", 0)
+            mint_authority = parsed.get("mintAuthority")
+            freeze_authority = parsed.get("freezeAuthority")
 
-                info["supply"] = supply
-                info["decimals"] = decimals
-                info["mint_authority"] = mint_authority
-                info["freeze_authority"] = freeze_authority
+            info["supply"] = supply
+            info["decimals"] = decimals
+            info["mint_authority"] = mint_authority
+            info["freeze_authority"] = freeze_authority
 
-                # Risk checks
-                if mint_authority:
+            # Risk checks
+            if mint_authority:
+                risk_score += 30
+                flags.append("Mint authority active — creator can mint more tokens")
+            if freeze_authority:
+                risk_score += 20
+                flags.append("Freeze authority active — creator can freeze your tokens")
+            if supply == 0:
+                risk_score += 25
+                flags.append("Zero supply")
+
+        # 2. Check largest holders (top holder concentration)
+        resp2 = await client.post(rpc_url, json={
+            "jsonrpc": "2.0", "id": 2,
+            "method": "getTokenLargestAccounts",
+            "params": [mint],
+        })
+        if resp2.status_code == 200:
+            holders = resp2.json().get("result", {}).get("value", [])
+            if holders and supply > 0:
+                top_holder_pct = int(holders[0].get("amount", "0")) / supply * 100
+                top3_pct = sum(int(h.get("amount", "0")) for h in holders[:3]) / supply * 100
+                info["top_holder_pct"] = round(top_holder_pct, 2)
+                info["top3_holders_pct"] = round(top3_pct, 2)
+                info["total_holders"] = len(holders)
+
+                if top_holder_pct > 50:
                     risk_score += 30
-                    flags.append("Mint authority active — creator can mint more tokens")
-                if freeze_authority:
-                    risk_score += 20
-                    flags.append("Freeze authority active — creator can freeze your tokens")
-                if supply == 0:
-                    risk_score += 25
-                    flags.append("Zero supply")
-
-            # 2. Check largest holders (top holder concentration)
-            resp2 = await client.post(rpc_url, json={
-                "jsonrpc": "2.0", "id": 2,
-                "method": "getTokenLargestAccounts",
-                "params": [mint],
-            })
-            if resp2.status_code == 200:
-                holders = resp2.json().get("result", {}).get("value", [])
-                if holders and supply > 0:
-                    top_holder_pct = int(holders[0].get("amount", "0")) / supply * 100
-                    top3_pct = sum(int(h.get("amount", "0")) for h in holders[:3]) / supply * 100
-                    info["top_holder_pct"] = round(top_holder_pct, 2)
-                    info["top3_holders_pct"] = round(top3_pct, 2)
-                    info["total_holders"] = len(holders)
-
-                    if top_holder_pct > 50:
-                        risk_score += 30
-                        flags.append(f"Top holder owns {top_holder_pct:.1f}% — extreme concentration")
-                    elif top_holder_pct > 20:
-                        risk_score += 15
-                        flags.append(f"Top holder owns {top_holder_pct:.1f}% — high concentration")
-                    if top3_pct > 80:
-                        risk_score += 10
-                        flags.append(f"Top 3 hold {top3_pct:.1f}% — whale-dominated")
-                elif not holders:
-                    risk_score += 20
-                    flags.append("No token holders found")
+                    flags.append(f"Top holder owns {top_holder_pct:.1f}% — extreme concentration")
+                elif top_holder_pct > 20:
+                    risk_score += 15
+                    flags.append(f"Top holder owns {top_holder_pct:.1f}% — high concentration")
+                if top3_pct > 80:
+                    risk_score += 10
+                    flags.append(f"Top 3 hold {top3_pct:.1f}% — whale-dominated")
+            elif not holders:
+                risk_score += 20
+                flags.append("No token holders found")
 
     except Exception as e:
         flags.append(f"Analysis error: {str(e)[:100]}")
@@ -1143,12 +1144,12 @@ async def _notify_alert(alert: dict):
             import os
             bot_token = os.getenv("TELEGRAM_CLIENT_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
             if bot_token:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    await client.post(
-                        f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                        json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
-                    )
-                    print(f"[Alerts] Telegram sent to {chat_id}: {token} {condition} {target}")
+                client = get_http_client()
+                await client.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
+                )
+                print(f"[Alerts] Telegram sent to {chat_id}: {token} {condition} {target}")
         except Exception as e:
             print(f"[Alerts] Telegram error: {e}")
 
@@ -1156,14 +1157,14 @@ async def _notify_alert(alert: dict):
     webhook = alert.get("webhook_url")
     if webhook:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(webhook, json={
-                    "alert_id": alert["alert_id"],
-                    "token": token, "price": price,
-                    "condition": condition, "target_price": target,
-                    "message": msg,
-                })
-                print(f"[Alerts] Webhook sent to {webhook[:50]}: {token}")
+            client = get_http_client()
+            await client.post(webhook, json={
+                "alert_id": alert["alert_id"],
+                "token": token, "price": price,
+                "condition": condition, "target_price": target,
+                "message": msg,
+            })
+            print(f"[Alerts] Webhook sent to {webhook[:50]}: {token}")
         except Exception as e:
             print(f"[Alerts] Webhook error: {e}")
 

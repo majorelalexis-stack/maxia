@@ -1,6 +1,7 @@
 """MAXIA Preflight V12 — Diagnostic systeme avant lancement"""
 import os, asyncio
 import httpx
+from http_client import get_http_client
 from config import (
     ESCROW_ADDRESS, ESCROW_PRIVKEY_B58, get_rpc_url,
     GROQ_API_KEY, GROQ_MODEL, MARKETING_WALLET_ADDRESS,
@@ -34,12 +35,12 @@ async def check_system_ready() -> dict:
     rpc_detail = ""
     try:
         rpc = get_rpc_url()
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json={
-                "jsonrpc": "2.0", "id": 1,
-                "method": "getHealth",
-            })
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json={
+            "jsonrpc": "2.0", "id": 1,
+            "method": "getHealth",
+        }, timeout=10)
+        data = resp.json()
         rpc_ok = data.get("result") == "ok"
         rpc_detail = f"{rpc[:40]}... -> {data.get('result', 'erreur')}"
     except Exception as e:

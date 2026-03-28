@@ -5,6 +5,7 @@ import httpx
 import base58
 from nacl.signing import SigningKey
 from config import get_rpc_url
+from http_client import get_http_client
 
 # V-07: Lazy load private keys (not at module level to avoid stack trace exposure)
 def _get_marketing_wallet():
@@ -91,9 +92,9 @@ async def get_sol_balance(wallet_address: str) -> float:
     # Try Helius first, then public RPC as fallback
     for rpc in [get_rpc_url(), "https://api.mainnet-beta.solana.com"]:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(rpc, json=payload)
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(rpc, json=payload, timeout=10)
+            data = resp.json()
             if data.get("error"):
                 continue  # Rate limited or error, try next RPC
             balance = data.get("result", {}).get("value", 0) / 1e9
@@ -107,9 +108,9 @@ async def get_sol_balance(wallet_address: str) -> float:
 async def get_recent_blockhash() -> str:
     rpc = get_rpc_url()
     payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash", "params": []}
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(rpc, json=payload)
-        data = resp.json()
+    client = get_http_client()
+    resp = await client.post(rpc, json=payload, timeout=10)
+    data = resp.json()
     return data["result"]["value"]["blockhash"]
 
 
@@ -149,9 +150,9 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
             "method": "sendTransaction",
             "params": [tx_base64, {"encoding": "base64", "skipPreflight": False, "preflightCommitment": "confirmed"}],
         }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=15)
+        data = resp.json()
 
         if "result" in data:
             sig = data["result"]
@@ -216,9 +217,9 @@ async def find_token_account(wallet: str, mint: str = USDC_MINT) -> str:
             "method": "getTokenAccountsByOwner",
             "params": [wallet, {"mint": mint}, {"encoding": "jsonParsed"}],
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=10)
+        data = resp.json()
         accounts = data.get("result", {}).get("value", [])
         if accounts:
             return accounts[0].get("pubkey", "")
@@ -236,9 +237,9 @@ async def get_usdc_balance(wallet: str) -> float:
             "method": "getTokenAccountsByOwner",
             "params": [wallet, {"mint": USDC_MINT}, {"encoding": "jsonParsed"}],
         }
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=10)
+        data = resp.json()
         accounts = data.get("result", {}).get("value", [])
         if accounts:
             info = accounts[0].get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
@@ -321,9 +322,9 @@ async def send_usdc_transfer_real(to_address: str, amount_usdc: float,
             "method": "sendTransaction",
             "params": [tx_base64, {"encoding": "base64", "skipPreflight": False}],
         }
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(rpc, json=payload)
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=15)
+        data = resp.json()
 
         if "result" in data:
             sig = data["result"]

@@ -4,6 +4,7 @@ Production-hardened: RPC fallback, rate limiting, proper logging, min amount che
 import os, logging, asyncio, time
 import httpx
 from config import ETH_RPC, ETH_USDC_CONTRACT, ETH_CHAIN_ID, ETH_MIN_TX_USDC
+from http_client import get_http_client
 from error_utils import safe_error
 
 logger = logging.getLogger("maxia.eth_verifier")
@@ -52,12 +53,12 @@ async def _rpc_post(payload: dict, timeout: float = 20) -> dict:
     last_error = None
     for rpc_url in ETH_RPC_URLS:
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(rpc_url, json=payload)
-                if resp.status_code != 200 or not resp.text.strip().startswith("{"):
-                    last_error = Exception(f"RPC {rpc_url}: HTTP {resp.status_code}")
-                    continue
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=timeout)
+            if resp.status_code != 200 or not resp.text.strip().startswith("{"):
+                last_error = Exception(f"RPC {rpc_url}: HTTP {resp.status_code}")
+                continue
+            data = resp.json()
             if "error" in data and data["error"]:
                 logger.warning(f"[EthVerifier] RPC {rpc_url} returned error: {data['error']}")
                 last_error = Exception(f"RPC error: {data['error']}")

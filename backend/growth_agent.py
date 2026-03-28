@@ -23,6 +23,7 @@ Contenu automatique :
 import asyncio, time
 from datetime import date
 import httpx
+from http_client import get_http_client
 
 from config import (
     get_rpc_url, GROQ_API_KEY, GROQ_MODEL,
@@ -216,45 +217,45 @@ class GrowthAgent:
                      "fees_estimate": 0, "programs_used": []}
         try:
             analysis["balance"] = await get_sol_balance(wallet)
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(rpc, json={
+            client = get_http_client()
+            resp = await client.post(rpc, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getSignaturesForAddress",
+                "params": [wallet, {"limit": 10}],
+            })
+            sigs = resp.json().get("result", [])
+            analysis["tx_count"] = len(sigs)
+            if sigs:
+                sig = sigs[0].get("signature", "")
+                resp2 = await client.post(rpc, json={
                     "jsonrpc": "2.0", "id": 1,
-                    "method": "getSignaturesForAddress",
-                    "params": [wallet, {"limit": 10}],
+                    "method": "getTransaction",
+                    "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
                 })
-                sigs = resp.json().get("result", [])
-                analysis["tx_count"] = len(sigs)
-                if sigs:
-                    sig = sigs[0].get("signature", "")
-                    resp2 = await client.post(rpc, json={
-                        "jsonrpc": "2.0", "id": 1,
-                        "method": "getTransaction",
-                        "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                    })
-                    tx = resp2.json().get("result", {})
-                    if tx:
-                        logs = tx.get("meta", {}).get("logMessages", [])
-                        programs = set()
-                        for log in logs:
-                            if "Program deploy" in log or "BPFLoaderUpgradeab1e" in log:
-                                analysis["is_developer"] = True
-                            # Detect AI/automation programs
-                            if "invoke" in log.lower():
-                                for known in ["clockwork", "switchboard", "pyth", "chainlink"]:
-                                    if known in log.lower():
-                                        analysis["is_ai_agent"] = True
-                            # Detect DeFi
-                            for defi in ["JUP", "whirl", "Raydium", "Orca", "Meteora"]:
-                                if defi in log:
-                                    analysis["is_defi_user"] = True
-                                    programs.add(defi)
-                        analysis["programs_used"] = list(programs)
-                        pre = tx.get("meta", {}).get("preBalances", [])
-                        post = tx.get("meta", {}).get("postBalances", [])
-                        if pre and post and len(pre) > 0 and len(post) > 0:
-                            change = (post[0] - pre[0]) / 1e9
-                            if change > 10:
-                                analysis["recent_large_incoming"] = True
+                tx = resp2.json().get("result", {})
+                if tx:
+                    logs = tx.get("meta", {}).get("logMessages", [])
+                    programs = set()
+                    for log in logs:
+                        if "Program deploy" in log or "BPFLoaderUpgradeab1e" in log:
+                            analysis["is_developer"] = True
+                        # Detect AI/automation programs
+                        if "invoke" in log.lower():
+                            for known in ["clockwork", "switchboard", "pyth", "chainlink"]:
+                                if known in log.lower():
+                                    analysis["is_ai_agent"] = True
+                        # Detect DeFi
+                        for defi in ["JUP", "whirl", "Raydium", "Orca", "Meteora"]:
+                            if defi in log:
+                                analysis["is_defi_user"] = True
+                                programs.add(defi)
+                    analysis["programs_used"] = list(programs)
+                    pre = tx.get("meta", {}).get("preBalances", [])
+                    post = tx.get("meta", {}).get("postBalances", [])
+                    if pre and post and len(pre) > 0 and len(post) > 0:
+                        change = (post[0] - pre[0]) / 1e9
+                        if change > 10:
+                            analysis["recent_large_incoming"] = True
         except Exception:
             pass
 
@@ -366,32 +367,32 @@ class GrowthAgent:
         rpc = get_rpc_url()
         wallets = []
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(rpc, json={
+            client = get_http_client()
+            resp = await client.post(rpc, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getSignaturesForAddress",
+                "params": [program, {"limit": limit}],
+            })
+            sigs = resp.json().get("result", [])
+            for sig_info in sigs[:5]:
+                sig = sig_info.get("signature", "")
+                if not sig:
+                    continue
+                resp2 = await client.post(rpc, json={
                     "jsonrpc": "2.0", "id": 1,
-                    "method": "getSignaturesForAddress",
-                    "params": [program, {"limit": limit}],
+                    "method": "getTransaction",
+                    "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
                 })
-                sigs = resp.json().get("result", [])
-                for sig_info in sigs[:5]:
-                    sig = sig_info.get("signature", "")
-                    if not sig:
-                        continue
-                    resp2 = await client.post(rpc, json={
-                        "jsonrpc": "2.0", "id": 1,
-                        "method": "getTransaction",
-                        "params": [sig, {"encoding": "jsonParsed", "maxSupportedTransactionVersion": 0}],
-                    })
-                    tx = resp2.json().get("result", {})
-                    if tx:
-                        accounts = tx.get("transaction", {}).get("message", {}).get("accountKeys", [])
-                        if accounts:
-                            signer = accounts[0]
-                            if isinstance(signer, dict):
-                                signer = signer.get("pubkey", "")
-                            if signer and signer not in wallets:
-                                wallets.append(signer)
-                    await asyncio.sleep(0.5)
+                tx = resp2.json().get("result", {})
+                if tx:
+                    accounts = tx.get("transaction", {}).get("message", {}).get("accountKeys", [])
+                    if accounts:
+                        signer = accounts[0]
+                        if isinstance(signer, dict):
+                            signer = signer.get("pubkey", "")
+                        if signer and signer not in wallets:
+                            wallets.append(signer)
+                await asyncio.sleep(0.5)
         except Exception as e:
             print(f"[GrowthAgent] Program scan error: {e}")
         return wallets
@@ -400,27 +401,27 @@ class GrowthAgent:
         rpc = get_rpc_url()
         holders = []
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(rpc, json={
-                    "jsonrpc": "2.0", "id": 1,
-                    "method": "getTokenLargestAccounts",
-                    "params": [mint],
-                })
-                accounts = resp.json().get("result", {}).get("value", [])
-                for acc in accounts[:5]:
-                    addr = acc.get("address", "")
-                    if addr:
-                        resp2 = await client.post(rpc, json={
-                            "jsonrpc": "2.0", "id": 1,
-                            "method": "getAccountInfo",
-                            "params": [addr, {"encoding": "jsonParsed"}],
-                        })
-                        info = resp2.json().get("result", {}).get("value", {})
-                        parsed = info.get("data", {}).get("parsed", {}).get("info", {})
-                        owner = parsed.get("owner", "")
-                        if owner and owner not in holders:
-                            holders.append(owner)
-                await asyncio.sleep(1)
+            client = get_http_client()
+            resp = await client.post(rpc, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getTokenLargestAccounts",
+                "params": [mint],
+            })
+            accounts = resp.json().get("result", {}).get("value", [])
+            for acc in accounts[:5]:
+                addr = acc.get("address", "")
+                if addr:
+                    resp2 = await client.post(rpc, json={
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "getAccountInfo",
+                        "params": [addr, {"encoding": "jsonParsed"}],
+                    })
+                    info = resp2.json().get("result", {}).get("value", {})
+                    parsed = info.get("data", {}).get("parsed", {}).get("info", {})
+                    owner = parsed.get("owner", "")
+                    if owner and owner not in holders:
+                        holders.append(owner)
+            await asyncio.sleep(1)
         except Exception as e:
             print(f"[GrowthAgent] Token holders error: {e}")
         return holders
@@ -429,28 +430,28 @@ class GrowthAgent:
         rpc = get_rpc_url()
         wallets = []
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(rpc, json={
-                    "jsonrpc": "2.0", "id": 1,
-                    "method": "getRecentPerformanceSamples",
-                    "params": [1],
-                })
-                samples = resp.json().get("result", [])
-                if samples:
-                    slot = samples[0].get("slot", 0)
-                    if slot:
-                        resp2 = await client.post(rpc, json={
-                            "jsonrpc": "2.0", "id": 1,
-                            "method": "getBlock",
-                            "params": [slot - 5, {"transactionDetails": "accounts", "maxSupportedTransactionVersion": 0}],
-                        })
-                        block = resp2.json().get("result", {})
-                        for tx in block.get("transactions", [])[:30]:
-                            accs = tx.get("transaction", {}).get("accountKeys", [])
-                            if accs:
-                                signer = accs[0] if isinstance(accs[0], str) else accs[0].get("pubkey", "")
-                                if signer and signer not in wallets and signer != TREASURY_ADDRESS and signer != MARKETING_WALLET_ADDRESS:
-                                    wallets.append(signer)
+            client = get_http_client()
+            resp = await client.post(rpc, json={
+                "jsonrpc": "2.0", "id": 1,
+                "method": "getRecentPerformanceSamples",
+                "params": [1],
+            })
+            samples = resp.json().get("result", [])
+            if samples:
+                slot = samples[0].get("slot", 0)
+                if slot:
+                    resp2 = await client.post(rpc, json={
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "getBlock",
+                        "params": [slot - 5, {"transactionDetails": "accounts", "maxSupportedTransactionVersion": 0}],
+                    })
+                    block = resp2.json().get("result", {})
+                    for tx in block.get("transactions", [])[:30]:
+                        accs = tx.get("transaction", {}).get("accountKeys", [])
+                        if accs:
+                            signer = accs[0] if isinstance(accs[0], str) else accs[0].get("pubkey", "")
+                            if signer and signer not in wallets and signer != TREASURY_ADDRESS and signer != MARKETING_WALLET_ADDRESS:
+                                wallets.append(signer)
         except Exception as e:
             print(f"[GrowthAgent] Block scan error: {e}")
         return wallets[:15]

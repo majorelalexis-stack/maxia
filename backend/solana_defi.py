@@ -14,6 +14,7 @@ Install: pip install solana-agent-kit (optional)
 import asyncio, time, json, logging
 import httpx
 from fastapi import APIRouter, HTTPException, Header
+from http_client import get_http_client
 from typing import Optional
 
 log = logging.getLogger("solana_defi")
@@ -40,88 +41,88 @@ async def _refresh_defi_rates():
     if _rates_cache and time.time() - _rates_cache_ts < _RATES_TTL:
         return _rates_cache
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://yields.llama.fi/pools")
-            resp.raise_for_status()
-            pools = resp.json().get("data", [])
-            # Index par project+chain+symbol
-            idx = {}
-            for p in pools:
-                proj = p.get("project", "").lower()
-                chain = p.get("chain", "").lower()
-                sym = (p.get("symbol") or "").upper()
-                apy = p.get("apy", 0) or 0
-                tvl = p.get("tvlUsd", 0) or 0
-                key = f"{proj}_{chain}_{sym}"
-                if key not in idx or apy > (idx[key].get("apy", 0) or 0):
-                    idx[key] = {"apy": apy, "tvl": tvl, "project": proj, "symbol": sym}
+        client = get_http_client()
+        resp = await client.get("https://yields.llama.fi/pools", timeout=15)
+        resp.raise_for_status()
+        pools = resp.json().get("data", [])
+        # Index par project+chain+symbol
+        idx = {}
+        for p in pools:
+            proj = p.get("project", "").lower()
+            chain = p.get("chain", "").lower()
+            sym = (p.get("symbol") or "").upper()
+            apy = p.get("apy", 0) or 0
+            tvl = p.get("tvlUsd", 0) or 0
+            key = f"{proj}_{chain}_{sym}"
+            if key not in idx or apy > (idx[key].get("apy", 0) or 0):
+                idx[key] = {"apy": apy, "tvl": tvl, "project": proj, "symbol": sym}
 
-            # Mise a jour lending protocols
-            _lending_map = {
-                "solend": {"project": "solend", "chain": "solana"},
-                "kamino": {"project": "kamino-lend", "chain": "solana"},
-                "marginfi": {"project": "marginfi", "chain": "solana"},
-            }
-            for pid, meta in _lending_map.items():
-                if pid not in LENDING_PROTOCOLS:
-                    continue
-                for asset in list(LENDING_PROTOCOLS[pid]["supply_apy"].keys()):
-                    key = f"{meta['project']}_{meta['chain']}_{asset}"
-                    pool_data = idx.get(key, {})
-                    live_apy = pool_data.get("apy", 0)
-                    if live_apy > 0:
-                        LENDING_PROTOCOLS[pid]["supply_apy"][asset] = round(live_apy, 2)
-                        # Borrow APY generalement ~1.5x le supply
-                        if asset in LENDING_PROTOCOLS[pid].get("borrow_apy", {}):
-                            LENDING_PROTOCOLS[pid]["borrow_apy"][asset] = round(live_apy * 1.5, 2)
-                    live_tvl = pool_data.get("tvl", 0)
-                    if live_tvl > 0:
-                        LENDING_PROTOCOLS[pid]["tvl_usd"] = round(live_tvl, 0)
+        # Mise a jour lending protocols
+        _lending_map = {
+            "solend": {"project": "solend", "chain": "solana"},
+            "kamino": {"project": "kamino-lend", "chain": "solana"},
+            "marginfi": {"project": "marginfi", "chain": "solana"},
+        }
+        for pid, meta in _lending_map.items():
+            if pid not in LENDING_PROTOCOLS:
+                continue
+            for asset in list(LENDING_PROTOCOLS[pid]["supply_apy"].keys()):
+                key = f"{meta['project']}_{meta['chain']}_{asset}"
+                pool_data = idx.get(key, {})
+                live_apy = pool_data.get("apy", 0)
+                if live_apy > 0:
+                    LENDING_PROTOCOLS[pid]["supply_apy"][asset] = round(live_apy, 2)
+                    # Borrow APY generalement ~1.5x le supply
+                    if asset in LENDING_PROTOCOLS[pid].get("borrow_apy", {}):
+                        LENDING_PROTOCOLS[pid]["borrow_apy"][asset] = round(live_apy * 1.5, 2)
+                live_tvl = pool_data.get("tvl", 0)
+                if live_tvl > 0:
+                    LENDING_PROTOCOLS[pid]["tvl_usd"] = round(live_tvl, 0)
 
-            # Mise a jour staking protocols
-            _staking_map = {
-                "marinade": "marinade-finance_solana_MSOL",
-                "jito": "jito_solana_JITOSOL",
-                "blazestake": "blazestake_solana_BSOL",
-            }
-            for pid, key in _staking_map.items():
+        # Mise a jour staking protocols
+        _staking_map = {
+            "marinade": "marinade-finance_solana_MSOL",
+            "jito": "jito_solana_JITOSOL",
+            "blazestake": "blazestake_solana_BSOL",
+        }
+        for pid, key in _staking_map.items():
+            pool_data = idx.get(key, {})
+            live_apy = pool_data.get("apy", 0)
+            live_tvl = pool_data.get("tvl", 0)
+            if live_apy > 0 and pid in STAKING_PROTOCOLS:
+                STAKING_PROTOCOLS[pid]["apy"] = round(live_apy, 2)
+            if live_tvl > 0 and pid in STAKING_PROTOCOLS:
+                STAKING_PROTOCOLS[pid]["tvl_usd"] = round(live_tvl, 0)
+
+        # Mise a jour LP protocols
+        _lp_map = {
+            "orca": [
+                ("SOL/USDC", "orca_solana_SOL-USDC"),
+                ("mSOL/SOL", "orca_solana_MSOL-SOL"),
+                ("BONK/SOL", "orca_solana_BONK-SOL"),
+            ],
+            "raydium": [
+                ("SOL/USDC", "raydium_solana_SOL-USDC"),
+                ("RAY/USDC", "raydium_solana_RAY-USDC"),
+            ],
+        }
+        for pid, pairs in _lp_map.items():
+            if pid not in LP_PROTOCOLS:
+                continue
+            for i, (pair_name, key) in enumerate(pairs):
                 pool_data = idx.get(key, {})
                 live_apy = pool_data.get("apy", 0)
                 live_tvl = pool_data.get("tvl", 0)
-                if live_apy > 0 and pid in STAKING_PROTOCOLS:
-                    STAKING_PROTOCOLS[pid]["apy"] = round(live_apy, 2)
-                if live_tvl > 0 and pid in STAKING_PROTOCOLS:
-                    STAKING_PROTOCOLS[pid]["tvl_usd"] = round(live_tvl, 0)
+                if i < len(LP_PROTOCOLS[pid]["top_pools"]):
+                    if live_apy > 0:
+                        LP_PROTOCOLS[pid]["top_pools"][i]["apy"] = round(live_apy, 2)
+                    if live_tvl > 0:
+                        LP_PROTOCOLS[pid]["top_pools"][i]["tvl"] = round(live_tvl, 0)
 
-            # Mise a jour LP protocols
-            _lp_map = {
-                "orca": [
-                    ("SOL/USDC", "orca_solana_SOL-USDC"),
-                    ("mSOL/SOL", "orca_solana_MSOL-SOL"),
-                    ("BONK/SOL", "orca_solana_BONK-SOL"),
-                ],
-                "raydium": [
-                    ("SOL/USDC", "raydium_solana_SOL-USDC"),
-                    ("RAY/USDC", "raydium_solana_RAY-USDC"),
-                ],
-            }
-            for pid, pairs in _lp_map.items():
-                if pid not in LP_PROTOCOLS:
-                    continue
-                for i, (pair_name, key) in enumerate(pairs):
-                    pool_data = idx.get(key, {})
-                    live_apy = pool_data.get("apy", 0)
-                    live_tvl = pool_data.get("tvl", 0)
-                    if i < len(LP_PROTOCOLS[pid]["top_pools"]):
-                        if live_apy > 0:
-                            LP_PROTOCOLS[pid]["top_pools"][i]["apy"] = round(live_apy, 2)
-                        if live_tvl > 0:
-                            LP_PROTOCOLS[pid]["top_pools"][i]["tvl"] = round(live_tvl, 0)
-
-            _rates_cache = idx
-            _rates_cache_ts = time.time()
-            log.info(f"[DeFi] Rates live mis a jour: {len(idx)} pools indexes")
-            return idx
+        _rates_cache = idx
+        _rates_cache_ts = time.time()
+        log.info(f"[DeFi] Rates live mis a jour: {len(idx)} pools indexes")
+        return idx
     except Exception as e:
         log.warning(f"[DeFi] Impossible de rafraichir les rates live: {e}")
         return _rates_cache or {}

@@ -2,6 +2,7 @@
 import os, time, asyncio
 import httpx
 from config import get_rpc_url, ETH_RPC
+from http_client import get_http_client
 
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana,ethereum&vs_currencies=usd"
 
@@ -16,13 +17,13 @@ _CACHE_TTL_S = 30
 async def _fetch_prices() -> dict:
     """Fetch live SOL/USD and ETH/USD from CoinGecko. Handles rate limits gracefully."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(COINGECKO_URL)
-            if resp.status_code == 429:
-                print("[CurrencyConverter] CoinGecko rate limit — using cached prices")
-                return {}
-            resp.raise_for_status()
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.get(COINGECKO_URL, timeout=10)
+        if resp.status_code == 429:
+            print("[CurrencyConverter] CoinGecko rate limit — using cached prices")
+            return {}
+        resp.raise_for_status()
+        data = resp.json()
         prices = {}
         if "solana" in data and "usd" in data["solana"]:
             prices["SOL"] = float(data["solana"]["usd"])
@@ -89,9 +90,9 @@ async def verify_native_sol_payment(tx_signature: str, expected_usdc: float,
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(rpc, json=payload)
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(rpc, json=payload, timeout=15)
+            data = resp.json()
 
             result = data.get("result")
             if not result:
@@ -183,9 +184,9 @@ async def verify_native_eth_payment(tx_hash: str, expected_usdc: float,
 
     for attempt in range(3):
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                resp = await client.post(ETH_RPC, json=payload)
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(ETH_RPC, json=payload, timeout=20)
+            data = resp.json()
 
             result = data.get("result")
             if not result:
@@ -206,9 +207,9 @@ async def verify_native_eth_payment(tx_hash: str, expected_usdc: float,
                 "method": "eth_getTransactionReceipt",
                 "params": [tx_hash],
             }
-            async with httpx.AsyncClient(timeout=20) as client:
-                receipt_resp = await client.post(ETH_RPC, json=receipt_payload)
-                receipt_data = receipt_resp.json()
+            client = get_http_client()
+            receipt_resp = await client.post(ETH_RPC, json=receipt_payload, timeout=20)
+            receipt_data = receipt_resp.json()
 
             receipt = receipt_data.get("result")
             if not receipt:

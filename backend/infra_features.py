@@ -128,7 +128,7 @@ async def webhook_list(x_api_key: str = Header(None, alias="X-API-Key")):
 async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet: str = None):
     """Envoie une notification a tous les abonnes d'un type d'evenement.
     Si filter_wallet est specifie, notifie seulement les abonnes lies a ce wallet."""
-    import httpx
+    from http_client import get_http_client
     db = await _get_db()
     query = "SELECT * FROM webhook_subscriptions WHERE active=1"
     rows = await db.raw_execute_fetchall(query)
@@ -167,13 +167,13 @@ async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(callback_url, json=payload, headers={
-                    "X-MAXIA-Event": event_type,
-                    "User-Agent": "MAXIA-Webhook/1.0",
-                    "Content-Type": "application/json",
-                })
-                if 200 <= resp.status_code < 300:
+            client = get_http_client()
+            resp = await client.post(callback_url, json=payload, headers={
+                "X-MAXIA-Event": event_type,
+                "User-Agent": "MAXIA-Webhook/1.0",
+                "Content-Type": "application/json",
+            }, timeout=10)
+            if 200 <= resp.status_code < 300:
                     sent += 1
         except Exception as e:
             print(f"[Webhooks] Notify error for {callback_url}: {e}")
@@ -202,14 +202,14 @@ async def webhook_test(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     callback_url = req.get("callback_url", "")
     if not callback_url:
         raise HTTPException(400, "callback_url required")
-    import httpx
+    from http_client import get_http_client
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(callback_url, json={
-                "event": "test", "source": "maxia",
-                "message": "Webhook test successful", "timestamp": int(time.time()),
-            })
-            return {"success": resp.status_code in (200, 201, 202),
+        client = get_http_client()
+        resp = await client.post(callback_url, json={
+            "event": "test", "source": "maxia",
+            "message": "Webhook test successful", "timestamp": int(time.time()),
+        }, timeout=10)
+        return {"success": resp.status_code in (200, 201, 202),
                     "status_code": resp.status_code, "callback_url": callback_url}
     except Exception as e:
         return {"success": False, "error": "An error occurred", "callback_url": callback_url}
@@ -235,7 +235,7 @@ async def notify_subscribers(event_type: str, data: dict):
         db = await _get_db()
         rows = await db.raw_execute_fetchall(
             "SELECT * FROM webhook_subscriptions WHERE active=1")
-        import httpx
+        from http_client import get_http_client
         for sub in rows:
             events = json.loads(sub.get("events", '["all"]'))
             if "all" not in events and event_type not in events:
@@ -243,9 +243,9 @@ async def notify_subscribers(event_type: str, data: dict):
             try:
                 payload = {"event": event_type, "data": data,
                            "timestamp": int(time.time()), "source": "maxia"}
-                async with httpx.AsyncClient(timeout=5) as client:
-                    resp = await client.post(sub["callback_url"], json=payload)
-                    success = resp.status_code in (200, 201, 202)
+                client = get_http_client()
+                resp = await client.post(sub["callback_url"], json=payload, timeout=5)
+                success = resp.status_code in (200, 201, 202)
                 did = str(uuid.uuid4())
                 await db.raw_execute(
                     "INSERT INTO webhook_delivery_log(id,subscription_id,event_type,payload,status_code,success) VALUES(?,?,?,?,?,?)",

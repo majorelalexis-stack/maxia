@@ -11,6 +11,7 @@ from collections import defaultdict
 from typing import Optional
 
 import httpx
+from http_client import get_http_client
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -102,8 +103,8 @@ async def get_trending(request: Request):
         return cached
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(_PUMP_TRENDING)
+        client = get_http_client()
+        resp = await client.get(_PUMP_TRENDING, timeout=10)
 
         if resp.status_code != 200:
             raise HTTPException(502, "pump.fun API indisponible")
@@ -152,8 +153,8 @@ async def get_token_info(request: Request, mint: str):
 
     try:
         url = f"{_PUMP_COIN_INFO}/{mint}"
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url)
+        client = get_http_client()
+        resp = await client.get(url, timeout=10)
 
         if resp.status_code == 404:
             raise HTTPException(404, f"Token {mint} non trouve sur pump.fun")
@@ -225,8 +226,8 @@ async def prepare_launch(request: Request, body: TokenLaunchRequest):
             "pool": "pump",
         }
 
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(_PUMPPORTAL_TRADE, json=payload)
+        client = get_http_client()
+        resp = await client.post(_PUMPPORTAL_TRADE, json=payload, timeout=15)
 
         if resp.status_code == 200:
             # PumpPortal retourne la transaction serialisee

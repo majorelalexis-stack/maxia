@@ -289,32 +289,32 @@ async def cancel_job(job_id: str, x_api_key: str = Header(alias="X-API-Key")):
 
 async def _unload_ollama_models():
     """Unload all Ollama models to free VRAM for fine-tuning."""
-    import httpx
+    from http_client import get_http_client
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            # List running models
-            resp = await client.get("http://localhost:11434/api/ps")
-            models = resp.json().get("models", [])
-            for m in models:
-                name = m.get("name", "")
-                if name:
-                    # Unload by setting keep_alive to 0
-                    await client.post("http://localhost:11434/api/generate",
-                        json={"model": name, "keep_alive": 0})
-                    log.info(f"[Finetune] Unloaded Ollama model: {name}")
-            await asyncio.sleep(3)  # Wait for VRAM release
+        client = get_http_client()
+        # List running models
+        resp = await client.get("http://localhost:11434/api/ps", timeout=10)
+        models = resp.json().get("models", [])
+        for m in models:
+            name = m.get("name", "")
+            if name:
+                # Unload by setting keep_alive to 0
+                await client.post("http://localhost:11434/api/generate",
+                    json={"model": name, "keep_alive": 0}, timeout=10)
+                log.info(f"[Finetune] Unloaded Ollama model: {name}")
+        await asyncio.sleep(3)  # Wait for VRAM release
     except Exception as e:
         log.warning(f"[Finetune] Ollama unload warning: {e}")
 
 
 async def _reload_ollama_model():
     """Reload the CEO model after fine-tuning is done."""
-    import httpx
+    from http_client import get_http_client
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            await client.post("http://localhost:11434/api/generate",
-                json={"model": "maxia-ceo", "prompt": "ok", "keep_alive": "5m"})
-            log.info("[Finetune] Reloaded maxia-ceo model on GPU")
+        client = get_http_client()
+        await client.post("http://localhost:11434/api/generate",
+            json={"model": "maxia-ceo", "prompt": "ok", "keep_alive": "5m"}, timeout=60)
+        log.info("[Finetune] Reloaded maxia-ceo model on GPU")
     except Exception as e:
         log.warning(f"[Finetune] Ollama reload warning: {e}")
 

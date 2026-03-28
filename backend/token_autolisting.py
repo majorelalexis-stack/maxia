@@ -6,6 +6,7 @@ sur les chains supportees. Ajoute a SUPPORTED_TOKENS si criteres remplis.
 import asyncio
 import httpx
 import time
+from http_client import get_http_client
 
 # Criteres de listing automatique
 MIN_VOLUME_24H = 100_000  # $100K minimum
@@ -20,11 +21,11 @@ _cache_ts = 0
 async def scan_trending_tokens(chain: str = "solana", limit: int = 20) -> list:
     """Scan DexScreener for trending tokens on a chain."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/trending/{chain}")
-            if resp.status_code != 200:
-                # Fallback: search top volume
-                resp = await client.get(f"https://api.dexscreener.com/latest/dex/search?q={chain}")
+        client = get_http_client()
+        resp = await client.get(f"https://api.dexscreener.com/latest/dex/tokens/trending/{chain}", timeout=15)
+        if resp.status_code != 200:
+            # Fallback: search top volume
+            resp = await client.get(f"https://api.dexscreener.com/latest/dex/search?q={chain}", timeout=15)
             data = resp.json()
             pairs = data.get("pairs", [])
 

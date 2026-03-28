@@ -374,19 +374,20 @@ async def _call_anthropic(model: str, system: str, user: str, max_tokens: int = 
         return await _call_groq(system, user, min(max_tokens, 1500), _fallback=False)
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                json={"model": model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": user}]},
-            )
-            data = resp.json()
-            # Track Anthropic tokens
-            usage = data.get("usage", {})
-            if usage:
-                _track_llm_cost(model, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
-            ct = data.get("content", [])
-            return ct[0].get("text", "") if ct else ""
+        from http_client import get_http_client
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": user}]},
+        )
+        data = resp.json()
+        # Track Anthropic tokens
+        usage = data.get("usage", {})
+        if usage:
+            _track_llm_cost(model, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+        ct = data.get("content", [])
+        return ct[0].get("text", "") if ct else ""
     except Exception as e:
         if _fallback:
             return await _call_groq(system, user, min(max_tokens, 1500), _fallback=False)
@@ -433,6 +434,7 @@ async def _ceo_private(message: str, urgent: bool = False, decision_id: str = No
     if tg_token and tg_chat:
         try:
             import httpx
+            from http_client import get_http_client
             payload = {"chat_id": tg_chat, "text": message[:4000]}
             # Ajouter boutons Go/No-Go si c'est une decision
             if decision_id:
@@ -442,12 +444,12 @@ async def _ceo_private(message: str, urgent: bool = False, decision_id: str = No
                         {"text": "\u274c No-Go", "callback_data": f"nogo:{decision_id}"},
                     ]]
                 })
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json=payload,
-                )
-                return
+            c = get_http_client()
+            await c.post(
+                f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                json=payload,
+            )
+            return
         except Exception:
             pass
 
@@ -455,8 +457,9 @@ async def _ceo_private(message: str, urgent: bool = False, decision_id: str = No
     if DISCORD_WEBHOOK_URL:
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=10) as c:
-                await c.post(DISCORD_WEBHOOK_URL, json={"content": message[:1900]})
+            from http_client import get_http_client
+            c = get_http_client()
+            await c.post(DISCORD_WEBHOOK_URL, json={"content": message[:1900]}, timeout=10)
         except Exception:
             pass
 
@@ -1021,31 +1024,32 @@ HEALTH_ENDPOINTS = {
 async def watchdog_health_check() -> dict:
     """Test ALL endpoints and return status report."""
     import httpx
+    from http_client import get_http_client
     results = {}
     ok_count = 0
     fail_count = 0
 
     from config import PORT
     admin_key = os.getenv("ADMIN_KEY", "")
-    async with httpx.AsyncClient(timeout=20) as client:  # SSL verify ON (fix B501)
-        for name, endpoint in HEALTH_ENDPOINTS.items():
-            try:
-                headers = {}
-                if name == "ceo_status":
-                    headers["X-Admin-Key"] = admin_key
-                r = await client.get(f"http://127.0.0.1:{PORT}{endpoint}", headers=headers)
-                is_ok = r.status_code == 200
-                results[name] = {
-                    "status": "OK" if is_ok else f"HTTP {r.status_code}",
-                    "ok": is_ok,
-                }
-                if is_ok:
-                    ok_count += 1
-                else:
-                    fail_count += 1
-            except Exception as e:
-                results[name] = {"status": f"ERROR: {str(e)[:80]}", "ok": False}
+    client = get_http_client()
+    for name, endpoint in HEALTH_ENDPOINTS.items():
+        try:
+            headers = {}
+            if name == "ceo_status":
+                headers["X-Admin-Key"] = admin_key
+            r = await client.get(f"http://127.0.0.1:{PORT}{endpoint}", headers=headers, timeout=20)
+            is_ok = r.status_code == 200
+            results[name] = {
+                "status": "OK" if is_ok else f"HTTP {r.status_code}",
+                "ok": is_ok,
+            }
+            if is_ok:
+                ok_count += 1
+            else:
                 fail_count += 1
+        except Exception as e:
+            results[name] = {"status": f"ERROR: {str(e)[:80]}", "ok": False}
+            fail_count += 1
 
     report = {
         "total": len(HEALTH_ENDPOINTS),
@@ -1083,9 +1087,10 @@ async def watchdog_check_service(service: str) -> bool:
         return True
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(f"https://{URL}{ep}")
-            return r.status_code == 200
+        from http_client import get_http_client
+        c = get_http_client()
+        r = await c.get(f"https://{URL}{ep}", timeout=10)
+        return r.status_code == 200
     except Exception:
         return False
 
@@ -1258,42 +1263,43 @@ async def oracle_scan_trends(memory: Memory) -> list:
     trends = []
     try:
         import httpx
+        from http_client import get_http_client
 
         # 1. DexScreener — tokens Solana en tendance
         try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                resp = await c.get("https://api.dexscreener.com/token-boosts/latest/v1")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    boosts = data if isinstance(data, list) else data.get("boosts", data.get("tokens", []))
-                    sol_boosts = [b for b in boosts[:20] if b.get("chainId") == "solana"] if isinstance(boosts, list) else []
-                    if sol_boosts:
-                        trends.append({
-                            "source": "dexscreener",
-                            "type": "trending_tokens",
-                            "details": f"{len(sol_boosts)} Solana tokens trending on DexScreener",
-                            "tokens": [b.get("tokenAddress", "")[:16] for b in sol_boosts[:5]],
-                        })
+            c = get_http_client()
+            resp = await c.get("https://api.dexscreener.com/token-boosts/latest/v1", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                boosts = data if isinstance(data, list) else data.get("boosts", data.get("tokens", []))
+                sol_boosts = [b for b in boosts[:20] if b.get("chainId") == "solana"] if isinstance(boosts, list) else []
+                if sol_boosts:
+                    trends.append({
+                        "source": "dexscreener",
+                        "type": "trending_tokens",
+                        "details": f"{len(sol_boosts)} Solana tokens trending on DexScreener",
+                        "tokens": [b.get("tokenAddress", "")[:16] for b in sol_boosts[:5]],
+                    })
         except Exception as e:
             pass
 
         # 2. GitHub trending — repos AI + Solana
         try:
-            async with httpx.AsyncClient(timeout=10) as c:
-                resp = await c.get(
-                    "https://api.github.com/search/repositories",
-                    params={"q": "solana AI agent created:>2026-03-01", "sort": "stars", "per_page": 5},
-                )
-                if resp.status_code == 200:
-                    repos = resp.json().get("items", [])
-                    hot_repos = [r for r in repos if r.get("stargazers_count", 0) > 10]
-                    if hot_repos:
-                        trends.append({
-                            "source": "github",
-                            "type": "hot_repos",
-                            "details": f"{len(hot_repos)} hot Solana AI repos on GitHub",
-                            "repos": [{"name": r["full_name"], "stars": r["stargazers_count"]} for r in hot_repos[:3]],
-                        })
+            c = get_http_client()
+            resp = await c.get(
+                "https://api.github.com/search/repositories",
+                params={"q": "solana AI agent created:>2026-03-01", "sort": "stars", "per_page": 5},
+            )
+            if resp.status_code == 200:
+                repos = resp.json().get("items", [])
+                hot_repos = [r for r in repos if r.get("stargazers_count", 0) > 10]
+                if hot_repos:
+                    trends.append({
+                        "source": "github",
+                        "type": "hot_repos",
+                        "details": f"{len(hot_repos)} hot Solana AI repos on GitHub",
+                        "repos": [{"name": r["full_name"], "stars": r["stargazers_count"]} for r in hot_repos[:3]],
+                    })
         except Exception:
             pass
 
@@ -1378,16 +1384,17 @@ async def failover_get_rpc() -> str:
         # Tester le RPC
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=5) as c:
-                resp = await c.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "getHealth"})
-                if resp.status_code == 200:
-                    result = resp.json().get("result")
-                    if result == "ok" or result is not None:
-                        if idx != _active_rpc_index:
-                            old_name = FAILOVER_RPC[_active_rpc_index]["name"]
-                            logger.info("FAILOVER RPC bascule: %s -> %s", old_name, name)
-                            _active_rpc_index = idx
-                        return url
+            from http_client import get_http_client
+            c = get_http_client()
+            resp = await c.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "getHealth"}, timeout=5)
+            if resp.status_code == 200:
+                result = resp.json().get("result")
+                if result == "ok" or result is not None:
+                    if idx != _active_rpc_index:
+                        old_name = FAILOVER_RPC[_active_rpc_index]["name"]
+                        logger.info("FAILOVER RPC bascule: %s -> %s", old_name, name)
+                        _active_rpc_index = idx
+                    return url
         except Exception:
             _rpc_failures[name] = _rpc_failures.get(name, 0) + 1
 
@@ -2003,6 +2010,7 @@ async def deployer_push_github(filename: str, content: str, commit_msg: str) -> 
 
     try:
         import httpx, base64
+        from http_client import get_http_client
 
         api_url = f"https://api.github.com/repos/{GITHUB_ORG}/{GITHUB_REPO}/contents/{filename}"
         encoded = base64.b64encode(content.encode()).decode()
@@ -2012,40 +2020,40 @@ async def deployer_push_github(filename: str, content: str, commit_msg: str) -> 
             "Accept": "application/vnd.github.v3+json",
         }
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            # Verifier si le fichier existe deja (pour update)
-            sha = None
-            try:
-                resp = await client.get(api_url, headers=headers)
-                if resp.status_code == 200:
-                    sha = resp.json().get("sha")
-            except Exception:
-                pass
+        client = get_http_client()
+        # Verifier si le fichier existe deja (pour update)
+        sha = None
+        try:
+            resp = await client.get(api_url, headers=headers, timeout=30)
+            if resp.status_code == 200:
+                sha = resp.json().get("sha")
+        except Exception:
+            pass
 
-            # Creer ou mettre a jour
-            payload = {
-                "message": commit_msg,
-                "content": encoded,
-                "branch": GITHUB_BRANCH,
-            }
-            if sha:
-                payload["sha"] = sha
+        # Creer ou mettre a jour
+        payload = {
+            "message": commit_msg,
+            "content": encoded,
+            "branch": GITHUB_BRANCH,
+        }
+        if sha:
+            payload["sha"] = sha
 
-            resp = await client.put(api_url, headers=headers, json=payload)
+        resp = await client.put(api_url, headers=headers, json=payload)
 
-            if resp.status_code in [200, 201]:
-                page_url = f"https://{GITHUB_ORG.lower()}.github.io/{GITHUB_REPO}/{filename}"
-                logger.info("DEPLOYER deploye: %s", page_url)
-                return {"success": True, "url": page_url, "filename": filename}
+        if resp.status_code in [200, 201]:
+            page_url = f"https://{GITHUB_ORG.lower()}.github.io/{GITHUB_REPO}/{filename}"
+            logger.info("DEPLOYER deploye: %s", page_url)
+            return {"success": True, "url": page_url, "filename": filename}
+        else:
+            error = resp.json().get("message", resp.text[:200])
+            if "Bad credentials" in error:
+                if not getattr(deployer_push_github, '_cred_warned', False):
+                    logger.warning("DEPLOYER GitHub token expired/invalid — blog deploy disabled until token is renewed")
+                    deployer_push_github._cred_warned = True
             else:
-                error = resp.json().get("message", resp.text[:200])
-                if "Bad credentials" in error:
-                    if not getattr(deployer_push_github, '_cred_warned', False):
-                        logger.warning("DEPLOYER GitHub token expired/invalid — blog deploy disabled until token is renewed")
-                        deployer_push_github._cred_warned = True
-                else:
-                    logger.error("DEPLOYER GitHub error: %s", error)
-                return {"success": False, "error": error}
+                logger.error("DEPLOYER GitHub error: %s", error)
+            return {"success": False, "error": error}
 
     except Exception as e:
         logger.error("DEPLOYER error: %s", e)
@@ -2223,16 +2231,17 @@ async def compliance_check_wallet(wallet: str, memory: Memory) -> dict:
     # Verifier age du wallet via RPC (nouveau wallet = risque)
     try:
         import httpx
+        from http_client import get_http_client
         helius_key = _cfg("HELIUS_API_KEY")
         if helius_key:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
-                    f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
-                    json={"jsonrpc": "2.0", "id": 1, "method": "getSignaturesForAddress", "params": [wallet, {"limit": 1}]},
-                )
-                sigs = resp.json().get("result", [])
-                if not sigs:
-                    issues.append("no_transaction_history")
+            client = get_http_client()
+            resp = await client.post(
+                f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
+                json={"jsonrpc": "2.0", "id": 1, "method": "getSignaturesForAddress", "params": [wallet, {"limit": 1}]},
+            )
+            sigs = resp.json().get("result", [])
+            if not sigs:
+                issues.append("no_transaction_history")
     except Exception:
         pass
 
@@ -2817,15 +2826,15 @@ async def scout_scan_onchain_agents(memory) -> list:
         },
     ]
 
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-        # Lancer toutes les requetes en parallele
-        tasks = []
-        for reg in registry_configs:
-            tasks.append(_scout_fetch_registry(client, reg, seen_addresses, now))
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for res in results:
-            if isinstance(res, list):
-                detected.extend(res)
+    client = get_http_client()
+    # Lancer toutes les requetes en parallele
+    tasks = []
+    for reg in registry_configs:
+        tasks.append(_scout_fetch_registry(client, reg, seen_addresses, now))
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for res in results:
+        if isinstance(res, list):
+            detected.extend(res)
 
     # ── 3. HELIUS — detection de wallets agents sur Solana ──
     # Chercher les wallets avec des patterns d'agent (>20 tx/jour, interactions avec programmes connus)
@@ -2838,40 +2847,40 @@ async def scout_scan_onchain_agents(memory) -> list:
                 "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",  # Jupiter (swaps automatises)
                 "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",  # Marinade (staking auto)
             ]
-            async with httpx.AsyncClient(timeout=15) as client:
-                for program_id in agent_programs[:2]:  # Limiter a 2 pour ne pas spam Helius
-                    try:
-                        resp = await client.post(
-                            f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
-                            json={
-                                "jsonrpc": "2.0", "id": 1,
-                                "method": "getSignaturesForAddress",
-                                "params": [program_id, {"limit": 10}],
-                            },
-                        )
-                        if resp.status_code == 200:
-                            sigs = resp.json().get("result", [])
-                            # Compter les signataires recurrents (wallets qui interagissent souvent)
-                            wallet_counts = {}
-                            for sig in sigs:
-                                memo = sig.get("memo", "")
-                                # Les agents mettent souvent un memo ou signent des tx repetitives
-                                if memo and ("agent" in memo.lower() or "bot" in memo.lower() or "ai" in memo.lower()):
-                                    addr = sig.get("signature", "")[:44]
-                                    wallet_counts[addr] = wallet_counts.get(addr, 0) + 1
-                            # Wallets avec >3 tx repetitives = probablement un agent
-                            for addr, count in wallet_counts.items():
-                                if count >= 3 and addr not in seen_addresses:
-                                    seen_addresses.add(addr)
-                                    detected.append({
-                                        "address": addr,
-                                        "chain": "solana",
-                                        "behavior": f"repetitive tx pattern ({count} interactions with {program_id[:8]}...)",
-                                        "registry": "helius-onchain",
-                                        "detected_at": now,
-                                    })
-                    except Exception:
-                        pass
+            client = get_http_client()
+            for program_id in agent_programs[:2]:  # Limiter a 2 pour ne pas spam Helius
+                try:
+                    resp = await client.post(
+                        f"https://mainnet.helius-rpc.com/?api-key={helius_key}",
+                        json={
+                            "jsonrpc": "2.0", "id": 1,
+                            "method": "getSignaturesForAddress",
+                            "params": [program_id, {"limit": 10}],
+                        },
+                    )
+                    if resp.status_code == 200:
+                        sigs = resp.json().get("result", [])
+                        # Compter les signataires recurrents (wallets qui interagissent souvent)
+                        wallet_counts = {}
+                        for sig in sigs:
+                            memo = sig.get("memo", "")
+                            # Les agents mettent souvent un memo ou signent des tx repetitives
+                            if memo and ("agent" in memo.lower() or "bot" in memo.lower() or "ai" in memo.lower()):
+                                addr = sig.get("signature", "")[:44]
+                                wallet_counts[addr] = wallet_counts.get(addr, 0) + 1
+                        # Wallets avec >3 tx repetitives = probablement un agent
+                        for addr, count in wallet_counts.items():
+                            if count >= 3 and addr not in seen_addresses:
+                                seen_addresses.add(addr)
+                                detected.append({
+                                    "address": addr,
+                                    "chain": "solana",
+                                    "behavior": f"repetitive tx pattern ({count} interactions with {program_id[:8]}...)",
+                                    "registry": "helius-onchain",
+                                    "detected_at": now,
+                                })
+                except Exception:
+                    pass
         except Exception as e:
             logger.error("SCOUT Helius scan error: %s", e)
 
@@ -3068,82 +3077,82 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
 
     # Tenter la decouverte et le contact A2A
     a2a_success = False
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-        for endpoint in a2a_endpoints[:5]:  # Limiter a 5 tentatives
-            try:
-                # 1a. Decouverte — verifier si l'agent expose un agent card
-                if endpoint.endswith("agent.json"):
-                    resp = await client.get(endpoint, headers={"Accept": "application/json"})
-                    if resp.status_code == 200:
-                        agent_card = resp.json()
-                        agent_a2a_url = agent_card.get("url", "")
-                        agent_name = agent_card.get("name", "unknown")
-                        logger.info("SCOUT A2A agent card trouve: %s at %s", agent_name, agent_a2a_url)
+    client = get_http_client()
+    for endpoint in a2a_endpoints[:5]:  # Limiter a 5 tentatives
+        try:
+            # 1a. Decouverte — verifier si l'agent expose un agent card
+            if endpoint.endswith("agent.json"):
+                resp = await client.get(endpoint, headers={"Accept": "application/json"}, timeout=10)
+                if resp.status_code == 200:
+                    agent_card = resp.json()
+                    agent_a2a_url = agent_card.get("url", "")
+                    agent_name = agent_card.get("name", "unknown")
+                    logger.info("SCOUT A2A agent card trouve: %s at %s", agent_name, agent_a2a_url)
 
-                        # 1b. Contact — envoyer un message A2A (JSON-RPC tasks/send)
-                        if agent_a2a_url:
-                            task_resp = await client.post(
-                                f"{agent_a2a_url.rstrip('/')}/a2a",
-                                json={
-                                    "jsonrpc": "2.0",
-                                    "id": f"maxia-scout-{int(time.time())}",
-                                    "method": "tasks/send",
-                                    "params": {
-                                        "id": f"contact-{address[:10]}-{int(time.time())}",
-                                        "message": {
-                                            "role": "user",
-                                            "parts": [{
-                                                "type": "text",
-                                                "text": pitch[:500],
-                                            }],
-                                        },
-                                        "metadata": {
-                                            "from": "MAXIA",
-                                            "manifest": maxia_manifest,
-                                        },
+                    # 1b. Contact — envoyer un message A2A (JSON-RPC tasks/send)
+                    if agent_a2a_url:
+                        task_resp = await client.post(
+                            f"{agent_a2a_url.rstrip('/')}/a2a",
+                            json={
+                                "jsonrpc": "2.0",
+                                "id": f"maxia-scout-{int(time.time())}",
+                                "method": "tasks/send",
+                                "params": {
+                                    "id": f"contact-{address[:10]}-{int(time.time())}",
+                                    "message": {
+                                        "role": "user",
+                                        "parts": [{
+                                            "type": "text",
+                                            "text": pitch[:500],
+                                        }],
+                                    },
+                                    "metadata": {
+                                        "from": "MAXIA",
+                                        "manifest": maxia_manifest,
                                     },
                                 },
-                                headers={"Content-Type": "application/json"},
-                            )
-                            if task_resp.status_code in (200, 201, 202):
-                                result = task_resp.json()
-                                contact_record["method"] = "a2a"
-                                contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
-                                contact_record["agent_name"] = agent_name
-                                contact_record["a2a_url"] = agent_a2a_url
-                                a2a_success = True
-                                logger.info("SCOUT Contact A2A reussi: %s", agent_name)
-                                break
-                else:
-                    # Tenter un POST direct sur l'endpoint A2A
-                    resp = await client.post(
-                        endpoint,
-                        json={
-                            "jsonrpc": "2.0",
-                            "id": f"maxia-scout-{int(time.time())}",
-                            "method": "tasks/send",
-                            "params": {
-                                "id": f"contact-{address[:10]}-{int(time.time())}",
-                                "message": {
-                                    "role": "user",
-                                    "parts": [{"type": "text", "text": pitch[:500]}],
-                                },
-                                "metadata": {"from": "MAXIA", "manifest": maxia_manifest},
                             },
+                            headers={"Content-Type": "application/json"},
+                        )
+                        if task_resp.status_code in (200, 201, 202):
+                            result = task_resp.json()
+                            contact_record["method"] = "a2a"
+                            contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
+                            contact_record["agent_name"] = agent_name
+                            contact_record["a2a_url"] = agent_a2a_url
+                            a2a_success = True
+                            logger.info("SCOUT Contact A2A reussi: %s", agent_name)
+                            break
+            else:
+                # Tenter un POST direct sur l'endpoint A2A
+                resp = await client.post(
+                    endpoint,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": f"maxia-scout-{int(time.time())}",
+                        "method": "tasks/send",
+                        "params": {
+                            "id": f"contact-{address[:10]}-{int(time.time())}",
+                            "message": {
+                                "role": "user",
+                                "parts": [{"type": "text", "text": pitch[:500]}],
+                            },
+                            "metadata": {"from": "MAXIA", "manifest": maxia_manifest},
                         },
-                        headers={"Content-Type": "application/json"},
-                    )
-                    if resp.status_code in (200, 201, 202):
-                        result = resp.json()
-                        contact_record["method"] = "a2a"
-                        contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
-                        contact_record["a2a_url"] = endpoint
-                        a2a_success = True
-                        logger.info("SCOUT Contact A2A direct reussi: %s", endpoint)
-                        break
-            except Exception as e:
-                # Silencieux — on essaie le prochain endpoint
-                continue
+                    },
+                    headers={"Content-Type": "application/json"},
+                )
+                if resp.status_code in (200, 201, 202):
+                    result = resp.json()
+                    contact_record["method"] = "a2a"
+                    contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
+                    contact_record["a2a_url"] = endpoint
+                    a2a_success = True
+                    logger.info("SCOUT Contact A2A direct reussi: %s", endpoint)
+                    break
+        except Exception as e:
+            # Silencieux — on essaie le prochain endpoint
+            continue
 
     # ── 2. FALLBACK — memo on-chain (micro tx USDC avec message) ──
     if not a2a_success and chain == "solana":

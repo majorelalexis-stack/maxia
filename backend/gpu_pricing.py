@@ -13,6 +13,7 @@ import asyncio
 import time
 import httpx
 from config import RUNPOD_API_KEY, GPU_TIERS, GPU_TIERS_FALLBACK
+from http_client import get_http_client
 
 # Cache des prix
 _last_refresh: float = 0
@@ -55,24 +56,25 @@ async def _fetch_runpod_gpu_types() -> list:
     }
     """
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.runpod.io/graphql",
-                json={"query": query},
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {RUNPOD_API_KEY}",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            errors = data.get("errors")
-            if errors:
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.runpod.io/graphql",
+            json={"query": query},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {RUNPOD_API_KEY}",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        errors = data.get("errors")
+        if errors:
                 print(f"[GPU Pricing] RunPod API error: {errors[0].get('message', '')}")
                 return []
-            gpu_types = data.get("data", {}).get("gpuTypes", [])
-            print(f"[GPU Pricing] {len(gpu_types)} GPU types fetches depuis RunPod")
-            return gpu_types
+        gpu_types = data.get("data", {}).get("gpuTypes", [])
+        print(f"[GPU Pricing] {len(gpu_types)} GPU types fetches depuis RunPod")
+        return gpu_types
     except Exception as e:
         print(f"[GPU Pricing] Fetch error: {e}")
         return []
