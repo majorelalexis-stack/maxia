@@ -922,7 +922,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 </div>
 
 <!-- ─── PAGE: TRADING TERMINAL ─── -->
-<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <div class="page" id="page-trading">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <div>
@@ -2192,6 +2192,7 @@ var _chartTF = '1s';
 var _chartWS = null;  // WebSocket pour candles live
 var _chartLimits = {'1s': 300, '5s': 300, '1m': 120, '1h': 48, '6h': 48, '1d': 90, '1w': 52};
 var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60};  // Intervalles live (WebSocket)
+var _liveTokens = ['SOL', 'ETH', 'BTC', 'USDC'];   // Tokens avec SSE Pyth stream
 
 function setChartTF(tf, btn) {
   _chartTF = tf;
@@ -2253,13 +2254,28 @@ async function loadChart() {
 
   _createChart(container);
 
-  var isLive = _chartTF in _liveIntervals;
+  var isLiveTF = _chartTF in _liveIntervals;
+  var isLiveToken = _liveTokens.indexOf(token) >= 0;
+  var isLive = isLiveTF && isLiveToken;
 
   if (isLive) {
     // Mode live : WebSocket /ws/chart avec candles seconde par seconde
     signalEl.innerHTML = '<span style="color:#10b981">Connecting live stream ' + esc(token) + ' (' + _chartTF + ')...</span>';
     _connectChartWS(token, _liveIntervals[_chartTF]);
     signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + _chartTF.toUpperCase() + ' candles — Pyth SSE &lt;1s</span>';
+  } else if (isLiveTF && !isLiveToken) {
+    // Token sans SSE — fallback REST 1m
+    if (_chartWS) { _chartWS.close(); _chartWS = null; }
+    signalEl.innerHTML = '<span style="color:var(--orange)">Live ' + _chartTF + ' not available for ' + esc(token) + ' — showing 1M candles</span>';
+    try {
+      var r = await api('/api/trading/candles/' + token + '?interval=1m&limit=120');
+      var candles = (r && r.candles) || [];
+      if (candles.length > 0 && _candleSeries) {
+        _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
+        _chart.timeScale().fitContent();
+        signalEl.innerHTML = '<span style="color:var(--orange);font-size:12px">' + candles.length + ' candles (1m fallback) — Live 1S/5S: SOL, ETH, BTC, USDC only</span>';
+      }
+    } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   } else {
     // Mode historique : REST API
     if (_chartWS) { _chartWS.close(); _chartWS = null; }
