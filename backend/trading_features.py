@@ -244,7 +244,7 @@ async def update_candles():
                 else:
                     await db.raw_execute(
                         "INSERT INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?) "
-                        "ON CONFLICT(symbol,interval,timestamp) DO UPDATE SET high=MAX(price_candles.high,excluded.high), low=MIN(price_candles.low,excluded.low), close=excluded.close",
+                        "ON CONFLICT(symbol,interval,timestamp) DO UPDATE SET high=CASE WHEN excluded.high>price_candles.high THEN excluded.high ELSE price_candles.high END, low=CASE WHEN excluded.low<price_candles.low THEN excluded.low ELSE price_candles.low END, close=excluded.close",
                         (symbol, "1m", price, price, price, price, 0, minute_ts))
 
 

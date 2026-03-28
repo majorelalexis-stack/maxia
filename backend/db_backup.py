@@ -10,7 +10,7 @@ MAX_BACKUPS = 30  # keep last 30 backups
 
 async def backup_db():
     """Create a timestamped copy of maxia.db. Skips silently if using PostgreSQL (no .db file)."""
-    if not DB_PATH.exists():
+    if not DB_PATH.exists() or os.getenv("DATABASE_URL", ""):
         # PostgreSQL mode — SQLite backup not applicable (pg_dump cron handles PG backups)
         return {"success": True, "skipped": True, "reason": "PostgreSQL mode — no SQLite file"}
     try:
