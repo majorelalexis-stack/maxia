@@ -239,8 +239,8 @@ async def update_candles():
                 if existing:
                     row = existing[0]
                     await db.raw_execute(
-                        "UPDATE price_candles SET high=MAX(high,?), low=MIN(low,?), close=? WHERE symbol=? AND interval='1m' AND timestamp=?",
-                        (price, price, price, symbol, minute_ts))
+                        "UPDATE price_candles SET high=CASE WHEN ?>high THEN ? ELSE high END, low=CASE WHEN ?<low THEN ? ELSE low END, close=? WHERE symbol=? AND interval='1m' AND timestamp=?",
+                        (price, price, price, price, price, symbol, minute_ts))
                 else:
                     await db.raw_execute(
                         "INSERT INTO price_candles(symbol,interval,open,high,low,close,volume,timestamp) VALUES(?,?,?,?,?,?,?,?) "
