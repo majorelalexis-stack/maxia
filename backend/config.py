@@ -167,7 +167,7 @@ RAILWAY_API_TOKEN         = os.getenv("RAILWAY_API_TOKEN", "")
 
 # ── Commissions (per-transaction — bigger trade = lower fee) ──
 COMMISSION_TIERS = [
-    {"name": "BRONZE",  "min_amount": 0,    "max_amount": 500,  "rate_bps": 100},   # 1%
+    {"name": "BRONZE",  "min_amount": 0,    "max_amount": 500,  "rate_bps": 150},   # 1.5%
     {"name": "GOLD",    "min_amount": 500,  "max_amount": 5000, "rate_bps": 50},    # 0.5%
     {"name": "WHALE",   "min_amount": 5000, "max_amount": None, "rate_bps": 10},    # 0.1%
 ]
@@ -177,7 +177,7 @@ def get_commission_bps(amount_usdc: float) -> int:
     for tier in reversed(COMMISSION_TIERS):
         if amount_usdc >= tier["min_amount"]:
             return tier["rate_bps"]
-    return 100
+    return 150
 
 def get_commission_tier_name(amount_usdc: float) -> str:
     for tier in reversed(COMMISSION_TIERS):

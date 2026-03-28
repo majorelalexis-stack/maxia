@@ -745,7 +745,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <span class="badge badge-green">Live on Solana</span>
-      <span class="badge" id="stocks-commission-badge">BRONZE 1%</span>
+      <span class="badge" id="stocks-commission-badge">BRONZE 1.5%</span>
     </div>
   </div>
 
@@ -1250,8 +1250,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
       <!-- Commission Preview -->
       <div id="esc-preview" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Commission</span><span id="esc-prev-fee" style="font-family:'JetBrains Mono',monospace">$5.00 (5% BRONZE)</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Seller receives</span><span id="esc-prev-seller" style="font-family:'JetBrains Mono',monospace;color:var(--green)">$95.00</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Commission</span><span id="esc-prev-fee" style="font-family:'JetBrains Mono',monospace">$1.50 (1.5% BRONZE)</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Seller receives</span><span id="esc-prev-seller" style="font-family:'JetBrains Mono',monospace;color:var(--green)">$98.50</span></div>
         <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Est. gas</span><span id="esc-prev-gas" style="font-family:'JetBrains Mono',monospace">~$0.001</span></div>
       </div>
 
@@ -4662,11 +4662,11 @@ function updateStkSummary(symbol) {
   var cached = _stockPriceCache[symbol] || {};
   var price = cached.price || 1;
   var cat = STOCK_CATALOG[symbol] || {};
-  var bps = amount >= 5000 ? 10 : amount >= 500 ? 50 : 100;
+  var bps = amount >= 5000 ? 10 : amount >= 500 ? 50 : 150;
   var fee = amount * bps / 10000;
   var net = amount - fee;
   var shares = price > 0 ? net / price : 0;
-  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 50 ? 'GOLD 0.5%' : 'BRONZE 1%';
+  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 50 ? 'GOLD 0.5%' : 'BRONZE 1.5%';
   var el = document.getElementById('stk-trade-summary');
   if (el) el.innerHTML =
     '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Est. shares</span><span style="font-family:\'JetBrains Mono\',monospace">' + shares.toFixed(4) + '</span></div>' +
@@ -4872,7 +4872,7 @@ function openStockModal(symbol, side) {
       '<details style="margin-bottom:16px;cursor:pointer">' +
         '<summary style="font-size:13px;color:var(--muted);font-family:JetBrains Mono,monospace">Commission tiers</summary>' +
         '<div style="padding:10px 0;font-size:13px;color:var(--muted);line-height:2">' +
-          'BRONZE: 1% (under $500)<br>' +
+          'BRONZE: 1.5% (under $500)<br>' +
           'GOLD: 0.5% ($500 - $5,000)<br>' +
           'WHALE: 0.1% (over $5,000)' +
         '</div>' +
@@ -6124,8 +6124,8 @@ function setEscrowChain(chain) {
 
 function updateEscrowPreview() {
   var amount = parseFloat(document.getElementById('esc-amount').value) || 100;
-  var bps = amount >= 5000 ? 10 : amount >= 500 ? 100 : 500;
-  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 100 ? 'GOLD 1%' : 'BRONZE 5%';
+  var bps = amount >= 5000 ? 10 : amount >= 500 ? 50 : 150;
+  var tierName = bps === 10 ? 'WHALE 0.1%' : bps === 50 ? 'GOLD 0.5%' : 'BRONZE 1.5%';
   var fee = amount * bps / 10000;
   var sellerGets = amount - fee;
   var gas = _escrowChain === 'base' ? '~$0.01' : '~$0.001';

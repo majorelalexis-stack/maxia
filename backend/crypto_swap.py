@@ -397,6 +397,20 @@ def get_swap_tier_info(volume_30d: float = 0) -> dict:
     }
 
 
+async def _fetch_prices_fresh() -> dict:
+    """Force re-fetch des prix SANS cache (pour re-verification a l'execution)."""
+    try:
+        from price_oracle import get_crypto_prices
+        oracle_prices = await get_crypto_prices()
+        return {
+            sym: {"price": data.get("price", 0), "source": data.get("source", "unknown")}
+            for sym, data in oracle_prices.items()
+            if sym in SUPPORTED_TOKENS
+        }
+    except Exception:
+        return {}
+
+
 async def fetch_prices(token_ids: list = None) -> dict:
     """Recupere les prix via Pyth oracle (Helius RPC)."""
     global _price_cache, _price_cache_ts
@@ -513,10 +527,25 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
     prices = await fetch_prices()
     from_price = prices.get(from_token, {}).get("price", 0)
     to_price = prices.get(to_token, {}).get("price", 0)
-    # #12: Track price source
+    # #12: Track price source + Pyth confidence check
     from_source = prices.get(from_token, {}).get("source", "unknown")
     to_source = prices.get(to_token, {}).get("source", "unknown")
     price_source = "live" if from_source != "fallback" and to_source != "fallback" else "fallback"
+
+    # Check Pyth confidence for tokens with feeds (enforce 2% max spread)
+    wide_confidence = False
+    confidence_pct = 0.0
+    try:
+        from pyth_oracle import CRYPTO_FEEDS, get_pyth_price
+        for sym in [from_token, to_token]:
+            feed_id = CRYPTO_FEEDS.get(sym)
+            if feed_id:
+                pyth_data = await get_pyth_price(feed_id, hft=False)
+                if pyth_data.get("wide_confidence"):
+                    wide_confidence = True
+                    confidence_pct = max(confidence_pct, pyth_data.get("confidence_pct", 0))
+    except Exception:
+        pass  # Pyth unavailable — proceed with cached prices
 
     if from_price <= 0 or to_price <= 0:
         return {"error": "Prix indisponible"}
@@ -613,6 +642,8 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         "to_price_usd": to_price,
         "rate": round(from_price / to_price, 8),
         "price_source": price_source,  # #12: price source indicator
+        "wide_confidence": wide_confidence,
+        "confidence_pct": round(confidence_pct, 2),
         "jupiter_available": jupiter_quote is not None,
         "jupiter_output": round(jupiter_quote["output_amount"], 8) if jupiter_quote else None,
         "competitors": {
@@ -674,6 +705,12 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         _log_swap(f"BLOCKED swap {from_token}->{to_token} {amount} — oracle unavailable (fallback price)")
         return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
 
+    # Bloquer si oracle Pyth confidence > 2% (spread trop large = prix peu fiable)
+    if quote.get("wide_confidence"):
+        conf_pct = quote.get("confidence_pct", 0)
+        _log_swap(f"BLOCKED swap {from_token}->{to_token} — Pyth confidence spread {conf_pct:.1f}% > 2% threshold")
+        return {"success": False, "error": f"Oracle price uncertainty too high ({conf_pct:.1f}%). Wait for market to stabilize."}
+
     output_amount = quote["output_amount"]
     commission_bps = quote["commission_bps"]
     commission_usd = quote["commission_usd"]
@@ -685,6 +722,40 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         return {"success": False, "error": f"Max swap: ${MAX_SWAP_AMOUNT_USD} per transaction"}
     if value_usd < MIN_SWAP_AMOUNT_USD:
         return {"success": False, "error": f"Min swap: ${MIN_SWAP_AMOUNT_USD}"}
+
+    # ── PRICE RE-VERIFICATION AT EXECUTION (multi-oracle consensus) ──
+    # 1. Re-fetch price right before executing (Pyth/Helius/CoinGecko)
+    # 2. Cross-verify against Chainlink on-chain (Base) for ETH/BTC
+    # If >1% deviation from quote, reject. Prevents stale quote attacks.
+    try:
+        re_prices = await _fetch_prices_fresh()
+    except Exception:
+        re_prices = None
+    if re_prices:
+        for sym in [from_token, to_token]:
+            old_price = quote.get("from_price_usd") if sym == from_token else quote.get("to_price_usd")
+            new_price = re_prices.get(sym, {}).get("price", 0)
+            if old_price and old_price > 0 and new_price > 0:
+                deviation_pct = abs(new_price - old_price) / old_price * 100
+                if deviation_pct > 1.0:
+                    _log_swap(f"BLOCKED swap — price moved {deviation_pct:.2f}% since quote ({sym}: ${old_price:.4f} -> ${new_price:.4f})")
+                    return {"success": False, "error": f"Price moved {deviation_pct:.1f}% since quote. Request a new quote."}
+
+    # Cross-verify against Chainlink on-chain (Base mainnet) for supported tokens
+    try:
+        from chainlink_oracle import verify_price_chainlink, CHAINLINK_FEEDS
+        for sym in [from_token, to_token]:
+            if sym in CHAINLINK_FEEDS:
+                expected = re_prices.get(sym, {}).get("price", 0) if re_prices else (quote.get("from_price_usd") if sym == from_token else quote.get("to_price_usd"))
+                if expected and expected > 0:
+                    cl_check = await verify_price_chainlink(sym, expected, max_deviation_pct=3.0)
+                    if cl_check.get("verified") is False and "too old" not in cl_check.get("error", ""):
+                        _log_swap(f"BLOCKED swap — Chainlink cross-verify failed for {sym}: {cl_check.get('error', '')}")
+                        return {"success": False, "error": f"Price cross-verification failed ({sym}): Chainlink reports different price. Try again."}
+    except ImportError:
+        pass  # Chainlink module not available
+    except Exception as e:
+        _log_swap(f"Chainlink cross-verify warning: {e} — proceeding with Pyth/Helius price")
 
     # #1 continued: Verify payment on-chain
     try:

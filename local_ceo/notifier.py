@@ -77,26 +77,26 @@ async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
     """Envoie un message Telegram avec boutons inline Go/No-Go. Retourne le message_id."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return 0
-    emoji = "🟠" if priority == "orange" else "🔴"
-    # Resume des params utiles
+    emoji = "\U0001f7e0" if priority == "orange" else "\U0001f534"
+    # Resume des params utiles (escape HTML)
+    import html as _html
     details = ""
     if params.get("username"):
-        details += f"Target: @{params['username']}\n"
+        details += f"Target: @{_html.escape(str(params['username']))}\n"
     if params.get("text"):
-        details += f"Message: {params['text'][:200]}\n"
+        details += f"Message: {_html.escape(str(params['text'][:200]))}\n"
     if params.get("amount_usd"):
         details += f"Montant: ${params['amount_usd']:.2f}\n"
 
     text = (
-        f"{emoji} *{priority.upper()}* — {action_desc}\n"
-        f"Agent: {agent}\n"
-        f"{details}\n"
-        f"Reponds *Go* ou *No*"
+        f"{emoji} <b>{_html.escape(priority.upper())}</b> — {_html.escape(action_desc)}\n"
+        f"Agent: {_html.escape(agent)}\n"
+        f"{details}"
     )
     keyboard = {
         "inline_keyboard": [[
-            {"text": "✅ Go", "callback_data": f"approve:{action_id}"},
-            {"text": "❌ No", "callback_data": f"deny:{action_id}"},
+            {"text": "\u2705 Go", "callback_data": f"approve:{action_id}"},
+            {"text": "\u274c No", "callback_data": f"deny:{action_id}"},
         ]]
     }
     try:
@@ -106,7 +106,7 @@ async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
                 json={
                     "chat_id": TELEGRAM_CHAT_ID,
                     "text": text,
-                    "parse_mode": "Markdown",
+                    "parse_mode": "HTML",
                     "reply_markup": keyboard,
                 },
             )

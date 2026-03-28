@@ -573,6 +573,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[MAXIA] Stream updater init error: {e}")
 
+    # Telegram bot — poll getUpdates pour les boutons Go/No-Go (approbation CEO Local)
+    t_telegram = None
+    try:
+        from telegram_bot import run_telegram_bot
+        t_telegram = asyncio.create_task(run_telegram_bot())
+        print("[MAXIA] Telegram bot started (approval buttons + alerts)")
+    except Exception as e:
+        print(f"[MAXIA] Telegram bot init error: {e}")
+
+    # Pyth SSE permanent — stream prix live en continu (pas on-demand)
+    try:
+        from pyth_oracle import start_pyth_stream, start_fallback_refresh
+        await start_pyth_stream()
+        await start_fallback_refresh()
+        print("[MAXIA] Pyth SSE persistent stream + fallback auto-refresh started")
+    except Exception as e:
+        print(f"[MAXIA] Pyth stream init error: {e}")
+
+    # Chainlink Oracle — verification feeds on-chain Base au demarrage
+    try:
+        from chainlink_oracle import verify_feeds_at_startup
+        cl_results = await verify_feeds_at_startup()
+        verified = sum(1 for v in cl_results.values() if v.get("verified"))
+        print(f"[MAXIA] Chainlink Base: {verified}/{len(cl_results)} feeds verified on-chain")
+    except Exception as e:
+        print(f"[MAXIA] Chainlink init error: {e}")
+
     print("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
     print(f"[MAXIA] DB: {'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite'} | Redis: {'connected' if redis_client.is_connected else 'in-memory fallback'}")
     print(f"[MAXIA] CORS: {_ALLOWED_ORIGINS}")
@@ -605,7 +632,7 @@ async def lifespan(app: FastAPI):
             t.cancel()
         except Exception:
             pass
-    for t in [t_health, t6, t7, t_backup, t_dispute]:
+    for t in [t_health, t6, t7, t_backup, t_dispute, t_telegram]:
         try:
             if t:
                 t.cancel()
@@ -2394,11 +2421,17 @@ async def ceo_full_state(request: Request):
         from ceo_maxia import ceo, get_llm_costs
         status = ceo.get_status()
         mem = ceo.memory._data
+        # Compter les vrais services actifs depuis la DB (pas la memoire CEO)
+        try:
+            stats = await db.get_marketplace_stats()
+            services_count = stats.get("services_listed", 0)
+        except Exception:
+            services_count = mem.get("services", 0)
         return {
             "kpi": {
                 "revenue_24h": mem.get("revenue_usd", 0),
                 "clients_actifs": mem.get("clients", 0),
-                "services_actifs": mem.get("services", 0),
+                "services_actifs": services_count,
                 "emergency_stop": mem.get("emergency_stop", False),
                 "budget_vert": mem.get("budget_vert", 0),
             },

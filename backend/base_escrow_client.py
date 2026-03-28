@@ -111,16 +111,16 @@ async def get_commission_tier(buyer_address: str) -> dict:
         hex_result = result.get("result", "0x")
 
         if hex_result == "0x" or len(hex_result) < 130:
-            return {"tier": "BRONZE", "bps": 500}
+            return {"tier": "BRONZE", "bps": 150}
 
         # Decode: string + uint256 (ABI encoded)
         clean = hex_result[2:]
         bps = int(clean[-64:], 16)
-        tier = "WHALE" if bps <= 10 else "GOLD" if bps <= 100 else "BRONZE"
+        tier = "WHALE" if bps <= 10 else "GOLD" if bps <= 50 else "BRONZE"
         return {"tier": tier, "bps": bps, "pct": round(bps / 100, 2)}
     except Exception as e:
         logger.error(f"[BaseEscrow] getCommissionTier error: {e}")
-        return {"tier": "BRONZE", "bps": 500}
+        return {"tier": "BRONZE", "bps": 150}
 
 
 async def get_escrow(escrow_id_hex: str) -> dict:

@@ -53,6 +53,7 @@ class BrowserAgent:
         self._dedup_file = os.path.join(os.path.dirname(__file__), ".browser_dedup.json")
         self._actions_today_file = ACTIONS_TODAY_FILE
         self._bu_llm = None  # LLM browser-use (lazy init)
+        self._vision_cooldown = {}  # {description: last_attempt_ts} — eviter boucle vision x13
         self._load_dedup()
         self._load_daily_counts()
 
@@ -671,7 +672,8 @@ class BrowserAgent:
         return False
 
     async def _find_and_click(self, page, selectors: list, description: str, timeout: int = 10000) -> bool:
-        """Essaie plusieurs selectors, puis fallback vision si rien ne marche."""
+        """Essaie plusieurs selectors, puis fallback vision si rien ne marche.
+        Cooldown 120s par description pour eviter boucle vision x13."""
         for sel in selectors:
             try:
                 el = page.locator(sel).first
@@ -680,12 +682,19 @@ class BrowserAgent:
                     return True
             except Exception:
                 continue
-        # Vision fallback — ask Qwen 3.5 to find it on screen
+        # Vision fallback — cooldown 120s pour eviter de retenter la meme chose
+        import time as _t
+        last = self._vision_cooldown.get(description, 0)
+        if _t.time() - last < 120:
+            print(f"[BrowserAgent] {description}: selectors failed, vision cooldown (skip)")
+            return False
+        self._vision_cooldown[description] = _t.time()
         print(f"[BrowserAgent] {description}: selectors failed, trying vision...")
         return await self._vision_click(page, description)
 
     async def _find_and_fill(self, page, selectors: list, text: str, description: str, timeout: int = 10000) -> bool:
-        """Essaie plusieurs selectors, puis fallback vision si rien ne marche."""
+        """Essaie plusieurs selectors, puis fallback vision si rien ne marche.
+        Cooldown 120s par description pour eviter boucle vision."""
         for sel in selectors:
             try:
                 el = page.locator(sel).first
@@ -699,7 +708,13 @@ class BrowserAgent:
                         return True
             except Exception:
                 continue
-        # Vision fallback — ask Qwen 3.5 to find the input
+        # Vision fallback — cooldown 120s
+        import time as _t
+        last = self._vision_cooldown.get(description, 0)
+        if _t.time() - last < 120:
+            print(f"[BrowserAgent] {description}: selectors failed, vision cooldown (skip)")
+            return False
+        self._vision_cooldown[description] = _t.time()
         print(f"[BrowserAgent] {description}: selectors failed, trying vision...")
         return await self._vision_fill(page, description, text)
 
@@ -1870,7 +1885,8 @@ class BrowserAgent:
     # ── Twitter DMs ──
 
     async def dm_twitter(self, username: str, text: str) -> dict:
-        """Envoie un DM sur X."""
+        """Envoie un DM sur X. Methode 1: cliquer sur conversation existante.
+        Methode 2: naviguer direct a /messages/compose (pas de bouton a chercher)."""
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}
@@ -1881,63 +1897,65 @@ class BrowserAgent:
 
         try:
             clean = username.lstrip("@")
+
+            # ── Methode 1: Cliquer sur la conversation existante (si elle existe) ──
             await self._goto_dms(page)
+            conv_selectors = [
+                f'[data-testid^="dm-conversation-item-"]:has-text("{clean}")',
+                f'[data-testid="conversation"]:has-text("{clean}")',
+                f'[data-testid="cellInnerDiv"]:has-text("{clean}")',
+            ]
+            opened = False
+            for sel in conv_selectors:
+                try:
+                    conv = page.locator(sel).first
+                    if await conv.is_visible(timeout=2000):
+                        box = await conv.bounding_box()
+                        if box:
+                            await page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                            await page.wait_for_timeout(2000)
+                            for cs in ['[data-testid="dm-composer-textarea"]', '[data-testid="dmComposerTextInput"]', 'div[role="textbox"][contenteditable]']:
+                                if await page.locator(cs).first.is_visible(timeout=1500):
+                                    opened = True
+                                    break
+                        if opened:
+                            break
+                except Exception:
+                    continue
 
-            # Nouveau message
-            clicked = await self._find_and_click(page, [
-                '[data-testid="NewDM_Button"]',
-                '[data-testid="DM_Fab_Button"]',
-                'a[href="/messages/compose"]',
-                '[aria-label*="New message" i]',
-                '[aria-label*="Nouveau message" i]',
-                '[aria-label*="Compose" i]',
-                'button[aria-label*="message" i]',
-                '[data-testid="dmComposerButton"]',
-                'a[href*="/messages"]  [role="button"]',
-            ], "New DM button")
-            if not clicked:
-                # ── FALLBACK browser-use pour tout le flow DM ──
-                print("[BrowserAgent] Twitter DM Playwright failed — trying browser-use...")
-                bu_result = await self._browser_use_task(
-                    f"You are on Twitter/X DMs page. Send a new DM to @{clean}. "
-                    f"Click the new message button (pen/compose icon), search for '{clean}', "
-                    f"select them, then type: '{text[:300]}' and send it.",
-                    max_steps=8,
-                )
-                if bu_result.get("success"):
-                    self._record_action("dm", self._content_hash("dm", username))
-                    return {"success": True, "username": clean, "method": "browser-use"}
-                return {"success": False, "error": "Twitter DM: Playwright + browser-use both failed"}
-            await page.wait_for_timeout(1500)
+            # ── Methode 2: Naviguer direct a /messages/compose (pas de bouton) ──
+            if not opened:
+                await page.goto("https://x.com/messages/compose", wait_until="domcontentloaded", timeout=15000)
+                await page.wait_for_timeout(1500)
 
-            # Chercher le destinataire
-            filled = await self._find_and_fill(page, [
-                'input[data-testid="searchPeople"]',
-                'input[data-testid="searchBox"]',
-                'input[placeholder*="Search" i]',
-                'input[placeholder*="Rechercher" i]',
-                'input[aria-label*="Search" i]',
-                'input[role="combobox"]',
-            ], clean, "DM search")
-            if not filled:
-                return {"success": False, "error": "Champ recherche DM introuvable"}
-            await page.wait_for_timeout(2000)
+                # Chercher le destinataire (seulement si compose, pas si conversation existante)
+                filled = await self._find_and_fill(page, [
+                    'input[data-testid="searchPeople"]',
+                    'input[data-testid="searchBox"]',
+                    'input[placeholder*="Search" i]',
+                    'input[placeholder*="Rechercher" i]',
+                    'input[aria-label*="Search" i]',
+                    'input[role="combobox"]',
+                ], clean, "DM search")
+                if not filled:
+                    return {"success": False, "error": "Champ recherche DM introuvable"}
+                await page.wait_for_timeout(2000)
 
-            # Cliquer sur le profil dans les resultats
-            result_item = page.locator(f'[data-testid="typeaheadResult"]').first
-            if await result_item.is_visible(timeout=5000):
-                await result_item.click()
-            else:
-                return {"success": False, "error": f"Profil {clean} introuvable dans les DMs"}
-            await page.wait_for_timeout(1000)
+                # Cliquer sur le profil dans les resultats
+                result_item = page.locator('[data-testid="typeaheadResult"]').first
+                if await result_item.is_visible(timeout=5000):
+                    await result_item.click()
+                else:
+                    return {"success": False, "error": f"Profil {clean} introuvable dans les DMs"}
+                await page.wait_for_timeout(1000)
 
-            # Cliquer Next/Suivant
-            await self._find_and_click(page, [
-                'button[data-testid="nextButton"]',
-                'button:has-text("Next")',
-                'button:has-text("Suivant")',
-            ], "Next button")
-            await page.wait_for_timeout(1000)
+                # Cliquer Next/Suivant
+                await self._find_and_click(page, [
+                    'button[data-testid="nextButton"]',
+                    'button:has-text("Next")',
+                    'button:has-text("Suivant")',
+                ], "Next button")
+                await page.wait_for_timeout(1000)
 
             # Taper le message
             filled = await self._find_and_fill(page, [

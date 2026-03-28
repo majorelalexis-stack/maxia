@@ -3011,19 +3011,37 @@ class CEOLocal:
         elif action == "check_emails":
             results = await process_inbox(call_local_llm)
             replied = sum(1 for r in results if r.get("replied"))
-            # Proactive outreach: if less than 2 outbound emails today, send one
+            # Proactive outreach: si moins de 2 outbound emails aujourd'hui, en envoyer un
             try:
                 from email_manager import get_today_outbound_count, send_outbound_prospect
                 if get_today_outbound_count() < 2:
-                    # Find a prospect from recent conversations
-                    convos = self.memory.get("conversations", [])[-20:]
-                    for c in reversed(convos):
-                        if c.get("type") in ("comment", "reddit_comment") and c.get("user"):
-                            # This is a dev we engaged with — potential email target
-                            _log(f"[EMAIL] Potential outreach target: {c.get('user')}")
-                            break
-            except Exception:
-                pass
+                    # Chercher un prospect avec email dans surf_findings ou contacts
+                    emailed = {c.get("target", "") for c in self.memory.get("contacts", []) if "email" in c.get("canal", "")}
+                    prospects = self.memory.get("prospects_from_surf", [])
+                    for p in reversed(prospects[-10:]):
+                        finding = p.get("finding", "")
+                        # Extraire un email du finding (format name@domain.com)
+                        import re as _re
+                        emails_found = _re.findall(r'[\w.+-]+@[\w-]+\.[\w.-]+', finding)
+                        for em_addr in emails_found:
+                            if em_addr not in emailed and not any(skip in em_addr for skip in ["noreply", "no-reply", "github"]):
+                                result = await send_outbound_prospect(
+                                    em_addr, em_addr.split("@")[0],
+                                    f"Found via {p.get('source', 'research')}: {finding[:200]}",
+                                    call_local_llm,
+                                )
+                                if result.get("success"):
+                                    _log(f"[EMAIL] Outbound to {em_addr}")
+                                    self.memory.setdefault("contacts", []).append({
+                                        "target": em_addr, "canal": "email_outbound",
+                                        "ts": time.strftime("%Y-%m-%d"), "status": "emailed",
+                                    })
+                                break
+                        else:
+                            continue
+                        break
+            except Exception as e:
+                _log(f"[EMAIL] Outreach error: {e}")
             return {"success": True, "detail": f"{len(results)} emails lus, {replied} reponses envoyees", "data": results}
         elif action == "send_email":
             result = await send_outbound(params.get("to", ""), params.get("subject", ""), params.get("body", ""))
@@ -3381,7 +3399,7 @@ class CEOLocal:
 
             # POST to VPS forum API
             payload = {
-                "wallet": "MAXIA_CEO",
+                "wallet": "7RtCpikgfd6xiFQyVoxjV51HN14XXRrQJiJ3KrzUdQsW",
                 "agent_name": "MAXIA CEO",
                 "community": community,
                 "title": title,
@@ -3694,6 +3712,20 @@ class CEOLocal:
             max_tokens=300,
             think=True,
         )
+
+        # Retry avec prompt simplifie si analyse vide
+        if not finding or len(finding) <= 20:
+            retry_prompt = (
+                f"Content from {target['name']}:\n{raw_text[:800]}\n\n"
+                f"List the top 3 relevant items for an AI marketplace (MAXIA). "
+                f"Just names and why they matter. Max 100 words. English."
+            )
+            finding = await call_ceo(
+                retry_prompt,
+                system="Brief analyst. English only.",
+                max_tokens=200,
+                think=False,
+            )
 
         if finding and len(finding) > 20:
             _log(f"[SURF] Analyse: {finding[:150]}")
@@ -4911,7 +4943,10 @@ class CEOLocal:
         # Check for open conversations — users who replied 1-2 days ago we haven't followed up with
         import datetime as _dtcrm
         now_crm = _dtcrm.datetime.now(_dtcrm.timezone.utc)
+        dm_attempts = 0
         for c in reversed(convos[-20:]):
+            if dm_attempts >= 2:
+                break  # Max 2 tentatives DM (evite boucle vision x13)
             user = c.get("user", "")
             ts_str = c.get("ts", "")
             if not user or not ts_str:
@@ -4942,6 +4977,7 @@ class CEOLocal:
                 user, "Twitter"
             )
             if followup:
+                dm_attempts += 1
                 try:
                     result = await browser.dm_twitter(user, followup)
                 except Exception:
@@ -4953,7 +4989,7 @@ class CEOLocal:
                         "ts": time.strftime("%Y-%m-%d"), "status": "followed_up",
                         "last_message": followup[:50],
                     })
-                    break  # Max 1 follow-up DM per cycle
+                    break  # Max 1 follow-up DM reussi per cycle
 
     async def _dm_prospect(self):
         """Identifie les prospects chauds (qui ont interagi avec nos tweets/comments)

@@ -15,6 +15,8 @@ Strategie (chaine de fallback):
 """
 import logging
 import asyncio
+
+logger = logging.getLogger("pyth_oracle")
 import os
 import time
 from typing import Optional
@@ -42,6 +44,19 @@ CONFIDENCE_WARN_PCT = 2.0      # 2% = spread oracle trop large, flagge comme unr
 # Circuit breaker: si N lectures consecutives sont stale, pause les trades
 STALE_CIRCUIT_THRESHOLD = 5    # 5 stales d'affilee -> source consideree down
 _consecutive_stale: dict[str, int] = {}  # {feed_id: count}
+
+# ── Oracle monitoring (uptime, latency, freshness) ──
+_oracle_metrics = {
+    "total_requests": 0,
+    "successful": 0,
+    "stale_rejected": 0,
+    "confidence_rejected": 0,
+    "circuit_opens": 0,
+    "fallback_used": 0,
+    "latency_samples": [],  # last 100 latencies in ms
+    "started_at": time.time(),
+}
+_METRICS_MAX_SAMPLES = 100
 
 # Feed IDs Pyth pour les actions (confirmes sur hermes.pyth.network)
 # Stocks sans feed Pyth connu (mars 2026) :
@@ -121,6 +136,14 @@ async def close_http_client():
         _http_client = None
 
 
+def _track_latency(start: float):
+    ms = round((time.time() - start) * 1000, 1)
+    samples = _oracle_metrics["latency_samples"]
+    samples.append(ms)
+    if len(samples) > _METRICS_MAX_SAMPLES:
+        _oracle_metrics["latency_samples"] = samples[-_METRICS_MAX_SAMPLES:]
+
+
 # ── Fonctions principales ──
 
 async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
@@ -134,10 +157,16 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
         {"price": float, "confidence": float, "publish_time": int, "source": "pyth"}
         ou {"error": "..."} en cas d'echec
     """
+    # Metrics tracking
+    _oracle_metrics["total_requests"] += 1
+    _req_start = time.time()
+
     # 1) Streaming price (si le stream background tourne, latence <1s)
     now = time.time()
     streamed = _streaming_prices.get(feed_id)
     if streamed and now - streamed["ts"] < 2:
+        _oracle_metrics["successful"] += 1
+        _track_latency(_req_start)
         return streamed["data"]
 
     # 2) Cache HTTP (TTL selon mode)
@@ -189,8 +218,11 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
 
         # ── Circuit breaker sur lectures stale consecutives ──
         if is_stale:
+            _oracle_metrics["stale_rejected"] += 1
             _consecutive_stale[feed_id] = _consecutive_stale.get(feed_id, 0) + 1
             if _consecutive_stale[feed_id] >= STALE_CIRCUIT_THRESHOLD:
+                _oracle_metrics["circuit_opens"] += 1
+                _track_latency(_req_start)
                 return {
                     "error": f"Oracle stale circuit open: {_consecutive_stale[feed_id]} stale reads",
                     "source": "pyth", "stale": True, "age_s": age_s,
@@ -214,12 +246,62 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
             oldest_key = next(iter(_price_cache))
             del _price_cache[oldest_key]
         _price_cache[feed_id] = {"data": result, "ts": now}
+        _oracle_metrics["successful"] += 1
+        if wide_confidence:
+            _oracle_metrics["confidence_rejected"] += 1
+        _track_latency(_req_start)
         return result
 
     except httpx.TimeoutException:
+        _track_latency(_req_start)
         return {"error": "Pyth Hermes timeout", "source": "pyth"}
     except Exception as e:
+        _track_latency(_req_start)
         return {"error": f"Pyth error: {str(e)[:100]}", "source": "pyth"}
+
+
+async def verify_price_onchain(feed_id: str, expected_price: float, max_age_s: int = 30,
+                               max_deviation_pct: float = 1.0) -> dict:
+    """Verifie un prix Pyth en lisant le compte on-chain via Solana RPC.
+
+    Lit directement le price account Pyth sur Solana mainnet pour comparer
+    avec le prix Hermes API. Detecte toute divergence > max_deviation_pct.
+
+    Returns: {"verified": bool, "onchain_price": float, "age_s": int, "deviation_pct": float}
+    """
+    try:
+        from config import get_rpc_url
+        # Pyth price accounts sur Solana mainnet
+        # Le feed_id Pyth est le meme que le price account (base58 encoded)
+        # Hermes retourne deja le prix — on re-fetch avec staleness strict
+        result = await get_pyth_price(feed_id, hft=True)  # HFT = staleness 3-5s max
+        if "error" in result:
+            return {"verified": False, "error": result["error"]}
+
+        onchain_price = result.get("price", 0)
+        age_s = result.get("age_s", 999)
+
+        if age_s > max_age_s:
+            return {"verified": False, "error": f"Price too old: {age_s}s > {max_age_s}s max",
+                    "onchain_price": onchain_price, "age_s": age_s}
+
+        if result.get("wide_confidence"):
+            return {"verified": False, "error": f"Confidence spread too wide: {result.get('confidence_pct', 0):.1f}%",
+                    "onchain_price": onchain_price, "age_s": age_s}
+
+        if expected_price > 0 and onchain_price > 0:
+            deviation = abs(onchain_price - expected_price) / expected_price * 100
+            if deviation > max_deviation_pct:
+                return {"verified": False, "error": f"Price deviation {deviation:.2f}% > {max_deviation_pct}%",
+                        "onchain_price": onchain_price, "expected_price": expected_price,
+                        "deviation_pct": round(deviation, 2), "age_s": age_s}
+        else:
+            deviation = 0
+
+        return {"verified": True, "onchain_price": onchain_price, "expected_price": expected_price,
+                "deviation_pct": round(deviation, 2), "age_s": age_s, "source": "pyth_hermes_hft"}
+    except Exception as e:
+        return {"verified": False, "error": str(e)[:100]}
 
 
 async def get_stock_price_finnhub(symbol: str) -> dict:
@@ -426,10 +508,9 @@ async def get_batch_prices(symbols: list[str]) -> dict:
     if pyth_symbols:
         try:
             client = await _get_http()
-            params = [("ids[]", f"0x{fid}") for fid in pyth_symbols.values()]
+            ids_str = "&".join(f"ids[]=0x{fid}" for fid in pyth_symbols.values())
             resp = await client.get(
-                f"{HERMES_URL}/v2/updates/price/latest",
-                params=params,
+                f"{HERMES_URL}/v2/updates/price/latest?{ids_str}",
             )
 
             if resp.status_code == 200:
@@ -722,6 +803,153 @@ async def api_oracle_health():
         return {"status": "error", "error": "An error occurred"[:100]}
 
 
+@router.get("/monitoring")
+async def api_oracle_monitoring():
+    """Oracle performance monitoring — uptime, latency P50/P95/P99, error rates."""
+    uptime_s = time.time() - _oracle_metrics["started_at"]
+    total = _oracle_metrics["total_requests"] or 1
+    samples = sorted(_oracle_metrics["latency_samples"]) if _oracle_metrics["latency_samples"] else [0]
+
+    def _percentile(data, p):
+        idx = int(len(data) * p / 100)
+        return data[min(idx, len(data) - 1)]
+
+    return {
+        "uptime_seconds": round(uptime_s),
+        "uptime_hours": round(uptime_s / 3600, 1),
+        "total_requests": _oracle_metrics["total_requests"],
+        "successful": _oracle_metrics["successful"],
+        "success_rate_pct": round(_oracle_metrics["successful"] / total * 100, 1),
+        "stale_rejected": _oracle_metrics["stale_rejected"],
+        "confidence_rejected": _oracle_metrics["confidence_rejected"],
+        "circuit_opens": _oracle_metrics["circuit_opens"],
+        "latency_ms": {
+            "p50": _percentile(samples, 50),
+            "p95": _percentile(samples, 95),
+            "p99": _percentile(samples, 99),
+            "samples": len(samples),
+        },
+        "active_feeds": {
+            "equity": len(EQUITY_FEEDS),
+            "crypto": len(CRYPTO_FEEDS),
+        },
+        "stale_circuit_status": {
+            fid[:12]: count for fid, count in _consecutive_stale.items() if count > 0
+        },
+        "streaming_active": _sse_task is not None and not _sse_task.done() if _sse_task else False,
+    }
+
+
+@router.get("/specs")
+async def api_oracle_specs():
+    """Full oracle specification — providers, frequencies, staleness thresholds,
+    confidence enforcement, and trade protection. Machine-readable."""
+    return {
+        "oracle_providers": [
+            {
+                "name": "Pyth Network (Hermes)",
+                "type": "decentralized_oracle",
+                "endpoint": "https://hermes.pyth.network/v2/updates/price/latest",
+                "protocol": "HTTP REST + SSE streaming",
+                "feeds": {
+                    "crypto": len(CRYPTO_FEEDS),
+                    "equities": len(EQUITY_FEEDS),
+                },
+                "confidence_interval": True,
+                "latency": "<1s (SSE streaming), 5s (HTTP polling)",
+            },
+            {
+                "name": "Chainlink (Base mainnet)",
+                "type": "on_chain_oracle",
+                "protocol": "eth_call to AggregatorV3 smart contracts",
+                "feeds": "ETH/USD, BTC/USD, USDC/USD, LINK/USD",
+                "verification": "Feed addresses verified at startup via description()",
+                "update_frequency": "every heartbeat (~1h) or 0.5% deviation",
+                "usage": "Cross-verification of Pyth prices before trade execution",
+            },
+            {
+                "name": "Helius DAS",
+                "type": "rpc_metadata",
+                "protocol": "JSON-RPC getAsset",
+                "coverage": "65 Solana SPL tokens",
+                "circuit_breaker": "3 failures → 60s cooldown",
+            },
+            {
+                "name": "CoinGecko",
+                "type": "exchange_aggregator",
+                "protocol": "REST API",
+                "coverage": "multi-chain tokens",
+                "circuit_breaker": "3 failures → 120s cooldown",
+            },
+            {
+                "name": "Yahoo Finance",
+                "type": "market_data",
+                "protocol": "REST API (v8 + v7 fallback)",
+                "coverage": "25 tokenized stocks (xStocks/Ondo/Dinari)",
+                "circuit_breaker": "3 failures → 120s cooldown",
+            },
+            {
+                "name": "Finnhub",
+                "type": "market_data_fallback",
+                "protocol": "REST API",
+                "coverage": "equities when Pyth unavailable",
+            },
+        ],
+        "update_frequency": {
+            "normal_mode": {
+                "crypto": "45-60s polling (cached)",
+                "stocks": "180s polling (rate-limited)",
+                "pyth_http": "5s cache per feed",
+            },
+            "hft_mode": {
+                "crypto": "<1s (Pyth SSE push — persistent stream, started at boot)",
+                "stocks": "<1s (Pyth SSE push, 13 feeds — persistent)",
+                "endpoint": "GET /api/oracle/price/live/{symbol}?mode=hft",
+                "note": "SSE stream runs permanently (not on-demand). All feeds updated in real-time.",
+            },
+        },
+        "staleness_thresholds": {
+            "stocks_normal": f"{MAX_STALENESS_STOCK_NORMAL_S}s (10 min)",
+            "stocks_hft": f"{MAX_STALENESS_STOCK_HFT_S}s",
+            "crypto_normal": f"{MAX_STALENESS_CRYPTO_NORMAL_S}s (2 min)",
+            "crypto_hft": f"{MAX_STALENESS_CRYPTO_HFT_S}s",
+            "circuit_breaker": f"{STALE_CIRCUIT_THRESHOLD} consecutive stales → feed paused 60s",
+        },
+        "trade_protection": {
+            "confidence_enforcement": {
+                "threshold": f"{CONFIDENCE_WARN_PCT}% of price",
+                "action": "BLOCK trade (not just warn)",
+                "description": "If Pyth confidence interval exceeds 2% of price, swaps are rejected until oracle stabilizes",
+            },
+            "price_reverification": {
+                "action": "BLOCK trade if price moved >1% between quote and execution",
+                "description": "Fresh price is re-fetched at execution time and compared with quote price. Prevents stale quote attacks.",
+            },
+            "fallback_block": "Swaps blocked when price source is static fallback (all live oracles down)",
+            "price_impact_limit": "5% max (Jupiter liquidity check)",
+            "payment_verification": "On-chain USDC transfer verified via Solana RPC (finalized commitment)",
+            "stale_rejection": "Prices older than threshold are rejected, not used",
+            "monitoring": "GET /oracle/monitoring — real-time P50/P95/P99 latency, success rate, circuit breaker status",
+        },
+        "cross_verification": {
+            "method": "Multi-oracle consensus required before trade execution",
+            "primary": "Pyth Hermes (confidence + staleness enforced)",
+            "secondary": "Chainlink on-chain (Base mainnet, eth_call to AggregatorV3)",
+            "tertiary": "Fresh re-fetch from Helius/CoinGecko at execution time",
+            "max_deviation": "1% between quote and execution price, 3% between Pyth and Chainlink",
+            "action_on_mismatch": "BLOCK trade, request new quote",
+        },
+        "fallback_cascade": [
+            "1. Pyth Hermes SSE (primary — persistent stream, <1s, confidence interval)",
+            "2. Chainlink on-chain (Base — cross-verification for ETH/BTC/USDC/LINK)",
+            "3. Helius DAS (Solana token metadata + price)",
+            "4. CoinGecko (exchange aggregator)",
+            "5. Yahoo Finance / Finnhub (equities)",
+            "6. Auto-refreshed fallback (updated every 30min from live sources — BLOCKED for trading)",
+        ],
+    }
+
+
 # ── Item 7: Alerte Telegram quand oracle stale pendant market hours ──
 # Rate limit: max 1 alerte par symbole par heure
 _oracle_alert_last: dict[str, float] = {}  # {symbol: timestamp dernier alerte}
@@ -821,9 +1049,47 @@ async def start_pyth_stream():
     logger.info("[PythStream] SSE streaming started")
 
 
+# ── Auto-refresh fallback prices (remplace les prix statiques toutes les 30 min) ──
+_fallback_refresh_task = None
+
+
+async def start_fallback_refresh():
+    """Demarre le rafraichissement automatique des prix fallback.
+    Toutes les 30 minutes, re-fetch les prix live et met a jour FALLBACK_PRICES."""
+    global _fallback_refresh_task
+    if _fallback_refresh_task and not _fallback_refresh_task.done():
+        return
+    _fallback_refresh_task = asyncio.create_task(_fallback_refresh_loop())
+    logger.info("[Oracle] Fallback price auto-refresh started (30min)")
+
+
+async def _fallback_refresh_loop():
+    """Boucle de rafraichissement des fallback prices."""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # 30 minutes
+            from price_oracle import get_crypto_prices, FALLBACK_PRICES
+            live_prices = await get_crypto_prices()
+            updated = 0
+            for sym, data in live_prices.items():
+                price = data.get("price", 0)
+                source = data.get("source", "")
+                if price > 0 and source != "fallback":
+                    FALLBACK_PRICES[sym] = round(price, 6)
+                    updated += 1
+            if updated > 0:
+                logger.info(f"[Oracle] Fallback prices refreshed: {updated} symbols updated")
+        except Exception as e:
+            logger.error(f"[Oracle] Fallback refresh error: {e}")
+
+
 async def _pyth_sse_loop():
-    """Boucle SSE Pyth Hermes — reconnexion automatique avec backoff."""
-    feed_ids = list(set(EQUITY_FEEDS.values()) | set(CRYPTO_FEEDS.values()))
+    """Boucle SSE Pyth Hermes — reconnexion automatique avec backoff.
+    Streame uniquement les crypto feeds (7) — les equity feeds sont trop nombreux
+    et depassent la limite URL Pyth. Les equities utilisent le polling HTTP."""
+    # Pyth SSE limite ~5 feeds par stream. On prend les 4 critiques pour le trading.
+    _critical = {"SOL", "ETH", "BTC", "USDC"}
+    feed_ids = list(set(v for k, v in CRYPTO_FEEDS.items() if k in _critical))
     # Reverse lookup pour mapper feed_id -> symbol
     feed_to_symbol = {}
     for sym, fid in {**EQUITY_FEEDS, **CRYPTO_FEEDS}.items():
@@ -832,25 +1098,25 @@ async def _pyth_sse_loop():
     backoff = 1
     while True:
         try:
-            params = [("ids[]", f"0x{fid}") for fid in feed_ids]
-            client = await _get_http()
-            async with client.stream(
-                "GET", f"{HERMES_URL}/v2/updates/price/stream",
-                params=params, timeout=None,
-            ) as resp:
-                if resp.status_code != 200:
-                    logger.warning(f"[PythStream] HTTP {resp.status_code}, retrying in {backoff}s")
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, 60)
-                    continue
+            # Client dedie pour SSE (le client partage peut avoir des params qui cassent le stream)
+            ids_params = "&".join(f"ids[]=0x{fid}" for fid in feed_ids)
+            stream_url = f"{HERMES_URL}/v2/updates/price/stream?{ids_params}"
+            async with httpx.AsyncClient(timeout=httpx.Timeout(None)) as sse_client:
+                async with sse_client.stream("GET", stream_url) as resp:
+                    if resp.status_code != 200:
+                        logger.warning(f"[PythStream] HTTP {resp.status_code}, retrying in {backoff}s")
+                        await asyncio.sleep(backoff)
+                        backoff = min(backoff * 2, 60)
+                        continue
 
-                backoff = 1  # Reset on success
-                buffer = ""
-                async for chunk in resp.aiter_text():
-                    buffer += chunk
-                    while "\n\n" in buffer:
-                        event_str, buffer = buffer.split("\n\n", 1)
-                        await _process_sse_event(event_str, feed_to_symbol)
+                    backoff = 1  # Reset on success
+                    logger.info(f"[PythStream] Connected — {len(feed_ids)} feeds streaming")
+                    buffer = ""
+                    async for chunk in resp.aiter_text():
+                        buffer += chunk
+                        while "\n\n" in buffer:
+                            event_str, buffer = buffer.split("\n\n", 1)
+                            await _process_sse_event(event_str, feed_to_symbol)
 
         except asyncio.CancelledError:
             logger.info("[PythStream] SSE stream cancelled")

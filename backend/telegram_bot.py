@@ -87,9 +87,9 @@ async def send_daily_report(stats: dict):
     text = (
         f"\U0001f4ca <b>MAXIA — AI-to-AI Marketplace</b>\n\n"
         f"\U0001f310 14 blockchains supportees\n"
-        f"\U0001f4b1 107 tokens, 5000+ paires de trading\n"
-        f"\U0001f5a5 GPU: RTX 4090 \u2192 4xA100 (prix coutant)\n"
-        f"\U0001f916 31 outils MCP pour agents IA\n\n"
+        f"\U0001f4b1 65 tokens, 4160 paires de trading\n"
+        f"\U0001f5a5 GPU Akash: RTX 4090 \u2192 H100 (15% moins cher que AWS)\n"
+        f"\U0001f916 46 outils MCP pour agents IA\n\n"
         f"\U0001f4b0 Swap: 0.10% \u2192 0.01% | Marketplace: 1% \u2192 0.1% selon volume\n"
         f"\U0001f517 API: maxiaworld.app/api/public/docs"
     )
@@ -106,8 +106,8 @@ async def send_weekly_comparison():
         f"  Robinhood: ~0.5% (spread cache)\n"
         f"  Binance: 0.1%\n\n"
         f"<b>Location GPU</b>\n"
-        f"  MAXIA: prix coutant RunPod (0% marge)\n"
-        f"  RunPod direct: meme prix\n"
+        f"  MAXIA: Akash Network (15% marge, moins cher que cloud)\n"
+        f"  AWS/RunPod: 15-50% plus cher\n"
         f"  AWS: 3-5x plus cher\n\n"
         f"<b>Services IA</b>\n"
         f"  Audit smart contract: $4.99 (vs $5000+ ailleurs)\n"

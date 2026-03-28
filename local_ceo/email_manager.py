@@ -344,6 +344,51 @@ async def process_inbox(llm_fn) -> list:
 
 
 # ══════════════════════════════════════════
+# PROACTIVE OUTREACH — Envoyer des emails aux prospects
+# ══════════════════════════════════════════
+
+def get_today_outbound_count() -> int:
+    """Retourne le nombre d'emails outbound envoyes aujourd'hui."""
+    _reset_daily()
+    return _stats["outbound_today"]
+
+
+async def send_outbound_prospect(to: str, name: str, context: str, llm_fn) -> dict:
+    """Genere et envoie un email de prospection personnalise via LLM local.
+    `context` = ce qu'on sait du prospect (projet, besoin, plateforme)."""
+    _reset_daily()
+    if _stats["outbound_today"] >= MAX_OUTBOUND_DAY:
+        return {"success": False, "error": f"Limite {MAX_OUTBOUND_DAY} outbound/jour atteinte"}
+    if not EMAIL_PASSWORD:
+        return {"success": False, "error": "Email non configure"}
+
+    prompt = (
+        f"You are the CEO of MAXIA (AI-to-AI marketplace on 14 blockchains, USDC payments, "
+        f"65 tokens, GPU rental, MCP tools, escrow). Write a SHORT cold email to {name}.\n"
+        f"Context about them: {context[:500]}\n\n"
+        f"Rules:\n"
+        f"- Subject: max 8 words, personalized to their project\n"
+        f"- Body: max 150 words, explain what MAXIA can do for THEM specifically\n"
+        f"- Include a clear CTA (visit maxiaworld.app, reply to discuss, etc.)\n"
+        f"- Professional, not salesy, developer-friendly tone\n"
+        f"- Sign as 'MAXIA Team'\n"
+        f"Format: first line = subject, rest = body."
+    )
+    reply = await llm_fn(prompt, max_tokens=300)
+    if not reply or len(reply) < 20:
+        return {"success": False, "error": "LLM generated empty email"}
+
+    lines = reply.strip().split("\n", 1)
+    subject = lines[0].replace("Subject:", "").strip().strip('"')
+    body = lines[1].strip() if len(lines) > 1 else reply
+
+    result = await send_outbound(to, subject, body)
+    if result.get("success"):
+        print(f"[Email] Outbound to {to}: {subject[:40]}")
+    return result
+
+
+# ══════════════════════════════════════════
 # STATS
 # ══════════════════════════════════════════
 

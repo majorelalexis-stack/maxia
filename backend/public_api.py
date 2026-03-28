@@ -1858,9 +1858,9 @@ async def marketplace_stats():
         "total_volume_usdc": max(mem_vol, db_stats.get("total_volume_usdc", 0)),
         "total_commission_usdc": max(mem_comm, db_stats.get("total_commission_usdc", 0)),
         "commission_tiers": {
-            "bronze": "5% (0-500 USDC)",
-            "or": "1% (500-5000 USDC)",
-            "baleine": "0.1% (5000+ USDC)",
+            "bronze": "1.5% (0-500 USDC)",
+            "gold": "0.5% (500-5000 USDC)",
+            "whale": "0.1% (5000+ USDC)",
         },
     }
 

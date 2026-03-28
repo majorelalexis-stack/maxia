@@ -78,7 +78,7 @@ Python 3.12 FastAPI monolith (~130 modules, 559 routes). All modules are flat in
 
 **Services:** `auction_manager.py`, `data_marketplace.py`, `sentiment_analyzer.py`, `defi_scanner.py`, `image_gen.py` (Pollinations.ai, gratuit), `web_scraper.py`
 
-**Oracle (5 sources):** `pyth_oracle.py` (Pyth Hermes SSE streaming + HTTP, 11 equity feeds), `price_oracle.py` (CoinGecko + Yahoo + Helius), Finnhub (fallback stocks). Dual-tier staleness: normal (600s stocks / 120s crypto) + HFT mode (5s / 3s). Cache 5s normal / 1s HFT. Circuit breaker, age spread. `/api/oracle/price/live/{symbol}?mode=hft`.
+**Oracle (6 sources):** `pyth_oracle.py` (Pyth Hermes SSE persistent stream + HTTP, 11 equity + 7 crypto feeds), `chainlink_oracle.py` (Chainlink on-chain Base mainnet — ETH/BTC/USDC via eth_call AggregatorV3), `price_oracle.py` (CoinGecko + Yahoo + Helius), Finnhub (fallback stocks). Dual-tier staleness: normal (600s stocks / 120s crypto) + HFT mode (5s / 3s). Cache 5s normal / 1s HFT. Circuit breaker, age spread. Confidence enforcement: Pyth >2% = trade BLOCKED. Price re-verification at execution (max 1% deviation). Cross-verify Chainlink before swap. Auto-refresh fallback prices every 30min. Monitoring: `/oracle/monitoring` (P50/P95/P99 latency). Specs: `/oracle/specs`.
 
 **Enterprise (6 modules):** `enterprise_billing.py` (usage metering + invoices), `enterprise_sso.py` (OIDC Google/Microsoft), `enterprise_metrics.py` (Prometheus /metrics), `audit_trail.py` (compliance + CSV export), `tenant_isolation.py` (multi-tenant), `enterprise_dashboard.py` (fleet analytics), `stripe_billing.py` (Stripe Checkout + webhooks)
 
@@ -104,7 +104,7 @@ Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.j
 ## Key Patterns
 
 - **Feature system**: Originally organized as 15 "Articles" (Art.1 = safety, Art.2 = commissions, Art.3 = oracle, etc.), now expanded to 47+ features including trading tools, analytics, and autonomous agent capabilities.
-- **Commission tiers (Marketplace)**: BRONZE (1%, <$500), GOLD (0.5%, $500-5000), WHALE (0.1%, >$5000). **Swap**: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01% — configured in `config.py` and `crypto_swap.py`
+- **Commission tiers (Marketplace/Escrow)**: BRONZE (1.5%, <$500), GOLD (0.5%, $500-5000), WHALE (0.1%, >$5000). **Swap**: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01% — configured in `config.py` and `crypto_swap.py`
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
 - **AI models**: LLM Router with fallback chain: Groq `llama-3.3-70b-versatile` (rate limited 1req/10s) → Mistral Small → Claude Sonnet. CEO local: Qwen 3 14B (CEO), Qwen 3.5 9B (executor), Qwen 2.5-VL 7B (vision) on 7900XT.
