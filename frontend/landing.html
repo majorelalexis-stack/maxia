@@ -516,34 +516,25 @@ const obs=new IntersectionObserver(e=>e.forEach(el=>{if(el.isIntersecting){el.ta
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
 
 // Ticker + hero price — always live from Pyth oracle
-async function _fetchPrice(sym){
-  try{
-    var r=await fetch('/oracle/price/live/'+sym);
-    if(!r.ok)throw new Error(r.status);
-    var d=await r.json();
-    if(d.price>0)return d.price;
-  }catch(e){}
-  // Fallback: try crypto/prices endpoint
-  try{
-    var r2=await fetch('/api/public/crypto/prices');var d2=await r2.json();
-    var p=d2.prices&&d2.prices[sym];
-    if(p&&p.price>0)return p.price;
-  }catch(e){}
-  return 0;
-}
+function _setTicker(id,txt){var el=document.getElementById(id);if(el)el.textContent=txt;}
 async function updatePrices(){
-  var syms=[{s:'SOL',dec:2},{s:'ETH',dec:2},{s:'BTC',dec:0}];
-  for(var i=0;i<syms.length;i++){
-    var price=await _fetchPrice(syms[i].s);
-    if(price>0){
-      var el=document.getElementById('tk-'+syms[i].s);
-      if(el)el.textContent='$'+price.toFixed(syms[i].dec);
-      if(syms[i].s==='SOL'){var hp=document.getElementById('hs-price');if(hp)hp.textContent='$'+price.toFixed(2);}
+  // Crypto prices — parallel fetch
+  var cryptos=[['SOL',2],['ETH',2],['BTC',0]];
+  var fetches=cryptos.map(function(c){return fetch('/oracle/price/live/'+c[0]).then(function(r){return r.json()}).catch(function(){return null})});
+  try{
+    var results=await Promise.all(fetches);
+    for(var i=0;i<cryptos.length;i++){
+      var d=results[i];
+      if(d&&d.price>0){
+        _setTicker('tk-'+cryptos[i][0],'$'+d.price.toFixed(cryptos[i][1]));
+        if(cryptos[i][0]==='SOL')_setTicker('hs-price','$'+d.price.toFixed(2));
+      }
     }
-  }
+  }catch(e){}
+  // Stock prices
   try{
     var r=await fetch('/api/public/stocks');var d=await r.json();
-    (d.stocks||[]).forEach(function(s){var el=document.getElementById('tk-'+s.symbol);if(el&&s.price_usd>0)el.textContent='$'+s.price_usd.toFixed(2);});
+    (d.stocks||[]).forEach(function(s){if(s.price_usd>0)_setTicker('tk-'+s.symbol,'$'+s.price_usd.toFixed(2));});
   }catch(e){}
 }
 updatePrices();setInterval(updatePrices,5000);

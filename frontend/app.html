@@ -2247,6 +2247,7 @@ async function loadTTOrders() { renderTTOrders(); }
 document.getElementById('chart-token').addEventListener('change', function() {
   setOrderSide(_ttSide);
   loadTTLivePrice();
+  loadChart();
 });
 
 async function loadTTLivePrice() {
