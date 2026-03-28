@@ -70,7 +70,11 @@ h1,h2,h3,h4{font-family:'Syne',sans-serif}
 /* ── Home cards ── */
 .home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px}
 .home-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;cursor:pointer;transition:all .3s;text-align:center}
-.home-card:hover{border-color:rgba(59,130,246,.4);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.home-card:hover{border-color:rgba(0,229,255,.3);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,229,255,.08)}
+#page-home [onclick]{position:relative;overflow:hidden}
+#page-home [onclick]::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#00e5ff,#7c3aed);transform:scaleX(0);transition:transform .3s;transform-origin:left}
+#page-home [onclick]:hover::before{transform:scaleX(1)}
+#page-home [onclick]:hover{border-color:rgba(0,229,255,.2) !important;transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,229,255,.08)}
 .home-card .hc-icon{font-size:36px;margin-bottom:12px}
 .home-card .hc-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
 .home-card .hc-desc{font-size:12px;color:var(--muted);line-height:1.4}
@@ -6588,10 +6592,33 @@ async function reclaimTimeout(escrowId) {
 // Init
 initFromHash();
 loadSwapTokens();
-// Init notification sound button state
 (function() {
   var btn = document.getElementById('notif-sound-btn');
   if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';
+})();
+
+// ═══ HOME — Live prices + greeting + activity ═══
+(function(){
+  var el=document.getElementById('home-time');
+  if(el){var h=new Date().getHours();el.textContent=(h<12?'Good morning':h<18?'Good afternoon':'Good evening')+' — '+new Date().toLocaleString('en-US',{weekday:'long',hour:'2-digit',minute:'2-digit'});}
+})();
+
+async function updateHomePrices(){
+  try{var r=await fetch('/oracle/price/live/SOL?mode=hft');var d=await r.json();var e=document.getElementById('hp-sol');if(e)e.textContent='$'+d.price.toFixed(2);}catch(e){}
+  try{var r=await fetch('/oracle/price/live/ETH?mode=hft');var d=await r.json();var e=document.getElementById('hp-eth');if(e)e.textContent='$'+d.price.toFixed(2);}catch(e){}
+  try{var r=await fetch('/oracle/price/live/BTC?mode=hft');var d=await r.json();var e=document.getElementById('hp-btc');if(e)e.textContent='$'+d.price.toFixed(0);}catch(e){}
+  try{var r=await fetch('/api/public/stocks');var d=await r.json();(d.stocks||[]).forEach(function(s){var e=document.getElementById('hp-'+s.symbol.toLowerCase());if(e&&s.price_usd>0)e.textContent='$'+s.price_usd.toFixed(2);});}catch(e){}
+}
+updateHomePrices();setInterval(updateHomePrices,5000);
+
+(function(){
+  var el=document.getElementById('home-feed');if(!el)return;
+  var msgs=['Platform active — 65 tokens on 14 chains','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
+  var i=0;setInterval(function(){el.textContent=msgs[i%msgs.length];i++;},4000);
+  fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
+    if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');
+    if(d.services_listed>0)msgs.push(d.services_listed+' AI services available');
+  }).catch(function(){});
 })();
 </script>
 
