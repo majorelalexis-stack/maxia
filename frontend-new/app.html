@@ -31,10 +31,8 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 h1,h2,h3{font-family:'Syne',sans-serif}
 ::selection{background:rgba(0,229,255,.2)}
 
-/* ── Sidebar ── */
-.sidebar{position:fixed;top:0;left:0;bottom:0;width:220px;background:rgba(6,10,20,.95);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.04);z-index:1000;display:flex;flex-direction:column;padding:20px 12px;overflow-y:auto}
-.sidebar .nav-logo{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer;padding:8px 12px;margin-bottom:24px;display:block;text-decoration:none}
-.sidebar-section{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1.5px;padding:12px 12px 6px;margin-top:8px}
+/* ── Side menu (hamburger overlay) ── */
+.sidebar{display:none} /* old sidebar hidden */
 .nav-link{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:10px 14px;border-radius:10px;cursor:pointer;transition:all .2s;border:none;background:none;font-family:'DM Sans',sans-serif;width:100%;text-align:left}
 .nav-link:hover{color:var(--text);background:rgba(255,255,255,.04)}
 .nav-link.active{color:var(--cyan);background:rgba(6,182,212,.1);font-weight:600}
@@ -47,24 +45,14 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 .wallet-opt:hover{background:rgba(59,130,246,.1)}
 .form-input{background:var(--bg2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border .2s}
 .form-input:focus{border-color:var(--cyan)}
-/* Mobile: top navbar instead of sidebar */
-.nav-menu-btn{display:none;background:none;border:none;color:var(--text);font-size:24px;cursor:pointer}
+/* Mobile responsive */
 @media(max-width:768px){
-  .sidebar{position:fixed;top:0;left:-260px;width:260px;transition:left .3s;z-index:2000}
-  .sidebar.open{left:0}
-  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1999}
-  .sidebar-overlay.open{display:block}
-  .mobile-header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--bg2);border-bottom:1px solid rgba(255,255,255,.06);position:fixed;top:0;left:0;right:0;z-index:1000}
-  .mobile-header .nav-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-  .nav-menu-btn{display:block}
-  .main{padding-top:60px;padding-left:16px;padding-right:16px;margin-left:0}
-}
-@media(min-width:769px){
-  .mobile-header{display:none}
+  .main{padding-top:64px;padding-left:16px;padding-right:16px}
+  nav .nav-link-inline{display:none !important}
 }
 
-/* ── Main ── */
-.main{margin-left:220px;padding-top:24px;max-width:1000px;padding-left:32px;padding-right:32px;padding-bottom:60px;min-height:100vh;overflow-x:hidden}
+/* ── Main (full-width, no sidebar) ── */
+.main{margin-left:auto;margin-right:auto;padding-top:72px;max-width:1100px;padding-left:24px;padding-right:24px;padding-bottom:60px;min-height:100vh;overflow-x:hidden}
 
 /* ── Home — engaging, alive, sticky ── */
 .home-greeting{margin-bottom:28px}
@@ -360,75 +348,92 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 </head>
 <body>
 
-<!-- ══════════ MOBILE HEADER ══════════ -->
-<div class="mobile-header">
-  <span class="nav-logo">MAXIA</span>
-  <button class="nav-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('open')">&#9776;</button>
-</div>
-<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('open')"></div>
-
-<!-- ══════════ SIDEBAR ══════════ -->
-<nav class="sidebar">
-  <a href="/" class="nav-logo">MAXIA</a>
-
-  <button class="nav-link active" onclick="showPage('home',this)"><span class="icon">&#127968;</span> Home</button>
-
-  <div class="sidebar-section">Trade</div>
-  <button class="nav-link" onclick="showPage('swap',this)"><span class="icon">&#128260;</span> Swap</button>
-  <button class="nav-link" onclick="showPage('stocks',this)"><span class="icon">&#128200;</span> Stocks</button>
-  <button class="nav-link" onclick="showPage('escrow',this)"><span class="icon">&#128274;</span> Escrow</button>
-  <button class="nav-link" onclick="showPage('bridge',this)"><span class="icon">&#128279;</span> Bridge</button>
-  <button class="nav-link" onclick="showPage('portfolio',this)"><span class="icon">&#128176;</span> Portfolio</button>
-
-  <div class="sidebar-section">Earn</div>
-  <button class="nav-link" onclick="showPage('yields',this)"><span class="icon">&#127793;</span> DeFi Yields</button>
-  <button class="nav-link" onclick="showPage('gpu',this)"><span class="icon">&#9889;</span> GPU Rental</button>
-
-  <div class="sidebar-section">Build</div>
-  <button class="nav-link" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT</button>
-  <button class="nav-link" onclick="showPage('agentid',this)"><span class="icon">&#129302;</span> Agent ID</button>
-  <button class="nav-link" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</button>
-
-  <div class="sidebar-section">Manage</div>
-  <button class="nav-link" onclick="showPage('enterprise',this)"><span class="icon">&#127970;</span> Enterprise</button>
-
-  <div class="sidebar-section">Community</div>
-  <a class="nav-link" href="/forum" target="_blank" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a>
-  <button class="nav-link" onclick="toggleChat()" style="color:var(--cyan)"><span class="icon">&#129302;</span> AI Chat</button>
-
-  <div class="sidebar-bottom">
-    <!-- Multi-wallet display -->
+<!-- ══════════ OVERLAY + SIDE MENU (hamburger) ══════════ -->
+<div id="app-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s" onclick="toggleAppMenu()"></div>
+<div id="app-side-menu" style="position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column">
+  <div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center">
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <button onclick="toggleAppMenu()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px">&times;</button>
+  </div>
+  <div style="padding:16px 20px;flex:1;overflow-y:auto">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:4px 0 8px 8px">Trade</div>
+    <button class="nav-link active" onclick="showPage('home',this);toggleAppMenu()"><span class="icon">&#127968;</span> Home</button>
+    <button class="nav-link" onclick="showPage('swap',this);toggleAppMenu()"><span class="icon">&#9889;</span> Swap</button>
+    <button class="nav-link" onclick="showPage('stocks',this);toggleAppMenu()"><span class="icon">&#128200;</span> Stocks</button>
+    <button class="nav-link" onclick="showPage('trading',this);toggleAppMenu()"><span class="icon">&#128202;</span> Trading</button>
+    <button class="nav-link" onclick="showPage('escrow',this);toggleAppMenu()"><span class="icon">&#128274;</span> Escrow</button>
+    <button class="nav-link" onclick="showPage('bridge',this);toggleAppMenu()"><span class="icon">&#128279;</span> Bridge</button>
+    <button class="nav-link" onclick="showPage('portfolio',this);toggleAppMenu()"><span class="icon">&#128176;</span> Portfolio</button>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Earn</div>
+    <button class="nav-link" onclick="showPage('yields',this);toggleAppMenu()"><span class="icon">&#127793;</span> DeFi Yields</button>
+    <button class="nav-link" onclick="showPage('gpu',this);toggleAppMenu()"><span class="icon">&#128421;</span> GPU Cloud</button>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Build</div>
+    <button class="nav-link" onclick="showPage('nfts',this);toggleAppMenu()"><span class="icon">&#127912;</span> NFT</button>
+    <button class="nav-link" onclick="showPage('agentid',this);toggleAppMenu()"><span class="icon">&#129302;</span> Agent ID</button>
+    <button class="nav-link" onclick="showPage('enterprise',this);toggleAppMenu()"><span class="icon">&#127970;</span> Enterprise</button>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Community</div>
+    <a class="nav-link" href="https://maxiaworld.app/forum" target="_blank" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a>
+    <button class="nav-link" onclick="toggleChat();toggleAppMenu()" style="color:var(--cyan)"><span class="icon">&#129302;</span> AI Chat</button>
+  </div>
+  <div style="padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)">
     <div id="wallet-display" style="margin-bottom:8px">
-      <div id="sol-wallet" style="display:none;padding:6px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('solana')">
-        <div><span style="color:var(--purple);font-weight:600">SOL</span> <span id="sol-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
-        <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
+      <div id="sol-wallet" style="display:none;padding:6px 10px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:8px;margin-bottom:4px;font-size:12px;cursor:pointer" onclick="disconnectWallet('solana')">
+        <span style="color:var(--purple);font-weight:600">SOL</span> <span id="sol-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span>
       </div>
-      <div id="evm-wallet" style="display:none;padding:6px 10px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('evm')">
-        <div><span style="color:var(--cyan);font-weight:600">EVM</span> <span id="evm-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
-        <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
+      <div id="evm-wallet" style="display:none;padding:6px 10px;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);border-radius:8px;margin-bottom:4px;font-size:12px;cursor:pointer" onclick="disconnectWallet('evm')">
+        <span style="color:var(--cyan);font-weight:600">EVM</span> <span id="evm-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span>
       </div>
     </div>
     <div style="position:relative">
       <button class="btn-connect" id="btn-wallet" onclick="toggleWalletMenu()">Connect Wallet</button>
-      <div id="wallet-menu" style="display:none;position:absolute;left:0;bottom:50px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:200px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.5)">
-        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div>
+      <div id="wallet-menu" style="display:none;position:absolute;left:0;bottom:50px;background:rgba(12,18,34,.98);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:260px;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px">Solana</div>
         <button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button>
         <button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button>
         <button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button>
-        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div>
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div>
         <button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button>
         <button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button>
         <button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase Wallet</button>
         <button class="wallet-opt" onclick="connectSpecific('walletconnect')">&#128279; WalletConnect</button>
-        <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div>
+        <div style="padding:8px 12px;font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div>
         <button class="wallet-opt" onclick="connectSpecific('petra')">&#127800; Petra (Aptos)</button>
         <button class="wallet-opt" onclick="connectSpecific('sui')">&#128167; SUI Wallet</button>
       </div>
     </div>
   </div>
+</div>
+
+<!-- ══════════ TOP NAV BAR ══════════ -->
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)">
+  <div style="display:flex;align-items:center;gap:12px">
+    <button onclick="toggleAppMenu()" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;transition:all .2s" id="app-burger">
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+    </button>
+    <a href="/" style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none">MAXIA</a>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button onclick="showPage('swap')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px;transition:all .2s;font-family:'DM Sans',sans-serif" onmouseenter="this.style.color='var(--text)';this.style.background='rgba(255,255,255,.04)'" onmouseleave="this.style.color='var(--muted)';this.style.background='none'">Swap</button>
+    <button onclick="showPage('stocks')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px;transition:all .2s;font-family:'DM Sans',sans-serif" onmouseenter="this.style.color='var(--text)';this.style.background='rgba(255,255,255,.04)'" onmouseleave="this.style.color='var(--muted)';this.style.background='none'">Stocks</button>
+    <button onclick="showPage('trading')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px;transition:all .2s;font-family:'DM Sans',sans-serif" onmouseenter="this.style.color='var(--text)';this.style.background='rgba(255,255,255,.04)'" onmouseleave="this.style.color='var(--muted)';this.style.background='none'">Trading</button>
+    <a href="https://maxiaworld.app/forum" target="_blank" style="color:var(--muted);font-size:13px;padding:6px 12px;border-radius:8px;transition:all .2s;text-decoration:none" onmouseenter="this.style.color='var(--text)';this.style.background='rgba(255,255,255,.04)'" onmouseleave="this.style.color='var(--muted)';this.style.background='none'">Forum</a>
+    <button class="btn-connect" id="btn-wallet-top" onclick="toggleWalletMenu()" style="padding:8px 20px;font-size:13px;border-radius:10px">Connect Wallet</button>
+  </div>
 </nav>
 
-<!-- ══════════ MAIN ══════════ -->
+<script>
+function toggleAppMenu(){
+  var m=document.getElementById('app-side-menu'),o=document.getElementById('app-overlay');
+  var open=m.style.left==='0px';
+  m.style.left=open?'-320px':'0px';
+  o.style.opacity=open?'0':'1';
+  o.style.pointerEvents=open?'none':'auto';
+}
+</script>
+
+<!-- ══════════ MAIN (full-width, no sidebar) ══════════ -->
 <div class="main">
 
 <!-- Notification bell (top-right) -->
