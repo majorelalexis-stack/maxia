@@ -4678,8 +4678,16 @@ function renderStockDetail(symbol) {
       '<div style="font-size:14px;font-weight:600;color:' + changeColor + '">' + changeStr + ' today</div>' +
     '</div>' +
 
-    // Mini chart placeholder
-    '<div id="stk-mini-chart" style="width:100%;height:120px;background:var(--bg);border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">Loading chart...</div>' +
+    // Chart with timeframe selector + live WebSocket
+    '<div style="margin-bottom:8px;display:flex;gap:4px">' +
+      '<button class="btn-outline stk-tf active" onclick="setStkChartTF(1,this)" style="padding:3px 6px;font-size:10px;color:#10b981;border-color:#10b981">1S</button>' +
+      '<button class="btn-outline stk-tf" onclick="setStkChartTF(5,this)" style="padding:3px 6px;font-size:10px;color:#10b981;border-color:#10b981">5S</button>' +
+      '<button class="btn-outline stk-tf" onclick="setStkChartTF(60,this)" style="padding:3px 6px;font-size:10px">1M</button>' +
+      '<button class="btn-outline stk-tf" onclick="setStkChartTF(3600,this)" style="padding:3px 6px;font-size:10px">1H</button>' +
+      '<button class="btn-outline stk-tf" onclick="setStkChartTF(86400,this)" style="padding:3px 6px;font-size:10px">1D</button>' +
+      '<span id="stk-chart-status" style="margin-left:auto;font-size:10px;color:var(--muted)"></span>' +
+    '</div>' +
+    '<div id="stk-mini-chart" style="width:100%;height:250px;background:var(--bg);border-radius:8px;margin-bottom:16px"></div>' +
 
     // Info row
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:12px">' +
@@ -4746,50 +4754,96 @@ function updateStkSummary(symbol) {
     '<div style="display:flex;justify-content:space-between"><span style="font-weight:600">You receive</span><span style="font-family:\'JetBrains Mono\',monospace;font-weight:600">' + shares.toFixed(4) + ' ' + esc(cat.xstock||symbol) + '</span></div>';
 }
 
+var _stkChart = null;
+var _stkSeries = null;
+var _stkWS = null;
+var _stkSymbol = '';
+var _stkInterval = 1;
+
+function setStkChartTF(interval_s, btn) {
+  _stkInterval = interval_s;
+  document.querySelectorAll('.stk-tf').forEach(function(b) { b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  if (_stkSymbol) loadStockMiniChart(_stkSymbol);
+}
+
 async function loadStockMiniChart(symbol) {
   var container = document.getElementById('stk-mini-chart');
+  var statusEl = document.getElementById('stk-chart-status');
   if (!container || typeof LightweightCharts === 'undefined') return;
   container.innerHTML = '';
+  _stkSymbol = symbol;
 
-  var cached = _stockPriceCache[symbol] || {};
-  var currentPrice = cached.price || 0;
-  var change = cached.change || 0;
-  if (currentPrice <= 0) { container.innerHTML = '<span style="color:var(--muted);font-size:11px">No price data</span>'; return; }
+  // Pyth SSE tokens — live chart possible
+  var stkLiveTokens = ['SOL', 'ETH', 'BTC', 'USDC'];
+  // Map stock symbols to crypto (AAPL has no SSE — use REST)
+  var baseSymbol = symbol.replace(/X$/, ''); // AAPLX -> AAPL
 
-  // Try API candles first, fallback to synthetic sparkline from current price + 24h change
-  var chartData = [];
-  try {
-    var data = await api('/api/public/trading/candles?symbol=' + symbol + '&interval=1d&limit=30');
-    var candles = data.candles || data || [];
-    if (Array.isArray(candles) && candles.length >= 5) {
-      chartData = candles.map(function(c){return{time:c.timestamp||c.time,value:c.close};});
+  // Create candlestick chart
+  if (_stkChart) { _stkChart.remove(); _stkChart = null; }
+  var isSecond = _stkInterval <= 60;
+  _stkChart = LightweightCharts.createChart(container, {
+    width: container.clientWidth, height: 250,
+    layout: {background:{color:'#0a0e17'},textColor:'#94a3b8',fontSize:10},
+    grid: {vertLines:{color:'rgba(255,255,255,.03)'},horzLines:{color:'rgba(255,255,255,.03)'}},
+    timeScale: {timeVisible:true, secondsVisible:isSecond, borderColor:'rgba(255,255,255,.06)'},
+    rightPriceScale:{borderColor:'rgba(255,255,255,.06)'},
+    crosshair:{mode:0},
+  });
+  _stkSeries = _stkChart.addCandlestickSeries({
+    upColor:'#10b981', downColor:'#ef4444', borderUpColor:'#10b981', borderDownColor:'#ef4444',
+    wickUpColor:'#10b981', wickDownColor:'#ef4444',
+  });
+  window.addEventListener('resize', function() { if (_stkChart) _stkChart.applyOptions({width:container.clientWidth}); });
+
+  // For Pyth-streamed tokens (SOL, ETH, BTC, USDC) — live WebSocket
+  if (stkLiveTokens.indexOf(baseSymbol) >= 0) {
+    if (_stkWS) { _stkWS.close(); _stkWS = null; }
+    // Load history for longer timeframes
+    if (_stkInterval >= 3600) {
+      try {
+        var tfMap = {3600:'1h',21600:'6h',86400:'1d'};
+        var r = await api('/api/trading/candles/' + baseSymbol + '?interval=' + (tfMap[_stkInterval]||'1h') + '&limit=48');
+        if (r && r.candles && r.candles.length > 0) {
+          _stkSeries.setData(r.candles.map(function(c){return{time:c.timestamp,open:c.open,high:c.high,low:c.low,close:c.close};}));
+        }
+      } catch(e) {}
     }
-  } catch(e) {}
-
-  // No historical data available — show message instead of fake chart
-  if (chartData.length < 5) {
-    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px">Live price only — historical chart coming soon</div>';
-    return;
-  }
-
-  try {
-    var miniChart = LightweightCharts.createChart(container, {
-      width: container.clientWidth, height: 120,
-      layout: {background:{color:'transparent'},textColor:'#94a3b8',fontSize:10},
-      grid: {vertLines:{visible:false},horzLines:{color:'rgba(255,255,255,.03)'}},
-      rightPriceScale:{borderVisible:false},timeScale:{borderVisible:false,timeVisible:false},
-      crosshair:{mode:0},handleScroll:false,handleScale:false,
-    });
-    var isUp = change >= 0;
-    var series = miniChart.addAreaSeries({
-      lineColor: isUp ? '#10B981' : '#EF4444',
-      topColor: isUp ? 'rgba(16,185,129,.15)' : 'rgba(239,68,68,.15)',
-      bottomColor: 'transparent', lineWidth: 2,
-    });
-    series.setData(chartData);
-    miniChart.timeScale().fitContent();
-  } catch(e) {
-    container.innerHTML = '<span style="color:var(--muted);font-size:11px">Chart error</span>';
+    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    _stkWS = new WebSocket(proto + '//' + location.host + '/ws/chart');
+    _stkWS.onopen = function() {
+      _stkWS.send(JSON.stringify({symbol: baseSymbol, interval: _stkInterval}));
+      if (statusEl) statusEl.innerHTML = '<span style="color:#10b981">LIVE</span>';
+    };
+    _stkWS.onmessage = function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.type === 'history' && msg.candles && _stkSeries) {
+          _stkSeries.setData(msg.candles);
+          _stkChart.timeScale().fitContent();
+        } else if ((msg.type === 'candle_update' || msg.type === 'candle_complete') && _stkSeries) {
+          _stkSeries.update({time:msg.time, open:msg.open, high:msg.high, low:msg.low, close:msg.close});
+          if (msg.type === 'candle_update') _stkChart.timeScale().scrollToRealTime();
+        }
+      } catch(err) {}
+    };
+    _stkWS.onclose = function() { if (statusEl) statusEl.innerHTML = '<span style="color:var(--muted)">Offline</span>'; };
+  } else {
+    // Stock sans SSE — REST only
+    if (_stkWS) { _stkWS.close(); _stkWS = null; }
+    var tfMap2 = {1:'1m',5:'1m',60:'1m',3600:'1h',21600:'1d',86400:'1d'};
+    try {
+      var r = await api('/api/trading/candles/' + baseSymbol + '?interval=' + (tfMap2[_stkInterval]||'1h') + '&limit=60');
+      if (r && r.candles && r.candles.length > 0) {
+        _stkSeries.setData(r.candles.map(function(c){return{time:c.timestamp,open:c.open,high:c.high,low:c.low,close:c.close};}));
+        _stkChart.timeScale().fitContent();
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--muted)">Historical</span>';
+      } else {
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--muted)">No data</span>';
+      }
+    } catch(e) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Error</span>';
+    }
   }
 }
 
