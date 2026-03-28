@@ -3649,6 +3649,44 @@ async def ws_prices(websocket: WebSocket):
     finally:
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
 
+@app.websocket("/ws/chart")
+async def ws_chart(websocket: WebSocket):
+    """WebSocket: real-time OHLCV candles from Pyth SSE stream.
+    Push candle updates every tick (<1s). Supports 1s, 5s, 1m intervals.
+
+    Send after connect: {"symbol": "SOL", "interval": 1}  (interval in seconds)
+    Receives: {"type": "candle_update", "symbol": "SOL", "interval": 1, "time": ..., "open": ..., "high": ..., "low": ..., "close": ...}
+    """
+    await websocket.accept()
+    try:
+        params = await _ws_receive_json_timeout(websocket, timeout=5.0)
+        symbol = params.get("symbol", "SOL").upper()[:20]
+        interval = int(params.get("interval", 1))
+        if interval not in (1, 5, 60):
+            interval = 1
+
+        from pyth_oracle import _candle_subscribers, get_recent_candles
+
+        # Envoyer l'historique recent
+        history = get_recent_candles(symbol, interval, limit=300)
+        if history:
+            await websocket.send_json({"type": "history", "symbol": symbol, "interval": interval, "candles": history})
+
+        # Souscrire aux updates live
+        q: asyncio.Queue = asyncio.Queue(maxsize=200)
+        _candle_subscribers.append(q)
+        try:
+            while True:
+                msg = await q.get()
+                if msg.get("symbol") == symbol and msg.get("interval") == interval:
+                    await websocket.send_json(msg)
+        finally:
+            _candle_subscribers.remove(q)
+    except Exception as e:
+        if "disconnect" not in str(e).lower():
+            print(f"[WS/chart] Error: {e}")
+
+
 @app.websocket("/ws/candles")
 async def ws_candles(websocket: WebSocket):
     """WebSocket: real-time candle updates every 60 seconds."""

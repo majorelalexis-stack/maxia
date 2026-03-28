@@ -105,6 +105,107 @@ def check_twap_deviation(symbol: str, spot_price: float) -> dict:
         "deviation_pct": round(deviation, 2),
     }
 
+
+# ── CandleBuilder — agrege les ticks SSE en candles OHLCV temps reel ──
+class CandleBuilder:
+    """Agrege des price ticks en candles OHLCV de duree arbitraire (1s, 5s, 1m...)."""
+
+    def __init__(self, interval_s: int):
+        self.interval_s = interval_s
+        self._bucket = 0
+        self._o = self._h = self._l = self._c = 0.0
+        self._ticks = 0
+
+    def tick(self, price: float, ts: float = 0) -> dict | None:
+        """Traite un tick. Retourne la candle completee si le bucket change, sinon None."""
+        if price <= 0:
+            return None
+        t = ts or time.time()
+        bucket = int(t // self.interval_s) * self.interval_s
+        completed = None
+        if bucket != self._bucket and self._ticks > 0:
+            completed = {"time": self._bucket, "open": self._o, "high": self._h,
+                         "low": self._l, "close": self._c}
+            self._ticks = 0
+        if self._ticks == 0:
+            self._bucket = bucket
+            self._o = self._h = self._l = self._c = price
+            self._ticks = 1
+        else:
+            self._c = price
+            self._h = max(self._h, price)
+            self._l = min(self._l, price)
+            self._ticks += 1
+        return completed
+
+    def current(self) -> dict | None:
+        if self._ticks == 0:
+            return None
+        return {"time": self._bucket, "open": self._o, "high": self._h,
+                "low": self._l, "close": self._c}
+
+
+# Builders par symbol + intervalle — alimentes par le stream SSE
+_candle_builders: dict[str, dict[int, CandleBuilder]] = {}  # {symbol: {interval_s: builder}}
+_LIVE_INTERVALS = [1, 5, 60]  # 1s, 5s, 1m
+
+# Subscribers pour les candles live (WebSocket /ws/chart)
+_candle_subscribers: list[asyncio.Queue] = []
+
+
+def _process_candle_tick(symbol: str, price: float, ts: float):
+    """Appele a chaque tick SSE — met a jour les CandleBuilders et notifie les subscribers."""
+    if not symbol or price <= 0:
+        return
+    if symbol not in _candle_builders:
+        _candle_builders[symbol] = {iv: CandleBuilder(iv) for iv in _LIVE_INTERVALS}
+
+    for iv, builder in _candle_builders[symbol].items():
+        completed = builder.tick(price, ts)
+        current = builder.current()
+        # Push aux subscribers : candle en cours (pour update live) + completee (pour historique)
+        if current:
+            msg = {"type": "candle_update", "symbol": symbol, "interval": iv, **current}
+            for q in list(_candle_subscribers):
+                try:
+                    q.put_nowait(msg)
+                except asyncio.QueueFull:
+                    pass
+        if completed:
+            msg = {"type": "candle_complete", "symbol": symbol, "interval": iv, **completed}
+            for q in list(_candle_subscribers):
+                try:
+                    q.put_nowait(msg)
+                except asyncio.QueueFull:
+                    pass
+
+
+def get_recent_candles(symbol: str, interval_s: int = 1, limit: int = 300) -> list:
+    """Retourne les candles recentes depuis le TWAP data (pour charger l'historique initial)."""
+    points = _twap_data.get(symbol, [])
+    if not points or interval_s < 1:
+        return []
+    # Construire les candles depuis les datapoints TWAP
+    candles = []
+    current_bucket = 0
+    o = h = l = c = 0.0
+    for ts, price in points:
+        bucket = int(ts // interval_s) * interval_s
+        if bucket != current_bucket and current_bucket > 0:
+            candles.append({"time": current_bucket, "open": o, "high": h, "low": l, "close": c})
+            o = h = l = c = price
+            current_bucket = bucket
+        elif current_bucket == 0:
+            current_bucket = bucket
+            o = h = l = c = price
+        else:
+            c = price
+            h = max(h, price)
+            l = min(l, price)
+    if current_bucket > 0:
+        candles.append({"time": current_bucket, "open": o, "high": h, "low": l, "close": c})
+    return candles[-limit:]
+
 # ── Oracle monitoring (uptime, latency, freshness) ──
 _oracle_metrics = {
     "total_requests": 0,
@@ -1269,6 +1370,10 @@ async def _process_sse_event(event_str: str, feed_to_symbol: dict):
                     # P5: stream metrics + heartbeat
                     _oracle_metrics["stream_events"] += 1
                     _oracle_metrics["last_stream_event_ts"] = now
+
+                    # CandleBuilder — agreger les ticks en candles 1s/5s/1m
+                    if symbol:
+                        _process_candle_tick(symbol, price, now)
 
                     # Push aux subscribers WebSocket
                     for q in list(_sse_subscribers):

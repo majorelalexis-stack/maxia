@@ -922,7 +922,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 </div>
 
 <!-- ─── PAGE: TRADING TERMINAL ─── -->
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
 <div class="page" id="page-trading">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <div>
@@ -958,7 +958,10 @@ select.input-field option{background:var(--bg2);color:var(--text)}
           <span id="tt-price-change" style="font-size:13px;font-weight:600">—</span>
         </div>
         <div style="display:flex;gap:4px">
-          <button class="btn-outline chart-tf active" onclick="setChartTF('1h',this)" style="padding:4px 8px;font-size:11px">1H</button>
+          <button class="btn-outline chart-tf active" onclick="setChartTF('1s',this)" style="padding:4px 8px;font-size:11px;color:#10b981;border-color:#10b981">1S</button>
+          <button class="btn-outline chart-tf" onclick="setChartTF('5s',this)" style="padding:4px 8px;font-size:11px;color:#10b981;border-color:#10b981">5S</button>
+          <button class="btn-outline chart-tf" onclick="setChartTF('1m',this)" style="padding:4px 8px;font-size:11px">1M</button>
+          <button class="btn-outline chart-tf" onclick="setChartTF('1h',this)" style="padding:4px 8px;font-size:11px">1H</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('6h',this)" style="padding:4px 8px;font-size:11px">6H</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('1d',this)" style="padding:4px 8px;font-size:11px">1D</button>
           <button class="btn-outline chart-tf" onclick="setChartTF('1w',this)" style="padding:4px 8px;font-size:11px">1W</button>
@@ -2182,11 +2185,13 @@ async function loadTTLivePrice() {
 // Update amount estimate on input
 document.getElementById('tt-amount').addEventListener('input', updateTTEstimate);
 
-// Lightweight Charts — price chart with candlesticks
+// Lightweight Charts v5 — price chart with candlesticks + real-time WebSocket
 var _chart = null;
 var _candleSeries = null;
-var _chartTF = '1h';
-var _chartLimits = {'1h': 48, '6h': 48, '1d': 90, '1w': 52};
+var _chartTF = '1s';
+var _chartWS = null;  // WebSocket pour candles live
+var _chartLimits = {'1s': 300, '5s': 300, '1m': 120, '1h': 48, '6h': 48, '1d': 90, '1w': 52};
+var _liveIntervals = {'1s': 1, '5s': 5, '1m': 60};  // Intervalles live (WebSocket)
 
 function setChartTF(tf, btn) {
   _chartTF = tf;
@@ -2195,52 +2200,95 @@ function setChartTF(tf, btn) {
   loadChart();
 }
 
+function _createChart(container) {
+  if (_chart) { _chart.remove(); _chart = null; _candleSeries = null; }
+  var isLive = _chartTF in _liveIntervals;
+  _chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth, height: 350,
+    layout: { background: { color: '#0a0e17' }, textColor: '#94a3b8' },
+    grid: { vertLines: { color: 'rgba(255,255,255,.03)' }, horzLines: { color: 'rgba(255,255,255,.03)' } },
+    crosshair: { mode: 0 },
+    timeScale: { timeVisible: true, secondsVisible: isLive, borderColor: 'rgba(255,255,255,.06)', rightOffset: isLive ? 5 : 2 },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,.06)' },
+  });
+  _candleSeries = _chart.addCandlestickSeries({
+    upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444',
+    wickUpColor: '#10b981', wickDownColor: '#ef4444',
+  });
+  window.addEventListener('resize', function() { if (_chart) _chart.applyOptions({ width: container.clientWidth }); });
+}
+
+function _connectChartWS(symbol, interval_s) {
+  if (_chartWS) { _chartWS.close(); _chartWS = null; }
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _chartWS = new WebSocket(proto + '//' + location.host + '/ws/chart');
+  _chartWS.onopen = function() {
+    _chartWS.send(JSON.stringify({ symbol: symbol, interval: interval_s }));
+    var badge = document.getElementById('tt-stream-badge');
+    if (badge) { badge.textContent = 'LIVE ' + (interval_s < 60 ? interval_s + 's' : '1m'); badge.className = 'badge badge-green'; }
+  };
+  _chartWS.onmessage = function(e) {
+    try {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'history' && msg.candles && _candleSeries) {
+        _candleSeries.setData(msg.candles);
+        _chart.timeScale().fitContent();
+      } else if ((msg.type === 'candle_update' || msg.type === 'candle_complete') && _candleSeries) {
+        _candleSeries.update({ time: msg.time, open: msg.open, high: msg.high, low: msg.low, close: msg.close });
+        if (msg.type === 'candle_update') { _chart.timeScale().scrollToRealTime(); }
+      }
+    } catch(err) {}
+  };
+  _chartWS.onclose = function() {
+    var badge = document.getElementById('tt-stream-badge');
+    if (badge) { badge.textContent = 'Offline'; badge.className = 'badge'; }
+    setTimeout(function() { if (_chartTF in _liveIntervals) _connectChartWS(symbol, interval_s); }, 3000);
+  };
+}
+
 async function loadChart() {
   var token = (document.getElementById('chart-token').value||'SOL').trim().toUpperCase();
   var container = document.getElementById('chart-container');
   var signalEl = document.getElementById('chart-signal');
 
-  // Create chart if not exists
-  if (!_chart && typeof LightweightCharts !== 'undefined') {
-    _chart = LightweightCharts.createChart(container, {
-      width: container.clientWidth, height: 350,
-      layout: { background: { color: '#0a0e17' }, textColor: '#94a3b8' },
-      grid: { vertLines: { color: 'rgba(255,255,255,.03)' }, horzLines: { color: 'rgba(255,255,255,.03)' } },
-      crosshair: { mode: 0 },
-      timeScale: { timeVisible: true, borderColor: 'rgba(255,255,255,.06)' },
-      rightPriceScale: { borderColor: 'rgba(255,255,255,.06)' },
-    });
-    _candleSeries = _chart.addCandlestickSeries({
-      upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444',
-      wickUpColor: '#10b981', wickDownColor: '#ef4444',
-    });
-    window.addEventListener('resize', function() { if (_chart) _chart.applyOptions({ width: container.clientWidth }); });
+  _createChart(container);
+
+  var isLive = _chartTF in _liveIntervals;
+
+  if (isLive) {
+    // Mode live : WebSocket /ws/chart avec candles seconde par seconde
+    signalEl.innerHTML = '<span style="color:#10b981">Connecting live stream ' + esc(token) + ' (' + _chartTF + ')...</span>';
+    _connectChartWS(token, _liveIntervals[_chartTF]);
+    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + _chartTF.toUpperCase() + ' candles — Pyth SSE &lt;1s</span>';
+  } else {
+    // Mode historique : REST API
+    if (_chartWS) { _chartWS.close(); _chartWS = null; }
+    signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + ' chart...</span>';
+    try {
+      var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
+      var candles = (r && r.candles) || [];
+      if (candles.length > 0 && _candleSeries) {
+        var data = candles.map(function(c) {
+          return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close };
+        });
+        _candleSeries.setData(data);
+        _chart.timeScale().fitContent();
+        var srcBadge = r.source === 'dexpaprika' ? '<span style="color:var(--green);font-size:11px;margin-left:8px">DEX Live</span>' : '<span style="color:var(--muted);font-size:11px;margin-left:8px">Cached</span>';
+        signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + _chartTF + ')' + srcBadge + '</span>';
+      }
+    } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   }
 
-  // Fetch candle data
-  signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + ' chart...</span>';
+  // Signal (toujours)
   try {
-    var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
-    var candles = (r && r.candles) || [];
-    if (candles.length > 0 && _candleSeries) {
-      var data = candles.map(function(c) {
-        return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close };
-      });
-      _candleSeries.setData(data);
-      _chart.timeScale().fitContent();
-      var srcBadge = r.source === 'dexpaprika' ? '<span style="color:var(--green);font-size:11px;margin-left:8px">DEX Live Data</span>' : '<span style="color:var(--muted);font-size:11px;margin-left:8px">CoinGecko fallback</span>';
-      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + _chartTF + ')' + srcBadge + '</span>';
-    }
-
-    // Also load signal
     var sig = await api('/api/trading/signals/' + token);
-    if (sig && sig.signal) {
+    if (sig && sig.signal && !isLive) {
       var sigColor = (sig.signal||'').indexOf('BUY') >= 0 ? '#10b981' : (sig.signal||'').indexOf('SELL') >= 0 ? '#ef4444' : '#f59e0b';
       signalEl.innerHTML = '<span style="font-weight:700;color:' + sigColor + '">' + esc(sig.signal) + '</span>'
-        + ' <span style="color:var(--muted)">| RSI ' + (sig.rsi||0).toFixed(1) + ' | MACD ' + (typeof sig.macd==='object'?(sig.macd.histogram||0):(sig.macd||0)).toFixed(4) + ' | ' + (sig.data_points||0) + ' data points (' + (sig.source||'') + ')</span>'
+        + ' <span style="color:var(--muted)">| RSI ' + (sig.rsi||0).toFixed(1) + ' | MACD ' + (typeof sig.macd==='object'?(sig.macd.histogram||0):(sig.macd||0)).toFixed(4) + '</span>'
         + ' <button onclick="goSwap(\'' + esc(token) + '\')" style="margin-left:12px;padding:4px 14px;background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer">Swap ' + esc(token) + '</button>';
     }
-  } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error loading chart: ' + esc(e.message) + '</span>'; }
+  } catch(e) {}
 }
 
 // Token Risk Check
