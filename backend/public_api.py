@@ -11,6 +11,8 @@ Securite Art.1 : filtrage anti-abus sur TOUS les contenus
 """
 import logging
 import uuid, time, hashlib, secrets, asyncio, json, datetime, re
+
+logger = logging.getLogger(__name__)
 from error_utils import safe_error
 from fastapi import APIRouter, HTTPException, Header, Request
 from config import (
@@ -134,9 +136,9 @@ async def _load_from_db():
                 _agent_services.append(sd)
                 existing_ids.add(sd["id"])
         if agents or services:
-            print(f"[PublicAPI] Loaded from DB: {len(agents)} agents, {len(services)} services")
+            logger.info("Loaded from DB: %s agents, %s services", len(agents), len(services))
     except Exception as e:
-        print(f"[PublicAPI] DB load error: {e}")
+        logger.error("DB load error: %s", e)
 
 # ── Groq client ──
 groq_client = None
@@ -441,7 +443,7 @@ async def register_agent(req: dict, request: Request):
         from database import db
         await db.save_agent(agent)
     except Exception as e:
-        print(f"[PublicAPI] DB save agent error: {e}")
+        logger.error("DB save agent error: %s", e)
 
     # Gamification — points for registration
     try:
@@ -478,11 +480,11 @@ async def register_agent(req: dict, request: Request):
                                  "referrer_code": referral_code, "referee_api_key": api_key,
                                  "referee_wallet": wallet, "referee_name": name,
                                  "registeredAt": int(time.time()), "earnedUsdc": 0})))
-                print(f"[PublicAPI] Referral: {name} referred by {referral_code} (agent {referrer_api_key[:14]}...)")
+                logger.info("Referral: %s referred by %s (agent %s...)", name, referral_code, referrer_api_key[:14])
             else:
-                print(f"[PublicAPI] Referral code {referral_code} not found — ignored")
+                logger.info("Referral code %s not found — ignored", referral_code)
         except Exception as e:
-            print(f"[PublicAPI] Referral error: {e}")
+            logger.error("Referral error: %s", e)
 
     # Alerte Discord
     try:
@@ -491,7 +493,7 @@ async def register_agent(req: dict, request: Request):
     except Exception:
         pass
 
-    print(f"[PublicAPI] Nouvel agent inscrit: {name} ({wallet[:8]}...)")
+    logger.info("Nouvel agent inscrit: %s (%s...)", name, wallet[:8])
 
     # Alerte Telegram
     try:
@@ -537,7 +539,7 @@ async def register_agent(req: dict, request: Request):
                             if test["variants"][vk]["impressions"] > 0:
                                 ceo.memory.record_ab_conversion(test_name, vk)
                                 break
-                print(f"[ROI] Signup {name} attributed to {entry['type']} action {entry['action_id']}")
+                logger.info("Signup %s attributed to %s action %s", name, entry["type"], entry["action_id"])
                 break
     except Exception:
         pass
@@ -853,7 +855,7 @@ async def sandbox_buy_stock(req: dict, x_api_key: str = Header(None, alias="X-AP
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[Sandbox] Stock price error for {symbol}: {e}")
+        logger.error("Stock price error for %s: %s", symbol, e)
         price = 100  # last resort fallback
 
     shares = round(amount_usdc / price, 6)
@@ -1157,10 +1159,10 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[PublicAPI] Payment verification error in /buy: {e}")
+        logger.error("Payment verification error in /buy: %s", e)
         raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
 
-    print(f"[Marketplace] /buy payment verified: {payment_tx[:16]}... ({price} USDC from {tx_result.get('from', '?')[:12]}...)")
+    logger.info("/buy payment verified: %s... (%s USDC from %s...)", payment_tx[:16], price, tx_result.get("from", "?")[:12])
 
     # Calculer la commission (based on transaction amount)
     commission_bps = get_commission_bps(price)
@@ -1196,7 +1198,7 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
         result = await asyncio.to_thread(_call)
     except Exception as e:
         # Fix #12: Don't leak internal error details
-        print(f"[PublicAPI] AI service error: {e}")
+        logger.error("AI service error: %s", e)
         raise HTTPException(502, "AI service temporarily unavailable")
 
     # Isolation multi-tenant
@@ -1511,9 +1513,9 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         await db.save_service(service)
         await db.update_agent(x_api_key, {"services_listed": agent["services_listed"]})
     except Exception as e:
-        print(f"[PublicAPI] DB save service error: {e}")
+        logger.error("DB save service error: %s", e)
 
-    print(f"[PublicAPI] Nouveau service: {name} par {agent['name']} @ {price_usdc} USDC")
+    logger.info("Nouveau service: %s par %s @ %s USDC", name, agent["name"], price_usdc)
 
     response = {
         "success": True,
@@ -1678,7 +1680,7 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
         raise
     except Exception as e:
         # Fix #21: Don't leak internal error details
-        print(f"[PublicAPI] Payment verification error: {e}")
+        logger.error("Payment verification error: %s", e)
         raise HTTPException(400, "Payment verification failed")
 
     # Commission MAXIA (based on transaction amount)
@@ -1736,14 +1738,14 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
                 from_address=TREASURY,
             )
             if transfer.get("success"):
-                print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
+                logger.info("Seller paid: %s USDC -> %s...", seller_gets, seller_wallet[:8])
                 seller_payment_info["seller_paid"] = True
                 seller_payment_info["seller_tx"] = transfer.get("signature", "")
             else:
                 seller_payment_info["seller_paid"] = False
                 seller_payment_info["seller_error"] = transfer.get("error", "")
         except Exception as e:
-            print(f"[Marketplace] Seller payment error: {e}")
+            logger.error("Seller payment error: %s", e)
             seller_payment_info["seller_paid"] = False
             seller_payment_info["seller_error"] = str(e)
     # Commission stays at TREASURY_ADDRESS (buyer paid full price to treasury,
@@ -2056,7 +2058,7 @@ async def discover_services(
             rows = await db.raw_execute_fetchall(query, ())
         db_services = [dict(r) for r in rows]
     except Exception as e:
-        print(f"[Discover] DB query fallback to in-memory: {e}")
+        logger.warning("DB query fallback to in-memory: %s", e)
         db_services = [s for s in _agent_services if s.get("status") == "active"]
 
     for s in db_services:
@@ -2301,7 +2303,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[PublicAPI] Payment verification error in /execute: {e}")
+        logger.error("Payment verification error in /execute: %s", e)
         raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
 
     payment_verified = True
@@ -2313,7 +2315,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         "to": verification.get("to", TREASURY_ADDRESS),
     }
 
-    print(f"[Marketplace] /execute payment verified: {payment_tx[:16]}... ({price} USDC from {verification.get('from', '?')[:12]}...)")
+    logger.info("/execute payment verified: %s... (%s USDC from %s...)", payment_tx[:16], price, verification.get("from", "?")[:12])
 
     # ═══ NATIVE SERVICE EXECUTION ═══
     if is_native:
@@ -2401,14 +2403,14 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                 from_address=TREASURY,
             )
             if transfer.get("success"):
-                print(f"[Marketplace] Seller paid: {seller_gets} USDC -> {seller_wallet[:8]}...")
+                logger.info("Seller paid: %s USDC -> %s...", seller_gets, seller_wallet[:8])
                 payment_info["seller_paid"] = True
                 payment_info["seller_tx"] = transfer.get("signature", "")
             else:
                 payment_info["seller_paid"] = False
                 payment_info["seller_error"] = transfer.get("error", "")
         except Exception as e:
-            print(f"[Marketplace] Seller payment error: {e}")
+            logger.error("Seller payment error: %s", e)
             payment_info["seller_paid"] = False
             payment_info["seller_error"] = "Seller payout pending — will retry"
 
@@ -2483,26 +2485,26 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
         if endpoint:
             try:
-                import httpx
-                async with httpx.AsyncClient(timeout=30) as client:
-                    resp = await client.post(endpoint, json={
-                        "prompt": prompt,
-                        "buyer": buyer["name"],
-                        "service_id": service_id,
-                        "tx_id": tx["tx_id"],
-                        "payment_tx": payment_tx,
-                        "payment_verified": True,
-                        "amount_usdc": price,
-                    })
-                    if resp.status_code == 200:
-                        result_data = resp.json()
-                        result_text = result_data.get("result", result_data.get("text", str(result_data)))
-                        execution_method = "webhook"
-                    else:
-                        result_text = f"Seller webhook returned {resp.status_code}"
-                        execution_method = "webhook_error"
+                from http_client import get_http_client
+                client = get_http_client()
+                resp = await client.post(endpoint, json={
+                    "prompt": prompt,
+                    "buyer": buyer["name"],
+                    "service_id": service_id,
+                    "tx_id": tx["tx_id"],
+                    "payment_tx": payment_tx,
+                    "payment_verified": True,
+                    "amount_usdc": price,
+                }, timeout=30)
+                if resp.status_code == 200:
+                    result_data = resp.json()
+                    result_text = result_data.get("result", result_data.get("text", str(result_data)))
+                    execution_method = "webhook"
+                else:
+                    result_text = f"Seller webhook returned {resp.status_code}"
+                    execution_method = "webhook_error"
             except Exception as e:
-                print(f"[PublicAPI] Webhook call error: {e}")
+                logger.error("Webhook call error: %s", e)
                 result_text = "Webhook call failed — seller will be notified"
                 execution_method = "webhook_error"
     else:
@@ -2545,7 +2547,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                 "payment_verified": True,
             }, filter_wallet=seller_wallet)
     except Exception as e:
-        print(f"[Marketplace] Webhook notification error: {e}")
+        logger.error("Webhook notification error: %s", e)
 
     # Telegram/Discord notification to seller
     try:
@@ -2615,7 +2617,7 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
         if result:
             return result
     except Exception as e:
-        print(f"[PublicAPI] LLM Router error: {e}")
+        logger.error("LLM Router error: %s", e)
 
     # Direct Groq fallback (legacy)
     try:
@@ -2629,7 +2631,7 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
                 return resp.choices[0].message.content.strip()
             return await asyncio.to_thread(_call)
     except Exception as e:
-        print(f"[PublicAPI] Groq fallback error: {e}")
+        logger.error("Groq fallback error: %s", e)
 
     return "Service temporarily unavailable — please retry in a few seconds"
 
@@ -2654,7 +2656,7 @@ async def _save_tx_to_db(tx: dict, buyer: dict = None, seller_key: str = None):
                     "tier": seller.get("tier", "BRONZE"),
                 })
     except Exception as e:
-        print(f"[PublicAPI] DB tx save error: {e}")
+        logger.error("DB tx save error: %s", e)
 
 
 # ── Utilitaire ──
@@ -3060,7 +3062,7 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
         raise
     except Exception as e:
         # Fix #21: Don't leak internal error details
-        print(f"[PublicAPI] GPU payment verification error: {e}")
+        logger.error("GPU payment verification error: %s", e)
         raise HTTPException(400, "Payment verification failed")
 
     # Provisionner le GPU via RunPod
@@ -3071,7 +3073,7 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
 
     if not instance.get("success"):
         # Fix #21: Don't leak internal RunPod error details
-        print(f"[PublicAPI] RunPod provisioning error: {instance.get('error', 'indisponible')}")
+        logger.error("RunPod provisioning error: %s", instance.get("error", "indisponible"))
         raise HTTPException(502, "GPU provisioning temporarily unavailable")
 
     # Isolation multi-tenant
@@ -3141,7 +3143,7 @@ async def public_gpu_rent(req: dict, x_api_key: str = Header(None, alias="X-API-
     except Exception:
         pass
 
-    print(f"[PublicAPI] GPU loue: {gpu['label']} x{hours}h par {agent['name']} — {total_with_commission} USDC")
+    logger.info("GPU loue: %s x%sh par %s — %s USDC", gpu["label"], hours, agent["name"], total_with_commission)
 
     return {
         "success": True,
@@ -4015,7 +4017,7 @@ async def agent_bundle(request: Request):
     try:
         await db.save_agent(agent)
     except Exception as e:
-        print(f"[Bundle] DB save agent error: {e}")
+        logger.error("DB save agent error: %s", e)
 
     # 2. Generate referral code
     referral_code = f"ref_{wallet[:8]}_{int(time.time()) % 10000}"

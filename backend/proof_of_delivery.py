@@ -388,14 +388,15 @@ async def _send_dispute_for_approval(dispute_id: str, delivery_id: str,
     }
 
     try:
-        import httpx
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                json=payload,
-            )
-            if resp.status_code != 200:
-                print(f"[PoD] Telegram erreur {resp.status_code}")
+        from http_client import get_http_client
+        client = get_http_client()
+        resp = await client.post(
+            f"https://api.telegram.org/bot{tg_token}/sendMessage",
+            json=payload,
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            print(f"[PoD] Telegram erreur {resp.status_code}")
     except Exception as e:
         print(f"[PoD] Telegram erreur: {e}")
 

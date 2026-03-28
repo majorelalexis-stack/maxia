@@ -35,6 +35,8 @@ MECANISMES INTERNES :
 """
 import logging
 import asyncio, json, time, os
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, date
 
 from config import GPU_TIERS
@@ -79,7 +81,7 @@ class AgentBus:
         self._queue.append(message)
         if len(self._queue) > self._max_queue:
             self._queue = self._queue[-self._max_queue:]
-        print(f"[BUS] {sender} -> {receiver}: {msg_type}")
+        logger.info("BUS: %s -> %s: %s", sender, receiver, msg_type)
 
     def broadcast(self, sender: str, msg_type: str, data: dict):
         """Diffuse un message a tous les agents."""
@@ -136,7 +138,7 @@ class TaskQueue:
         try:
             self._queue.put_nowait((task_name, coro_fn, args))
         except asyncio.QueueFull:
-            print(f"[TaskQueue] FULL — dropping {task_name}")
+            logger.warning("TaskQueue FULL — dropping %s", task_name)
 
     async def worker(self):
         """Worker qui traite les taches en background."""
@@ -149,7 +151,7 @@ class TaskQueue:
                     self._processed += 1
                 except Exception as e:
                     self._errors += 1
-                    print(f"[TaskQueue] Error in {task_name}: {e}")
+                    logger.error("TaskQueue error in %s: %s", task_name, e)
                 self._queue.task_done()
             except asyncio.TimeoutError:
                 continue
@@ -458,7 +460,7 @@ async def _ceo_private(message: str, urgent: bool = False, decision_id: str = No
         except Exception:
             pass
 
-    print(f"[CEO] {message[:150]}")
+    logger.info("%s", message[:150])
 
 
 async def alert_rouge(titre: str, contexte: str, deadline_h: int = 2, decision: dict = None):
@@ -469,7 +471,7 @@ async def alert_rouge(titre: str, contexte: str, deadline_h: int = 2, decision: 
     if decision:
         _pending_decisions[decision_id] = {"decision": decision, "titre": titre, "ts": time.time()}
     await _ceo_private(msg, urgent=True, decision_id=decision_id if decision else None)
-    print(f"[CEO ROUGE] {titre}")
+    logger.warning("ROUGE: %s", titre)
     return decision_id
 
 
@@ -515,14 +517,14 @@ class Memory:
         if self.check_emergency_stop():
             if not self._data.get("emergency_stop"):
                 self._data["emergency_stop"] = True
-                print("[CEO] ⛔ EMERGENCY STOP ACTIVE — trop de depenses sans revenu")
+                logger.critical("EMERGENCY STOP ACTIVE — trop de depenses sans revenu")
         # Memory rotation — garder les listes a taille raisonnable
         self._trim()
         try:
             with open(self._path, "w") as f:
                 json.dump(self._data, f, indent=2, default=str)
         except Exception as e:
-            print(f"[CEO] Save error: {e}")
+            logger.error("Save error: %s", e)
 
     def _trim(self):
         """Limite la taille de la memoire pour eviter les fichiers de plusieurs MB."""
@@ -540,7 +542,7 @@ class Memory:
                 self._data[key] = lst[-max_len:]
                 trimmed = True
         if trimmed:
-            print("[CEO] Memory trimmed (rotation)")
+            logger.info("Memory trimmed (rotation)")
 
     def check_emergency_stop(self) -> bool:
         """Si >5 decisions orange sans revenu, STOP tout."""
@@ -572,7 +574,7 @@ class Memory:
             "reason": reason,
         }
         self.save()
-        print(f"[CEO] Agent {agent_name} DISABLED: {reason}")
+        logger.warning("Agent %s DISABLED: %s", agent_name, reason)
 
     def enable_agent(self, agent_name: str):
         """Reactive un sous-agent."""
@@ -580,7 +582,7 @@ class Memory:
         if agent_name.upper() in disabled:
             del disabled[agent_name.upper()]
             self.save()
-            print(f"[CEO] Agent {agent_name} RE-ENABLED")
+            logger.info("Agent %s RE-ENABLED", agent_name)
 
     def is_agent_disabled(self, agent_name: str) -> bool:
         """Verifie si un agent est desactive."""
@@ -756,7 +758,7 @@ class Memory:
             if existing["count"] == 3:
                 regle = f"AUTO-LEARN: {source} a echoue 3 fois ({error[:60]}). Eviter cette action."
                 self.add_regle(regle)
-                print(f"[CEO] AUTO-LEARN: nouvelle regle creee pour {source}")
+                logger.info("AUTO-LEARN: nouvelle regle creee pour %s", source)
             # Auto-disable: si une action echoue 5+ fois, bloquer l'agent concerne
             if existing["count"] >= 5 and not existing.get("auto_disabled"):
                 # Extraire le nom de l'agent depuis la source
@@ -767,7 +769,7 @@ class Memory:
                 if mapped and not self.is_agent_disabled(mapped):
                     self.disable_agent(mapped, f"Auto-disabled: {source} failed {existing['count']} times")
                     existing["auto_disabled"] = True
-                    print(f"[CEO] AUTO-DISABLE: {mapped} desactive apres {existing['count']} echecs")
+                    logger.warning("AUTO-DISABLE: %s desactive apres %s echecs", mapped, existing["count"])
         else:
             self._data["erreurs_recurrentes"].append({
                 "source": source, "error": error[:200], "count": count,
@@ -891,7 +893,7 @@ class Memory:
         decs = self._data.get("decisions", [])
         if len(decs) < 50:
             return
-        print("[CEO] Compaction decisions...")
+        logger.info("Compaction decisions...")
         prompt = (
             "Resume ces decisions en 10 LECONS CLES actionnables pour MAXIA.\n"
             "Format: JSON array de 10 strings.\n"
@@ -904,16 +906,16 @@ class Memory:
                 for l in lecons:
                     self.add_lecon(str(l))
                 self._data["decisions"] = self._data["decisions"][-30:]
-                print(f"[CEO] Compaction OK — {len(lecons)} lecons, historique purge")
+                logger.info("Compaction OK — %s lecons, historique purge", len(lecons))
         except Exception as e:
-            print(f"[CEO] Compaction error: {e}")
+            logger.error("Compaction error: %s", e)
 
     async def summarize_old_data(self, summarize_fn):
         """Transforme les conversations en 'Tendances Utilisateurs'."""
         convs = self._data.get("conversations", [])
         if len(convs) < 100:
             return
-        print("[CEO] Summarize conversations...")
+        logger.info("Summarize conversations...")
         prompt = (
             "Analyse ces conversations et genere un paragraphe 'TENDANCES UTILISATEURS'.\n"
             "Inclus : % par intention (technique, prospect, plainte, spam), canaux les plus actifs,\n"
@@ -928,9 +930,9 @@ class Memory:
                 self._data["tendances_utilisateurs"].append(data)
                 self._data["tendances_utilisateurs"] = self._data["tendances_utilisateurs"][-12:]
                 self._data["conversations"] = self._data["conversations"][-20:]
-                print(f"[CEO] Tendances OK — conversations purgees (garde 20)")
+                logger.info("Tendances OK — conversations purgees (garde 20)")
         except Exception as e:
-            print(f"[CEO] Summarize error: {e}")
+            logger.error("Summarize error: %s", e)
         self._data["derniere_compaction"] = date.today().isoformat()
         self.save()
 
@@ -1064,7 +1066,7 @@ async def watchdog_health_check() -> dict:
         except Exception:
             pass
     else:
-        print(f"[WATCHDOG] Health check: {ok_count}/{len(HEALTH_ENDPOINTS)} OK ✓")
+        logger.info("WATCHDOG health check: %s/%s OK", ok_count, len(HEALTH_ENDPOINTS))
 
     return report
 
@@ -1096,7 +1098,7 @@ async def watchdog_self_heal(source: str, error: str, memory: Memory):
     if not err or err.get("count", 0) < 3 or err.get("patch_proposed"):
         return
 
-    print(f"[WATCHDOG] Erreur recurrente detectee: {source} ({err['count']}x)")
+    logger.warning("WATCHDOG erreur recurrente detectee: %s (%sx)", source, err["count"])
     prompt = (
         f"L'API MAXIA a une erreur recurrente.\n"
         f"Source: {source}\nErreur: {error}\nOccurrences: {err['count']}\n\n"
@@ -1227,11 +1229,11 @@ async def radar_scan(memory: Memory) -> list:
             memory._data["kpi"][-1]["prices"] = current_prices
 
     except Exception as e:
-        print(f"[RADAR] Scan error: {e}")
+        logger.error("RADAR scan error: %s", e)
 
     for alert in alerts:
         memory.log_radar_alert(alert.get("type", ""), alert.get("details", ""))
-        print(f"[RADAR] {alert['type']}: {alert['details']}")
+        logger.info("RADAR %s: %s", alert["type"], alert["details"])
 
     return alerts
 
@@ -1318,13 +1320,13 @@ async def oracle_scan_trends(memory: Memory) -> list:
                 })
 
     except Exception as e:
-        print(f"[ORACLE] Scan error: {e}")
+        logger.error("ORACLE scan error: %s", e)
 
     for t in trends:
         memory.log_radar_alert(f"oracle_{t.get('type', '')}", t.get("details", ""))
 
     if trends:
-        print(f"[ORACLE] {len(trends)} tendances detectees")
+        logger.info("ORACLE %s tendances detectees", len(trends))
 
     return trends
 
@@ -1383,14 +1385,14 @@ async def failover_get_rpc() -> str:
                     if result == "ok" or result is not None:
                         if idx != _active_rpc_index:
                             old_name = FAILOVER_RPC[_active_rpc_index]["name"]
-                            print(f"[FAILOVER] RPC bascule: {old_name} -> {name}")
+                            logger.info("FAILOVER RPC bascule: %s -> %s", old_name, name)
                             _active_rpc_index = idx
                         return url
         except Exception:
             _rpc_failures[name] = _rpc_failures.get(name, 0) + 1
 
     # Tout est down — fallback public
-    print("[FAILOVER] Tous les RPC down — utilisation du RPC public")
+    logger.warning("FAILOVER Tous les RPC down — utilisation du RPC public")
     return "https://api.mainnet-beta.solana.com"
 
 
@@ -1460,7 +1462,7 @@ class MicroWallet:
             memory._data["spent_sol"] = memory._data.get("spent_sol", 0) + amount
             memory.save()
 
-        print(f"[MICRO] {amount} SOL — {reason}")
+        logger.info("MICRO %s SOL — %s", amount, reason)
         return {"success": True, "amount": amount, "reason": reason}
 
     async def get_balance(self) -> float:
@@ -1579,7 +1581,7 @@ async def ghost_write(content_type: str, sujet: str, canal: str, memory: "Memory
             ab_variant_key, variant_content = memory.get_ab_variant(ab_test_name)
             if variant_content:
                 extra_instruction = f"\nSTYLE OBLIGATOIRE: {variant_content}\n"
-                print(f"[GHOST-WRITER] A/B test actif: {ab_test_name} variant {ab_variant_key}")
+                logger.info("GHOST-WRITER A/B test actif: %s variant %s", ab_test_name, ab_variant_key)
 
     prompt = (
         f"Cree un {content_type} pour {canal}: {sujet}\n"
@@ -1605,7 +1607,7 @@ async def ghost_write(content_type: str, sujet: str, canal: str, memory: "Memory
     # Validation WATCHDOG
     for svc in data.get("services_mentionnes", []):
         if not await watchdog_check_service(svc):
-            print(f"[GHOST-WRITER] BLOQUE — {svc} DOWN")
+            logger.warning("GHOST-WRITER BLOQUE — %s DOWN", svc)
             return {"blocked": True, "reason": f"{svc} is DOWN"}
     return data
 
@@ -1639,7 +1641,7 @@ async def collect() -> dict:
             "commission_total": mkt.get("total_commission_usdc", 0),
         }
     except Exception as e:
-        print(f"[CEO] collect() error: {e}")
+        logger.error("collect() error: %s", e)
         return {
             "ts": datetime.utcnow().isoformat(),
             "rev_24h": 0, "rev_total": 0, "clients": 0, "clients_actifs": 0,
@@ -1657,7 +1659,7 @@ async def collect() -> dict:
 
 async def execute(decisions: list, memory: Memory):
     if memory.is_stopped():
-        print("[CEO] ⛔ Emergency stop — decisions bloquees")
+        logger.critical("Emergency stop — decisions bloquees")
         await alert_rouge("Emergency Stop actif", "Toutes les decisions sont bloquees. Revenue: $0. Reset manuel requis.", deadline_h=1)
         return
 
@@ -1668,7 +1670,7 @@ async def execute(decisions: list, memory: Memory):
             _marketing = {"GHOST-WRITER", "HUNTER"}
             decisions = [d for d in decisions if d.get("cible", "").upper() not in _marketing]
             if not decisions:
-                print("[CEO] VPS skip marketing — CEO local actif")
+                logger.info("VPS skip marketing — CEO local actif")
                 return
     except ImportError:
         pass
@@ -1686,7 +1688,7 @@ async def execute(decisions: list, memory: Memory):
 
         # Kill switch granulaire — skip les agents desactives
         if cible and memory.is_agent_disabled(cible):
-            print(f"[CEO] Decision SKIPPED — {cible} est desactive")
+            logger.info("Decision SKIPPED — %s est desactive", cible)
             continue
 
         # Fix unknown cible — try to map it to closest valid one
@@ -1707,16 +1709,16 @@ async def execute(decisions: list, memory: Memory):
             }
             mapped = cible_map.get(cible)
             if mapped:
-                print(f"[CEO] Cible '{cible}' remappee -> {mapped}")
+                logger.info("Cible %s remappee -> %s", cible, mapped)
                 cible = mapped
                 dec["cible"] = mapped
             else:
-                print(f"[CEO] Decision REJETEE — cible inconnue: {cible}")
+                logger.warning("Decision REJETEE — cible inconnue: %s", cible)
                 continue
 
         # Translate vague actions into concrete ones via LLM re-prompt (LOCAL tier)
         if any(v in action.lower() for v in VAGUE_PATTERNS) and not any(kw in action.lower() for kw in CONCRETE_KW):
-            print(f"[CEO] Action vague detectee, re-prompt: {action[:80]}")
+            logger.info("Action vague detectee, re-prompt: %s", action[:80])
             try:
                 _reprompt_system = "Tu es un assistant qui transforme des objectifs vagues en actions concretes pour un sous-agent."
                 _reprompt_user = (
@@ -1745,24 +1747,24 @@ async def execute(decisions: list, memory: Memory):
                     )
                 if concrete and concrete.strip():
                     concrete = concrete.strip().strip('"').strip("'")
-                    print(f"[CEO] Action concretisee: {concrete[:100]}")
+                    logger.info("Action concretisee: %s", concrete[:100])
                     action = concrete
                     dec["action"] = concrete
                 else:
-                    print(f"[CEO] Re-prompt echoue, action ignoree: {action[:80]}")
+                    logger.warning("Re-prompt echoue, action ignoree: %s", action[:80])
                     continue
             except Exception as e:
-                print(f"[CEO] Re-prompt LLM error: {e}, action ignoree")
+                logger.error("Re-prompt LLM error: %s, action ignoree", e)
                 continue
 
         # Verifier le budget avant execution
         if prio == "orange":
             budget = memory.get_budget_vert()
             if memory._data.get("revenue_usd", 0) == 0 and budget < MIN_BUDGET_VERT * 2:
-                print(f"[CEO] Decision orange BLOQUEE (budget trop bas: {budget:.4f})")
+                logger.info("Decision orange BLOQUEE (budget trop bas: %.4f)", budget)
                 continue
 
-        print(f"[CEO] -> {cible} [{prio}] : {action[:100]}")
+        logger.info("-> %s [%s] : %s", cible, prio, action[:100])
         memory.log_decision(prio, action, "CEO directive", cible)
 
         if cible == "FONDATEUR" and prio == "haute":
@@ -1772,12 +1774,12 @@ async def execute(decisions: list, memory: Memory):
         try:
             result = await execute_decision(dec, memory)
             if result.get("executed"):
-                print(f"[CEO] EXECUTED: {cible} -> {result.get('detail', 'ok')}")
+                logger.info("EXECUTED: %s -> %s", cible, result.get("detail", "ok"))
             else:
                 reason = result.get("reason", "unknown")
-                print(f"[CEO] NOT EXECUTED: {cible} -> {reason}")
+                logger.info("NOT EXECUTED: %s -> %s", cible, reason)
         except Exception as e:
-            print(f"[CEO] Execution error for {cible}: {e}")
+            logger.error("Execution error for %s: %s", cible, e)
 
 
 # ══════════════════════════════════════════
@@ -1991,7 +1993,7 @@ async def deployer_generate_page(page_type: str, data: dict) -> str:
 async def deployer_push_github(filename: str, content: str, commit_msg: str) -> dict:
     """Deploie un fichier sur GitHub Pages via l'API GitHub."""
     if not GITHUB_TOKEN:
-        print(f"[DEPLOYER] GITHUB_TOKEN manquant — fichier sauve localement")
+        logger.warning("DEPLOYER GITHUB_TOKEN manquant — fichier sauve localement")
         # Sauvegarder localement en fallback
         local_path = f"/tmp/maxia_pages/{filename}"
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -2033,26 +2035,26 @@ async def deployer_push_github(filename: str, content: str, commit_msg: str) -> 
 
             if resp.status_code in [200, 201]:
                 page_url = f"https://{GITHUB_ORG.lower()}.github.io/{GITHUB_REPO}/{filename}"
-                print(f"[DEPLOYER] Deploye: {page_url}")
+                logger.info("DEPLOYER deploye: %s", page_url)
                 return {"success": True, "url": page_url, "filename": filename}
             else:
                 error = resp.json().get("message", resp.text[:200])
                 if "Bad credentials" in error:
                     if not getattr(deployer_push_github, '_cred_warned', False):
-                        print(f"[DEPLOYER] GitHub token expired/invalid — blog deploy disabled until token is renewed")
+                        logger.warning("DEPLOYER GitHub token expired/invalid — blog deploy disabled until token is renewed")
                         deployer_push_github._cred_warned = True
                 else:
-                    print(f"[DEPLOYER] GitHub error: {error}")
+                    logger.error("DEPLOYER GitHub error: %s", error)
                 return {"success": False, "error": error}
 
     except Exception as e:
-        print(f"[DEPLOYER] Error: {e}")
+        logger.error("DEPLOYER error: %s", e)
         return {"success": False, "error": "An error occurred"}
 
 
 async def deployer_create_and_deploy(page_type: str, data: dict, memory) -> dict:
     """Pipeline complet : genere → valide → deploie."""
-    print(f"[DEPLOYER] Creation page '{page_type}'...")
+    logger.info("DEPLOYER creation page %s...", page_type)
 
     # 1. GHOST-WRITER genere
     html = await deployer_generate_page(page_type, data)
@@ -2064,7 +2066,7 @@ async def deployer_create_and_deploy(page_type: str, data: dict, memory) -> dict
     for svc in services_to_check:
         up = await watchdog_check_service(svc)
         if not up:
-            print(f"[DEPLOYER] BLOQUE — {svc} DOWN, page non deployee")
+            logger.warning("DEPLOYER BLOQUE — %s DOWN, page non deployee", svc)
             return {"success": False, "error": f"Service {svc} DOWN"}
 
     # 3. Deployer
@@ -2076,9 +2078,9 @@ async def deployer_create_and_deploy(page_type: str, data: dict, memory) -> dict
     if result.get("success"):
         if memory:
             memory.log_decision("vert", f"DEPLOYER: {page_type} deploye -> {result.get('url','')}", "Auto-deploy", "DEPLOYER")
-        print(f"[DEPLOYER] OK: {result.get('url','')}")
+        logger.info("DEPLOYER OK: %s", result.get("url",""))
     else:
-        print(f"[DEPLOYER] Echec: {result.get('error','')}")
+        logger.error("DEPLOYER echec: %s", result.get("error",""))
 
     return result
 
@@ -2719,7 +2721,7 @@ async def scout_scan_onchain_agents(memory) -> list:
                         "detected_at": alert.get("ts", now),
                     })
     except Exception as e:
-        print(f"[SCOUT] Radar scan error: {e}")
+        logger.error("SCOUT radar scan error: %s", e)
 
     # ── 2. REGISTRES D'AGENTS — APIs publiques ──
     # Chaque registre a un endpoint different, on les interroge en parallele
@@ -2871,7 +2873,7 @@ async def scout_scan_onchain_agents(memory) -> list:
                     except Exception:
                         pass
         except Exception as e:
-            print(f"[SCOUT] Helius scan error: {e}")
+            logger.error("SCOUT Helius scan error: %s", e)
 
     # ── 4. MEMOIRE — registres connus deja stockes ──
     try:
@@ -2888,7 +2890,7 @@ async def scout_scan_onchain_agents(memory) -> list:
                     "detected_at": reg.get("detected_at", now),
                 })
     except Exception as e:
-        print(f"[SCOUT] Memory scan error: {e}")
+        logger.error("SCOUT memory scan error: %s", e)
 
     # ── 5. AUTO-CONTACT — contacter les nouveaux agents avec endpoint A2A ──
     already_contacted = set()
@@ -2923,7 +2925,7 @@ async def scout_scan_onchain_agents(memory) -> list:
             if result.get("success"):
                 contacted += 1
                 method = result.get("method", "?")
-                print(f"[SCOUT] Auto-contacted {addr[:20]}... via {method}")
+                logger.info("SCOUT auto-contacted %s... via %s", addr[:20], method)
                 # Notification Telegram — alerter le fondateur
                 try:
                     await alert_info(
@@ -2945,9 +2947,9 @@ async def scout_scan_onchain_agents(memory) -> list:
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[SCOUT] Auto-contact error {addr[:20]}: {e}")
+            logger.error("SCOUT auto-contact error %s: %s", addr[:20], e)
 
-    print(f"[SCOUT] Scan termine: {len(detected)} agents detectes, {contacted} auto-contacted")
+    logger.info("SCOUT scan termine: %s agents detectes, %s auto-contacted", len(detected), contacted)
 
     # Notification Telegram — rapport de scan (meme si 0 contacts)
     if detected:
@@ -3000,11 +3002,11 @@ async def _scout_fetch_registry(client, reg_config: dict, seen: set, now: str) -
                     if agent.get("metadata"):
                         entry["metadata"] = agent["metadata"]
                     results.append(entry)
-            print(f"[SCOUT] {name}: {len(results)} agents trouves")
+            logger.info("SCOUT %s: %s agents trouves", name, len(results))
         else:
-            print(f"[SCOUT] {name}: HTTP {resp.status_code}")
+            logger.warning("SCOUT %s: HTTP %s", name, resp.status_code)
     except Exception as e:
-        print(f"[SCOUT] {name} error: {e}")
+        logger.error("SCOUT %s error: %s", name, e)
     return results
 
 
@@ -3076,7 +3078,7 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
                         agent_card = resp.json()
                         agent_a2a_url = agent_card.get("url", "")
                         agent_name = agent_card.get("name", "unknown")
-                        print(f"[SCOUT] A2A agent card trouve: {agent_name} at {agent_a2a_url}")
+                        logger.info("SCOUT A2A agent card trouve: %s at %s", agent_name, agent_a2a_url)
 
                         # 1b. Contact — envoyer un message A2A (JSON-RPC tasks/send)
                         if agent_a2a_url:
@@ -3110,7 +3112,7 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
                                 contact_record["agent_name"] = agent_name
                                 contact_record["a2a_url"] = agent_a2a_url
                                 a2a_success = True
-                                print(f"[SCOUT] Contact A2A reussi: {agent_name}")
+                                logger.info("SCOUT Contact A2A reussi: %s", agent_name)
                                 break
                 else:
                     # Tenter un POST direct sur l'endpoint A2A
@@ -3137,7 +3139,7 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
                         contact_record["response"] = result.get("result", {}).get("status", {}).get("state", "submitted")
                         contact_record["a2a_url"] = endpoint
                         a2a_success = True
-                        print(f"[SCOUT] Contact A2A direct reussi: {endpoint}")
+                        logger.info("SCOUT Contact A2A direct reussi: %s", endpoint)
                         break
             except Exception as e:
                 # Silencieux — on essaie le prochain endpoint
@@ -3169,20 +3171,20 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
                         contact_record["response"] = "memo_sent"
                         contact_record["tx_signature"] = tx_result["signature"]
                         contact_record["amount_usdc"] = micro_amount
-                        print(f"[SCOUT] Memo on-chain envoye: {address[:10]}... (tx: {tx_result['signature'][:20]}...)")
+                        logger.info("SCOUT Memo on-chain envoye: %s... (tx: %s...)", address[:10], tx_result["signature"][:20])
                         return {"success": True, "contact": contact_record, "method": "onchain_memo"}
                 except ImportError:
-                    print("[SCOUT] solana_tx.build_usdc_transfer_with_memo non disponible — memo skip")
+                    logger.warning("SCOUT solana_tx.build_usdc_transfer_with_memo non disponible — memo skip")
                 except Exception as e:
-                    print(f"[SCOUT] Memo on-chain erreur: {e}")
+                    logger.error("SCOUT Memo on-chain erreur: %s", e)
             else:
-                print("[SCOUT] Micro wallet non configure — memo on-chain skip")
+                logger.warning("SCOUT Micro wallet non configure — memo on-chain skip")
 
             # Si la tx memo echoue, on enregistre quand meme le contact
             contact_record["method"] = "onchain_memo_failed"
             contact_record["response"] = "memo_not_sent"
         except Exception as e:
-            print(f"[SCOUT] Fallback memo error: {e}")
+            logger.error("SCOUT Fallback memo error: %s", e)
             contact_record["method"] = "failed"
             contact_record["response"] = str(e)[:100]
 
@@ -3191,7 +3193,7 @@ async def scout_first_contact_a2a(address: str, chain: str, pitch: str) -> dict:
         contact_record["method"] = "queued"
         contact_record["response"] = "no_a2a_endpoint_found"
 
-    print(f"[SCOUT] Contact {contact_record['method']}: {address[:16]}... on {chain}")
+    logger.info("SCOUT Contact %s: %s... on %s", contact_record["method"], address[:16], chain)
     return {"success": a2a_success, "contact": contact_record, "method": contact_record["method"]}
 
 
@@ -3213,21 +3215,21 @@ class CEOMaxia:
         # Scout: agents on-chain detectes et contacts
         self._scout_contacts = []
         self._onchain_agents = []
-        print("[CEO MAXIA] V5 SCOUT MODE initialise")
-        print(f"  Role: Scout (collecte metriques + scan agents + premier contact A2A)")
-        print(f"  Decisions: DELEGUEES au CEO Local (PC + GPU)")
-        print(f"  Router: {'actif' if self.router else 'desactive (direct Groq/Claude)'}")
-        print(f"  Groq: {'actif' if GROQ_API_KEY else 'MANQUANT'}")
-        print(f"  Anthropic: {'actif' if ANTHROPIC_API_KEY else 'fallback Groq'}")
-        print(f"  Discord: {'actif' if DISCORD_WEBHOOK_URL else 'absent'}")
-        print(f"  Budget: {self.memory.get_budget_vert():.4f} SOL")
-        print(f"  Emergency: {'STOP' if self.memory.is_stopped() else 'OK'}")
-        print(f"  Agents: SCOUT, WATCHDOG, RADAR, COMPLIANCE, ANALYTICS, CRISIS-MANAGER")
+        logger.info("CEO MAXIA V5 SCOUT MODE initialise")
+        logger.info("  Role: Scout (collecte metriques + scan agents + premier contact A2A)")
+        logger.info("  Decisions: DELEGUEES au CEO Local (PC + GPU)")
+        logger.info("  Router: %s", "actif" if self.router else "desactive (direct Groq/Claude)")
+        logger.info("  Groq: %s", "actif" if GROQ_API_KEY else "MANQUANT")
+        logger.info("  Anthropic: %s", "actif" if ANTHROPIC_API_KEY else "fallback Groq")
+        logger.info("  Discord: %s", "actif" if DISCORD_WEBHOOK_URL else "absent")
+        logger.info("  Budget: %.4f SOL", self.memory.get_budget_vert())
+        logger.info("  Emergency: %s", "STOP" if self.memory.is_stopped() else "OK")
+        logger.info("  Agents: SCOUT, WATCHDOG, RADAR, COMPLIANCE, ANALYTICS, CRISIS-MANAGER")
 
     async def run(self):
         self._running = True
-        print("[CEO MAXIA] Demarre — MODE SCOUT (collecte + scan + contact A2A)")
-        print("[CEO MAXIA] Strategie et outreach delegues au CEO Local (PC + GPU)")
+        logger.info("CEO MAXIA Demarre — MODE SCOUT (collecte + scan + contact A2A)")
+        logger.info("CEO MAXIA Strategie et outreach delegues au CEO Local (PC + GPU)")
         # Alerte Telegram une seule fois par jour (pas a chaque restart)
         _today = date.today().isoformat()
         if getattr(self, '_last_start_alert', '') != _today:
@@ -3263,7 +3265,7 @@ class CEOMaxia:
                 await self._check_errors()
 
             except Exception as e:
-                print(f"[CEO] Error #{self._cycle}: {e}")
+                logger.error("Error #%s: %s", self._cycle, e)
             await asyncio.sleep(10800)  # 3 heures
 
     def stop(self):
@@ -3321,7 +3323,7 @@ class CEOMaxia:
             nxt = "reddit"
         old = self.memory.hunter_switch(nxt)
         msg = f"HUNTER auto-switch: {old} ({rate:.1%}) -> {nxt}"
-        print(f"[CEO] {msg}")
+        logger.info("%s", msg)
         self.memory.add_regle(f"{old} a {rate:.1%} conversion — abandonne")
         await alert_info(msg)
 
@@ -3348,7 +3350,7 @@ class CEOMaxia:
     # ── Boucle 1 : TACTIQUE ──
 
     async def _tactique(self):
-        print(f"\n[CEO] === TACTIQUE #{self._cycle} ===")
+        logger.info("=== TACTIQUE #%s ===", self._cycle)
         
         # WATCHDOG health check (skip first 2 cycles — server still starting)
         if self._cycle >= 3:
@@ -3361,9 +3363,9 @@ class CEOMaxia:
                     "failed": health.get("failed", 0),
                 })
             except Exception as e:
-                print(f"[CEO] WATCHDOG health check error: {e}")
+                logger.error("WATCHDOG health check error: %s", e)
         else:
-            print(f"[CEO] WATCHDOG skipped (cycle {self._cycle}, waiting for startup)")
+            logger.info("WATCHDOG skipped (cycle %s, waiting for startup)", self._cycle)
 
         data = await collect()
         self.memory.log_kpi(data)
@@ -3375,14 +3377,14 @@ class CEOMaxia:
         try:
             self._onchain_agents = await scout_scan_onchain_agents(self.memory)
             if self._onchain_agents:
-                print(f"[SCOUT] {len(self._onchain_agents)} agents on-chain detectes")
+                logger.info("SCOUT %s agents on-chain detectes", len(self._onchain_agents))
                 self.memory.update_agent("SCOUT", {
                     "status": "actif",
                     "agents_detected": len(self._onchain_agents),
                     "contacts_sent": len(self._scout_contacts),
                 })
         except Exception as e:
-            print(f"[SCOUT] Scan error: {e}")
+            logger.error("SCOUT scan error: %s", e)
 
         # ORACLE scan (off-chain — social listening)
         oracle_trends = await oracle_scan_trends(self.memory)
@@ -3405,7 +3407,7 @@ class CEOMaxia:
         for alert in radar:
             if alert.get("type") == "price_spike":
                 token = alert.get("token", "")
-                print(f"[CEO] RADAR spike {token} — blog auto (Twitter delegue au CEO local)")
+                logger.info("RADAR spike %s — blog auto (Twitter delegue au CEO local)", token)
                 self.memory.log_decision("vert", f"RADAR spike {token} — blog only, Twitter delegue au local", "RADAR", "GHOST-WRITER")
                 # Blog post si c'est une categorie entiere
                 if alert.get("category"):
@@ -3415,7 +3417,7 @@ class CEOMaxia:
                     )
             elif alert.get("type") == "category_surge":
                 cat = alert.get("category", "")
-                print(f"[CEO] RADAR surge {cat} — blog auto (Twitter delegue au CEO local)")
+                logger.info("RADAR surge %s — blog auto (Twitter delegue au CEO local)", cat)
                 await self.deploy_blog(
                     f"Why {cat.upper()} Tokens Are Surging Right Now",
                     f"Market analysis: {cat} category up {alert.get('change',0):.0%}. How AI agents can profit using MAXIA.",
@@ -3440,7 +3442,7 @@ class CEOMaxia:
         run_crisis = True
         if self._pre_seed_mode and self._last_crisis_check == today:
             run_crisis = False
-            print(f"[CEO] CRISIS-MANAGER skipped (pre-seed mode, already checked today)")
+            logger.info("CRISIS-MANAGER skipped (pre-seed mode, already checked today)")
 
         crises = []
         if run_crisis:
@@ -3448,11 +3450,11 @@ class CEOMaxia:
                 crises = await crisis_detect(self.memory, skip_health=(self._cycle < 3))
                 self._last_crisis_check = today
                 for crisis in crises:
-                    print(f"[CEO] CRISIS {crisis['level']}: {crisis['type']} — {crisis['details'][:80]}")
+                    logger.warning("CRISIS %s: %s — %s", crisis["level"], crisis["type"], crisis["details"][:80])
                     await crisis_respond(crisis, self.memory)
                 self.memory.update_agent("CRISIS-MANAGER", {"status": "actif", "active_crises": len(crises)})
             except Exception as e:
-                print(f"[CEO] CRISIS-MANAGER error: {e}")
+                logger.error("CRISIS-MANAGER error: %s", e)
                 self.memory.update_agent("CRISIS-MANAGER", {"status": "erreur", "error": "An error occurred"[:80]})
             # Update pre-seed mode — exit it once revenue appears
             if self.memory._data.get("revenue_usd", 0) > 0:
@@ -3471,9 +3473,9 @@ class CEOMaxia:
             })
             # Afficher les recommandations urgentes
             for rec in analytics_data.get("recommendations", []):
-                print(f"[CEO] ANALYTICS: {rec}")
+                logger.info("ANALYTICS: %s", rec)
         except Exception as e:
-            print(f"[CEO] ANALYTICS error: {e}")
+            logger.error("ANALYTICS error: %s", e)
             self.memory.update_agent("ANALYTICS", {"status": "erreur"})
 
         # PARTNERSHIP — scan partenaires (tous les 6 cycles = ~18h)
@@ -3482,13 +3484,13 @@ class CEOMaxia:
                 opportunities = await partnership_scan(self.memory)
                 if opportunities:
                     top = opportunities[0]
-                    print(f"[CEO] PARTNERSHIP: top opportunity = {top['partner']} ({top['category']}, score {top['score']})")
+                    logger.info("PARTNERSHIP: top opportunity = %s (%s, score %s)", top["partner"], top["category"], top["score"])
                     # Auto-outreach si score >= 80
                     if top["score"] >= 80:
                         await partnership_outreach(top["partner"], top["category"], top["pitch"], self.memory)
                 self.memory.update_agent("PARTNERSHIP", {"status": "actif", "opportunities": len(opportunities)})
             except Exception as e:
-                print(f"[CEO] PARTNERSHIP error: {e}")
+                logger.error("PARTNERSHIP error: %s", e)
                 self.memory.update_agent("PARTNERSHIP", {"status": "erreur"})
 
         # NEGOTIATOR + COMPLIANCE — stats
@@ -3515,7 +3517,7 @@ class CEOMaxia:
                 if agent_name == "HUNTER" and msg_type == "intensify":
                     self.memory.update_agent("HUNTER", {"intensify": True, "reason": msg_data.get("reason", "")})
                 elif agent_name == "HUNTER" and msg_type == "low_conversion":
-                    print(f"[CEO] BUS->HUNTER: low conversion ({msg_data.get('rate')})")
+                    logger.info("BUS->HUNTER: low conversion (%s)", msg_data.get("rate"))
                 # NEGOTIATOR recoit des demandes de promo
                 elif agent_name == "NEGOTIATOR" and msg_type == "promo_needed":
                     self.memory.update_agent("NEGOTIATOR", {"promo_mode": True, "weeks_0rev": msg_data.get("weeks", 0)})
@@ -3545,7 +3547,7 @@ class CEOMaxia:
                 nxt = "reddit"
             self.memory.hunter_switch(nxt)
             hunter_data["intensify"] = False
-            print(f"[CEO] BUS ACTION: HUNTER intensify -> switch to {nxt}")
+            logger.info("BUS ACTION: HUNTER intensify -> switch to %s", nxt)
 
         # NEGOTIATOR : si promo_mode, creer un A/B test promo automatiquement
         nego_data = self.memory._data.get("agents", {}).get("NEGOTIATOR", {})
@@ -3554,7 +3556,7 @@ class CEOMaxia:
                 "0% fees for 7 days — bring your AI agent, earn USDC.",
                 "First 10 trades free. AI agents earn USDC on MAXIA.")
             nego_data["promo_mode"] = False
-            print("[CEO] BUS ACTION: NEGOTIATOR created promo A/B test")
+            logger.info("BUS ACTION: NEGOTIATOR created promo A/B test")
 
         # NEGOTIATOR : si bundle_mode, log recommandation
         if nego_data.get("bundle_mode"):
@@ -3569,16 +3571,16 @@ class CEOMaxia:
                 # On log l'alerte churn pour que le CEO local puisse agir
                 self.memory.log_decision("vert", "Churn alert — retention tweet delegue au CEO local", "TESTIMONIAL", "GHOST-WRITER")
                 testi_data["churn_alert"] = False
-                print("[CEO] BUS ACTION: TESTIMONIAL churn alert logged (Twitter delegue au CEO local)")
+                logger.info("BUS ACTION: TESTIMONIAL churn alert logged (Twitter delegue au CEO local)")
             except Exception as e:
-                print(f"[CEO] BUS ACTION TESTIMONIAL error: {e}")
+                logger.error("BUS ACTION TESTIMONIAL error: %s", e)
 
         # RESPONDER : si retention_mode, activer reponse proactive
         resp_data = self.memory._data.get("agents", {}).get("RESPONDER", {})
         if resp_data.get("retention_mode"):
             self.memory.add_regle("Retention mode actif — RESPONDER doit etre plus proactif et offrir des discounts")
             resp_data["retention_mode"] = False
-            print("[CEO] BUS ACTION: RESPONDER retention mode activated")
+            logger.info("BUS ACTION: RESPONDER retention mode activated")
 
         # RAG — rechercher le contexte pertinent
         rag_context = ""
@@ -3619,7 +3621,7 @@ class CEOMaxia:
     # ── Boucle 2 : STRATEGIQUE + Red Teaming ──
 
     async def _strategique(self):
-        print(f"\n[CEO] === STRATEGIQUE + RED TEAM ===")
+        logger.info("=== STRATEGIQUE + RED TEAM ===")
         tone = self._fondateur_tone()
         ctx = self.memory.ctx("strategique")
         q = (
@@ -3676,12 +3678,12 @@ class CEOMaxia:
             if health < 40:
                 await alert_info(f"ANALYTICS: Health score CRITIQUE ({health}/100) — {analytics.get('recommendations', ['aucune'])}")
         except Exception as e:
-            print(f"[CEO] ANALYTICS strategique error: {e}")
+            logger.error("ANALYTICS strategique error: %s", e)
 
     # ── Boucle 3 : VISION + Compaction ──
 
     async def _vision(self):
-        print(f"\n[CEO] === VISION + RETROSPECTIVE ===")
+        logger.info("=== VISION + RETROSPECTIVE ===")
         ctx = self.memory.ctx("vision")
 
         # Construire la retrospective des predictions passees
@@ -3734,27 +3736,27 @@ class CEOMaxia:
         try:
             config = await web_designer_update_config(self.memory)
             await web_designer_deploy_config(config, self.memory)
-            print("[CEO] WEB-DESIGNER: config.json deploye")
+            logger.info("WEB-DESIGNER: config.json deploye")
         except Exception as e:
-            print(f"[CEO] WEB-DESIGNER error: {e}")
+            logger.error("WEB-DESIGNER error: %s", e)
 
         # ANALYTICS rapport hebdomadaire (dimanche = boucle vision)
         try:
             report = await analytics_weekly_report(self.memory)
             if report.get("message_fondateur"):
                 await alert_info(f"ANALYTICS HEBDO: {report['message_fondateur'][:300]}")
-            print(f"[CEO] ANALYTICS: rapport hebdo genere (health={report.get('metrics', {}).get('health_score', '?')})")
+            logger.info("ANALYTICS: rapport hebdo genere (health=%s)", report.get("metrics", {}).get("health_score", "?"))
         except Exception as e:
-            print(f"[CEO] ANALYTICS weekly error: {e}")
+            logger.error("ANALYTICS weekly error: %s", e)
 
         # PARTNERSHIP scan hebdo — identifier les top partenaires
         try:
             opportunities = await partnership_scan(self.memory)
             if opportunities:
                 top3 = [f"{o['partner']} ({o['score']})" for o in opportunities[:3]]
-                print(f"[CEO] PARTNERSHIP hebdo: top3 = {', '.join(top3)}")
+                logger.info("PARTNERSHIP hebdo: top3 = %s", ", ".join(top3))
         except Exception as e:
-            print(f"[CEO] PARTNERSHIP weekly error: {e}")
+            logger.error("PARTNERSHIP weekly error: %s", e)
 
         # Auto-deploy pages
         await self.auto_deploy_check()
@@ -3765,7 +3767,7 @@ class CEOMaxia:
     # ── Boucle 4 : EXPANSION ──
 
     async def _expansion(self):
-        print(f"\n[CEO] === EXPANSION ===")
+        logger.info("=== EXPANSION ===")
         ctx = self.memory.ctx("expansion")
         q = (
             "Marche mondial, concurrents, geographie, langues, chains, partenariats, financement.\n"
@@ -3816,7 +3818,7 @@ class CEOMaxia:
 
     def reset_emergency(self):
         self.memory.reset_emergency()
-        print("[CEO] Emergency stop desactive")
+        logger.info("Emergency stop desactive")
 
     def fondateur_ping(self):
         self.memory.fondateur_responded()

@@ -14,9 +14,12 @@ Contact methods :
   - On-chain memo (Solana)
   - Smart contract interaction log → identify owner wallet
 """
+import logging
 import asyncio, os, time, json
 from datetime import date
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from config import (
     get_rpc_url, ETH_RPC, BASE_RPC, GROQ_API_KEY, GROQ_MODEL,
@@ -215,12 +218,12 @@ class ScoutAgent:
         self._unreachable_count: int = 0  # throttle "No API reachable" logs
         self._max_contacts_day = PROSPECT_MAX_PER_DAY  # (#13) Use config value
         self._max_contacts_per_agent = 2
-        print("[SCOUT] Agent IA-to-IA prospection initialise (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)")
+        logger.info("Agent IA-to-IA prospection initialise (14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)")
 
     async def run(self):
         """Boucle principale — scan toutes les 6 heures."""
         self._running = True
-        print(f"[SCOUT] Demarre — scan 14 chains, max {self._max_contacts_day} contacts/jour")
+        logger.info("Demarre — scan 14 chains, max %s contacts/jour", self._max_contacts_day)
         await alert_system(
             "SCOUT Agent IA-to-IA demarre",
             f"Scan: 14 chains (Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI)\n"
@@ -238,9 +241,9 @@ class ScoutAgent:
                     await self._contact_agent(agent_info)
                     await asyncio.sleep(2)  # 2s entre chaque contact (pas de spam)
                 if self._unreachable_count > 3:
-                    print(f"[SCOUT] {self._unreachable_count} agents unreachable this cycle (suppressed {self._unreachable_count - 3} logs)")
+                    logger.info("%s agents unreachable this cycle (suppressed %s logs)", self._unreachable_count, self._unreachable_count - 3)
             except Exception as e:
-                print(f"[SCOUT] Erreur boucle: {e}")
+                logger.error("Erreur boucle: %s", e)
                 await alert_error("SCOUT", str(e))
             await asyncio.sleep(1800)  # 30 min (GPU local = gratuit, on peut scanner souvent)
 
@@ -280,7 +283,7 @@ class ScoutAgent:
             if isinstance(r, list):
                 agents.extend(r)
             elif isinstance(r, Exception):
-                print(f"[SCOUT] Scan error: {r}")
+                logger.error("Scan error: %s", r)
         # Deduplicate by address
         seen = set()
         unique = []
@@ -290,7 +293,7 @@ class ScoutAgent:
                 seen.add(addr)
                 unique.append(a)
         self._total_discovered += len(unique)
-        print(f"[SCOUT] {len(unique)} agents IA trouves sur 14 chains")
+        logger.info("%s agents IA trouves sur 14 chains", len(unique))
         return unique
 
     async def _scan_solana(self) -> list:
@@ -332,7 +335,7 @@ class ScoutAgent:
                                     })
                         await asyncio.sleep(0.3)
             except Exception as e:
-                print(f"[SCOUT] Solana scan {protocol} error: {e}")
+                logger.error("Solana scan %s error: %s", protocol, e)
         return agents
 
     async def _scan_ethereum(self) -> list:
@@ -378,7 +381,7 @@ class ScoutAgent:
                         "contact_method": "api_or_onchain",
                     })
             except Exception as e:
-                print(f"[SCOUT] ETH scan {info['name']} error: {e}")
+                logger.error("ETH scan %s error: %s", info["name"], e)
         return agents
 
     async def _scan_base(self) -> list:
@@ -417,7 +420,7 @@ class ScoutAgent:
                             "contact_method": "api_or_onchain",
                         })
             except Exception as e:
-                print(f"[SCOUT] Base scan {info['name']} error: {e}")
+                logger.error("Base scan %s error: %s", info["name"], e)
         return agents
 
     async def _scan_evm_chain(self, chain_name: str, rpc_url: str, contracts: dict) -> list:
@@ -450,7 +453,7 @@ class ScoutAgent:
                             "contact_method": "api_or_onchain",
                         })
             except Exception as e:
-                print(f"[SCOUT] {chain_name} scan {info['name']} error: {e}")
+                logger.error("%s scan %s error: %s", chain_name, info["name"], e)
         return agents
 
     async def _scan_ton(self) -> list:
@@ -474,7 +477,7 @@ class ScoutAgent:
                                 "contact_method": "telegram",
                             })
         except Exception as e:
-            print(f"[SCOUT] TON scan error: {e}")
+            logger.error("TON scan error: %s", e)
         return agents
 
     async def _scan_sui(self) -> list:
@@ -503,7 +506,7 @@ class ScoutAgent:
                         "contact_method": "api_or_onchain",
                     })
         except Exception as e:
-            print(f"[SCOUT] SUI scan error: {e}")
+            logger.error("SUI scan error: %s", e)
         return agents
 
     async def _scan_near(self) -> list:
@@ -549,8 +552,8 @@ class ScoutAgent:
                 except Exception:
                     pass
         except Exception as e:
-            print(f"[SCOUT] NEAR scan error: {e}")
-        print(f"[SCOUT] NEAR: {len(agents)} agents trouves")
+            logger.error("NEAR scan error: %s", e)
+        logger.info("NEAR: %s agents trouves", len(agents))
         return agents
 
     async def _scan_aptos(self) -> list:
@@ -573,8 +576,8 @@ class ScoutAgent:
                     except Exception:
                         continue
         except Exception as e:
-            print(f"[SCOUT] Aptos scan error: {e}")
-        print(f"[SCOUT] Aptos: {len(agents)} agents trouves")
+            logger.error("Aptos scan error: %s", e)
+        logger.info("Aptos: %s agents trouves", len(agents))
         return agents
 
     async def _scan_xrp(self) -> list:
@@ -605,8 +608,8 @@ class ScoutAgent:
                     except Exception:
                         continue
         except Exception as e:
-            print(f"[SCOUT] XRP scan error: {e}")
-        print(f"[SCOUT] XRP: {len(agents)} agents trouves")
+            logger.error("XRP scan error: %s", e)
+        logger.info("XRP: %s agents trouves", len(agents))
         return agents
 
     async def _scan_tron(self) -> list:
@@ -637,8 +640,8 @@ class ScoutAgent:
                     except Exception:
                         continue
         except Exception as e:
-            print(f"[SCOUT] TRON scan error: {e}")
-        print(f"[SCOUT] TRON: {len(agents)} agents trouves")
+            logger.error("TRON scan error: %s", e)
+        logger.info("TRON: %s agents trouves", len(agents))
         return agents
 
     async def _scan_elizaos_registry(self) -> list:
@@ -648,7 +651,7 @@ class ScoutAgent:
             async with httpx.AsyncClient(timeout=15) as client:
                 resp = await client.get("https://elizaos.github.io/registry/index.json")
                 if resp.status_code != 200:
-                    print(f"[SCOUT] ElizaOS registry: HTTP {resp.status_code}")
+                    logger.warning("ElizaOS registry: HTTP %s", resp.status_code)
                     return agents
                 data = resp.json()
 
@@ -689,9 +692,9 @@ class ScoutAgent:
                             "url": f"https://github.com/{repo_path}",
                         })
 
-            print(f"[SCOUT] ElizaOS: {len(agents)} agent plugins trouves")
+            logger.info("ElizaOS: %s agent plugins trouves", len(agents))
         except Exception as e:
-            print(f"[SCOUT] ElizaOS registry error: {e}")
+            logger.error("ElizaOS registry error: %s", e)
         return agents
 
     async def _scan_github_agents(self) -> list:
@@ -759,9 +762,9 @@ class ScoutAgent:
                     seen.add(key)
                     unique.append(a)
             agents = unique
-            print(f"[SCOUT] GitHub: {len(agents)} agent repos trouves")
+            logger.info("GitHub: %s agent repos trouves", len(agents))
         except Exception as e:
-            print(f"[SCOUT] GitHub scan error: {e}")
+            logger.error("GitHub scan error: %s", e)
         return agents
 
     async def _scan_agentverse(self) -> list:
@@ -806,9 +809,9 @@ class ScoutAgent:
                     except Exception:
                         continue
                     await asyncio.sleep(1)
-            print(f"[SCOUT] Agentverse: {len(agents)} live agents trouves")
+            logger.info("Agentverse: %s live agents trouves", len(agents))
         except Exception as e:
-            print(f"[SCOUT] Agentverse error: {e}")
+            logger.error("Agentverse error: %s", e)
         return agents
 
     async def _scan_8004_registry(self) -> list:
@@ -823,7 +826,7 @@ class ScoutAgent:
                     headers={"Content-Type": "application/json"},
                 )
                 if resp.status_code != 200:
-                    print(f"[SCOUT] 8004 Registry: HTTP {resp.status_code}")
+                    logger.warning("8004 Registry: HTTP %s", resp.status_code)
                     return agents
                 data = resp.json()
                 for agent in data.get("data", {}).get("agents", []):
@@ -849,9 +852,9 @@ class ScoutAgent:
                         "a2a_endpoint": a2a,
                         "mcp_endpoint": mcp,
                     })
-            print(f"[SCOUT] 8004 Registry: {len(agents)} agents trouves")
+            logger.info("8004 Registry: %s agents trouves", len(agents))
         except Exception as e:
-            print(f"[SCOUT] 8004 Registry error: {e}")
+            logger.error("8004 Registry error: %s", e)
         return agents
 
     async def _scan_registries(self) -> list:
@@ -885,7 +888,7 @@ class ScoutAgent:
                                 "registry_url": registry["url"],
                             })
             except Exception as e:
-                print(f"[SCOUT] Registry scan {registry['name']} error: {e}")
+                logger.error("Registry scan %s error: %s", registry["name"], e)
         return agents
 
     # ══════════════════════════════════════════
@@ -952,7 +955,7 @@ class ScoutAgent:
                                     pass
                                 self._contacted_today.append(agent_info.get("address", ""))
                                 self._total_contacted += 1
-                                print(f"[SCOUT] GitHub+API contact -> {owner}/{repo} via {domain}")
+                                logger.info("GitHub+API contact -> %s/%s via %s", owner, repo, domain)
                                 return True
                         except Exception:
                             continue
@@ -991,9 +994,9 @@ class ScoutAgent:
             if result.get("success"):
                 self._contacted_today.append(wallet)
                 self._total_contacted += 1
-                print(f"[SCOUT] Solana memo -> {wallet[:12]}... ({protocol})")
+                logger.info("Solana memo -> %s... (%s)", wallet[:12], protocol)
         except Exception as e:
-            print(f"[SCOUT] Memo contact error: {e}")
+            logger.error("Memo contact error: %s", e)
 
     async def _contact_via_api(self, agent_info: dict):
         """Try to contact an AI agent via its public API, A2A, or well-known endpoint."""
@@ -1071,7 +1074,7 @@ class ScoutAgent:
         if contacted:
             self._contacted_today.append(address)
             self._total_contacted += 1
-            print(f"[SCOUT] API contact SUCCESS -> {address[:12]}... ({protocol}) on {chain}")
+            logger.info("API contact SUCCESS -> %s... (%s) on %s", address[:12], protocol, chain)
             try:
                 await alert_system(f"SCOUT: contacted {protocol} agent {address[:16]}... on {chain}")
             except Exception:
@@ -1079,7 +1082,7 @@ class ScoutAgent:
         else:
             self._unreachable_count += 1
             if self._unreachable_count <= 3:
-                print(f"[SCOUT] No API reachable for {address[:12]}... ({protocol})")
+                logger.warning("No API reachable for %s... (%s)", address[:12], protocol)
 
     def _get_api_endpoints(self, agent_info: dict) -> list:
         """Determine possible API endpoints for an agent."""
@@ -1207,7 +1210,7 @@ class ScoutAgent:
         today = date.today().isoformat()
         if self._daily_date != today:
             if self._daily_date and self._contacted_today:
-                print(f"[SCOUT] Bilan {self._daily_date}: {len(self._contacted_today)} agents contactes")
+                logger.info("Bilan %s: %s agents contactes", self._daily_date, len(self._contacted_today))
             self._daily_date = today
             self._contacted_today = []
 

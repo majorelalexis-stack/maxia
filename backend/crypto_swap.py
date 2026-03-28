@@ -11,12 +11,15 @@ import logging
 import asyncio, math, time, uuid
 import httpx
 from config import TREASURY_ADDRESS
+from http_client import get_http_client
 from security import require_ofac_clear
+
+logger = logging.getLogger(__name__)
 
 
 # Fix #8: Standardized logging helper
 def _log_swap(msg: str):
-    print(f"[CryptoSwap] {msg}")
+    logger.info(msg)
 
 JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
 JUPITER_PRICE_API = "https://lite-api.jup.ag/price/v2"
@@ -469,23 +472,23 @@ async def update_competitor_fees():
             "amount": "1000000000",  # 1 SOL in lamports
             "slippageBps": 50,
         }
-        async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
-            if resp.status_code == 200:
-                jdata = resp.json()
-                # Calculate effective fee from price impact
-                impact = float(jdata.get("priceImpactPct", "0"))
-                jupiter_price_impact = impact
-                # platformFee if present
-                platform_fee = jdata.get("platformFee", {})
-                if platform_fee:
-                    fee_bps = int(platform_fee.get("feeBps", 0))
-                    jupiter_effective_bps = fee_bps
-                else:
-                    # Jupiter charges 0% platform fee, effective cost is slippage
-                    jupiter_effective_bps = max(1, int(impact * 100))
-                source = "live"
-                _log_swap(f"Jupiter fee fetched live: {jupiter_effective_bps} bps, impact {jupiter_price_impact}%")
+        client = get_http_client()
+        resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params, timeout=3)
+        if resp.status_code == 200:
+            jdata = resp.json()
+            # Calculate effective fee from price impact
+            impact = float(jdata.get("priceImpactPct", "0"))
+            jupiter_price_impact = impact
+            # platformFee if present
+            platform_fee = jdata.get("platformFee", {})
+            if platform_fee:
+                fee_bps = int(platform_fee.get("feeBps", 0))
+                jupiter_effective_bps = fee_bps
+            else:
+                # Jupiter charges 0% platform fee, effective cost is slippage
+                jupiter_effective_bps = max(1, int(impact * 100))
+            source = "live"
+            _log_swap(f"Jupiter fee fetched live: {jupiter_effective_bps} bps, impact {jupiter_price_impact}%")
     except Exception as e:
         _log_swap(f"Jupiter fee fetch failed (using estimates): {e}")
 
@@ -631,36 +634,36 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
         }
 
         # Single attempt, single URL, 3s timeout — no retry/sleep
-        async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params)
-            if resp.status_code == 200:
-                jdata = resp.json()
-                # Check for error in response body (e.g. TOKEN_NOT_TRADABLE)
-                if "error" in jdata or "errorCode" in jdata:
-                    _log_swap(f"Jupiter returned error: {jdata.get('error', jdata.get('errorCode', 'unknown'))} — using cached prices")
-                else:
-                    to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
-                    jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
-                    if jupiter_output > 0:
-                        jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
-                        jupiter_quote = {
-                            "output_amount": jupiter_output,
-                            "price_impact_pct": jupiter_price_impact,
-                            "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
-                            "raw": jdata,
-                        }
-                        # #5: Apply commission ONCE — deduct from Jupiter output
-                        # instead of double-charging
-                        if jupiter_output > output_amount:
-                            commission_from_jupiter = round(jupiter_output * commission_bps / 10000, 6)
-                            output_amount = jupiter_output - commission_from_jupiter
-                            # Update commission_usd to reflect Jupiter-based calc
-                            commission_usd = round(commission_from_jupiter * to_price, 6)
-                    else:
-                        _log_swap(f"Jupiter returned 0 output — using cached prices")
+        client = get_http_client()
+        resp = await client.get("https://lite-api.jup.ag/swap/v1/quote", params=params, timeout=3)
+        if resp.status_code == 200:
+            jdata = resp.json()
+            # Check for error in response body (e.g. TOKEN_NOT_TRADABLE)
+            if "error" in jdata or "errorCode" in jdata:
+                _log_swap(f"Jupiter returned error: {jdata.get('error', jdata.get('errorCode', 'unknown'))} — using cached prices")
             else:
-                # Non-200 response (TOKEN_NOT_TRADABLE, rate limit, etc.)
-                _log_swap(f"Jupiter HTTP {resp.status_code} — using cached prices")
+                to_dec = SUPPORTED_TOKENS[to_token]["decimals"]
+                jupiter_output = int(jdata.get("outAmount", "0")) / (10 ** to_dec)
+                if jupiter_output > 0:
+                    jupiter_price_impact = float(jdata.get("priceImpactPct", "0"))
+                    jupiter_quote = {
+                        "output_amount": jupiter_output,
+                        "price_impact_pct": jupiter_price_impact,
+                        "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
+                        "raw": jdata,
+                    }
+                    # #5: Apply commission ONCE — deduct from Jupiter output
+                    # instead of double-charging
+                    if jupiter_output > output_amount:
+                        commission_from_jupiter = round(jupiter_output * commission_bps / 10000, 6)
+                        output_amount = jupiter_output - commission_from_jupiter
+                        # Update commission_usd to reflect Jupiter-based calc
+                        commission_usd = round(commission_from_jupiter * to_price, 6)
+                else:
+                    _log_swap(f"Jupiter returned 0 output — using cached prices")
+        else:
+            # Non-200 response (TOKEN_NOT_TRADABLE, rate limit, etc.)
+            _log_swap(f"Jupiter HTTP {resp.status_code} — using cached prices")
     except Exception as e:
         # Jupiter unavailable — cache-based quote is already set
         _log_swap(f"Jupiter unavailable ({e}) — using cached prices")

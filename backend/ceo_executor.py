@@ -5,8 +5,11 @@ Safety rules:
   ORANGE -> max 1/day per cible, log warning (high cost = queue for approval)
   ROUGE  -> NEVER auto-execute, queue for dashboard approval + Discord alert
 """
+import logging
 import asyncio, json, re, time, uuid
 from datetime import date, datetime
+
+logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════
 # Daily execution tracker (resets each day)
@@ -54,7 +57,7 @@ async def _log_and_alert(decision: dict, memory):
             deadline_h=2,
         )
     except Exception as e:
-        print(f"[CEO-Executor] Discord alert failed: {e}")
+        logger.error("Discord alert failed: %s", e)
     memory.log_decision("ROUGE", action, "BLOCKED — requires founder approval", cible)
 
 
@@ -102,7 +105,7 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
     # ORANGE = max 1/day per cible
     if priorite == "ORANGE":
         if _orange_limit_reached(cible):
-            print(f"[CEO-Executor] ORANGE limit reached for {cible}, skipping")
+            logger.info("ORANGE limit reached for %s, skipping", cible)
             return {"executed": False, "reason": f"ORANGE limit reached for {cible} today"}
 
     # Route to executor based on cible
@@ -118,7 +121,7 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
                 disabled_info = memory._data.get("disabled_agents", {}).get(cible, {})
                 if "Auto-disabled" in disabled_info.get("reason", ""):
                     memory.enable_agent(cible)
-                    print(f"[CEO-Executor] AUTO-RE-ENABLE: {cible} (action succeeded)")
+                    logger.info("AUTO-RE-ENABLE: %s (action succeeded)", cible)
             # Reset error count for this agent on success
             agent_error_map = {"GHOST-WRITER": "ceo_executor_tweet", "HUNTER": "ceo_executor_prospect",
                                "DEPLOYER": "ceo_executor_blog", "SCOUT": "ceo_executor_scout"}
@@ -131,7 +134,7 @@ async def execute_decision(decision: dict, memory, db=None) -> dict:
         return result
     except Exception as e:
         error_msg = f"Execution error for {cible}: {e}"
-        print(f"[CEO-Executor] {error_msg}")
+        logger.error("%s", error_msg)
         memory.log_error("ceo_executor", error_msg)
         return {"executed": False, "reason": error_msg}
 
@@ -281,7 +284,7 @@ async def _route(cible: str, action: str, decision: dict, memory, db=None) -> di
 
     else:
         # Unknown cible — log it (mais ne pas spammer les alertes)
-        print(f"[CEO-Executor] Unknown cible: {cible}")
+        logger.warning("Unknown cible: %s", cible)
         return {"executed": False, "reason": f"Unknown cible: {cible}"}
 
 
@@ -321,7 +324,7 @@ async def execute_prospect_contact(wallet: str, message: str, canal: str, memory
         if not check.get("allowed"):
             return {"executed": False, "reason": f"Financial limit: {check.get('reason', '')}"}
     except Exception as e:
-        print(f"[CEO-Executor] Security check skipped: {e}")
+        logger.warning("Security check skipped: %s", e)
 
     import uuid as _uuid
     action_id = f"prospect_{_uuid.uuid4().hex[:8]}"
@@ -393,7 +396,7 @@ async def _do_blog_deploy(title: str, content: str, memory) -> dict:
         action_id = f"blog_{_uuid.uuid4().hex[:8]}"
         memory.log_decision("VERT", f"Blog deployed: {title}", "auto-executed", "DEPLOYER")
         memory.log_action_with_tracking("DEPLOYER", "blog", action_id, title[:100])
-        print(f"[CEO-Executor] Blog saved: {filepath}")
+        logger.info("Blog saved: %s", filepath)
         return {"executed": True, "detail": f"Blog saved: {filename}", "action_id": action_id}
     except Exception as e:
         memory.log_error("ceo_executor_blog", str(e))
@@ -418,7 +421,7 @@ async def execute_hunter_switch(new_canal: str, memory) -> dict:
 
     old = memory.hunter_switch(canal_clean)
     memory.log_decision("VERT", f"HUNTER canal switched: {old} -> {canal_clean}", "auto-executed", "HUNTER")
-    print(f"[CEO-Executor] HUNTER canal: {old} -> {canal_clean}")
+    logger.info("HUNTER canal: %s -> %s", old, canal_clean)
     return {"executed": True, "detail": f"Canal switched: {old} -> {canal_clean}"}
 
 
