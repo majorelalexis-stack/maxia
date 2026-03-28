@@ -977,18 +977,61 @@ async def api_price_live(symbol: str, mode: str = Query("normal", pattern="^(nor
         # Demarrer le stream si pas encore actif
         await start_pyth_stream()
 
-    # Chercher dans equity puis crypto
+    # Chercher dans equity puis crypto (Pyth feeds)
     feed_id = EQUITY_FEEDS.get(sym) or CRYPTO_FEEDS.get(sym)
-    if not feed_id:
-        raise HTTPException(404, f"Symbol {sym} not found in Pyth feeds")
+    if feed_id:
+        result = await get_pyth_price(feed_id, hft=hft)
+        if "error" not in result:
+            result["symbol"] = sym
+            result["mode"] = mode
+            return result
 
-    result = await get_pyth_price(feed_id, hft=hft)
-    if "error" in result:
-        raise HTTPException(502, result["error"])
+    # Fallback: CoinGecko / prix cache pour les tokens sans feed Pyth
+    try:
+        from price_oracle import get_crypto_prices
+        prices_data = await get_crypto_prices()
+        prices = prices_data.get("prices", prices_data) if isinstance(prices_data, dict) else {}
+        token_data = prices.get(sym, {})
+        price = token_data.get("price", 0) if isinstance(token_data, dict) else 0
+        if price > 0:
+            return {
+                "price": price,
+                "confidence": 0,
+                "confidence_pct": 0,
+                "publish_time": int(time.time()),
+                "age_s": 0,
+                "stale": False,
+                "wide_confidence": False,
+                "source": token_data.get("source", "coingecko") if isinstance(token_data, dict) else "cache",
+                "symbol": sym,
+                "mode": mode,
+            }
+    except Exception:
+        pass
 
-    result["symbol"] = sym
-    result["mode"] = mode
-    return result
+    # Fallback: stock prices
+    try:
+        from tokenized_stocks import fetch_stock_prices
+        stocks = await fetch_stock_prices()
+        stock = stocks.get(sym, {})
+        price = stock.get("price_usd", 0) if isinstance(stock, dict) else 0
+        if price > 0:
+            return {
+                "price": price,
+                "confidence": 0,
+                "confidence_pct": 0,
+                "publish_time": int(time.time()),
+                "age_s": 0,
+                "stale": False,
+                "wide_confidence": False,
+                "source": "stock",
+                "symbol": sym,
+                "mode": mode,
+            }
+    except Exception:
+        pass
+
+    raise HTTPException(404, f"No price available for {sym}")
 
 
 @router.get("/health")
