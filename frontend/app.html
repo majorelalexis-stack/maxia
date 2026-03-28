@@ -2098,11 +2098,16 @@ function setTTAmount(pct) {
   updateTTEstimate();
 }
 
+var _ttCurrentPrice = 0; // Updated by live price feeds — avoids parsing locale-formatted text
 function updateTTEstimate() {
   var amount = parseFloat(document.getElementById('tt-amount').value) || 0;
-  var priceText = document.getElementById('tt-live-price').textContent.replace(/[^0-9.]/g, '');
-  var price = parseFloat(priceText) || 1;
-  var qty = amount / price;
+  var price = _ttCurrentPrice;
+  if (!price || price <= 0) {
+    // Fallback: parse from display (handle both . and , decimal separators)
+    var priceText = document.getElementById('tt-live-price').textContent.replace(/[^0-9.,]/g, '').replace(',', '.');
+    price = parseFloat(priceText) || 0;
+  }
+  var qty = price > 0 ? amount / price : 0;
   var fee = amount * 0.001; // 0.1% default
   document.getElementById('tt-est-qty').textContent = qty.toFixed(6);
   document.getElementById('tt-est-fee').textContent = '$' + fee.toFixed(4);
@@ -2136,6 +2141,7 @@ function connectTTPriceStream() {
       if (d.data && d.data.symbol) {
         var sel = (document.getElementById('chart-token').value||'').toUpperCase();
         if (d.data.symbol === sel) {
+          _ttCurrentPrice = d.data.price;
           document.getElementById('tt-live-price').textContent = '$' + d.data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
           updateTTEstimate();
         }
@@ -2245,6 +2251,7 @@ async function loadTTOrders() { renderTTOrders(); }
 
 // Auto-update live price when chart token changes
 document.getElementById('chart-token').addEventListener('change', function() {
+  _ttCurrentPrice = 0; // Reset price when switching token
   setOrderSide(_ttSide);
   loadTTLivePrice();
   loadChart();
@@ -2257,6 +2264,7 @@ async function loadTTLivePrice() {
     var resp = await fetch('/api/oracle/price/live/' + token + '?mode=' + mode);
     var data = await resp.json();
     if (data.price) {
+      _ttCurrentPrice = data.price;
       document.getElementById('tt-live-price').textContent = '$' + data.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
       updateTTEstimate();
     }
