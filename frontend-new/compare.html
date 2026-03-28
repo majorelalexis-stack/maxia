@@ -84,6 +84,11 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
 </style>
 </head>
 <body>
+<style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}</style>
+<div class="bg-hex"><canvas id="hexc"></canvas></div>
+<div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div>
+<div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div>
+<script>(function(){var c=document.getElementById('hexc');if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext('2d');ctx.strokeStyle='rgba(0,229,255,0.07)';ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener('resize',draw);})();</script>
 <script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
 
 <nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">

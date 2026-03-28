@@ -19,11 +19,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);ove
 a{color:var(--cyan);text-decoration:none}
 ::selection{background:rgba(0,229,255,.2)}
 
-/* ═══ ANIMATED BACKGROUND ═══ */
-.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.04;
-  background-image:linear-gradient(rgba(0,229,255,.3) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.3) 1px,transparent 1px);
-  background-size:60px 60px;animation:gridMove 30s linear infinite}
-@keyframes gridMove{0%{transform:translate(0,0)}100%{transform:translate(60px,60px)}}
+/* ═══ ANIMATED BACKGROUND — mesh gradient + grid ═══ */
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-grid canvas{display:block;width:100%;height:100%}
+
+/* Animated gradient blobs — clearly visible and moving */
+.bg-mesh{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.blob{position:absolute;border-radius:50%;filter:blur(80px);animation:blobMove 15s ease-in-out infinite}
+.blob-1{width:600px;height:600px;background:rgba(0,229,255,.12);top:-10%;left:10%;animation-duration:18s}
+.blob-2{width:500px;height:500px;background:rgba(124,58,237,.12);top:30%;right:-5%;animation-duration:22s;animation-delay:-5s}
+.blob-3{width:450px;height:450px;background:rgba(244,63,94,.08);bottom:-5%;left:30%;animation-duration:20s;animation-delay:-10s}
+.blob-4{width:350px;height:350px;background:rgba(34,197,94,.06);top:60%;left:-5%;animation-duration:16s;animation-delay:-8s}
+@keyframes blobMove{
+  0%,100%{transform:translate(0,0) scale(1)}
+  25%{transform:translate(80px,-60px) scale(1.15)}
+  50%{transform:translate(-40px,80px) scale(.9)}
+  75%{transform:translate(60px,40px) scale(1.1)}
+}
 
 .glow-orb{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(100px)}
 .go1{width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:drift 20s ease-in-out infinite}
@@ -48,7 +60,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
 .hero h1{font-family:'Syne',sans-serif;font-size:clamp(32px,5.5vw,64px);font-weight:800;letter-spacing:-2px;line-height:1.05;margin-bottom:20px}
-.hero h1 .grad{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shimmer 3s linear infinite}
+.grad{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e,#00e5ff) !important;-webkit-background-clip:text !important;-webkit-text-fill-color:transparent !important;background-size:300% auto !important;animation:shimmer 4s linear infinite !important}
 @keyframes shimmer{0%{background-position:0% center}100%{background-position:200% center}}
 
 .hero-sub{font-size:17px;color:var(--muted);max-width:520px;margin:0 auto 32px;font-weight:300}
@@ -176,7 +188,46 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 </head>
 <body>
 
-<div class="bg-grid"></div>
+<div class="bg-mesh">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+</div>
+<div class="bg-grid"><canvas id="hexc"></canvas></div>
+<script>
+(function(){
+  var c=document.getElementById('hexc');
+  if(!c)return;
+  function draw(){
+    c.width=window.innerWidth;
+    c.height=window.innerHeight;
+    var ctx=c.getContext('2d');
+    ctx.strokeStyle='rgba(0,229,255,0.07)';
+    ctx.lineWidth=0.5;
+    var s=16;
+    var colW=s*1.5;
+    var rowH=s*Math.sqrt(3);
+    for(var col=-1;col<c.width/colW+2;col++){
+      for(var row=-1;row<c.height/rowH+2;row++){
+        var cx=col*colW;
+        var cy=row*rowH+(col%2===0?0:rowH/2);
+        ctx.beginPath();
+        for(var i=0;i<6;i++){
+          var a=Math.PI/3*i;
+          var px=cx+s*Math.cos(a);
+          var py=cy+s*Math.sin(a);
+          if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+  }
+  draw();
+  window.addEventListener('resize',draw);
+})();
+</script>
 <div class="glow-orb go1"></div>
 <div class="glow-orb go2"></div>
 <div class="glow-orb go3"></div>
@@ -233,8 +284,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 
 <!-- HERO -->
 <section class="hero">
+  <div style="font-family:'Syne',sans-serif;font-size:clamp(72px,12vw,120px);font-weight:800;letter-spacing:-4px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px;line-height:1">MAXIA</div>
   <div class="hero-tag"><div class="dot"></div> Live on 14 Blockchains</div>
-  <h1>Trade crypto + stocks 24/7.<br><span class="grad">AI chat. Live charts. Lowest fees.</span></h1>
+  <h1 style="background:linear-gradient(90deg,#e4e4e7,#e4e4e7,#00e5ff,#7c3aed,#f43f5e,#e4e4e7,#e4e4e7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300% 100%;animation:shimmer 4s linear infinite">Trade crypto + stocks 24/7.<br>AI chat. Live charts. Lowest fees.</h1>
   <p class="hero-sub">65 tokens, 25 stocks on-chain, leverage up to 100x, launch tokens — all in USDC. No signup to explore.</p>
 
   <div class="hero-chat">
