@@ -584,10 +584,11 @@ async def lifespan(app: FastAPI):
 
     # Pyth SSE permanent — stream prix live en continu (pas on-demand)
     try:
-        from pyth_oracle import start_pyth_stream, start_fallback_refresh
+        from pyth_oracle import start_pyth_stream, start_fallback_refresh, start_equity_poll
         await start_pyth_stream()
+        await start_equity_poll()
         await start_fallback_refresh()
-        print("[MAXIA] Pyth SSE persistent stream + fallback auto-refresh started")
+        print("[MAXIA] Pyth SSE persistent stream + equity poll (2s) + fallback auto-refresh started")
     except Exception as e:
         print(f"[MAXIA] Pyth stream init error: {e}")
 

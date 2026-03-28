@@ -1244,6 +1244,47 @@ async def start_pyth_stream():
 _fallback_refresh_task = None
 
 
+# ── Equity fast poll — 11 feeds Pyth toutes les 2s (HTTP batch, pas SSE) ──
+_equity_poll_task = None
+
+
+async def start_equity_poll():
+    """Poll les 11 equity feeds Pyth toutes les 2s via HTTP batch.
+    Pousse dans _streaming_prices + _sse_subscribers (meme pipeline que le SSE crypto)."""
+    global _equity_poll_task
+    if _equity_poll_task and not _equity_poll_task.done():
+        return
+    _equity_poll_task = asyncio.create_task(_equity_poll_loop())
+    logger.info("[PythEquity] Fast equity poll started (2s, 11 feeds)")
+
+
+async def _equity_poll_loop():
+    """Poll rapide Pyth HTTP pour les equity feeds — les pousse dans le stream."""
+    feed_to_symbol = {fid: sym for sym, fid in EQUITY_FEEDS.items()}
+    while True:
+        try:
+            now = time.time()
+            for sym, fid in EQUITY_FEEDS.items():
+                result = await get_pyth_price(fid, hft=False)
+                if "error" not in result and result.get("price", 0) > 0:
+                    result["symbol"] = sym
+                    result["source"] = "pyth_poll"
+                    _streaming_prices[fid] = {"data": result, "ts": now}
+                    # P3: TWAP
+                    update_twap(sym, result["price"])
+                    # Push aux subscribers WebSocket
+                    for q in list(_sse_subscribers):
+                        try:
+                            q.put_nowait({"symbol": sym, **result})
+                        except asyncio.QueueFull:
+                            pass
+                    # CandleBuilder
+                    _process_candle_tick(sym, result["price"], now)
+        except Exception as e:
+            logger.error(f"[PythEquity] Poll error: {e}")
+        await asyncio.sleep(2)
+
+
 async def start_fallback_refresh():
     """Demarre le rafraichissement automatique des prix fallback.
     Toutes les 30 minutes, re-fetch les prix live et met a jour FALLBACK_PRICES."""

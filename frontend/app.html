@@ -4647,54 +4647,45 @@ function filterStocks(sector, btn) {
 
 function sortStocks(val) { renderStockRows(); }
 
-// ── Live price updater — refresh toutes les 10s, flash vert/rouge ──
-var _stkPriceTimer = null;
+// ── Live price updater — WebSocket HFT, prix chaque seconde, flash vert/rouge ──
+var _stkPriceWS = null;
 function startStockPriceLive() {
-  if (_stkPriceTimer) return;
-  _stkPriceTimer = setInterval(async function() {
+  if (_stkPriceWS && _stkPriceWS.readyState <= 1) return;
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _stkPriceWS = new WebSocket(proto + '//' + location.host + '/ws/prices');
+  _stkPriceWS.onopen = function() { _stkPriceWS.send(JSON.stringify({mode: 'hft'})); };
+  _stkPriceWS.onmessage = function(e) {
     try {
-      var data = await api('/api/oracle/stocks/prices');
-      var prices = (data && data.prices) || [];
-      prices.forEach(function(p) {
-        var sym = (p.symbol||'').replace(/^x/,'').toUpperCase();
-        var newPrice = p.price_usd || p.price || 0;
-        var newChange = p.change_24h_pct || 0;
-        if (newPrice <= 0) return;
-        var oldPrice = (_stockPriceCache[sym] || {}).price || 0;
-        _stockPriceCache[sym] = {price: newPrice, change: newChange, source: 'live'};
-        // Update data array
-        var s = _stocksData.find(function(st){return st.symbol===sym;});
-        if (s) { s.price = newPrice; s.change = newChange; }
-        // Update DOM directly (no re-render = fast)
-        var priceEl = document.getElementById('stk-price-' + sym);
-        var changeEl = document.getElementById('stk-change-' + sym);
-        if (priceEl) {
-          priceEl.textContent = '$' + newPrice.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-          // Flash animation
-          var flashColor = newPrice > oldPrice ? '#10b981' : newPrice < oldPrice ? '#ef4444' : '';
-          if (flashColor && oldPrice > 0) {
-            priceEl.style.color = flashColor;
-            setTimeout(function(){priceEl.style.color='';}, 1500);
-          }
+      var msg = JSON.parse(e.data);
+      var d = msg.data || {};
+      var sym = (d.symbol || '').toUpperCase();
+      var newPrice = d.price || 0;
+      if (!sym || newPrice <= 0) return;
+      var oldPrice = (_stockPriceCache[sym] || {}).price || 0;
+      _stockPriceCache[sym] = {price: newPrice, change: (_stockPriceCache[sym]||{}).change || 0, source: 'live'};
+      var s = _stocksData.find(function(st){return st.symbol===sym;});
+      if (s) s.price = newPrice;
+      var priceEl = document.getElementById('stk-price-' + sym);
+      if (priceEl) {
+        priceEl.textContent = '$' + newPrice.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        var flashColor = newPrice > oldPrice ? '#10b981' : newPrice < oldPrice ? '#ef4444' : '';
+        if (flashColor && oldPrice > 0) {
+          priceEl.style.color = flashColor;
+          setTimeout(function(){priceEl.style.color='';}, 800);
         }
-        if (changeEl) {
-          var chStr = (newChange >= 0 ? '+' : '') + newChange.toFixed(2) + '%';
-          changeEl.textContent = chStr;
-          changeEl.style.color = newChange >= 0 ? 'var(--green)' : 'var(--red)';
-        }
-      });
-    } catch(e) {}
-  }, 10000); // 10 secondes
+      }
+    } catch(err) {}
+  };
+  _stkPriceWS.onclose = function() { setTimeout(startStockPriceLive, 3000); };
 }
 
 // Demarrer le live quand la page stocks s'affiche
-var _origShowPage = typeof showPage === 'function' ? showPage : null;
 if (!window._stkLiveHooked) {
   window._stkLiveHooked = true;
   var _realShowPage = window.showPage;
   window.showPage = function(page) {
     if (typeof _realShowPage === 'function') _realShowPage(page);
-    if (page === 'stocks') startStockPriceLive();
+    if (page === 'stocks' || page === 'trading') startStockPriceLive();
   };
 }
 
