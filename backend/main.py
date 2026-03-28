@@ -2534,8 +2534,12 @@ async def ws_prices(websocket: WebSocket):
     try:
         if mode == "hft":
             # Mode HFT: subscribe au stream Pyth SSE, push chaque update
-            from pyth_oracle import _sse_subscribers, start_pyth_stream
+            from pyth_oracle import _sse_subscribers, _CANDLE_MAX_SUBSCRIBERS, start_pyth_stream
             await start_pyth_stream()
+            if len(_sse_subscribers) >= _CANDLE_MAX_SUBSCRIBERS:
+                await websocket.send_json({"error": "Too many price subscribers. Try again later."})
+                await websocket.close(1013)
+                return
             q: asyncio.Queue = asyncio.Queue(maxsize=50)
             _sse_subscribers.append(q)
             try:
@@ -2597,7 +2601,12 @@ async def ws_chart(websocket: WebSocket):
         if history:
             await websocket.send_json({"type": "history", "symbol": symbol, "interval": interval, "candles": history})
 
-        # Souscrire aux updates live
+        # Souscrire aux updates live (capped to prevent unbounded memory)
+        from pyth_oracle import _CANDLE_MAX_SUBSCRIBERS
+        if len(_candle_subscribers) >= _CANDLE_MAX_SUBSCRIBERS:
+            await websocket.send_json({"error": "Too many candle subscribers. Try again later."})
+            await websocket.close(1013)
+            return
         q: asyncio.Queue = asyncio.Queue(maxsize=200)
         _candle_subscribers.append(q)
         try:

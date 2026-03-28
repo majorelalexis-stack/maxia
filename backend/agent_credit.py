@@ -605,8 +605,10 @@ async def api_credit_repay(body: CreditRepayModel, wallet: str = Depends(require
 
 
 @router.get("/status/{agent_id}")
-async def api_credit_status(agent_id: str):
-    """GET /api/credit/status/{agent_id} — Statut complet du credit d'un agent."""
+async def api_credit_status(agent_id: str, request: Request):
+    """GET /api/credit/status/{agent_id} — Statut complet du credit d'un agent. Admin only."""
+    from security import require_admin
+    require_admin(request)
     status = await get_credit_status(agent_id)
     return {"status": "ok", "credit": status}
 

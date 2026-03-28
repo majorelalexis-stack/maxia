@@ -27,6 +27,7 @@ PRICING = {
 
 # ── Per-agent usage tracking ──
 _usage: dict = {}  # api_key -> {total_tokens, total_cost, calls, date}
+_USAGE_MAX_KEYS = 5000  # Cap to prevent unbounded growth
 
 # ── Models ──
 
@@ -54,6 +55,11 @@ def _track_usage(api_key: str, tier: str, input_tokens: int, output_tokens: int)
     """Track usage and cost for an API key."""
     today = time.strftime("%Y-%m-%d")
     if api_key not in _usage or _usage[api_key].get("date") != today:
+        # Cleanup old keys if too many (prevent unbounded growth)
+        if len(_usage) >= _USAGE_MAX_KEYS:
+            old_keys = [k for k, v in _usage.items() if v.get("date") != today]
+            for k in old_keys[:len(old_keys)//2]:  # Remove half of stale keys
+                _usage.pop(k, None)
         _usage[api_key] = {"total_tokens": 0, "total_cost": 0.0, "calls": 0, "date": today}
 
     pricing = PRICING.get(tier, PRICING["fast"])

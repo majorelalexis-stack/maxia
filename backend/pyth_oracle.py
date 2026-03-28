@@ -70,12 +70,17 @@ def get_confidence_threshold(symbol: str) -> float:
 _twap_data: dict[str, list] = {}  # {symbol: [(ts, price), ...]}
 _TWAP_WINDOW_S = 300  # 5 minutes
 _TWAP_MAX_DEVIATION_PCT = 20.0  # Rejeter si spot devie >20% du TWAP
+_TWAP_MAX_SYMBOLS = 50  # Max symbols tracked to prevent unbounded growth
 
 
 def update_twap(symbol: str, price: float):
     """Ajoute un datapoint au TWAP rolling."""
     now = time.time()
     if symbol not in _twap_data:
+        # Cap total symbols to prevent unbounded growth from rogue feeds
+        if len(_twap_data) >= _TWAP_MAX_SYMBOLS:
+            oldest_sym = min(_twap_data, key=lambda s: _twap_data[s][-1][0] if _twap_data[s] else 0)
+            del _twap_data[oldest_sym]
         _twap_data[symbol] = []
     _twap_data[symbol].append((now, price))
     # Purger les points hors fenetre
@@ -148,9 +153,11 @@ class CandleBuilder:
 # Builders par symbol + intervalle — alimentes par le stream SSE
 _candle_builders: dict[str, dict[int, CandleBuilder]] = {}  # {symbol: {interval_s: builder}}
 _LIVE_INTERVALS = [1, 5, 60, 3600, 21600, 86400]  # 1s, 5s, 1m, 1h, 6h, 1d
+_CANDLE_MAX_SYMBOLS = 50  # Max symbols with candle builders
 
 # Subscribers pour les candles live (WebSocket /ws/chart)
 _candle_subscribers: list[asyncio.Queue] = []
+_CANDLE_MAX_SUBSCRIBERS = 100  # Max WebSocket subscribers
 
 
 def _process_candle_tick(symbol: str, price: float, ts: float):
@@ -158,6 +165,10 @@ def _process_candle_tick(symbol: str, price: float, ts: float):
     if not symbol or price <= 0:
         return
     if symbol not in _candle_builders:
+        # Cap total symbols to prevent unbounded memory growth
+        if len(_candle_builders) >= _CANDLE_MAX_SYMBOLS:
+            oldest_sym = min(_candle_builders, key=lambda s: max((b._bucket for b in _candle_builders[s].values()), default=0))
+            del _candle_builders[oldest_sym]
         _candle_builders[symbol] = {iv: CandleBuilder(iv) for iv in _LIVE_INTERVALS}
 
     for iv, builder in _candle_builders[symbol].items():

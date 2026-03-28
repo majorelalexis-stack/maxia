@@ -195,6 +195,7 @@ _STOCK_CACHE_TTL = 180  # 3 minutes (etait 2 — Yahoo rate limit)
 # Per-symbol cache pour eviter les refetch inutiles
 _symbol_cache: dict = {}  # {symbol: {"price": ..., "ts": ..., "source": ...}}
 _SYMBOL_CACHE_TTL = 45  # secondes — cache individuel par symbole
+_SYMBOL_CACHE_MAX = 200  # Max symbols cached
 
 # Stats compteur (pour monitoring)
 _cache_stats = {"hits": 0, "misses": 0}
@@ -431,6 +432,10 @@ async def get_price(symbol: str) -> float:
     prices = await get_prices([symbol])
     result = prices.get(symbol, {})
     price = result.get("price", FALLBACK_PRICES.get(symbol, 0))
+    # Cap cache size — evict oldest entry if full
+    if len(_symbol_cache) >= _SYMBOL_CACHE_MAX:
+        oldest_sym = min(_symbol_cache, key=lambda s: _symbol_cache[s].get("ts", 0))
+        del _symbol_cache[oldest_sym]
     _symbol_cache[symbol] = {"price": price, "ts": now, "source": result.get("source", "unknown")}
     return price
 
