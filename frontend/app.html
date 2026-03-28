@@ -2349,6 +2349,10 @@ async function loadChart() {
   var container = document.getElementById('chart-container');
   var signalEl = document.getElementById('chart-signal');
 
+  // ALWAYS close existing WS first — prevents old token data leaking into new chart
+  _chartWSId++;
+  if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
+
   _createChart(container);
 
   var isLiveTF = _liveIntervals.hasOwnProperty(_chartTF);

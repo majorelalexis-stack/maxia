@@ -1383,6 +1383,14 @@ class CEOLocal:
                     except Exception as e:
                         _log(f"[CRM] Error: {e}")
 
+                # 7b. STRATEGIC FEEDBACK LOOP (toutes les 12 cycles = ~2h)
+                # Le CEO consulte ses metriques reelles, competitors, et ajuste sa strategie
+                if self._cycle % 12 == 0:
+                    try:
+                        await self._strategic_feedback_loop()
+                    except Exception as e:
+                        _log(f"[STRATEGY] Error: {e}")
+
                 # 8. MANAGE DMs (toutes les 4 cycles = ~40 min)
                 if self._cycle % 4 == 0:
                     try:
@@ -5042,6 +5050,139 @@ class CEOLocal:
                 "last_message": dm_text[:50],
             })
         return result
+
+    async def _strategic_feedback_loop(self):
+        """STRATEGIC FEEDBACK LOOP — every ~2h.
+        1. Fetch real metrics from VPS (signups, revenue, competitors)
+        2. Check objective progress + pivot status
+        3. Ask Qwen 14B (think=on) to analyze and propose strategy adjustments
+        4. Update objectives and store learnings in vector memory
+        """
+        _log("[STRATEGY] === Feedback Loop ===")
+
+        # 1. Fetch all data from VPS
+        feedback_data = None
+        try:
+            feedback_data = await self.vps._call("GET", "/api/ceo/feedback-loop")
+            if feedback_data:
+                web = feedback_data.get("web", {})
+                _log(f"  Signups 24h: {web.get('signups_24h', '?')} | Total agents: {web.get('total_agents', '?')} | Revenue: ${web.get('revenue_24h', 0)}")
+        except Exception as e:
+            _log(f"[STRATEGY] VPS feedback failed: {e}")
+            return
+
+        # 2. Fetch competitors
+        competitors = None
+        try:
+            competitors = await self.vps._call("GET", "/api/ceo/competitors")
+            if competitors:
+                comp = competitors.get("competitors", {})
+                for name, data in comp.items():
+                    if name != "maxia":
+                        _log(f"  Competitor {name}: {data.get('github_stars', data.get('agents', data.get('registered_services', '?')))}")
+        except Exception:
+            pass
+
+        # 3. Check objective status
+        objectives = None
+        try:
+            objectives = await self.vps._call("GET", "/api/ceo/objectives")
+            current = objectives.get("current_week") if objectives else None
+            pivot = objectives.get("pivot_check", {}) if objectives else {}
+            if current:
+                _log(f"  Objective: {current.get('objective', '?')} — Score: {current.get('score', 0)}% ({current.get('current', 0)}/{current.get('target', '?')})")
+                if pivot.get("pivot"):
+                    _log(f"  ⚠ PIVOT NEEDED: {pivot.get('reason', '')}")
+            else:
+                _log("  No objective set — will create one")
+        except Exception:
+            pass
+
+        # 4. Ask Qwen 14B to analyze and propose strategy
+        prompt = feedback_data.get("ceo_prompt", "") if feedback_data else ""
+        if not prompt:
+            prompt = (
+                "You are the CEO of MAXIA, an AI-to-AI marketplace. "
+                "Current state: 0 revenue, 2 agents. "
+                "Propose a specific acquisition strategy for this week. "
+                "Format: OBJECTIVE: [measurable goal]\nSTRATEGY: [specific actions]\nMETRIC: [what to measure]"
+            )
+
+        try:
+            from config_local import OLLAMA_CEO_MODEL, OLLAMA_URL
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
+                    "model": OLLAMA_CEO_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.8, "num_predict": 500},
+                })
+                if resp.status_code == 200:
+                    strategy_text = resp.json().get("response", "")
+                    _log(f"[STRATEGY] CEO analysis:\n{strategy_text[:300]}")
+
+                    # Store in vector memory
+                    try:
+                        from vector_memory_local import store_memory
+                        store_memory("strategy", f"Weekly strategy analysis ({time.strftime('%Y-%m-%d %H:%M')}): {strategy_text[:500]}")
+                    except Exception:
+                        pass
+
+                    # 5. Set/update objective if none exists or pivot needed
+                    should_set = (not objectives or not objectives.get("current_week"))
+                    if objectives and objectives.get("pivot_check", {}).get("pivot"):
+                        should_set = True
+
+                    if should_set:
+                        # Extract objective from LLM response
+                        obj_text = "Get 5 new agent registrations"
+                        metric = "signups"
+                        target = 5
+                        # Try to parse from LLM output
+                        for line in strategy_text.split("\n"):
+                            line_upper = line.strip().upper()
+                            if line_upper.startswith("OBJECTIVE:"):
+                                obj_text = line.strip()[10:].strip()
+                            elif line_upper.startswith("METRIC:"):
+                                metric = line.strip()[7:].strip().lower()
+                                if "signup" in metric or "register" in metric:
+                                    metric = "signups"
+                                elif "revenue" in metric:
+                                    metric = "revenue_usdc"
+                            elif line_upper.startswith("TARGET:"):
+                                try:
+                                    target = int("".join(c for c in line.strip()[7:] if c.isdigit()) or "5")
+                                except Exception:
+                                    target = 5
+
+                        try:
+                            await self.vps._call("POST", "/api/ceo/objectives/set", {
+                                "objective": obj_text[:200],
+                                "target": target,
+                                "metric": metric,
+                            })
+                            _log(f"[STRATEGY] Objective set: {obj_text[:100]} (target={target}, metric={metric})")
+                        except Exception as e:
+                            _log(f"[STRATEGY] Failed to set objective: {e}")
+
+                    # Update progress on current objective
+                    elif objectives and objectives.get("current_week"):
+                        web = feedback_data.get("web", {}) if feedback_data else {}
+                        current_metric = objectives["current_week"].get("metric", "signups")
+                        current_val = web.get("signups_24h", 0) if "signup" in current_metric else web.get("revenue_24h", 0)
+                        try:
+                            await self.vps._call("POST", "/api/ceo/objectives/update", {
+                                "current": current_val,
+                                "strategy": strategy_text[:200],
+                                "action": f"Cycle #{self._cycle} analysis",
+                            })
+                        except Exception:
+                            pass
+
+        except Exception as e:
+            _log(f"[STRATEGY] LLM analysis failed: {e}")
+
+        _log("[STRATEGY] === Feedback Loop complete ===")
 
     async def _weekly_retrospective(self):
         """Retrospective hebdo : analyser la semaine et ajuster la strategie."""
