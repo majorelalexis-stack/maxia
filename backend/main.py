@@ -1391,6 +1391,21 @@ async def serve_og_image():
         return FileResponse(str(og_path), media_type="image/png")
     return HTMLResponse("Not found", status_code=404)
 
+@app.get("/favicon.svg", include_in_schema=False)
+async def favicon():
+    fav_path = FRONTEND_DIR / "favicon.svg"
+    if fav_path.exists():
+        return FileResponse(str(fav_path), media_type="image/svg+xml")
+    return HTMLResponse("", status_code=404)
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_ico():
+    """Redirect .ico to .svg for browsers that request favicon.ico."""
+    fav_path = FRONTEND_DIR / "favicon.svg"
+    if fav_path.exists():
+        return FileResponse(str(fav_path), media_type="image/svg+xml")
+    return HTMLResponse("", status_code=404)
+
 @app.get("/robots.txt", include_in_schema=False)
 async def robots_txt():
     robots_path = FRONTEND_DIR / "robots.txt"
