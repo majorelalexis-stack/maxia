@@ -1947,10 +1947,9 @@ function showPage(name, btn) {
   if (navLinks) navLinks.classList.remove('open');
 
   // ── Cleanup WebSockets when leaving pages ──
-  // Close trading terminal WS when leaving trading page
+  // Stop chart polling when leaving trading page
   if (name !== 'trading') {
-    _chartWSId++;
-    if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
+    _stopChartPoll();
     if (_ttPriceWS) { _ttPriceWS.onclose = null; _ttPriceWS.close(); _ttPriceWS = null; }
   }
   // Close stock chart WS when leaving stocks page
@@ -2358,45 +2357,59 @@ function _createChart(container) {
   window.addEventListener('resize', function() { if (_chart) _chart.applyOptions({ width: container.clientWidth }); });
 }
 
-var _chartWSId = 0; // Incremented on each new connection to cancel stale reconnects
-var _chartCurrentSymbol = ''; // Track which symbol the chart is showing
-function _connectChartWS(symbol, interval_s) {
-  _chartWSId++;
-  var myId = _chartWSId;
-  _chartCurrentSymbol = symbol;
+// ══════════════════════════════════════════════════════════
+// SIMPLE LIVE CHART — REST polling every 2s (reliable, works for ALL tokens)
+// No more complex WebSocket candle system. Just fetch price → plot.
+// ══════════════════════════════════════════════════════════
+var _chartPollId = 0;    // Incremented to cancel stale poll loops
+var _chartPollTimer = null;
+var _chartCurrentSymbol = '';
+
+function _stopChartPoll() {
+  _chartPollId++;
+  if (_chartPollTimer) { clearInterval(_chartPollTimer); _chartPollTimer = null; }
   if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
-  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  _chartWS = new WebSocket(proto + '//' + location.host + '/ws/chart');
-  _chartWS.onopen = function() {
-    _chartWS.send(JSON.stringify({ symbol: symbol, interval: interval_s }));
-    var badge = document.getElementById('tt-stream-badge');
-    if (badge) { badge.textContent = 'LIVE ' + (interval_s < 60 ? interval_s + 's' : '1m') + ' ' + symbol; badge.className = 'badge badge-green'; }
-  };
-  _chartWS.onmessage = function(e) {
-    // Ignore if this WS is stale (user already switched to another token)
-    if (myId !== _chartWSId) return;
+}
+
+function _startChartPoll(symbol, interval_s) {
+  _stopChartPoll();
+  _chartPollId++;
+  var myId = _chartPollId;
+  _chartCurrentSymbol = symbol;
+
+  var badge = document.getElementById('tt-stream-badge');
+  if (badge) { badge.textContent = 'LIVE ' + symbol; badge.className = 'badge badge-green'; }
+
+  // Fetch price and update chart every 2s
+  async function tick() {
+    if (myId !== _chartPollId || !_candleSeries) return;
     try {
-      var msg = JSON.parse(e.data);
-      if (msg.type === 'history' && msg.candles && _candleSeries) {
-        // Verify history is for the correct symbol
-        if (msg.symbol && msg.symbol !== symbol) return;
-        _candleSeries.setData(msg.candles);
-        _chart.timeScale().fitContent();
-      } else if ((msg.type === 'candle_update' || msg.type === 'candle_complete') && _candleSeries) {
-        // CRITICAL: verify symbol matches — reject data from other tokens
-        if (msg.symbol && msg.symbol !== symbol) return;
-        _candleSeries.update({ time: msg.time, open: msg.open, high: msg.high, low: msg.low, close: msg.close });
-        if (msg.type === 'candle_update') { _chart.timeScale().scrollToRealTime(); }
-      }
-    } catch(err) {}
-  };
-  _chartWS.onclose = function() {
-    var badge = document.getElementById('tt-stream-badge');
-    if (badge) { badge.textContent = 'Offline'; badge.className = 'badge'; }
-    if (myId === _chartWSId) {
-      setTimeout(function() { if (myId === _chartWSId && _chartTF in _liveIntervals) _connectChartWS(symbol, interval_s); }, 3000);
-    }
-  };
+      var r = await fetch('/oracle/price/live/' + symbol);
+      if (!r.ok) return;
+      var d = await r.json();
+      if (!d.price || d.price <= 0) return;
+      if (myId !== _chartPollId) return; // Re-check after await
+
+      var now = Math.floor(Date.now() / 1000);
+      var bucket = Math.floor(now / interval_s) * interval_s;
+      var price = d.price;
+
+      // Update current price display
+      _ttCurrentPrice = price;
+      var priceEl = document.getElementById('tt-live-price');
+      if (priceEl) priceEl.textContent = '$' + price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:6});
+      updateTTEstimate();
+
+      // Update chart candle
+      _candleSeries.update({ time: bucket, open: price, high: price, low: price, close: price });
+      _chart.timeScale().scrollToRealTime();
+    } catch(e) {}
+  }
+
+  // First tick immediately
+  tick();
+  // Then every 2s
+  _chartPollTimer = setInterval(tick, 2000);
 }
 
 async function loadChart() {
@@ -2404,37 +2417,21 @@ async function loadChart() {
   var container = document.getElementById('chart-container');
   var signalEl = document.getElementById('chart-signal');
 
-  // ALWAYS close existing WS first — prevents old token data leaking into new chart
-  _chartWSId++;
-  if (_chartWS) { _chartWS.onclose = null; _chartWS.close(); _chartWS = null; }
-
+  _stopChartPoll();
   _createChart(container);
 
   var isLiveTF = _liveIntervals.hasOwnProperty(_chartTF);
-  var isLiveToken = _liveTokens.indexOf(token) >= 0;
-  var isLive = isLiveTF && isLiveToken;
+  var isLive = isLiveTF; // ALL tokens can be live now (REST polling)
 
   if (isLive) {
-    // Mode live : WebSocket + historique REST pour 1H/6H/1D
+    // LIVE MODE: Simple REST polling every 2s — works for ALL tokens
     var interval_s = _liveIntervals[_chartTF];
-    // Charger l'historique REST d'abord pour les grands timeframes
-    if (interval_s >= 3600) {
-      try {
-        var r = await api('/api/trading/candles/' + token + '?interval=' + _chartTF + '&limit=' + (_chartLimits[_chartTF]||48));
-        var candles = (r && r.candles) || [];
-        if (candles.length > 0 && _candleSeries) {
-          _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
-          _chart.timeScale().fitContent();
-        }
-      } catch(e) {}
-    }
-    signalEl.innerHTML = '<span style="color:#10b981">Connecting live ' + esc(token) + ' (' + _chartTF + ')...</span>';
-    _connectChartWS(token, interval_s);
-    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + _chartTF.toUpperCase() + ' — Pyth SSE &lt;1s</span>';
-  } else if (!isLiveToken) {
-    // Token sans SSE — fallback REST
-    if (_chartWS) { _chartWS.close(); _chartWS = null; }
-    var fallbackTF = (_chartTF in _liveIntervals) ? '1m' : _chartTF;
+    signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + esc(token) + ' — prix toutes les 2s</span>';
+    _startChartPoll(token, interval_s);
+  } else {
+    // HISTORICAL MODE: Load candles from DB via REST
+    _stopChartPoll();
+    var fallbackTF = _chartTF;
     signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + '...</span>';
     try {
       var r = await api('/api/trading/candles/' + token + '?interval=' + fallbackTF + '&limit=' + (_chartLimits[fallbackTF]||120));
@@ -2443,7 +2440,7 @@ async function loadChart() {
         _candleSeries.setData(candles.map(function(c) { return { time: c.timestamp, open: c.open, high: c.high, low: c.low, close: c.close }; }));
         _chart.timeScale().fitContent();
       }
-      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + fallbackTF + ') — Live: 7 crypto + 11 stocks via Pyth</span>';
+      signalEl.innerHTML = '<span style="color:var(--muted);font-size:12px">' + candles.length + ' candles (' + fallbackTF + ')</span>';
     } catch(e) { signalEl.innerHTML = '<span style="color:var(--red)">Error: ' + esc(e.message) + '</span>'; }
   } else {
     // 1W — pas de live (pas de builder 1w), REST only
