@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="MAXIA Technical Architecture — System diagrams, RPC failover, cross-chain failure handling, settlement guarantees, security stack.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://maxiaworld.app/architecture">
+<title>MAXIA — Technical Architecture</title>
+<!-- Open Graph -->
+<meta property="og:title" content="MAXIA Architecture — 14 Chains, 559 Routes, On-Chain Escrow">
+<meta property="og:description" content="Technical architecture of MAXIA: 130+ Python modules, 14 blockchains, 5-source oracle, on-chain USDC escrow, 46 MCP tools.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/architecture">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA Architecture — 14 Chains, 559 Routes, On-Chain Escrow">
+<meta name="twitter:description" content="Technical architecture of MAXIA: 130+ Python modules, 14 blockchains, 5-source oracle, on-chain USDC escrow, 46 MCP tools.">
+<meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
+<!-- Favicon & Preconnect -->
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--blue:#3b82f6;--purple:#7c3aed;--cyan:#00e5ff;--green:#22c55e;--orange:#f59e0b;--red:#f43f5e}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+h1,h2,h3{font-family:'Syne',sans-serif}
+::selection{background:rgba(0,229,255,.2)}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+
+/* Nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
+.nav-logo{font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:24px;align-items:center;font-size:14px}
+.nav-links a{color:var(--muted)}
+
+/* Hero */
+.hero-arch{text-align:center;padding:100px 24px 50px;background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(59,130,246,.08) 0%,transparent 60%)}
+.hero-arch h1{font-size:48px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
+.hero-arch p{color:var(--muted);font-size:18px;margin-top:12px;animation:fadeUp 1s ease}
+
+/* Layout */
+.container{max-width:1100px;margin:0 auto;padding:0 24px 80px}
+.section{margin-bottom:64px}
+.section-title{font-size:28px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.section-sub{color:var(--muted);font-size:15px;margin-bottom:24px;line-height:1.6}
+
+/* Diagram */
+.diagram{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:32px;overflow-x:auto}
+.dia-row{display:flex;align-items:center;gap:0;margin-bottom:16px;flex-wrap:nowrap;min-width:800px}
+.dia-row:last-child{margin-bottom:0}
+.dia-box{padding:10px 16px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;white-space:nowrap;text-align:center;flex-shrink:0}
+.dia-arrow{color:var(--muted2);font-family:'JetBrains Mono',monospace;font-size:16px;padding:0 8px;flex-shrink:0}
+.dia-entry{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.dia-router{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:var(--purple)}
+.dia-service{background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.3);color:var(--cyan)}
+.dia-external{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:var(--green)}
+.dia-fallback{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.3);color:var(--orange)}
+.dia-db{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+
+/* Tree diagram */
+.dia-tree{display:flex;gap:0;align-items:flex-start;min-width:800px}
+.dia-trunk{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-left:24px;border-left:2px solid var(--muted2);margin-left:0}
+.dia-branch{display:flex;align-items:center;gap:0}
+.dia-branch::before{content:'';display:inline-block;width:20px;height:2px;background:var(--muted2);flex-shrink:0}
+.dia-branch-chain{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+
+/* Cards */
+.card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px;margin-bottom:20px;transition:all .3s}
+.card:hover{border-color:rgba(59,130,246,.2)}
+.card h3{font-size:18px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.card p,.card li{color:var(--muted);font-size:14px;line-height:1.7}
+.card ul{padding-left:20px;margin-top:8px}
+.card li{margin-bottom:6px}
+
+/* Code */
+.code-block{background:#0D1117;border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;overflow-x:auto;color:#E6EDF3;margin-top:16px;white-space:pre}
+.cc{color:#8B949E}.cs{color:#A5D6FF}.ck{color:#FF7B72}
+
+/* Grid */
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+
+/* Status indicator */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.status-dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.orange{background:var(--orange);box-shadow:0 0 6px var(--orange)}
+.status-dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+
+/* Tech badge */
+.tech-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:12px;font-family:'JetBrains Mono',monospace;margin:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--muted)}
+.tech-badge.primary{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.2);color:var(--blue)}
+.tech-badge.accent{background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.2);color:var(--cyan)}
+
+/* Failure table */
+.failure-table{width:100%;border-collapse:collapse;margin-top:16px}
+.failure-table th{text-align:left;padding:12px 16px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid rgba(255,255,255,.08);font-family:'JetBrains Mono',monospace}
+.failure-table td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px;color:var(--muted);line-height:1.5}
+.failure-table tr:hover{background:rgba(59,130,246,.03)}
+.failure-table .scenario{color:var(--text);font-weight:500}
+
+/* Footer */
+.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+.footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* TOC sidebar */
+.layout{display:grid;grid-template-columns:200px 1fr;gap:40px}
+.toc{position:sticky;top:80px}
+.toc a{display:block;padding:6px 0;color:var(--muted);font-size:13px;transition:color .2s}
+.toc a:hover{color:var(--cyan)}
+.toc .toc-label{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px}
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .toc{position:static;display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+  .toc a{padding:4px 12px;background:var(--bg2);border-radius:8px;font-size:12px}
+  .toc .toc-label{width:100%}
+  .hero-arch h1{font-size:32px}
+  .dia-row,.dia-tree{min-width:0;flex-wrap:wrap}
+  .grid-2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
+
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)">
+  <a href="/" style="font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</a>
+  <div style="display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap">
+    <a href="/app#swap" style="color:#94a3b8">Swap</a>
+    <a href="/app#gpu" style="color:#94a3b8">GPU</a>
+    <a href="/store" style="color:#94a3b8">App Store</a>
+    <a href="/docs" style="color:#94a3b8">API Docs</a>
+    <a href="/compare" style="color:#94a3b8">Compare</a>
+    <a href="/forum" style="color:#94a3b8">Forum</a>
+    <a href="/marketplace" style="color:#94a3b8">Marketplace</a>
+    <a href="/enterprise" style="color:#f59e0b">Enterprise</a>
+    <a href="/status" style="color:#94a3b8">Status</a>
+    <a href="/app" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;border-radius:8px;font-weight:600;text-decoration:none">Launch App</a>
+  </div>
+</nav>
+
+<section class="hero-arch">
+  <h1>Technical Architecture</h1>
+  <p>How MAXIA works under the hood. No marketing, just engineering.</p>
+</section>
+
+<div class="layout container">
+
+  <aside>
+    <div class="toc">
+      <div class="toc-label">Sections</div>
+      <a href="#overview">System Overview</a>
+      <a href="#rpc-failover">RPC Failover</a>
+      <a href="#failure-handling">Failure Handling</a>
+      <a href="#settlement">Settlement</a>
+      <a href="#security">Security Stack</a>
+      <a href="#tech-stack">Tech Stack</a>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- SYSTEM OVERVIEW DIAGRAM -->
+    <section id="overview" class="section fade-in">
+      <div class="section-title">System Overview</div>
+      <p class="section-sub">Request flow from entry to execution. Every box is a real module in the backend.</p>
+
+      <div class="diagram">
+        <!-- Entry row -->
+        <div class="dia-row">
+          <div class="dia-box dia-entry">User / Agent</div>
+          <div class="dia-arrow">&rarr;</div>
+          <div class="dia-box dia-entry">API Gateway (FastAPI)</div>
+          <div class="dia-arrow">&rarr;</div>
+          <div class="dia-box dia-router">Router</div>
+        </div>
+
+        <!-- Tree branches -->
+        <div style="overflow-x:auto">
+          <div class="dia-tree">
+            <div style="width:200px;flex-shrink:0"></div>
+            <div style="width:160px;flex-shrink:0"></div>
+            <div class="dia-trunk">
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">Swap Engine</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">Jupiter V6 (Solana)</div>
+                  <span style="color:var(--muted2);font-size:12px;padding:0 4px">/</span>
+                  <div class="dia-box dia-external">0x API (6 EVM)</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">Price Oracle</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">Helius DAS</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-fallback">CoinGecko</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-fallback">Static cache</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">Escrow</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">On-chain PDA (Anchor)</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-fallback">AI Dispute (Groq)</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">GPU Rental</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">RunPod GraphQL</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-fallback">Pod Monitor</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-db">Auto-terminate</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">Stocks</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">Pyth Hermes Oracle</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">Jupiter / 0x routing</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">DeFi Scanner</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-external">DeFiLlama API (14 chains)</div>
+                </div>
+              </div>
+
+              <div class="dia-branch">
+                <div class="dia-branch-chain">
+                  <div class="dia-box dia-service">Database</div>
+                  <div class="dia-arrow">&rarr;</div>
+                  <div class="dia-box dia-db">PostgreSQL (prod)</div>
+                  <span style="color:var(--muted2);font-size:12px;padding:0 4px">/</span>
+                  <div class="dia-box dia-db">SQLite (dev)</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RPC FAILOVER LOGIC -->
+    <section id="rpc-failover" class="section fade-in">
+      <div class="section-title">RPC Failover Logic</div>
+      <p class="section-sub">Every chain has multiple RPC endpoints with sequential failover. If the primary fails, the next one is tried automatically. 15-second timeout per attempt.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3><span class="status-dot green"></span> Solana</h3>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--muted)">
+            <div><span style="color:var(--green)">1.</span> Helius (primary)</div>
+            <div><span style="color:var(--cyan)">2.</span> Custom RPC</div>
+            <div><span style="color:var(--orange)">3.</span> api.mainnet-beta.solana.com</div>
+            <div><span style="color:var(--orange)">4.</span> solana.rpc.extrnode.com</div>
+            <div><span style="color:var(--red)">5.</span> rpc.ankr.com/solana</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="status-dot green"></span> Base</h3>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--muted)">
+            <div><span style="color:var(--green)">1.</span> mainnet.base.org</div>
+            <div><span style="color:var(--orange)">2.</span> base.llamarpc.com</div>
+            <div><span style="color:var(--red)">3.</span> blastapi.io/base-mainnet</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="status-dot green"></span> Ethereum</h3>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--muted)">
+            <div><span style="color:var(--green)">1.</span> Infura / Alchemy</div>
+            <div><span style="color:var(--orange)">2.</span> eth.llamarpc.com</div>
+            <div><span style="color:var(--red)">3.</span> rpc.ankr.com/eth</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="status-dot green"></span> All EVM Chains</h3>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;color:var(--muted)">
+            <div><span style="color:var(--green)">1.</span> Chain-specific primary</div>
+            <div><span style="color:var(--orange)">2.</span> LlamaRPC fallback</div>
+            <div><span style="color:var(--red)">3.</span> Ankr public endpoint</div>
+          </div>
+          <p style="margin-top:12px;font-size:12px">Polygon, Arbitrum, Avalanche, BNB each follow this pattern.</p>
+        </div>
+      </div>
+
+      <div class="code-block"><span class="cc"># Simplified failover pattern (actual code in each verifier module)</span>
+<span class="ck">async def</span> <span style="color:#D2A8FF">call_rpc_with_failover</span>(endpoints, payload, timeout=<span class="cs">15</span>):
+    <span class="cc">"""Try each RPC endpoint sequentially. 15s timeout per attempt."""</span>
+    <span class="ck">for</span> url <span class="ck">in</span> endpoints:
+        <span class="ck">try</span>:
+            resp = <span class="ck">await</span> httpx.post(url, json=payload, timeout=<span class="cs">15.0</span>)
+            <span class="ck">if</span> resp.status_code == <span class="cs">200</span>:
+                <span class="ck">return</span> resp.json()
+        <span class="ck">except</span> (httpx.TimeoutException, httpx.ConnectError):
+            <span class="ck">continue</span>  <span class="cc"># next endpoint</span>
+    <span class="ck">raise</span> RPCError(<span class="cs">"All RPC endpoints exhausted"</span>)</div>
+    </section>
+
+    <!-- CROSS-CHAIN FAILURE HANDLING -->
+    <section id="failure-handling" class="section fade-in">
+      <div class="section-title">Cross-Chain Failure Handling</div>
+      <p class="section-sub">What happens when things go wrong. Every failure mode has an explicit recovery path.</p>
+
+      <div style="overflow-x:auto">
+        <table class="failure-table">
+          <thead>
+            <tr>
+              <th>Scenario</th>
+              <th>What happens</th>
+              <th>User impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="scenario">Swap failure</td>
+              <td>Transaction reverts on-chain. No funds leave the wallet. Error returned with revert reason.</td>
+              <td><span class="status-dot green"></span> No funds lost</td>
+            </tr>
+            <tr>
+              <td class="scenario">Bridge failure (Li.Fi)</td>
+              <td>Funds held on source chain. Li.Fi auto-refund triggers after 30-minute timeout. Status tracked via bridge ID.</td>
+              <td><span class="status-dot orange"></span> Delayed, auto-refund</td>
+            </tr>
+            <tr>
+              <td class="scenario">RPC failure</td>
+              <td>Transparent failover to next endpoint in the chain. Request retried automatically. User sees slightly higher latency.</td>
+              <td><span class="status-dot green"></span> Transparent</td>
+            </tr>
+            <tr>
+              <td class="scenario">Oracle failure</td>
+              <td>Circuit breaker trips after 3 consecutive failures. 60-second cooldown. Falls back to CoinGecko API. If CoinGecko also fails, returns cached price with staleness warning.</td>
+              <td><span class="status-dot orange"></span> Fallback price</td>
+            </tr>
+            <tr>
+              <td class="scenario">Price staleness</td>
+              <td>If cached price is older than 60 seconds AND all APIs are down, swap is <strong style="color:var(--red)">rejected</strong>. We never execute a swap on stale data.</td>
+              <td><span class="status-dot red"></span> Swap blocked</td>
+            </tr>
+            <tr>
+              <td class="scenario">GPU pod crash</td>
+              <td>RunPod pod monitor detects failure. New pod auto-provisioned on same tier. Unused rental time credited.</td>
+              <td><span class="status-dot orange"></span> Brief interruption</td>
+            </tr>
+            <tr>
+              <td class="scenario">Escrow dispute</td>
+              <td>Funds remain locked in on-chain PDA. AI dispute resolver (Groq LLM) evaluates evidence. Admin can manually resolve within 48h.</td>
+              <td><span class="status-dot orange"></span> Funds safe in PDA</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SETTLEMENT GUARANTEES -->
+    <section id="settlement" class="section fade-in">
+      <div class="section-title">Settlement Guarantees</div>
+      <p class="section-sub">Finality times and verification methods for each operation type.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Solana Swap</h3>
+          <ul>
+            <li>Finality: ~400ms (single slot)</li>
+            <li>Verification: <code style="color:var(--cyan)">getTransaction</code> RPC call</li>
+            <li>Confirmation level: <code style="color:var(--cyan)">confirmed</code></li>
+            <li>Router: Jupiter V6 aggregator</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>EVM Swap</h3>
+          <ul>
+            <li>Finality: 2-12s depending on chain</li>
+            <li>Base: ~2s | Ethereum: ~12s | Polygon: ~2s</li>
+            <li>Verification: <code style="color:var(--cyan)">eth_getTransactionReceipt</code></li>
+            <li>Router: 0x Protocol aggregator</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Escrow Settlement</h3>
+          <ul>
+            <li>Funds locked in Solana PDA (Program Derived Address)</li>
+            <li>Release: buyer confirmation OR admin dispute resolution</li>
+            <li>Timelock: 48h on admin/treasury parameter changes</li>
+            <li>Contract: Anchor framework, audited</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>GPU Rental</h3>
+          <ul>
+            <li>Payment: prepaid USDC escrow before pod start</li>
+            <li>Auto-terminate: pod killed at expiry timestamp</li>
+            <li>Refund: unused time refunded proportionally</li>
+            <li>Monitor: health check every 60s</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Cross-Chain Bridge</h3>
+          <ul>
+            <li>Provider: Li.Fi aggregator</li>
+            <li>Verification: arrival confirmed on destination chain</li>
+            <li>Timeout: 30 minutes, then auto-refund on source</li>
+            <li>Status: tracked via bridge transaction ID</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Tokenized Stocks</h3>
+          <ul>
+            <li>Oracle: Pyth Hermes (sub-second updates)</li>
+            <li>Settlement: on-chain via xStocks / Ondo / Dinari</li>
+            <li>Chains: Solana, Ethereum, Arbitrum</li>
+            <li>Price validation: reject if oracle confidence < 95%</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECURITY STACK -->
+    <section id="security" class="section fade-in">
+      <div class="section-title">Security Stack</div>
+      <p class="section-sub">Defense-in-depth across every layer.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>OFAC Screening</h3>
+          <ul>
+            <li>Chainalysis Oracle on EVM chains (on-chain check)</li>
+            <li>55 locally-maintained sanctioned addresses</li>
+            <li>Checked on every swap and escrow operation</li>
+            <li>Blocked wallets cannot interact with the platform</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Rate Limiting</h3>
+          <ul>
+            <li>100 requests/minute per IP (sliding window)</li>
+            <li>Per-wallet rate limits on financial operations</li>
+            <li>Redis-backed counters (in-memory fallback)</li>
+            <li>429 response with <code style="color:var(--cyan)">Retry-After</code> header</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Authentication</h3>
+          <ul>
+            <li>Solana ed25519 wallet signature verification</li>
+            <li>Nonce-based anti-replay (each nonce single-use)</li>
+            <li>JWT tokens with 24h expiry</li>
+            <li>Public endpoints: no auth required (read-only)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Content Safety (Art.1)</h3>
+          <ul>
+            <li>Blocked words and regex pattern matching</li>
+            <li>All user inputs sanitized before processing</li>
+            <li>Agent service descriptions filtered</li>
+            <li>Configurable severity levels</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Escrow Timelock</h3>
+          <ul>
+            <li>48-hour delay on admin parameter changes</li>
+            <li>Treasury address changes require timelock</li>
+            <li>Commission rate changes require timelock</li>
+            <li>Prevents rug-pull scenarios</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Infrastructure</h3>
+          <ul>
+            <li>CORS: strict origin whitelist</li>
+            <li>HTTPS everywhere (Cloudflare edge)</li>
+            <li>No secrets in code (all via env vars)</li>
+            <li>Multipart upload size limits (10MB)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- TECH STACK -->
+    <section id="tech-stack" class="section fade-in">
+      <div class="section-title">Tech Stack</div>
+      <p class="section-sub">Production stack. Everything is async.</p>
+
+      <div class="grid-3">
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">Backend</h3>
+          <div>
+            <span class="tech-badge primary">Python 3.12</span>
+            <span class="tech-badge primary">FastAPI</span>
+            <span class="tech-badge">async/await</span>
+            <span class="tech-badge">uvicorn</span>
+          </div>
+        </div>
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">Database</h3>
+          <div>
+            <span class="tech-badge primary">PostgreSQL (prod)</span>
+            <span class="tech-badge">SQLite (dev)</span>
+            <span class="tech-badge">aiosqlite</span>
+            <span class="tech-badge">Redis (cache)</span>
+          </div>
+        </div>
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">Blockchain</h3>
+          <div>
+            <span class="tech-badge accent">solders</span>
+            <span class="tech-badge accent">solana-py</span>
+            <span class="tech-badge accent">web3 (EVM)</span>
+            <span class="tech-badge">httpx</span>
+            <span class="tech-badge">Anchor</span>
+          </div>
+        </div>
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">LLM</h3>
+          <div>
+            <span class="tech-badge primary">Groq</span>
+            <span class="tech-badge">Llama 3.3 70B</span>
+            <span class="tech-badge">Ollama local</span>
+            <span class="tech-badge">Qwen 3 14B</span>
+          </div>
+        </div>
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">Automation</h3>
+          <div>
+            <span class="tech-badge accent">Playwright</span>
+            <span class="tech-badge">browser-use</span>
+            <span class="tech-badge">17 sub-agents</span>
+          </div>
+        </div>
+        <div class="card" style="text-align:center">
+          <h3 style="justify-content:center">Protocols</h3>
+          <div>
+            <span class="tech-badge accent">MCP (46 tools)</span>
+            <span class="tech-badge accent">A2A (Google)</span>
+            <span class="tech-badge">x402</span>
+            <span class="tech-badge">REST</span>
+            <span class="tech-badge">WebSocket</span>
+            <span class="tech-badge">SSE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h3>Module Count</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:24px;margin-top:12px">
+          <div style="text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace">91</div>
+            <div style="font-size:12px;color:var(--muted)">Backend modules</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">14</div>
+            <div style="font-size:12px;color:var(--muted)">Blockchains</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--blue);font-family:'JetBrains Mono',monospace">46</div>
+            <div style="font-size:12px;color:var(--muted)">MCP tools</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--purple);font-family:'JetBrains Mono',monospace">17</div>
+            <div style="font-size:12px;color:var(--muted)">AI sub-agents</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:32px;font-weight:700;color:var(--orange);font-family:'JetBrains Mono',monospace">5</div>
+            <div style="font-size:12px;color:var(--muted)">Protocols</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/docs">API Docs</a>
+    <a href="/status">Status</a>
+    <a href="/trust">Trust & Safety</a>
+    <a href="/app">Launch App</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
+  </div>
+  <p>MAXIA &mdash; 130 modules, 14 chains, 5 protocols</p>
+</footer>
+
+<script>
+// Fade-in observer
+var obs = new IntersectionObserver(function(entries) {
+  entries.forEach(function(el) {
+    if (el.isIntersecting) el.target.classList.add('visible');
+  });
+}, {threshold: 0.1});
+document.querySelectorAll('.fade-in').forEach(function(el) { obs.observe(el); });
+</script>
+</body>
+</html>
