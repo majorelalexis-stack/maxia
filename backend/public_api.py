@@ -440,6 +440,13 @@ async def register_agent(req: dict):
     except Exception as e:
         print(f"[PublicAPI] DB save agent error: {e}")
 
+    # Gamification — points for registration
+    try:
+        from gamification import record_action
+        await record_action(agent.get("wallet", api_key), "agent_registered")
+    except Exception:
+        pass
+
     # Referral tracking — referral code = first 8 chars of api_key (after "maxia_" prefix)
     referral_code = req.get("referral_code", "") if isinstance(req.get("referral_code"), str) else ""
     # Fix #5: Referral code validation

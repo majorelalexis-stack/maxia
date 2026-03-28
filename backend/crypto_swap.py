@@ -899,6 +899,13 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
 
     _log_swap(f"{amount} {from_token} -> {output_amount:.6f} {to_token} par {buyer_name} -- commission {commission_usd:.4f} USDC")
 
+    # Gamification — award points for swap
+    try:
+        from gamification import record_action
+        await record_action(buyer_wallet, "swap_completed", value_usd, "solana")
+    except Exception:
+        pass
+
     return {
         "success": True,
         **swap,

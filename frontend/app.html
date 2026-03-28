@@ -1715,6 +1715,20 @@ function toast(msg, type) {
   setTimeout(function() { el.classList.remove('show'); }, 3500);
 }
 
+/**
+ * Checks if a wallet is connected before performing an action.
+ * If no wallet is connected, shows a toast and opens the wallet menu.
+ * @param {string} action - Description of the action (e.g. 'swap', 'rent GPU', 'buy stock')
+ * @returns {boolean} true if wallet IS connected, false if not (caller should return early)
+ */
+function requireWalletFor(action) {
+  if (wallet) return true;
+  toast('Connect wallet to ' + action, 'info');
+  var menu = document.getElementById('wallet-menu');
+  if (menu) menu.style.display = 'block';
+  return false;
+}
+
 // ── Notification toast stack (rich notifications from WebSocket) ──
 var _notifSoundEnabled = localStorage.getItem('maxia_notif_sound') !== '0';
 
@@ -3211,8 +3225,8 @@ async function getSwapQuote() {
       renderSwapTierProgress(data.tier_info, data.tier, data.input_value_usd);
 
       var routeLabel = isSolWallet ? ' (Jupiter)' : (isEvm ? ' (ParaSwap)' : '');
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel : 'Connect wallet to swap';
-      btn.disabled = !wallet;
+      btn.textContent = 'Swap ' + from + ' → ' + to + routeLabel;
+      btn.disabled = false;
       // Clear previous swap status when getting new quote
       setSwapStatus(null);
     }
@@ -3245,8 +3259,8 @@ async function getSwapQuote() {
       renderSwapTierProgress(null, null, fallbackValueUsd);
 
       var routeLabel2 = isSolWallet2 ? ' (Jupiter)' : (isEvm2 ? ' (ParaSwap)' : '');
-      btn.textContent = wallet ? 'Swap ' + from + ' → ' + to + routeLabel2 : 'Connect wallet to swap';
-      btn.disabled = !wallet;
+      btn.textContent = 'Swap ' + from + ' → ' + to + routeLabel2;
+      btn.disabled = false;
       setSwapStatus(null);
     } else {
       btn.textContent = 'Quote unavailable';
@@ -3294,12 +3308,7 @@ async function executeSwap() {
     walletType = connectedWallets.evm.provider;
   }
 
-  if (!wallet) {
-    var menu = document.getElementById('wallet-menu');
-    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-    toast('Connect your wallet first', 'info');
-    return;
-  }
+  if (!requireWalletFor('swap')) return;
 
   if (!amount || amount <= 0) { toast('Enter a valid amount', 'error'); return; }
   if (from === to) { toast('Select different tokens', 'error'); return; }
@@ -3852,7 +3861,7 @@ function renderFallbackGPU(grid) {
 }
 
 function showRentDialog(tierId, name, pricePerHr) {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!requireWalletFor('rent GPU')) return;
 
   var isTrial = (tierId === 'rtx4090');
   var existing = document.getElementById('gpu-rent-modal');
@@ -4294,7 +4303,7 @@ async function getBridgeQuote() {
       '</div>' +
       '<div id="bridge-exec-status" style="margin-top:16px"></div>' +
       '<button class="btn btn-primary" id="btn-bridge-exec" style="margin-top:16px;width:100%" onclick="executeBridge()">' +
-        (wallet ? 'Bridge ' + amount.toFixed(2) + ' ' + esc(token) + ' now' : 'Connect wallet to bridge') +
+        'Bridge ' + amount.toFixed(2) + ' ' + esc(token) + ' now' +
       '</button>' +
     '</div>';
 
@@ -4323,12 +4332,7 @@ async function getBridgeQuote() {
 }
 
 async function executeBridge() {
-  if (!wallet) {
-    var menu = document.getElementById('wallet-menu');
-    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-    toast('Connect your wallet first', 'info');
-    return;
-  }
+  if (!requireWalletFor('bridge tokens')) return;
 
   if (!_bridgeQuoteData || !_bridgeQuoteData.quote) {
     toast('Get a quote first', 'error');
@@ -4962,7 +4966,7 @@ async function renderFallbackStocks(grid) {
 }
 
 function openStockModal(symbol, side) {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!requireWalletFor(side + ' stock')) return;
 
   var cat = STOCK_CATALOG[symbol] || {};
   var cached = _stockPriceCache[symbol] || {};
@@ -5299,7 +5303,7 @@ async function loadNFTs() {
 }
 
 async function mintNFT() {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!requireWalletFor('mint NFT')) return;
 
   var name = document.getElementById('nft-name').value.trim();
   var desc = document.getElementById('nft-desc').value.trim() || 'MAXIA NFT';
@@ -5376,12 +5380,7 @@ async function mintNFT() {
 // ══════════════════════════════════════
 async function createAgentID() {
   var resultDiv = document.getElementById('aid-create-result');
-  if (!wallet) {
-    document.getElementById('aid-wallet-warning').style.display = 'block';
-    resultDiv.innerHTML = '<div style="padding:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;font-size:13px;color:var(--red)">Connect your wallet first (Phantom, MetaMask, etc.)</div>';
-    return;
-  }
-  document.getElementById('aid-wallet-warning').style.display = 'none';
+  if (!requireWalletFor('create Agent ID')) return;
 
   var name = document.getElementById('aid-name').value.trim();
   if (!name) {
@@ -5968,13 +5967,7 @@ async function loadEnterprise() {
   var content = document.getElementById('ent-content');
   if (!gate || !content) return;
 
-  // Check if wallet connected
-  if (!wallet) {
-    gate.style.display = 'block';
-    content.style.display = 'none';
-    return;
-  }
-
+  // Always show content — wallet only required for actions, not viewing
   // Try to fetch billing tier to decide access
   var tierData = null;
   try {
@@ -6507,7 +6500,7 @@ async function loadEscrows() {
 async function createEscrow() {
   // Route to Base or Solana based on selected chain
   if (_escrowChain === 'base') { return createEscrowBase(); }
-  if (!wallet) { toast('Connect your Solana wallet first', 'error'); return; }
+  if (!requireWalletFor('lock escrow')) return;
 
   var seller = document.getElementById('esc-seller').value.trim();
   var amount = parseFloat(document.getElementById('esc-amount').value);
@@ -6557,7 +6550,7 @@ async function createEscrow() {
 }
 
 async function confirmDelivery(escrowId) {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!requireWalletFor('confirm delivery')) return;
   if (!confirm('Confirm delivery? This will release USDC to the seller.')) return;
 
   toast('Confirming delivery...', 'info');
@@ -6576,7 +6569,7 @@ async function confirmDelivery(escrowId) {
 }
 
 async function reclaimTimeout(escrowId) {
-  if (!wallet) { toast('Connect your wallet first', 'error'); return; }
+  if (!requireWalletFor('reclaim escrow')) return;
   if (!confirm('Reclaim funds? This is only possible after the timeout has expired.')) return;
 
   toast('Reclaiming escrow...', 'info');
@@ -6603,5 +6596,70 @@ loadSwapTokens();
   if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';
 })();
 </script>
+
+<!-- ─── CHAT WIDGET FLOTTANT ─── -->
+<style>
+#maxia-chat-btn{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;cursor:pointer;box-shadow:0 4px 20px rgba(99,102,241,.4);z-index:9999;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+#maxia-chat-btn:hover{transform:scale(1.1)}
+#maxia-chat-btn svg{width:28px;height:28px;fill:white}
+#maxia-chat-panel{position:fixed;bottom:88px;right:20px;width:380px;max-height:500px;background:#0f1318;border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.5);z-index:9999;display:none;flex-direction:column;overflow:hidden}
+#maxia-chat-panel.open{display:flex}
+#maxia-chat-header{padding:14px 16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;justify-content:space-between;align-items:center}
+#maxia-chat-header span{font-weight:700;font-size:14px;color:white}
+#maxia-chat-header button{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:18px}
+#maxia-chat-messages{flex:1;overflow-y:auto;padding:12px;max-height:340px;min-height:200px}
+.chat-msg{margin-bottom:10px;font-size:13px;line-height:1.5}
+.chat-msg.bot{background:rgba(99,102,241,.1);border-radius:12px 12px 12px 2px;padding:10px 12px;color:#e2e8f0}
+.chat-msg.user{background:rgba(255,255,255,.06);border-radius:12px 12px 2px 12px;padding:10px 12px;margin-left:40px;color:#94a3b8}
+#maxia-chat-input{display:flex;border-top:1px solid rgba(255,255,255,.06);padding:8px}
+#maxia-chat-input input{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px 12px;color:white;font-size:13px;outline:none}
+#maxia-chat-input input::placeholder{color:#64748b}
+#maxia-chat-input button{margin-left:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:8px;padding:0 14px;color:white;cursor:pointer;font-weight:600}
+@media(max-width:500px){#maxia-chat-panel{width:calc(100vw - 24px);right:12px;bottom:80px}}
+</style>
+
+<button id="maxia-chat-btn" onclick="toggleChat()" title="Chat with MAXIA AI">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+</button>
+
+<div id="maxia-chat-panel">
+  <div id="maxia-chat-header">
+    <span>MAXIA AI</span>
+    <button onclick="toggleChat()">&times;</button>
+  </div>
+  <div id="maxia-chat-messages">
+    <div class="chat-msg bot">Hi! Try: <b>price SOL</b>, <b>swap 10 USDC to ETH</b>, <b>stocks</b>, <b>leaderboard</b>, or ask anything.</div>
+  </div>
+  <div id="maxia-chat-input">
+    <input id="maxia-chat-in" type="text" placeholder="Ask MAXIA AI..." onkeydown="if(event.key==='Enter')sendChat()">
+    <button onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<script>
+function toggleChat(){
+  var p=document.getElementById('maxia-chat-panel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open'))document.getElementById('maxia-chat-in').focus();
+}
+async function sendChat(){
+  var inp=document.getElementById('maxia-chat-in');
+  var msg=inp.value.trim();if(!msg)return;
+  inp.value='';
+  var msgs=document.getElementById('maxia-chat-messages');
+  msgs.innerHTML+='<div class="chat-msg user">'+esc(msg)+'</div>';
+  msgs.scrollTop=msgs.scrollHeight;
+  try{
+    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    var d=await r.json();
+    var resp=d.response||d.detail||'Error';
+    msgs.innerHTML+='<div class="chat-msg bot">'+resp.replace(/\n/g,'<br>')+'</div>';
+  }catch(e){
+    msgs.innerHTML+='<div class="chat-msg bot" style="color:#ef4444">Connection error. Try again.</div>';
+  }
+  msgs.scrollTop=msgs.scrollHeight;
+}
+</script>
+
 </body>
 </html>

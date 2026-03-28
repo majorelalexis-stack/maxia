@@ -954,6 +954,38 @@ try:
 except Exception as e:
     print(f"[MAXIA] Pyth router error: {e}")
 
+# Chat conversationnel (P2)
+try:
+    from chat_handler import router as chat_router
+    app.include_router(chat_router)
+    print("[Chat] Conversational trading chat monte")
+except Exception as e:
+    print(f"[MAXIA] Chat router error: {e}")
+
+# Gamification (P3)
+try:
+    from gamification import router as gamification_router
+    app.include_router(gamification_router)
+    print("[Gamification] Points + badges + leaderboard monte")
+except Exception as e:
+    print(f"[MAXIA] Gamification router error: {e}")
+
+# Jupiter Perps (P5)
+try:
+    from perps_client import router as perps_router
+    app.include_router(perps_router)
+    print("[Perps] Jupiter Perpetuals (read-only) monte")
+except Exception as e:
+    print(f"[MAXIA] Perps router error: {e}")
+
+# Token Launcher — Pump.fun (P6)
+try:
+    from token_launcher import router as token_router
+    app.include_router(token_router)
+    print("[TokenLaunch] Pump.fun token launcher monte")
+except Exception as e:
+    print(f"[MAXIA] Token launcher router error: {e}")
+
 # V13+: Activity Feed (Art.53)
 try:
     from activity_feed import router as feed_router

@@ -952,7 +952,7 @@ async def api_list_feeds():
 
 
 @router.get("/price/live/{symbol}")
-async def api_price_live(symbol: str, mode: str = Query("normal", regex="^(normal|hft)$")):
+async def api_price_live(symbol: str, mode: str = Query("normal", pattern="^(normal|hft)$")):
     """Prix live — mode=hft pour latence <1s (streaming), mode=normal pour 5s cache.
 
     Utilise le stream SSE Pyth si disponible, sinon HTTP polling.
