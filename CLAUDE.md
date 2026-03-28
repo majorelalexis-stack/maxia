@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) where autonomous AI agents discover, buy, and sell services using USDC. 559 API routes, 130+ Python modules. It implements on-chain escrow (Solana mainnet), 5-source oracle (Pyth/Finnhub/CoinGecko/Yahoo/static), dynamic pricing, GPU auctions (13 tiers), token swap on 7 chains (65 tokens, 4160 pairs via Jupiter + 6 EVM via 0x) (Jupiter + 6 EVM via 0x), tokenized stocks (25 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services, Stripe billing, enterprise suite (SSO/metrics/audit/tenants/dashboard), image generation (Pollinations.ai), and autonomous agent operations (17 sub-agents + CEO local on GPU). The project is written in French comments/docs but English code.
+MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) where autonomous AI agents discover, buy, and sell services using USDC. 559 API routes, 130+ Python modules. It implements on-chain escrow on 2 chains (Solana mainnet PDA + Base mainnet Solidity), 5-source oracle with HFT streaming (Pyth SSE <1s / Finnhub / CoinGecko / Yahoo / static), dynamic pricing, GPU rental via Akash Network (6 tiers, 15% markup, cheaper than AWS), token swap on 7 chains (65 tokens, 4160 pairs via Jupiter + 6 EVM via 0x), tokenized stocks (25 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services (LLM fallback: Groq→Mistral→Claude), enterprise suite (SSO Google OIDC / Prometheus metrics / audit trail / multi-tenant / fleet dashboard), AIP Protocol (signed intent envelopes, ed25519), image generation (Pollinations.ai), and autonomous agent operations (17 sub-agents + CEO local on GPU + Scout with Agentverse/ElizaOS/GitHub discovery). The project is written in French comments/docs but English code.
 
 ## Commands
 
@@ -30,7 +30,7 @@ anchor build && anchor deploy
 # Program ID: 8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY
 ```
 
-There are no tests, no linter, and no CI/CD configured.
+Tests: 94 pytest tests in `tests/test_backend.py`. CI via GitHub Actions. No linter configured.
 
 ## Architecture
 
@@ -45,7 +45,9 @@ Python 3.12 FastAPI monolith (~130 modules, 559 routes). All modules are flat in
 - `auth.py` — JWT auth, `require_auth` dependency, `require_agent_sig_auth` (ed25519 DID signature auth)
 - `security.py` — Art.1 content safety (`check_content_safety`), rate limiting (`check_rate_limit`)
 - `agent_permissions.py` — DID (W3C) + UAID (HCS-14) + ed25519 keypair, spend caps, 18 OAuth scopes, freeze/downgrade/revoke, key rotation
-- `intent.py` — Signed intent envelopes (AIP-inspired, ed25519 non-repudiable, expiring)
+- `intent.py` — AIP Protocol v0.3.0 signed intent envelopes (ed25519, anti-replay nonce, framework-agnostic)
+- `base_escrow_client.py` — Base L2 escrow on-chain interaction (contract 0xBd31...510C)
+- `error_utils.py` — safe_error() utility (never expose internals to clients)
 
 **Blockchain (Solana):**
 - `solana_verifier.py` — on-chain USDC transfer verification via Helius/Solana RPC
@@ -76,22 +78,28 @@ Python 3.12 FastAPI monolith (~130 modules, 559 routes). All modules are flat in
 
 **Services:** `auction_manager.py`, `data_marketplace.py`, `sentiment_analyzer.py`, `defi_scanner.py`, `image_gen.py` (Pollinations.ai, gratuit), `web_scraper.py`
 
-**Oracle (5 sources):** `pyth_oracle.py` (Pyth Hermes, 11 equity feeds), `price_oracle.py` (CoinGecko + Yahoo + Helius), Finnhub (fallback stocks). Staleness 30s stocks, circuit breaker, age spread.
+**Oracle (5 sources):** `pyth_oracle.py` (Pyth Hermes SSE streaming + HTTP, 11 equity feeds), `price_oracle.py` (CoinGecko + Yahoo + Helius), Finnhub (fallback stocks). Dual-tier staleness: normal (600s stocks / 120s crypto) + HFT mode (5s / 3s). Cache 5s normal / 1s HFT. Circuit breaker, age spread. `/api/oracle/price/live/{symbol}?mode=hft`.
 
 **Enterprise (6 modules):** `enterprise_billing.py` (usage metering + invoices), `enterprise_sso.py` (OIDC Google/Microsoft), `enterprise_metrics.py` (Prometheus /metrics), `audit_trail.py` (compliance + CSV export), `tenant_isolation.py` (multi-tenant), `enterprise_dashboard.py` (fleet analytics), `stripe_billing.py` (Stripe Checkout + webhooks)
 
-**Integrations:** `runpod_client.py` (GPU), `kiteai_client.py`, `discord_bot.py`, `telegram_bot.py`, `twitter_bot.py`, `reddit_bot.py`
+**GPU:** `akash_client.py` (Akash Network primary, 6 tiers live), `runpod_client.py` (hidden fallback only)
+
+**Integrations:** `kiteai_client.py`, `discord_bot.py`, `telegram_bot.py`, `twitter_bot.py`, `reddit_bot.py`
 
 **Infrastructure:** `alerts.py` (Discord webhooks), `preflight.py` (health checks), `chain_resilience.py` (circuit breaker 14 chains, multi-RPC), `scale_out.py` (Railway auto-scaling), `dynamic_pricing.py`, `reputation_staking.py`, `cross_chain_handler.py`
 
 ### Frontend (`frontend/`)
 Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.js + WebSocket for live updates). `landing.html` is the public landing page. Served directly by FastAPI.
 
-### Smart Contract (`contracts/programs/maxia_escrow/`)
-Anchor (Solana) escrow program in Rust. Deployed on Solana **mainnet** (2026-03-26).
+### Smart Contracts
+
+**Solana** (`contracts/programs/maxia_escrow/`): Anchor escrow in Rust. Deployed on **mainnet** (2026-03-26).
 - **Program ID**: `8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY`
-- **Deploy tx**: `4b4RpsdVx6FM2g4JWueTLVAfvaUbXJ7B52CCbqsV24acXix9nPowafMgrtSKnge2fcePK5LpFt5RhuMptP11MgVE`
 - Handles USDC locking in PDAs for trades, buyer confirmation, dispute resolution, and 48h auto-refund.
+
+**Base L2** (`contracts/evm/MaxiaEscrow.sol`): Solidity escrow. Deployed on **Base mainnet**.
+- **Contract**: `0xBd31bB973183F8476d0C4cF57a92e648b130510C`
+- Commission on-chain: BRONZE 5%, GOLD 1%, WHALE 0.1%. Auto-refund 48h. MetaMask integration (approve + lock).
 
 ## Key Patterns
 
@@ -99,10 +107,10 @@ Anchor (Solana) escrow program in Rust. Deployed on Solana **mainnet** (2026-03-
 - **Commission tiers (Marketplace)**: BRONZE (1%, <$500), GOLD (0.5%, $500-5000), WHALE (0.1%, >$5000). **Swap**: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01% — configured in `config.py` and `crypto_swap.py`
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
-- **AI models**: Groq `llama-3.3-70b-versatile` for fast inference, Claude Sonnet/Opus for strategic decisions
+- **AI models**: LLM Router with fallback chain: Groq `llama-3.3-70b-versatile` (rate limited 1req/10s) → Mistral Small → Claude Sonnet. CEO local: Qwen 3 14B (CEO), Qwen 3.5 9B (executor), Qwen 2.5-VL 7B (vision) on 7900XT.
 - **Database**: PostgreSQL 17 in prod (asyncpg, pool 2-20), SQLite for dev. Schema migrations via `schema_version` table. Set `DATABASE_URL=postgresql://...` in `.env` for PostgreSQL.
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
-- **Security**: SSRF protection (private IP blocking), IP spoofing prevention (X-Forwarded-For validation), global exception handler (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation (EVM + Solana regex), Solana commitment `finalized` for payments
+- **Security**: Security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options), SSRF protection, IP spoofing prevention, global exception handler + safe_error() (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation, Solana commitment `finalized`, Swagger/ReDoc disabled in prod, admin cookie opaque (session token), startup secret validation
 - **Deployment**: Railway/Render via `Procfile`, or Docker via `docker-compose.yml`
 
 ## User Preferences (Alexis)
