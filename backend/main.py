@@ -1118,9 +1118,15 @@ async def marketplace_publish(request: Request):
 
 @app.post("/api/public/marketplace/tool/{tool_id}/purchase")
 async def marketplace_purchase(tool_id: str, request: Request):
+    from security import check_rate_limit
+    check_rate_limit(request)
     from creator_marketplace import purchase_tool
     body = await request.json()
-    return await purchase_tool(db, tool_id, body.get("wallet", ""))
+    wallet = body.get("wallet", "")
+    if not wallet or len(wallet) < 20:
+        raise HTTPException(400, "Valid wallet address required")
+    _validate_wallet_format(wallet)
+    return await purchase_tool(db, tool_id, wallet)
 
 @app.post("/api/public/marketplace/tool/{tool_id}/review")
 async def marketplace_review(tool_id: str, request: Request):
@@ -1130,9 +1136,15 @@ async def marketplace_review(tool_id: str, request: Request):
 
 @app.post("/api/public/marketplace/tool/{tool_id}/update")
 async def marketplace_update(tool_id: str, request: Request):
+    from security import check_rate_limit
+    check_rate_limit(request)
     from creator_marketplace import update_tool_version
     body = await request.json()
-    return await update_tool_version(db, tool_id, body.get("creator_wallet", ""), body)
+    creator_wallet = body.get("creator_wallet", "")
+    if not creator_wallet or len(creator_wallet) < 20:
+        raise HTTPException(400, "Valid creator_wallet required")
+    _validate_wallet_format(creator_wallet)
+    return await update_tool_version(db, tool_id, creator_wallet, body)
 
 @app.get("/api/public/marketplace/search")
 async def marketplace_search(q: str = "", limit: int = 20):
@@ -1189,6 +1201,7 @@ async def sitemap():
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 _ADMIN_SESSIONS: dict = {}  # token_opaque -> expiry_timestamp
+_ADMIN_SESSIONS_MAX = 100  # Cap to prevent unbounded growth
 
 
 def _verify_admin(request: Request) -> bool:
@@ -1261,7 +1274,15 @@ async def admin_login(req: Request):
     # Token opaque au lieu de la cle en clair dans le cookie
     import secrets as _s
     token = _s.token_hex(32)
-    _ADMIN_SESSIONS[token] = time.time() + 86400  # 24h
+    # Cleanup expired sessions + enforce cap
+    now = time.time()
+    expired = [k for k, exp in _ADMIN_SESSIONS.items() if exp < now]
+    for k in expired:
+        _ADMIN_SESSIONS.pop(k, None)
+    if len(_ADMIN_SESSIONS) >= _ADMIN_SESSIONS_MAX:
+        oldest = min(_ADMIN_SESSIONS, key=_ADMIN_SESSIONS.get)
+        _ADMIN_SESSIONS.pop(oldest, None)
+    _ADMIN_SESSIONS[token] = now + 86400  # 24h
     resp = RedirectResponse(url="/dashboard", status_code=302)
     resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp

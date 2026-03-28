@@ -863,7 +863,10 @@ class ScoutAgent:
                     resp = await client.get(registry["url"], params={"limit": 50})
                     if resp.status_code != 200:
                         continue
-                    data = resp.json()
+                    try:
+                        data = resp.json()
+                    except Exception:
+                        continue  # Non-JSON response (HTML error page, etc.)
                     services = data if isinstance(data, list) else data.get("results", data.get("services", []))
                     for svc in services[:30]:
                         # Olas format
