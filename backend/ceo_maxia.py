@@ -1663,7 +1663,7 @@ async def execute(decisions: list, memory: Memory):
 
     # Si le CEO local est actif, le VPS skip le marketing (eviter double-post)
     try:
-        from main import is_local_ceo_active, local_ceo_did_action
+        from ceo_api import is_local_ceo_active, local_ceo_did_action
         if is_local_ceo_active():
             _marketing = {"GHOST-WRITER", "HUNTER"}
             decisions = [d for d in decisions if d.get("cible", "").upper() not in _marketing]

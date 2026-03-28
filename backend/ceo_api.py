@@ -1,6 +1,9 @@
 """CEO MAXIA — API routes extracted from main.py."""
+import os
+import re
 import time
 import json
+import hashlib
 
 from fastapi import APIRouter, HTTPException, Request
 from error_utils import safe_error
@@ -444,3 +447,412 @@ def _build_action_string(action: str, params: dict) -> str:
         return f"generate report: {params.get('topic', 'weekly')}"
     else:
         return f"{action}: {json.dumps(params, default=str)[:200]}"
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Health, Emergency, Sync, Think
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/health")
+async def ceo_health_check(request: Request):
+    """Sante de tous les composants."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    try:
+        from ceo_maxia import ceo, get_llm_costs
+        from llm_router import router as llm_router
+
+        health = {
+            "healthy": True,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "components": {
+                "database": "ok",
+                "ceo": "running" if ceo._running else "stopped",
+                "emergency_stop": ceo.memory.is_stopped(),
+                "llm_costs": get_llm_costs(),
+                "router_stats": llm_router.get_stats(),
+            },
+        }
+        # Check DB
+        try:
+            await db.get_stats()
+        except Exception:
+            health["components"]["database"] = "error"
+            health["healthy"] = False
+
+        return health
+    except Exception as e:
+        return {"healthy": False, "error": "An error occurred"}
+
+
+@router.post("/emergency-stop")
+async def ceo_emergency_stop(request: Request):
+    """Arret d'urgence du CEO."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+    from alerts import alert_system
+    ip = request.client.host if request.client else "unknown"
+
+    try:
+        from ceo_maxia import ceo
+        ceo.memory._data["emergency_stop"] = True
+        ceo.memory.save()
+        audit_log("ceo_emergency_stop", ip, "Emergency stop activated by CEO local", "ceo-local")
+        await alert_system.send("CEO EMERGENCY STOP", "Activated by CEO local agent")
+        return {"success": True, "emergency_stop": True}
+    except Exception as e:
+        return {"success": False, "error": "An error occurred"}
+
+
+# ── Coordination locale ↔ VPS ──
+
+_local_ceo_state = {
+    "active": False,
+    "last_sync": 0,
+    "recent_actions": [],  # Actions faites par le CEO local
+}
+
+
+@router.post("/sync")
+async def ceo_sync(request: Request):
+    """Synchronisation CEO local <-> VPS. Evite les double-posts."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+
+    body = await request.json()
+    local_actions = body.get("actions", [])
+    local_active = body.get("active", False)
+
+    # Enregistrer l'etat du CEO local
+    _local_ceo_state["active"] = local_active
+    _local_ceo_state["last_sync"] = time.time()
+    # Garder les 100 dernieres actions locales
+    _local_ceo_state["recent_actions"].extend(local_actions)
+    _local_ceo_state["recent_actions"] = _local_ceo_state["recent_actions"][-100:]
+
+    # Retourner les actions recentes du VPS CEO
+    try:
+        from ceo_maxia import ceo
+        vps_actions = ceo.memory._data.get("decisions", [])[-20:]
+        return {
+            "vps_actions": vps_actions,
+            "local_registered": len(local_actions),
+            "vps_marketing_paused": _local_ceo_state["active"],
+        }
+    except Exception as e:
+        return safe_error(e, "operation")
+
+
+def is_local_ceo_active() -> bool:
+    """Le VPS CEO verifie si le local est actif (sync < 15 min)."""
+    return _local_ceo_state["active"] and time.time() - _local_ceo_state["last_sync"] < 900
+
+
+def local_ceo_did_action(action_type: str) -> bool:
+    """Verifie si le CEO local a deja fait cette action recemment."""
+    for a in _local_ceo_state["recent_actions"][-50:]:
+        if a.get("action") == action_type:
+            return True
+    return False
+
+
+# ── Think (LLM delegation) ──
+
+_think_cache: dict = {}
+
+
+def _normalize_for_cache(prompt: str) -> str:
+    """Normalise un prompt pour le cache semantique.
+    Supprime les chiffres volatils (timestamps, montants exacts) pour
+    que des prompts similaires matchent le meme cache."""
+    n = prompt[:500].lower()
+    # Remplacer les nombres par des placeholders
+    n = re.sub(r'\$[\d.]+', '$X', n)
+    n = re.sub(r'\d{4}-\d{2}-\d{2}', 'DATE', n)
+    n = re.sub(r'\d{2}:\d{2}', 'TIME', n)
+    n = re.sub(r'=\d+', '=N', n)
+    # Supprimer les espaces multiples
+    n = re.sub(r'\s+', ' ', n).strip()
+    return n
+
+
+def _compress_prompt(prompt: str) -> str:
+    """Compresse un prompt pour economiser des tokens Claude.
+    - Arrondit les chiffres a 2 decimales
+    - Supprime les lignes vides en double
+    - Tronque a 3000 chars max
+    """
+    # Arrondir les nombres longs
+    compressed = re.sub(r'(\d+\.\d{3,})', lambda m: f"{float(m.group()):.2f}", prompt)
+    # Supprimer les lignes vides en double
+    compressed = re.sub(r'\n{3,}', '\n\n', compressed)
+    # Supprimer les espaces en trop
+    compressed = re.sub(r'  +', ' ', compressed)
+    return compressed[:3000]
+
+
+@router.post("/think")
+async def ceo_think(request: Request):
+    """Le CEO local delegue une reflexion strategique a Claude sur le VPS.
+    Evite de payer Claude 2x — le local envoie le prompt, le VPS reflechit."""
+    from auth import require_ceo_auth
+    await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
+    from security import audit_log
+
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    tier = body.get("tier", "fast")  # fast|mid|strategic
+    max_tokens = min(body.get("max_tokens", 1000), 4000)
+    ip = request.client.host if request.client else "unknown"
+
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+
+    # Cache semantique: prompts similaires = meme reponse (1h)
+    normalized = _normalize_for_cache(prompt)
+    prompt_hash = hashlib.sha256(normalized.encode()).hexdigest()[:12]
+    cache_key = f"ceo_think_{prompt_hash}"
+    cached = _think_cache.get(cache_key)
+    if cached and time.time() - cached["ts"] < 3600:  # Cache 1h
+        audit_log("ceo_think_cached", ip, f"tier={tier} hash={prompt_hash}", "ceo-local")
+        return {"result": cached["result"], "tier": tier, "cached": True, "cost_usd": 0}
+
+    try:
+        from llm_router import router as llm_router, Tier
+        from ceo_maxia import CEO_IDENTITY
+
+        tier_map = {"fast": Tier.FAST, "mid": Tier.MID, "strategic": Tier.STRATEGIC}
+        llm_tier = tier_map.get(tier, Tier.FAST)
+
+        # Compresser le prompt: arrondir les chiffres, limiter la taille
+        clean_prompt = _compress_prompt(prompt)
+
+        result = await llm_router.call(
+            clean_prompt, tier=llm_tier,
+            system=CEO_IDENTITY, max_tokens=max_tokens,
+        )
+
+        # Cache le resultat
+        _think_cache[cache_key] = {"result": result, "ts": time.time()}
+        # Nettoyer le cache (max 50 entrees)
+        if len(_think_cache) > 50:
+            oldest = sorted(_think_cache.items(), key=lambda x: x[1]["ts"])[:25]
+            for k, _ in oldest:
+                _think_cache.pop(k, None)
+
+        cost = llm_router.costs_today.get(tier, {}).get("cost", 0)
+        audit_log("ceo_think", ip, f"tier={tier} tokens~{len(result)//4} hash={prompt_hash}", "ceo-local")
+        return {"result": result, "tier": tier, "cached": False, "cost_usd": round(cost, 4)}
+    except Exception as e:
+        return safe_error(e, "operation")
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Admin-facing (disabled-agents, ROI, A/B, LLM costs)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/disabled-agents")
+async def ceo_disabled(request: Request):
+    """Liste les agents desactives."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    return {"disabled": ceo.get_disabled_agents()}
+
+
+@router.get("/roi")
+async def ceo_roi(request: Request):
+    """Stats ROI par agent et par type d'action."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    return ceo.get_roi()
+
+
+@router.get("/ab-tests")
+async def ceo_ab_tests(request: Request):
+    """Resultats des tests A/B en cours."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    return ceo.get_ab_results()
+
+
+@router.post("/ab-tests")
+async def ceo_create_ab_test(request: Request):
+    """Cree un nouveau test A/B."""
+    from security import require_admin
+    require_admin(request)
+    body = await request.json()
+    from ceo_maxia import ceo
+    ceo.create_test(body.get("name", ""), body.get("variant_a", ""), body.get("variant_b", ""))
+    return {"success": True}
+
+
+@router.get("/llm-costs")
+async def ceo_llm_costs(request: Request):
+    """LLM token usage and estimated cost per model."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import get_llm_costs
+    return get_llm_costs()
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Ask (chat with CEO)
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/ask")
+async def ceo_ask(request: Request):
+    """Chat with the CEO MAXIA. Ask questions, give orders, get updates."""
+    from security import require_admin
+    require_admin(request)
+    try:
+        body = await request.json()
+        message = body.get("message", body.get("text", ""))
+        if not message:
+            return {"error": "message required"}
+        if len(message) > 2000:
+            raise HTTPException(400, "Message too long (max 2000 chars)")
+        # Enrichir avec le contexte reel du CEO
+        try:
+            from ceo_maxia import ceo
+            status = ceo.get_status()
+            context = (
+                f"Revenue 24h: {status.get('stats', {}).get('revenue_24h', 0)} USDC | "
+                f"Clients actifs: {status.get('stats', {}).get('active_clients', 0)} | "
+                f"Services: {status.get('stats', {}).get('services_count', 0)} | "
+                f"Cycle: {status.get('cycle', 0)} | "
+                f"Emergency: {status.get('emergency_stop', False)} | "
+                f"Agents actifs: {len([a for a in status.get('agents', {}).values() if a.get('enabled')])} / 17"
+            )
+        except Exception:
+            context = "Status indisponible"
+
+        from groq import Groq
+        c = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+        resp = c.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": (
+                    "Tu es le CEO de MAXIA, un marketplace AI-to-AI sur 14 blockchains (maxiaworld.app). "
+                    "Tu geres 17 sous-agents, le marketing, le WATCHDOG, et la strategie. "
+                    "Tu reponds au FONDATEUR Alexis. Sois direct, concis, strategique. "
+                    "Reponds en texte simple, PAS en JSON. En francais.\n\n"
+                    f"ETAT ACTUEL: {context}"
+                )},
+                {"role": "user", "content": message},
+            ],
+            max_tokens=500,
+        )
+        raw = resp.choices[0].message.content
+        return {"success": True, "from": "CEO MAXIA", "response": raw, "context": context}
+    except Exception as e:
+        return safe_error(e, "operation")
+
+
+# ═══════════════════════════════════════════════════════════
+#  CEO — Vector Memory
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/memory")
+async def ceo_memory_stats(request: Request):
+    """Get CEO vector memory statistics."""
+    from security import require_admin
+    require_admin(request)
+    try:
+        from ceo_vector_memory import vector_memory
+        return vector_memory.stats()
+    except Exception as e:
+        return safe_error(e, "operation")
+
+
+@router.get("/memory/search")
+async def ceo_memory_search(request: Request, q: str = "", collection: str = ""):
+    """Search CEO memory. Example: /api/ceo/memory/search?q=whale+conversion"""
+    from security import require_admin
+    require_admin(request)
+    try:
+        from ceo_vector_memory import vector_memory
+        results = vector_memory.search(q, collection=collection or None, max_results=5)
+        return {"query": q, "results": results}
+    except Exception as e:
+        return safe_error(e, "operation")
+
+
+# ═══════════════════════════════════════════════════════════
+#  APPROVALS — Dashboard approval system
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/approvals")
+async def ceo_get_approvals(request: Request):
+    """Liste les decisions en attente d'approbation (orange/rouge)."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    active = [p for p in pending if p.get("status") == "pending"]
+    history = [p for p in pending if p.get("status") != "pending"][-20:]
+    return {"pending": active, "history": history, "count": len(active)}
+
+
+@router.post("/approvals/{approval_id}/approve")
+async def ceo_approve(approval_id: str, request: Request):
+    """Approuve une decision en attente et l'execute."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    found = None
+    for p in pending:
+        if p.get("id") == approval_id and p.get("status") == "pending":
+            found = p
+            break
+    if not found:
+        raise HTTPException(404, "Approval not found or already processed")
+
+    # Execute la decision
+    decision = {
+        "action": found["action"],
+        "cible": found["cible"],
+        "priorite": "VERT",  # Force VERT pour bypass les checks
+    }
+    try:
+        from ceo_executor import execute_decision
+        result = await execute_decision(decision, ceo.memory, db)
+        found["status"] = "approved"
+        found["approved_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        found["result"] = str(result.get("detail", result.get("reason", "")))[:200]
+        ceo.memory.save()
+        ceo.memory.fondateur_responded()
+        ceo.memory.log_decision("vert", f"APPROVED: {found['action']}", "fondateur", found["cible"])
+        return {"success": True, "id": approval_id, "result": result}
+    except Exception as e:
+        found["status"] = "error"
+        found["error"] = str(e)[:200]
+        ceo.memory.save()
+        raise HTTPException(500, "Internal server error")
+
+
+@router.post("/approvals/{approval_id}/deny")
+async def ceo_deny(approval_id: str, request: Request):
+    """Refuse une decision en attente."""
+    from security import require_admin
+    require_admin(request)
+    from ceo_maxia import ceo
+    pending = ceo.memory._data.get("pending_approvals", [])
+    found = None
+    for p in pending:
+        if p.get("id") == approval_id and p.get("status") == "pending":
+            found = p
+            break
+    if not found:
+        raise HTTPException(404, "Approval not found or already processed")
+
+    found["status"] = "denied"
+    found["denied_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    ceo.memory.save()
+    ceo.memory.fondateur_responded()
+    ceo.memory.log_decision("vert", f"DENIED: {found['action']}", "fondateur", found["cible"])
+    return {"success": True, "id": approval_id, "status": "denied"}
