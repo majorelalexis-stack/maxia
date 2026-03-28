@@ -66,24 +66,65 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 /* ── Main ── */
 .main{margin-left:220px;padding-top:24px;max-width:1000px;padding-left:32px;padding-right:32px;padding-bottom:60px;min-height:100vh;overflow-x:hidden}
 
-/* ── Home cards ── */
-.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px}
-.home-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;cursor:pointer;transition:all .3s;text-align:center}
-.home-card:hover{border-color:rgba(59,130,246,.4);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
-.home-card .hc-icon{font-size:36px;margin-bottom:12px}
-.home-card .hc-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
-.home-card .hc-desc{font-size:12px;color:var(--muted);line-height:1.4}
-.home-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
-.home-stat{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 20px;flex:1;min-width:120px;text-align:center}
-.home-stat .hs-num{font-size:24px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.home-stat .hs-label{font-size:11px;color:var(--muted);margin-top:4px}
-.trust-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;justify-content:center}
-.trust-badge{font-size:11px;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);padding:6px 14px;border-radius:20px}
+/* ── Home — engaging, alive, sticky ── */
+.home-greeting{margin-bottom:28px}
+.home-greeting h1{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin-bottom:4px}
+.home-greeting h1 .grad{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:shimmer 4s linear infinite}
+@keyframes shimmer{0%{background-position:0% center}100%{background-position:200% center}}
+.home-greeting p{color:var(--muted);font-size:14px}
 
-/* ── Pages ── */
-.page{display:none;animation:fadeUp .4s ease}
+/* XP + Streak bar */
+.xp-bar-wrap{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px}
+.xp-level{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--cyan);min-width:40px}
+.xp-track{flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.xp-fill{height:100%;background:linear-gradient(90deg,#00e5ff,#7c3aed);border-radius:3px;transition:width 1s ease;width:0%}
+.xp-text{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.streak-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:600;background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);color:#f43f5e}
+
+/* Live price strip */
+.live-prices{display:flex;gap:12px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px}
+.lp-item{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:10px;padding:10px 16px;min-width:120px;flex-shrink:0;transition:all .3s;cursor:pointer}
+.lp-item:hover{border-color:rgba(0,229,255,.2);transform:translateY(-2px)}
+.lp-sym{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:2px}
+.lp-price{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:600}
+.lp-change{font-size:11px;font-weight:600}
+
+/* Quick actions */
+.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.qa{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:20px;cursor:pointer;transition:all .4s;position:relative;overflow:hidden;text-decoration:none;color:inherit;display:block}
+.qa::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#00e5ff,#7c3aed);transform:scaleX(0);transition:transform .4s;transform-origin:left}
+.qa:hover::before{transform:scaleX(1)}
+.qa:hover{border-color:rgba(0,229,255,.15);transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.3)}
+.qa-icon{font-size:28px;margin-bottom:10px}
+.qa-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:4px}
+.qa-desc{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* Activity feed */
+.home-feed{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:16px;margin-bottom:20px}
+.home-feed-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.home-feed-title .live-dot{width:6px;height:6px;background:#22c55e;border-radius:50%;animation:blink 1.5s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.feed-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:12px;color:var(--muted)}
+.feed-item:last-child{border-bottom:none}
+.feed-icon{font-size:16px;width:24px;text-align:center}
+.feed-time{margin-left:auto;font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace}
+
+/* Home stats row */
+.home-stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+.home-stat{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:16px 20px;flex:1;min-width:120px;text-align:center;transition:all .3s}
+.home-stat:hover{border-color:rgba(0,229,255,.15)}
+.home-stat .hs-num{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.home-stat .hs-label{font-size:11px;color:var(--muted2);margin-top:4px;text-transform:uppercase;letter-spacing:.1em}
+.trust-badges{display:none}
+
+/* ── Pages — smooth transitions ── */
+.page{display:none;animation:pageIn .5s cubic-bezier(.16,1,.3,1)}
 .page.active{display:block}
-@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pageIn{from{opacity:0;transform:translateY(12px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+/* ── Global micro-interactions ── */
+button,a,.home-card,.card,.qa{transition:all .3s cubic-bezier(.16,1,.3,1)}
+button:active{transform:scale(.97)}
 
 /* ── Cards ── */
 .card{background:rgba(255,255,255,.02);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:28px;transition:all .4s}
@@ -351,6 +392,10 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <div class="sidebar-section">Manage</div>
   <button class="nav-link" onclick="showPage('enterprise',this)"><span class="icon">&#127970;</span> Enterprise</button>
 
+  <div class="sidebar-section">Community</div>
+  <a class="nav-link" href="/forum" target="_blank" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a>
+  <button class="nav-link" onclick="toggleChat()" style="color:var(--cyan)"><span class="icon">&#129302;</span> AI Chat</button>
+
   <div class="sidebar-bottom">
     <!-- Multi-wallet display -->
     <div id="wallet-display" style="margin-bottom:8px">
@@ -410,50 +455,85 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
 <!-- ─── PAGE: HOME ─── -->
 <div class="page active" id="page-home">
-  <div style="text-align:center;padding:20px 0">
-    <h1 style="font-size:32px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Welcome to MAXIA</h1>
-    <p style="color:var(--muted);margin-top:8px;font-size:15px">AI-to-AI Marketplace on 14 Blockchains</p>
+
+  <!-- Greeting + time -->
+  <div class="home-greeting">
+    <h1>Welcome back, <span class="grad">trader</span></h1>
+    <p id="home-time"></p>
   </div>
 
+  <!-- XP Bar + Streak -->
+  <div class="xp-bar-wrap">
+    <div class="xp-level" id="xp-level">1</div>
+    <div style="flex:1">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--muted)">Level Progress</span>
+        <span class="xp-text" id="xp-text">0 / 100 XP</span>
+      </div>
+      <div class="xp-track"><div class="xp-fill" id="xp-fill"></div></div>
+    </div>
+    <div class="streak-badge" id="streak-badge">&#128293; 0 day streak</div>
+  </div>
+
+  <!-- Live prices (scrolling) -->
+  <div class="live-prices" id="live-prices">
+    <div class="lp-item" onclick="showPage('trading')"><div class="lp-sym">SOL</div><div class="lp-price" id="hp-sol">$—</div><div class="lp-change tk-up" id="hp-sol-ch">—</div></div>
+    <div class="lp-item" onclick="showPage('trading')"><div class="lp-sym">ETH</div><div class="lp-price" id="hp-eth">$—</div><div class="lp-change tk-up" id="hp-eth-ch">—</div></div>
+    <div class="lp-item" onclick="showPage('trading')"><div class="lp-sym">BTC</div><div class="lp-price" id="hp-btc">$—</div><div class="lp-change tk-up" id="hp-btc-ch">—</div></div>
+    <div class="lp-item" onclick="showPage('stocks')"><div class="lp-sym">AAPL</div><div class="lp-price" id="hp-aapl">$—</div><div class="lp-change" id="hp-aapl-ch">—</div></div>
+    <div class="lp-item" onclick="showPage('stocks')"><div class="lp-sym">TSLA</div><div class="lp-price" id="hp-tsla">$—</div><div class="lp-change" id="hp-tsla-ch">—</div></div>
+    <div class="lp-item" onclick="showPage('stocks')"><div class="lp-sym">NVDA</div><div class="lp-price" id="hp-nvda">$—</div><div class="lp-change" id="hp-nvda-ch">—</div></div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="quick-actions">
+    <div class="qa" onclick="showPage('swap')">
+      <div class="qa-icon">&#9889;</div>
+      <div class="qa-name">Swap</div>
+      <div class="qa-desc">65 tokens, 14 chains, lowest fees</div>
+    </div>
+    <div class="qa" onclick="showPage('stocks')">
+      <div class="qa-icon">&#128200;</div>
+      <div class="qa-name">Stocks</div>
+      <div class="qa-desc">25 stocks 24/7 on-chain</div>
+    </div>
+    <div class="qa" onclick="showPage('trading')">
+      <div class="qa-icon">&#128640;</div>
+      <div class="qa-name">Trading</div>
+      <div class="qa-desc">Live charts, leverage 100x</div>
+    </div>
+    <div class="qa" onclick="showPage('yields')">
+      <div class="qa-icon">&#127793;</div>
+      <div class="qa-name">DeFi Yields</div>
+      <div class="qa-desc">Best APY across chains</div>
+    </div>
+    <div class="qa" onclick="showPage('gpu')">
+      <div class="qa-icon">&#128421;</div>
+      <div class="qa-name">GPU Cloud</div>
+      <div class="qa-desc">RTX 4090 to H200</div>
+    </div>
+    <div class="qa" onclick="window.open('/forum','_blank')">
+      <div class="qa-icon">&#128172;</div>
+      <div class="qa-name">Forum</div>
+      <div class="qa-desc">Join the community</div>
+    </div>
+  </div>
+
+  <!-- Activity feed -->
+  <div class="home-feed">
+    <div class="home-feed-title"><span class="live-dot"></span> Live Activity</div>
+    <div id="home-feed-items">
+      <div class="feed-item"><span class="feed-icon">&#128260;</span> Platform loading... <span class="feed-time">now</span></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
   <div class="home-stats">
-    <div class="home-stat"><div class="hs-num">14</div><div class="hs-label">Blockchains</div></div>
-    <div class="home-stat"><div class="hs-num">71</div><div class="hs-label">Tokens</div></div>
+    <div class="home-stat"><div class="hs-num">14</div><div class="hs-label">Chains</div></div>
+    <div class="home-stat"><div class="hs-num">65</div><div class="hs-label">Tokens</div></div>
     <div class="home-stat"><div class="hs-num">25</div><div class="hs-label">Stocks</div></div>
     <div class="home-stat"><div class="hs-num">46</div><div class="hs-label">MCP Tools</div></div>
-    <div class="home-stat"><div class="hs-num">17</div><div class="hs-label">AI Services</div></div>
-  </div>
-
-  <div class="home-grid">
-    <div class="home-card" onclick="showPage('swap')">
-      <div class="hc-icon">&#128260;</div>
-      <div class="hc-title">Swap Tokens</div>
-      <div class="hc-desc">Trade 65 tokens across 4160 pairs. Lowest fees on 14 chains.</div>
-    </div>
-    <div class="home-card" onclick="showPage('stocks')">
-      <div class="hc-icon">&#128200;</div>
-      <div class="hc-title">Tokenized Stocks</div>
-      <div class="hc-desc">Buy AAPL, TSLA, NVDA, AMD, NFLX and 20 more. 3 providers, multi-chain.</div>
-    </div>
-    <div class="home-card" onclick="showPage('yields')">
-      <div class="hc-icon">&#127793;</div>
-      <div class="hc-title">DeFi Yields</div>
-      <div class="hc-desc">Find the best APY across 14 chains. Staking, lending, LP.</div>
-    </div>
-    <div class="home-card" onclick="showPage('gpu')">
-      <div class="hc-icon">&#9889;</div>
-      <div class="hc-title">GPU Rental</div>
-      <div class="hc-desc" id="gpu-home-desc">RTX 4090 to H200 — cheaper than AWS.</div>
-    </div>
-    <div class="home-card" onclick="showPage('bridge')">
-      <div class="hc-icon">&#128279;</div>
-      <div class="hc-title">Cross-Chain Bridge</div>
-      <div class="hc-desc">Move assets between 14 chains. Powered by Li.Fi.</div>
-    </div>
-    <div class="home-card" onclick="showPage('nfts')">
-      <div class="hc-icon">&#127912;</div>
-      <div class="hc-title">NFT & Agent ID</div>
-      <div class="hc-desc">Mint your AI agent on-chain. Trust score, identity.</div>
-    </div>
+    <div class="home-stat"><div class="hs-num">17</div><div class="hs-label">Services</div></div>
   </div>
 
   <div class="trust-badges">
@@ -6597,6 +6677,89 @@ loadSwapTokens();
 (function() {
   var btn = document.getElementById('notif-sound-btn');
   if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';
+})();
+
+// ═══ HOME PAGE — LIVE DATA ═══
+
+// Greeting with time
+(function updateGreeting(){
+  var el = document.getElementById('home-time');
+  if (!el) return;
+  var h = new Date().getHours();
+  var greet = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  el.textContent = greet + ' — ' + new Date().toLocaleString('en-US', {weekday:'long', hour:'2-digit', minute:'2-digit'});
+  setTimeout(updateGreeting, 60000);
+})();
+
+// Live prices on home
+async function updateHomePrices() {
+  try {
+    var r = await fetch('/oracle/price/live/SOL?mode=hft'); var d = await r.json();
+    var el = document.getElementById('hp-sol'); if (el) el.textContent = '$' + d.price.toFixed(2);
+  } catch(e){}
+  try {
+    var r = await fetch('/oracle/price/live/ETH?mode=hft'); var d = await r.json();
+    var el = document.getElementById('hp-eth'); if (el) el.textContent = '$' + d.price.toFixed(2);
+  } catch(e){}
+  try {
+    var r = await fetch('/oracle/price/live/BTC?mode=hft'); var d = await r.json();
+    var el = document.getElementById('hp-btc'); if (el) el.textContent = '$' + d.price.toFixed(0);
+  } catch(e){}
+  try {
+    var r = await fetch('/api/public/stocks'); var d = await r.json();
+    (d.stocks||[]).forEach(function(s) {
+      var el = document.getElementById('hp-' + s.symbol.toLowerCase());
+      if (el && s.price_usd > 0) el.textContent = '$' + s.price_usd.toFixed(2);
+      var ch = document.getElementById('hp-' + s.symbol.toLowerCase() + '-ch');
+      if (ch) { ch.textContent = (s.change_24h_pct >= 0 ? '+' : '') + s.change_24h_pct.toFixed(2) + '%'; ch.style.color = s.change_24h_pct >= 0 ? 'var(--green)' : 'var(--red)'; }
+    });
+  } catch(e){}
+}
+updateHomePrices(); setInterval(updateHomePrices, 5000);
+
+// XP bar
+async function updateXP() {
+  var wallet = (connectedWallets.solana||{}).address || (connectedWallets.evm||{}).address || '';
+  if (!wallet) {
+    var fill = document.getElementById('xp-fill'); if (fill) fill.style.width = '0%';
+    return;
+  }
+  try {
+    var r = await fetch('/api/gamification/user/' + wallet + '/stats'); var d = await r.json();
+    var pts = d.points || 0;
+    var lvl = Math.floor(pts / 100) + 1;
+    var pct = (pts % 100);
+    var fill = document.getElementById('xp-fill'); if (fill) fill.style.width = pct + '%';
+    var lvlEl = document.getElementById('xp-level'); if (lvlEl) lvlEl.textContent = lvl;
+    var txtEl = document.getElementById('xp-text'); if (txtEl) txtEl.textContent = (pts % 100) + ' / 100 XP';
+    var streak = document.getElementById('streak-badge'); if (streak) streak.innerHTML = '&#128293; ' + (d.streak_days||0) + ' day streak';
+  } catch(e){}
+}
+updateXP();
+
+// Activity feed
+(function loadHomeFeed() {
+  var el = document.getElementById('home-feed-items');
+  if (!el) return;
+  var items = [
+    {icon:'&#128260;', text:'Swap engine ready — 65 tokens, 14 chains', time:'now'},
+    {icon:'&#128200;', text:'25 tokenized stocks live — AAPL, TSLA, NVDA...', time:'now'},
+    {icon:'&#127942;', text:'Gamification active — earn XP on every trade', time:'now'},
+    {icon:'&#128172;', text:'AI chat ready — try "price SOL" in the chat', time:'now'},
+    {icon:'&#128640;', text:'Leverage 100x available — SOL, ETH, BTC perps', time:'now'},
+  ];
+  el.innerHTML = items.map(function(i){
+    return '<div class="feed-item"><span class="feed-icon">' + i.icon + '</span> ' + i.text + ' <span class="feed-time">' + i.time + '</span></div>';
+  }).join('');
+  // Try to get real activity
+  fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
+    if (d.registered_agents > 1) {
+      el.innerHTML = '<div class="feed-item"><span class="feed-icon">&#128101;</span> ' + d.registered_agents + ' agents registered on the platform <span class="feed-time">live</span></div>' + el.innerHTML;
+    }
+    if (d.services_listed > 0) {
+      el.innerHTML = '<div class="feed-item"><span class="feed-icon">&#127941;</span> ' + d.services_listed + ' AI services available <span class="feed-time">live</span></div>' + el.innerHTML;
+    }
+  }).catch(function(){});
 })();
 </script>
 
