@@ -9,7 +9,9 @@ Tiers :
 Fallback automatique : LOCAL -> FAST -> MID -> STRATEGIC
 """
 import asyncio, time, json
+import httpx
 from enum import Enum
+from http_client import get_http_client
 
 
 class Tier(str, Enum):
@@ -138,20 +140,20 @@ class LLMRouter:
 
     async def _call_ollama(self, system: str, prompt: str, max_tokens: int) -> str:
         """Appel Ollama local (cout 0)."""
-        import httpx
         full_prompt = f"{system}\n\n{prompt}" if system else prompt
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{self._ollama_url}/api/generate",
-                json={
-                    "model": self._ollama_model,
-                    "prompt": full_prompt,
-                    "stream": False,
-                    "options": {"num_predict": max_tokens, "temperature": 0.7},
-                },
-            )
-            resp.raise_for_status()
-            return resp.json().get("response", "")
+        client = get_http_client()
+        resp = await client.post(
+            f"{self._ollama_url}/api/generate",
+            json={
+                "model": self._ollama_model,
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {"num_predict": max_tokens, "temperature": 0.7},
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "")
 
     _groq_last_call: float = 0
     _GROQ_MIN_INTERVAL: float = 10.0  # Max 1 req per 10s to avoid rate limits
@@ -187,54 +189,54 @@ class LLMRouter:
         """Appel Mistral API."""
         if not self._mistral_key:
             raise RuntimeError("No Mistral API key")
-        import httpx
         msgs = []
         if system:
             msgs.append({"role": "system", "content": system})
         msgs.append({"role": "user", "content": prompt})
-        async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._mistral_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._mistral_model,
-                    "messages": msgs,
-                    "max_tokens": max_tokens,
-                    "temperature": 0.7,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            choices = data.get("choices", [])
-            return choices[0]["message"]["content"].strip() if choices else ""
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._mistral_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._mistral_model,
+                "messages": msgs,
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        return choices[0]["message"]["content"].strip() if choices else ""
 
     async def _call_anthropic(self, system: str, prompt: str, max_tokens: int) -> str:
         """Appel Claude Sonnet (defaut pour STRATEGIC)."""
         if not self._anthropic_key:
             raise RuntimeError("No Anthropic API key")
-        import httpx
-        async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": self._anthropic_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-sonnet-4-20250514",
-                    "max_tokens": max_tokens,
-                    "system": system or "You are a helpful assistant.",
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            ct = data.get("content", [])
-            return ct[0].get("text", "") if ct else ""
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": self._anthropic_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": max_tokens,
+                "system": system or "You are a helpful assistant.",
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        ct = data.get("content", [])
+        return ct[0].get("text", "") if ct else ""
 
     def _track(self, tier: Tier, input_len: int, output_len: int):
         """Track les couts par tier."""

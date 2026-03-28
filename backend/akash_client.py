@@ -18,6 +18,7 @@ import os
 import time
 import httpx
 from error_utils import safe_error
+from http_client import get_http_client
 
 log = logging.getLogger("akash")
 
@@ -132,12 +133,12 @@ class AkashClient:
         """HTTP request vers Akash Console API."""
         url = f"{self.api_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.request(method, url, json=json_data, headers=self._headers())
-                if resp.status_code >= 400:
-                    log.error(f"[Akash] {method} {path} → {resp.status_code}: {resp.text[:200]}")
-                    return {"error": resp.text[:200], "status": resp.status_code}
-                return resp.json()
+            client = get_http_client()
+            resp = await client.request(method, url, json=json_data, headers=self._headers(), timeout=30)
+            if resp.status_code >= 400:
+                log.error(f"[Akash] {method} {path} → {resp.status_code}: {resp.text[:200]}")
+                return {"error": resp.text[:200], "status": resp.status_code}
+            return resp.json()
         except Exception as e:
             return safe_error(e, "akash_request")
 

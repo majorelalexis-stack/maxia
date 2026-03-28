@@ -13,6 +13,7 @@ Does NOT spam. Contacts max 5 agents/day. Tracks who was contacted.
 """
 import asyncio, time, os, json, hashlib
 import httpx
+from http_client import get_http_client
 
 MAXIA_URL = "https://maxiaworld.app"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -55,19 +56,19 @@ async def _generate_outreach_message(agent_name: str, agent_capabilities: list) 
     )
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                json={
-                    "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 100,
-                    "temperature": 0.7,
-                },
-            )
-            if resp.status_code == 200:
-                return resp.json()["choices"][0]["message"]["content"].strip()
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 100,
+                "temperature": 0.7,
+            },
+        )
+        if resp.status_code == 200:
+            return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception:
         pass
 
@@ -93,17 +94,17 @@ async def discover_a2a_agents() -> list:
         if registry["type"] == "a2a":
             for url in registry["urls"]:
                 try:
-                    async with httpx.AsyncClient(timeout=10) as client:
-                        r = await client.get(url)
-                        if r.status_code == 200:
-                            data = r.json()
-                            found.append({
-                                "name": data.get("name", "unknown"),
-                                "url": url.replace("/.well-known/agent.json", ""),
-                                "capabilities": [s.get("name", "") for s in data.get("capabilities", data.get("services", []))],
-                                "contact_url": data.get("contact_url", data.get("endpoints", {}).get("register", "")),
-                                "source": "a2a",
-                            })
+                    client = get_http_client()
+                    r = await client.get(url, timeout=10)
+                    if r.status_code == 200:
+                        data = r.json()
+                        found.append({
+                            "name": data.get("name", "unknown"),
+                            "url": url.replace("/.well-known/agent.json", ""),
+                            "capabilities": [s.get("name", "") for s in data.get("capabilities", data.get("services", []))],
+                            "contact_url": data.get("contact_url", data.get("endpoints", {}).get("register", "")),
+                            "source": "a2a",
+                        })
                 except Exception:
                     pass
     return found
@@ -119,15 +120,15 @@ async def discover_via_search() -> list:
     found = []
     for ep in known_endpoints:
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(ep["url"], follow_redirects=True)
-                if r.status_code in [200, 301, 302, 403]:
-                    found.append({
-                        "name": ep["name"],
-                        "url": ep["url"],
-                        "capabilities": [ep["type"]],
-                        "source": "known_endpoint",
-                    })
+            client = get_http_client()
+            r = await client.get(ep["url"], timeout=5)
+            if r.status_code in [200, 301, 302, 403]:
+                found.append({
+                    "name": ep["name"],
+                    "url": ep["url"],
+                    "capabilities": [ep["type"]],
+                    "source": "known_endpoint",
+                })
         except Exception:
             pass
     return found
@@ -175,17 +176,17 @@ async def contact_agent_via_a2a(agent: dict) -> dict:
     contact_url = agent.get("contact_url", "")
     if contact_url:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                r = await client.post(contact_url, json={
-                    "from": "MAXIA",
-                    "from_url": MAXIA_URL,
-                    "message": message,
-                    "type": "partnership_proposal",
-                })
-                if r.status_code in [200, 201, 202]:
-                    result["status"] = "sent"
-                else:
-                    result["status"] = f"http_{r.status_code}"
+            client = get_http_client()
+            r = await client.post(contact_url, json={
+                "from": "MAXIA",
+                "from_url": MAXIA_URL,
+                "message": message,
+                "type": "partnership_proposal",
+            }, timeout=10)
+            if r.status_code in [200, 201, 202]:
+                result["status"] = "sent"
+            else:
+                result["status"] = f"http_{r.status_code}"
         except Exception as e:
             result["status"] = f"error: {str(e)[:50]}"
 

@@ -2,6 +2,7 @@
 import os, time, json
 import httpx
 from config import DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from http_client import get_http_client
 
 _last_alert: dict = {}
 _COOLDOWN = 300
@@ -24,15 +25,16 @@ async def _send_private(text: str, urgent: bool = False) -> bool:
     _last_alert[key] = now
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={
-                    "chat_id": TELEGRAM_CHAT_ID,
-                    "text": text[:4000],
-                    "parse_mode": "HTML",
-                },
-            )
+        client = get_http_client()
+        resp = await client.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": text[:4000],
+                "parse_mode": "HTML",
+            },
+            timeout=10,
+        )
         if resp.status_code == 200:
             return True
         print(f"[Alertes] Telegram prive erreur {resp.status_code}")
@@ -61,8 +63,8 @@ async def _send_discord(title: str, message: str, color: int = 0x7C6BF8) -> bool
         "footer": {"text": "MAXIA V12"},
     }
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(DISCORD_WEBHOOK_URL, json={"embeds": [embed]})
+        client = get_http_client()
+        resp = await client.post(DISCORD_WEBHOOK_URL, json={"embeds": [embed]}, timeout=10)
         return resp.status_code in (200, 204)
     except Exception:
         return False

@@ -3,6 +3,7 @@ import os, uuid, time, json, hashlib, hmac
 import httpx, asyncio
 from config import AP2_ENABLED, AP2_AGENT_ID, AP2_SIGNING_KEY
 from error_utils import safe_error
+from http_client import get_http_client
 
 
 class AP2Manager:
@@ -200,18 +201,18 @@ class AP2Manager:
 
         try:
             # #12: Reduced timeout to 15s for external calls
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    service_url,
-                    json={
-                        "ap2Version": "1.0",
-                        "intentMandate": intent,
-                        "cartMandate": cart,
-                        "paymentPayload": tx_signature,
-                        "network": "solana-mainnet",
-                    },
-                )
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(
+                service_url,
+                json={
+                    "ap2Version": "1.0",
+                    "intentMandate": intent,
+                    "cartMandate": cart,
+                    "paymentPayload": tx_signature,
+                    "network": "solana-mainnet",
+                },
+            )
+            data = resp.json()
             return {"success": resp.status_code in (200, 201), "txSignature": tx_signature, "response": data}
         except Exception as e:
             result = safe_error(e, "ap2_submit_payment")

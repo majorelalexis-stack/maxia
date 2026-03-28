@@ -3,6 +3,7 @@ import logging
 import time, asyncio
 import httpx
 from config import SCALE_OUT_QUEUE_THRESHOLD, SCALE_OUT_COOLDOWN, RAILWAY_API_TOKEN
+from http_client import get_http_client
 
 
 class ScaleOutManager:
@@ -50,25 +51,26 @@ class ScaleOutManager:
             return {"success": True, "mode": "simulation", **worker}
 
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    "https://backboard.railway.app/graphql/v2",
-                    headers={
-                        "Authorization": f"Bearer {RAILWAY_API_TOKEN}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "query": """
-                        mutation {
-                          serviceCreate(input: {
-                            name: "maxia-worker"
-                            projectId: "auto"
-                          }) { id name }
-                        }
-                        """,
-                    },
-                )
-                data = resp.json()
+            client = get_http_client()
+            resp = await client.post(
+                "https://backboard.railway.app/graphql/v2",
+                headers={
+                    "Authorization": f"Bearer {RAILWAY_API_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "query": """
+                    mutation {
+                      serviceCreate(input: {
+                        name: "maxia-worker"
+                        projectId: "auto"
+                      }) { id name }
+                    }
+                    """,
+                },
+                timeout=30,
+            )
+            data = resp.json()
 
             service = data.get("data", {}).get("serviceCreate", {})
             if service.get("id"):
