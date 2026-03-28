@@ -222,12 +222,37 @@ async def candle_symbols():
 
 
 async def update_candles():
-    """Background: build 1m candles from live prices, aggregate higher timeframes."""
+    """Background: build 1m candles from live prices (crypto + stocks + Pyth), aggregate higher timeframes."""
     while True:
         try:
             from price_oracle import get_crypto_prices
             prices_data = await get_crypto_prices()
             prices = prices_data.get("prices", prices_data) if isinstance(prices_data, dict) else {}
+
+            # Also include Pyth live prices (SOL/ETH/BTC/USDC + stocks)
+            try:
+                from pyth_oracle import _streaming_prices, ALL_FEEDS
+                feed_to_sym = {v: k for k, v in ALL_FEEDS.items()}
+                for feed_id, cached in _streaming_prices.items():
+                    data = cached.get("data", {})
+                    sym = data.get("symbol") or feed_to_sym.get(feed_id, "")
+                    price = data.get("price", 0)
+                    if sym and price > 0 and sym not in prices:
+                        prices[sym] = {"price": price, "source": "pyth"}
+            except Exception:
+                pass
+
+            # Also include stock prices from tokenized_stocks
+            try:
+                from tokenized_stocks import fetch_stock_prices
+                stock_data = await fetch_stock_prices()
+                for sym, data in (stock_data or {}).items():
+                    price = data.get("price_usd", 0) if isinstance(data, dict) else 0
+                    if sym and price > 0 and sym not in prices:
+                        prices[sym] = {"price": price, "source": "stock"}
+            except Exception:
+                pass
+
             db = await _get_db()
             now = int(time.time())
             minute_ts = (now // 60) * 60
