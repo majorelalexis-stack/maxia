@@ -2608,11 +2608,16 @@ async def ws_chart(websocket: WebSocket):
             return
         q: asyncio.Queue = asyncio.Queue(maxsize=200)
         _candle_subscribers.append(q)
+        _debug_count = 0
         try:
             while True:
                 msg = await q.get()
                 if msg.get("symbol") == symbol and msg.get("interval") == interval:
                     await websocket.send_json(msg)
+                    # Debug: log first few mismatched prices to find contamination
+                    if _debug_count < 3 and symbol == "BTC" and msg.get("close", 0) < 1000:
+                        print(f"[WS/chart DEBUG] BTC got low price: close={msg.get('close')} open={msg.get('open')} symbol_in_msg={msg.get('symbol')} interval={msg.get('interval')}")
+                        _debug_count += 1
         finally:
             _candle_subscribers.remove(q)
     except WebSocketDisconnect:
