@@ -489,6 +489,10 @@ body::before {
     <div class="nav-item" onclick="showPage('ceo-analytics',this)"><span class="icon">📊</span>CEO Analytics</div>
     <div class="nav-item" onclick="showPage('agent-bus',this)"><span class="icon">🔌</span>Agent Bus</div>
     <div class="nav-item" onclick="showPage('roi-tracking',this)"><span class="icon">💰</span>ROI Tracking</div>
+    <div class="nav-section">Support</div>
+    <div class="nav-item" onclick="showPage('bugs',this)" id="nav-bugs">
+      <span class="icon">&#128027;</span> Bug Reports <span class="nav-badge" id="bugs-badge" style="display:none;background:rgba(245,158,11,.2);color:var(--orange)">0</span>
+    </div>
     <div class="nav-section">Système</div>
     <div class="nav-item" onclick="showPage('logs',this)">
       <span class="icon">▤</span> Logs &amp; API
@@ -1892,6 +1896,38 @@ body::before {
 </div><!-- /main -->
 </div><!-- /shell -->
 
+  <!-- ══ BUG REPORTS ══ -->
+  <div class="page" id="page-bugs">
+    <div class="panels-row">
+      <div class="panel" style="grid-column:1/-1">
+        <div class="panel-header">
+          <span class="panel-title">&#128027; Bug Reports (Forum)</span>
+          <div style="display:flex;gap:8px">
+            <button class="panel-action" onclick="loadBugs()">Refresh</button>
+            <a href="/forum?community=bugs" target="_blank" class="panel-action" style="text-decoration:none">Open Forum</a>
+          </div>
+        </div>
+        <div class="panel-body" id="bugs-list" style="padding:0;max-height:600px;overflow-y:auto">
+          <div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div>
+        </div>
+      </div>
+    </div>
+    <div class="panels-row" style="margin-top:12px">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">&#9888; Reported Posts</span></div>
+        <div class="panel-body" id="bugs-reported" style="padding:0;max-height:400px;overflow-y:auto">
+          <div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">&#128202; Stats</span></div>
+        <div class="panel-body" id="bugs-stats" style="padding:15px">
+          <div style="text-align:center;color:var(--muted)">Chargement...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1930,6 +1966,7 @@ function showPage(name, el) {
   if (name === 'rpcservice') loadRPC();
   if (name === 'approvals') loadApprovals();
   if (name === 'inbox') loadInbox();
+  if (name === 'bugs') loadBugs();
 }
 
 // ── HTML escape helper (XSS protection for user-generated content) ──
@@ -3010,6 +3047,56 @@ setInterval(async () => {
 
 // ── Email Inbox ──
 let _currentEmail = null;
+
+async function loadBugs() {
+  const list = document.getElementById('bugs-list');
+  const stats = document.getElementById('bugs-stats');
+  const reported = document.getElementById('bugs-reported');
+  try {
+    // Load bug reports from forum
+    const r = await fetch('/api/public/forum/community/bugs?sort=new&limit=50');
+    const d = await r.json();
+    const posts = d.posts || [];
+    // Update badge
+    const badge = document.getElementById('bugs-badge');
+    if (posts.length > 0) { badge.textContent = posts.length; badge.style.display = ''; }
+    // Render posts
+    if (posts.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Aucun bug report pour le moment</div>';
+    } else {
+      list.innerHTML = '<table class="data-table" style="margin:0"><thead><tr><th>Date</th><th>Titre</th><th>Auteur</th><th style="text-align:center">Votes</th><th>Replies</th></tr></thead><tbody>' +
+        posts.map(function(p) {
+          var date = new Date((p.created_at || 0) * 1000);
+          var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+          var score = (p.upvotes || 0) - (p.downvotes || 0);
+          var scoreColor = score > 0 ? 'var(--green)' : score < 0 ? 'var(--red)' : 'var(--muted)';
+          var isVisitor = (p.author_wallet || '').startsWith('visitor_');
+          var authorBadge = isVisitor ? '<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(148,163,184,.1);color:var(--muted);margin-left:4px">Visitor</span>' : '<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(16,185,129,.1);color:var(--green);margin-left:4px">Wallet</span>';
+          return '<tr style="cursor:pointer" onclick="window.open(\'/forum?community=bugs\',\'_blank\')">' +
+            '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + dateStr + '</td>' +
+            '<td style="font-weight:600">' + esc(p.title || '--') + '</td>' +
+            '<td>' + esc(p.author_name || 'Anonymous') + authorBadge + '</td>' +
+            '<td style="text-align:center;color:' + scoreColor + ';font-weight:600">' + score + '</td>' +
+            '<td style="text-align:center">' + (p.reply_count || 0) + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    // Stats
+    const forumStats = await fetch('/api/public/forum').then(r => r.json());
+    var st = forumStats.stats || {};
+    stats.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+        '<div><div style="font-size:24px;font-weight:700;color:var(--orange)">' + posts.length + '</div><div style="font-size:11px;color:var(--muted)">Bug Reports</div></div>' +
+        '<div><div style="font-size:24px;font-weight:700;color:var(--cyan)">' + (st.total_posts || 0) + '</div><div style="font-size:11px;color:var(--muted)">Total Forum Posts</div></div>' +
+        '<div><div style="font-size:24px;font-weight:700;color:var(--green)">' + (st.total_replies || 0) + '</div><div style="font-size:11px;color:var(--muted)">Total Replies</div></div>' +
+        '<div><div style="font-size:24px;font-weight:700;color:var(--purple)">' + (st.active_agents || 0) + '</div><div style="font-size:11px;color:var(--muted)">Active Users</div></div>' +
+      '</div>';
+    // Reported posts (moderation)
+    reported.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Les posts avec 5+ reports sont auto-cachés.<br>Ban via: POST /api/admin/forum/ban {wallet}</div>';
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red)">Erreur: ' + e.message + '</div>';
+    stats.innerHTML = '<div style="color:var(--red)">Erreur chargement</div>';
+  }
+}
 
 async function loadInbox() {
   const r = await api('/api/inbox/messages?limit=30');
