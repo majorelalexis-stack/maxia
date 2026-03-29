@@ -157,8 +157,10 @@ ALL_SCOPES = [
 
 # Scopes par defaut par trust level
 DEFAULT_SCOPES = {
-    0: ["marketplace:discover", "swap:read", "gpu:read", "stocks:read",
-        "escrow:read", "defi:read", "mcp:read"],
+    0: ["marketplace:discover", "marketplace:list", "marketplace:execute",
+        "swap:read", "swap:execute", "gpu:read", "gpu:rent",
+        "stocks:read", "stocks:trade", "escrow:read", "escrow:lock",
+        "defi:read", "mcp:read", "mcp:execute"],
     1: ["marketplace:discover", "marketplace:list", "marketplace:execute",
         "swap:read", "swap:execute", "gpu:read", "gpu:rent",
         "stocks:read", "escrow:read", "escrow:lock",
