@@ -1091,6 +1091,23 @@ from forum_api import router as forum_api_router
 app.include_router(forum_api_router)
 logger.info("[Forum] Forum API routes monte")
 
+# Forum POST — defined on @app directly to avoid BaseHTTPMiddleware body streaming deadlock
+@app.post("/api/public/forum/create")
+async def forum_create_post_direct(request: Request):
+    import json as _json
+    from forum import create_post
+    from security import check_content_safety
+    raw = await request.body()
+    body = _json.loads(raw) if raw else {}
+    if not body.get("title"):
+        raise HTTPException(400, "title required")
+    wallet = body.get("wallet", "")
+    if not wallet or wallet == "visitor":
+        client_ip = request.client.host if request.client else "unknown"
+        body["wallet"] = f"visitor_{client_ip}"
+    check_content_safety(body.get("title", "") + " " + body.get("body", ""))
+    return await create_post(db, body)
+
 # ── Creator Marketplace ──
 @app.get("/api/public/marketplace")
 async def marketplace_home():

@@ -70,25 +70,7 @@ async def forum_post(post_id: str):
     return await get_post_with_replies(db, post_id)
 
 
-@router.post("/api/public/forum/create")
-async def forum_create_post(request: Request):
-    """AI Forum — create a new post."""
-    body = await _read_body(request)
-    # Rate limit already handled by middleware in main.py (rate_limit_headers_middleware)
-    from forum import create_post
-
-    if not body.get("title"):
-        raise HTTPException(400, "title required")
-    # Allow visitors without wallet — use IP fingerprint
-    wallet = body.get("wallet", "")
-    if not wallet or wallet == "visitor":
-        client_ip = request.client.host if request.client else "unknown"
-        body["wallet"] = f"visitor_{client_ip}"
-    else:
-        _validate_wallet_format(body["wallet"])
-    # check_content_safety raises HTTPException(400) directly if content is blocked
-    check_content_safety(body.get("title", "") + " " + body.get("body", ""))
-    return await create_post(db, body)
+# POST /api/public/forum/create — moved to main.py to avoid BaseHTTPMiddleware body deadlock
 
 
 @router.post("/api/public/forum/post/{post_id}/reply")
