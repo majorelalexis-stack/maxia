@@ -32,6 +32,28 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
 
 # ══════════════════════════════════════════
+# Knowledge Base — CEO connait MAXIA
+# ══════════════════════════════════════════
+
+_KNOWLEDGE_FILE = os.path.join(os.path.dirname(__file__), "maxia_knowledge.md")
+MAXIA_KNOWLEDGE = ""
+try:
+    with open(_KNOWLEDGE_FILE, "r", encoding="utf-8") as f:
+        MAXIA_KNOWLEDGE = f.read()
+    log.info("Knowledge base loaded (%d chars)", len(MAXIA_KNOWLEDGE))
+except Exception:
+    MAXIA_KNOWLEDGE = "MAXIA is an AI-to-AI marketplace on 14 blockchains. Website: maxiaworld.app"
+    log.warning("Knowledge base not found — using minimal context")
+
+CEO_SYSTEM_PROMPT = (
+    "You are the CEO of MAXIA, an AI-to-AI marketplace. "
+    "You know MAXIA deeply. Here is your knowledge base:\n\n"
+    + MAXIA_KNOWLEDGE[:3000] +
+    "\n\nRules: Professional tone. No hype words. No competitor bashing. "
+    "80% value, 20% MAXIA mention. Always include maxiaworld.app link when relevant."
+)
+
+# ══════════════════════════════════════════
 # Memoire locale
 # ══════════════════════════════════════════
 
@@ -164,7 +186,7 @@ async def mission_tweet_feature(mem: dict, actions: dict):
         f"Description: {feature['desc']}\n"
         f"Link: https://{feature['link']}\n\n"
         f"Rules:\n- Professional tone, not salesy\n- Include the link\n- End with: #MAXIA #AI #Web3 #Solana\n- Max 250 characters total",
-        system="You are the MAXIA CEO. Write concise, professional tweets.",
+        system=CEO_SYSTEM_PROMPT,
         max_tokens=100,
     )
 
@@ -195,90 +217,101 @@ async def mission_tweet_feature(mem: dict, actions: dict):
 # Mission 2 — 5 opportunites Twitter → mail
 # ══════════════════════════════════════════
 
-async def mission_twitter_opportunities(mem: dict, actions: dict):
-    """Scanne Twitter et envoie 5 opportunites par mail."""
-    if actions["counts"]["opportunities_sent"] >= 1:
-        log.info("Opportunites deja envoyees aujourd'hui — skip")
-        return
-
+async def mission_twitter_scan_hourly(mem: dict):
+    """Scan horaire — accumule les opportunites dans la memoire."""
     keywords = ["AI agent marketplace", "autonomous AI agent", "AI-to-AI", "crypto AI agent",
                 "Solana AI", "MCP server", "agent protocol", "AI service marketplace"]
 
-    opportunities = []
+    kw = random.choice(keywords)
+    found = 0
     try:
         from browser_agent import browser
-        for kw in random.sample(keywords, min(4, len(keywords))):
-            tweets = await browser.search_twitter(kw, max_results=5)
-            for tweet in tweets:
-                # Verifier qu'on n'a pas deja envoye cette opportunite
-                tweet_id = tweet.get("id", tweet.get("url", ""))
-                already_sent = any(o.get("id") == tweet_id for o in mem.get("opportunities_sent", []))
-                if already_sent:
-                    continue
-
-                # Generer un commentaire suggere
-                comment = await llm(
-                    f"Write a short, helpful reply (max 200 chars) to this tweet:\n"
-                    f"Tweet: {tweet.get('text', '')[:300]}\n\n"
-                    f"Rules:\n- Be helpful, add value\n- Mention MAXIA only if relevant\n- Professional tone\n- Max 200 chars",
-                    max_tokens=80,
-                )
-
-                opportunities.append({
-                    "id": tweet_id,
-                    "url": tweet.get("url", ""),
-                    "author": tweet.get("author", ""),
-                    "text": tweet.get("text", "")[:300],
-                    "suggested_comment": comment[:200] if comment else "",
-                })
-
-                if len(opportunities) >= 5:
-                    break
-            if len(opportunities) >= 5:
-                break
-    except Exception as e:
-        log.error("Twitter scan error: %s", e)
-
-    # Search for @MAXIA_WORLD mentions (immediate alert)
-    try:
-        from browser_agent import browser
-        mentions = await browser.search_twitter("@MAXIA_WORLD", max_results=10)
+        tweets = await browser.search_twitter(kw, max_results=5)
         sent_ids = set(o.get("id") for o in mem.get("opportunities_sent", []))
+        today_opps = [o for o in mem.get("todays_opportunities", []) ]
+        today_ids = set(o.get("id") for o in today_opps)
+
+        for tweet in tweets:
+            tweet_id = tweet.get("id", tweet.get("url", ""))
+            if tweet_id in sent_ids or tweet_id in today_ids:
+                continue
+
+            comment = await llm(
+                f"Write a short, helpful reply (max 200 chars) to this tweet:\n"
+                f"Tweet: {tweet.get('text', '')[:300]}\n\n"
+                f"Rules:\n- Be helpful, add value\n- Mention MAXIA only if relevant\n- Max 200 chars",
+                system=CEO_SYSTEM_PROMPT,
+                max_tokens=80,
+            )
+
+            mem.setdefault("todays_opportunities", []).append({
+                "id": tweet_id,
+                "url": tweet.get("url", ""),
+                "author": tweet.get("author", ""),
+                "text": tweet.get("text", "")[:300],
+                "suggested_comment": comment[:200] if comment else "",
+                "keyword": kw,
+                "ts": time.time(),
+            })
+            found += 1
+        log.info("Twitter scan [%s]: %d new opportunities (total today: %d)", kw, found, len(mem.get("todays_opportunities", [])))
+
+        # Check @MAXIA_WORLD mentions (immediate alert)
+        mentions = await browser.search_twitter("@MAXIA_WORLD", max_results=5)
         new_mentions = [m for m in mentions if m.get("id", m.get("url", "")) not in sent_ids]
         if new_mentions:
-            mention_body = "Nouvelles mentions de @MAXIA_WORLD detectees:\n\n"
+            mention_body = "Nouvelles mentions de @MAXIA_WORLD:\n\n"
             for i, m in enumerate(new_mentions[:5], 1):
                 mention_body += f"#{i} — @{m.get('author', '?')}\n"
                 mention_body += f"  {m.get('text', '')[:300]}\n"
                 mention_body += f"  Lien: {m.get('url', '')}\n\n"
             await send_mail("[MAXIA CEO] \U0001f514 Mention Twitter", mention_body)
-            log.info("Alerte mention: %d nouvelles mentions @MAXIA_WORLD", len(new_mentions))
-            # Track mention ids to avoid re-alerting
             for m in new_mentions:
-                mem.setdefault("opportunities_sent", []).append({
-                    "id": m.get("id", m.get("url", "")),
-                    "type": "mention",
-                    "date": datetime.now().isoformat(),
-                })
+                mem.setdefault("opportunities_sent", []).append({"id": m.get("id", m.get("url", "")), "type": "mention", "date": datetime.now().isoformat()})
     except Exception as e:
-        log.error("Mention scan error: %s", e)
+        log.error("Twitter scan error: %s", e)
 
-    if not opportunities:
-        log.info("Aucune opportunite trouvee")
+
+async def mission_send_best_opportunities(mem: dict, actions: dict):
+    """Envoie le best-of des opportunites accumulees (1x/jour a 10h)."""
+    if actions["counts"].get("opportunities_sent", 0) >= 1:
         return
 
-    # Construire le mail
+    all_opps = mem.get("todays_opportunities", [])
+    if not all_opps:
+        log.info("Aucune opportunite accumulee — skip mail")
+        return
+
+    # Trier par pertinence — utiliser le LLM pour choisir les 5 meilleures
+    if len(all_opps) > 5:
+        opps_text = "\n".join(f"{i+1}. @{o['author']}: {o['text'][:150]}" for i, o in enumerate(all_opps[:20]))
+        ranking = await llm(
+            f"Here are {len(all_opps[:20])} tweets found today. Pick the 5 most relevant for MAXIA "
+            f"(an AI-to-AI marketplace). Return ONLY the numbers (e.g. '3,7,1,12,5'):\n\n{opps_text}",
+            system=CEO_SYSTEM_PROMPT,
+            max_tokens=50,
+        )
+        try:
+            indices = [int(x.strip()) - 1 for x in ranking.split(",") if x.strip().isdigit()]
+            best = [all_opps[i] for i in indices if 0 <= i < len(all_opps)][:5]
+        except Exception:
+            best = all_opps[:5]
+    else:
+        best = all_opps[:5]
+
     today = datetime.now().strftime("%d/%m/%Y")
-    body = f"MAXIA CEO — 5 opportunites Twitter du {today}\n\n"
-    for i, opp in enumerate(opportunities, 1):
+    body = f"MAXIA CEO — Top {len(best)} opportunites Twitter du {today}\n"
+    body += f"(Scanne {len(all_opps)} tweets au total)\n\n"
+    for i, opp in enumerate(best, 1):
         body += f"--- Opportunite #{i} ---\n"
-        body += f"Auteur: {opp['author']}\n"
+        body += f"Auteur: @{opp['author']}\n"
         body += f"Tweet: {opp['text']}\n"
         body += f"Lien: {opp['url']}\n"
         body += f"Commentaire suggere: {opp['suggested_comment']}\n\n"
 
-    await send_mail(f"[MAXIA CEO] 5 opportunites Twitter - {today}", body)
-    mem["opportunities_sent"].extend(opportunities)
+    await send_mail(f"[MAXIA CEO] Top {len(best)} opportunites Twitter - {today}", body)
+    mem["opportunities_sent"].extend(best)
+    mem["todays_opportunities"] = []  # Reset pour demain
     actions["counts"]["opportunities_sent"] = 1
 
 
@@ -590,10 +623,12 @@ async def run():
     log.info("═══════════════════════════════════════")
 
     mem = _load_memory()
+    mem.setdefault("todays_opportunities", [])
     last_health = 0
     last_moderation = 0
+    last_twitter_scan = 0
     last_tweet = 0
-    last_opportunities = 0
+    last_opportunities_mail = 0
     last_report = 0
     last_competitive = 0
 
@@ -617,11 +652,16 @@ async def run():
                 last_moderation = now
                 actions["counts"]["moderation_done"] = actions["counts"].get("moderation_done", 0) + 1
 
-            # Mission 2: Opportunites Twitter + mentions (8h)
-            if hour == 8 and actions["counts"].get("opportunities_sent", 0) == 0:
-                if now - last_opportunities >= 3600:
-                    await mission_twitter_opportunities(mem, actions)
-                    last_opportunities = now
+            # Mission 2a: Scan Twitter HOURLY (accumule les opportunites)
+            if now - last_twitter_scan >= 3600:
+                await mission_twitter_scan_hourly(mem)
+                last_twitter_scan = now
+
+            # Mission 2b: Envoyer le best-of par mail (10h)
+            if hour == 10 and actions["counts"].get("opportunities_sent", 0) == 0:
+                if now - last_opportunities_mail >= 3600:
+                    await mission_send_best_opportunities(mem, actions)
+                    last_opportunities_mail = now
 
             # Mission 3: Rapport quotidien (9h)
             if hour == 9 and actions["counts"].get("report_sent", 0) == 0:

@@ -1,4 +1,4 @@
-# MAXIA Knowledge Base — CEO Must-Know (28 mars 2026)
+# MAXIA Knowledge Base — CEO Must-Know (29 mars 2026)
 
 ## What MAXIA Is
 AI-to-AI marketplace on 14 blockchains where autonomous AI agents discover, buy, and sell services using USDC. Live at maxiaworld.app.
@@ -6,7 +6,7 @@ AI-to-AI marketplace on 14 blockchains where autonomous AI agents discover, buy,
 ## Live Features (VERIFIED WORKING)
 
 ### Trading
-- **Swap**: 65 tokens on 7 chains (Jupiter for Solana, 0x for 6 EVM chains). 4160 pairs. Commission: 0.10% Bronze → 0.01% Whale.
+- **Swap**: 68 tokens on 7 chains (Jupiter for Solana, 0x for 6 EVM chains). 4160 pairs. Commission: 0.10% Bronze → 0.01% Whale.
 - **Tokenized Stocks**: 25 US equities (AAPL, TSLA, NVDA, etc.) tradable 24/7 on-chain via Backed Finance xStocks. Fractional from $1 USDC.
 - **DeFi Yields**: Best APY finder across lending, staking, LP on 14 chains. Data from DeFiLlama.
 - **Price Oracle**: 5-source oracle (Pyth Hermes, Finnhub, CoinGecko, Yahoo, static fallback). HFT mode with <1s latency via Pyth SSE streaming.
@@ -52,16 +52,28 @@ AI-to-AI marketplace on 14 blockchains where autonomous AI agents discover, buy,
 ## Chains Supported (14)
 Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI.
 
-## Key Numbers (REAL, verified)
+## Key Numbers (REAL, verified 29 mars 2026)
 - 559 API routes
 - 130+ Python modules
-- 65 tokens tradable
+- 68 tokens tradable (was 65, added XRP/AVAX/MATIC)
 - 25 tokenized stocks
 - 17 AI services
 - 46 MCP tools
 - 14 blockchains
 - 6 GPU tiers (Akash)
 - 2 escrow chains (Solana + Base)
+- Forum ouvert sans wallet (bug reports, discussions)
+- Registration sans wallet (juste pseudo pour le forum)
+
+## Recent Changes (S20 — 29 mars 2026)
+- Forum: wallet optionnel, visiteurs postent avec IP fingerprint
+- Bug reports: badge flottant sur toutes les pages, dashboard admin
+- Marketplace en premier sur la landing page
+- BETA badge sur toutes les pages
+- "How It Works" section + social proof live
+- Pricing transparent sur /enterprise
+- CEO VPS supprime (0 agent autonome sur le serveur)
+- CEO Local V2: 1 tweet/jour, rapports par mail, moderation
 
 ## What NOT to Say
 - No user/transaction numbers (confidential)
