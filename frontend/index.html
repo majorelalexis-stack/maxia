@@ -1914,7 +1914,7 @@ body::before {
     </div>
     <div class="panels-row" style="margin-top:12px">
       <div class="panel">
-        <div class="panel-header"><span class="panel-title">&#9888; Reported Posts</span></div>
+        <div class="panel-header"><span class="panel-title">&#128196; Bug Detail</span></div>
         <div class="panel-body" id="bugs-reported" style="padding:0;max-height:400px;overflow-y:auto">
           <div style="text-align:center;padding:20px;color:var(--muted)">Chargement...</div>
         </div>
@@ -3048,6 +3048,26 @@ setInterval(async () => {
 // ── Email Inbox ──
 let _currentEmail = null;
 
+function showBugDetail(idx) {
+  var p = window._bugPosts[idx];
+  if (!p) return;
+  var date = new Date((p.created_at || 0) * 1000);
+  var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+  var body = (p.body || 'Pas de description').replace(/\n/g, '<br>');
+  var el = document.getElementById('bugs-reported');
+  el.innerHTML =
+    '<div style="padding:16px">' +
+      '<div style="font-size:11px;color:var(--orange);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Bug Report #' + (idx+1) + '</div>' +
+      '<div style="font-size:18px;font-weight:700;margin-bottom:8px">' + esc(p.title || '--') + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:16px">' + esc(p.author_name || 'Anonymous') + ' &middot; ' + dateStr + '</div>' +
+      '<div style="background:var(--bg);border:1px solid rgba(255,255,255,.04);border-radius:8px;padding:14px;font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word">' + body + '</div>' +
+      (p.tags && p.tags.length ? '<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' + p.tags.map(function(t){return '<span style="font-size:10px;padding:2px 8px;border-radius:6px;background:rgba(245,158,11,.1);color:var(--orange)">' + esc(t) + '</span>';}).join('') + '</div>' : '') +
+      '<div style="margin-top:16px;display:flex;gap:8px">' +
+        '<a href="/forum?community=bugs" target="_blank" style="font-size:12px;color:var(--cyan);text-decoration:none">Voir sur le forum &#8594;</a>' +
+      '</div>' +
+    '</div>';
+}
+
 async function loadBugs() {
   const list = document.getElementById('bugs-list');
   const stats = document.getElementById('bugs-stats');
@@ -3064,21 +3084,25 @@ async function loadBugs() {
     if (posts.length === 0) {
       list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Aucun bug report pour le moment</div>';
     } else {
-      list.innerHTML = '<table class="data-table" style="margin:0"><thead><tr><th>Date</th><th>Titre</th><th>Auteur</th><th style="text-align:center">Votes</th><th>Replies</th></tr></thead><tbody>' +
-        posts.map(function(p) {
+      window._bugPosts = posts;
+      list.innerHTML = posts.map(function(p, i) {
           var date = new Date((p.created_at || 0) * 1000);
           var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
           var score = (p.upvotes || 0) - (p.downvotes || 0);
-          var scoreColor = score > 0 ? 'var(--green)' : score < 0 ? 'var(--red)' : 'var(--muted)';
+          var scoreColor = score > 0 ? '#10b981' : score < 0 ? '#ef4444' : '#a1a1aa';
           var isVisitor = (p.author_wallet || '').startsWith('visitor_');
-          var authorBadge = isVisitor ? '<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(148,163,184,.1);color:var(--muted);margin-left:4px">Visitor</span>' : '<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(16,185,129,.1);color:var(--green);margin-left:4px">Wallet</span>';
-          return '<tr style="cursor:pointer" onclick="window.open(\'/forum?community=bugs\',\'_blank\')">' +
-            '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">' + dateStr + '</td>' +
-            '<td style="font-weight:600">' + esc(p.title || '--') + '</td>' +
-            '<td>' + esc(p.author_name || 'Anonymous') + authorBadge + '</td>' +
-            '<td style="text-align:center;color:' + scoreColor + ';font-weight:600">' + score + '</td>' +
-            '<td style="text-align:center">' + (p.reply_count || 0) + '</td></tr>';
-        }).join('') + '</tbody></table>';
+          var badge = isVisitor ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(148,163,184,.1);color:#a1a1aa;margin-left:6px">Visitor</span>' : '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(16,185,129,.1);color:#10b981;margin-left:6px">Wallet</span>';
+          return '<div onclick="showBugDetail('+i+')" style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s" onmouseenter="this.style.background=\'rgba(245,158,11,.04)\'" onmouseleave="this.style.background=\'\'">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+              '<div style="font-weight:600;font-size:14px">' + esc(p.title || '--') + '</div>' +
+              '<div style="display:flex;gap:12px;align-items:center;font-size:12px">' +
+                '<span style="color:' + scoreColor + ';font-weight:600">&#9650; ' + score + '</span>' +
+                '<span style="color:#a1a1aa">&#128172; ' + (p.reply_count || 0) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div style="font-size:12px;color:#a1a1aa">' + esc(p.author_name || 'Anonymous') + badge + ' &middot; ' + dateStr + '</div>' +
+          '</div>';
+        }).join('');
     }
     // Stats
     const forumStats = await fetch('/api/public/forum').then(r => r.json());
@@ -3092,6 +3116,8 @@ async function loadBugs() {
       '</div>';
     // Reported posts (moderation)
     reported.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Les posts avec 5+ reports sont auto-cachés.<br>Ban via: POST /api/admin/forum/ban {wallet}</div>';
+    // Show first bug detail by default
+    if (posts.length > 0) showBugDetail(0);
   } catch(e) {
     list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--red)">Erreur: ' + e.message + '</div>';
     stats.innerHTML = '<div style="color:var(--red)">Erreur chargement</div>';
