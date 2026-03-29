@@ -67,11 +67,9 @@ from kiteai_client import kite_client
 from ap2_manager import ap2_manager
 from x402_middleware import x402_middleware
 
-# ── V10.1 — Agent Autonome ──
-from growth_agent import growth_agent
-from scout_agent import scout_agent
-from brain import brain
-from scheduler import scheduler
+# ── V10.1 — Agent Autonome (CEO VPS SUPPRIME — S20) ──
+# growth_agent, scout_agent, brain, scheduler, swarm: REMOVED from VPS
+# CEO runs ONLY on local PC (7900XT Ollama). VPS = marketplace only.
 from alerts import alert_system
 from preflight import check_system_ready, print_preflight
 from security import get_daily_spend_stats
@@ -79,7 +77,6 @@ from dynamic_pricing import adjust_market_fees, get_pricing_status
 from cross_chain_handler import cross_chain
 from reputation_staking import reputation_staking
 from scale_out import scale_out_manager
-from swarm import swarm
 from escrow_client import escrow_client
 from public_api import router as public_router
 
@@ -277,10 +274,7 @@ async def lifespan(app: FastAPI):
     # disputes table is already created in DB_SCHEMA (database.py)
 
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
-    # t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))  # DISABLED: CEO cut — burns LLM quota + sends Discord spam
-    # t3 = asyncio.create_task(swarm.run_monitor())  # DISABLED: CEO cut
     t4 = asyncio.create_task(retry_worker(db))  # V12: webhook retry worker
-    # t5 = asyncio.create_task(scout_agent.run())  # DISABLED: LangChain banned
 
     # V12: Health monitor (UptimeRobot-style)
     try:
@@ -520,8 +514,7 @@ async def lifespan(app: FastAPI):
         t_alerts.cancel()
     except (NameError, Exception):
         pass
-    scheduler.stop()
-    scout_agent.stop()
+    # CEO VPS removed — no scheduler/scout to stop
     # Close connections
     try:
         from price_oracle import close_http_pool
@@ -3202,82 +3195,18 @@ async def ap2_pay_outgoing(req: dict, wallet: str = Depends(require_auth)):
 
 @app.get("/api/agent/status")
 async def agent_status(request: Request):
-    """Statut complet de l'agent autonome. Admin only."""
+    """Statut agent. CEO VPS removed — returns minimal info."""
     from security import require_admin
     require_admin(request)
-    return {
-        "brain": brain.get_stats(),
-        "growth": growth_agent.get_stats(),
-        "scout": scout_agent.get_stats(),
-        "daily_spend": get_daily_spend_stats(),
-    }
-
-@app.get("/api/agent/brain")
-async def brain_status(request: Request):
-    from security import require_admin
-    require_admin(request)
-    return brain.get_stats()
-
-@app.get("/api/agent/growth")
-async def growth_status(request: Request):
-    from security import require_admin
-    require_admin(request)
-    return growth_agent.get_stats()
+    return {"status": "CEO VPS removed", "daily_spend": get_daily_spend_stats()}
 
 @app.get("/api/agent/preflight")
 async def preflight(request: Request):
-    """Diagnostic systeme complet. Admin only — exposes system diagnostics."""
+    """Diagnostic systeme complet. Admin only."""
     from security import require_admin
     require_admin(request)
     results = await check_system_ready()
     return results
-
-@app.post("/api/agent/growth/stop")
-async def stop_growth(request: Request):
-    """Arret d'urgence de l'agent marketing. Admin only."""
-    from security import require_admin
-    require_admin(request)
-    growth_agent.stop()
-    return {"ok": True, "message": "Growth agent arrete"}
-
-@app.post("/api/agent/growth/start")
-async def start_growth(request: Request):
-    """Relance l'agent marketing. Admin only."""
-    from security import require_admin
-    require_admin(request)
-    if not growth_agent._running:
-        asyncio.create_task(growth_agent.run())
-    return {"ok": True, "message": "Growth agent relance"}
-
-@app.get("/api/agent/scout")
-async def scout_status():
-    """Stats du SCOUT (prospection IA-to-IA). Public read-only."""
-    return scout_agent.get_stats()
-
-@app.post("/api/agent/scout/scan")
-async def scout_scan_now(request: Request):
-    """Force un scan SCOUT immediat. Admin only."""
-    from security import require_admin
-    require_admin(request)
-    agents = await scout_agent.scan_all_chains()
-    return {"ok": True, "agents_found": len(agents), "stats": scout_agent.get_stats()}
-
-@app.post("/api/agent/scout/stop")
-async def stop_scout(request: Request):
-    """Arrete le SCOUT. Admin only."""
-    from security import require_admin
-    require_admin(request)
-    scout_agent.stop()
-    return {"ok": True, "message": "SCOUT arrete"}
-
-@app.post("/api/agent/scout/start")
-async def start_scout(request: Request):
-    """Relance le SCOUT. Admin only."""
-    from security import require_admin
-    require_admin(request)
-    if not scout_agent._running:
-        asyncio.create_task(scout_agent.run())
-    return {"ok": True, "message": "SCOUT relance"}
 
 
 # ═══════════════════════════════════════════════════════════
@@ -3388,77 +3317,7 @@ async def scale_stats():
     return scale_out_manager.get_stats()
 
 
-# ══════════════════════════════════════════════════════════
-#  V11: CLONE SWARM — Essaim d'IA (Art.20)
-# ══════════════════════════════════════════════════════════
-
-@app.get("/api/swarm/stats")
-async def swarm_stats(request: Request):
-    """Full swarm stats."""
-    from security import check_rate_limit
-    check_rate_limit(request)
-    return swarm.get_stats()
-
-@app.get("/api/swarm/niches")
-async def swarm_niches(request: Request):
-    """List available niches."""
-    from security import check_rate_limit
-    check_rate_limit(request)
-    return swarm.get_available_niches()
-
-@app.post("/api/swarm/analyze")
-async def swarm_analyze(request: Request):
-    """AI analysis of profitable niches."""
-    from security import check_rate_limit
-    check_rate_limit(request)
-    return await swarm.analyze_niches(db)
-
-@app.post("/api/swarm/spawn")
-async def swarm_spawn(req: dict, request: Request, wallet: str = Depends(require_auth)):
-    """Deploy a new specialized clone. (#1) Never accept wallet_privkey."""
-    from security import check_rate_limit
-    check_rate_limit(request)
-    return await swarm.spawn_clone(
-        niche=req.get("niche", ""),
-        wallet_address=req.get("wallet_address", ""),
-    )
-
-@app.post("/api/swarm/request")
-async def swarm_request(req: dict, request: Request):
-    """Send a request to a specialized clone. (#3) Input validation + (#4) rate limit."""
-    from security import check_rate_limit, check_content_safety
-    check_rate_limit(request)
-    niche = str(req.get("niche", ""))[:50]
-    prompt = str(req.get("prompt", ""))[:5000]
-    wallet = str(req.get("buyer_wallet", ""))[:50]
-    if not niche or not prompt:
-        raise HTTPException(400, "niche and prompt required")
-    check_content_safety(prompt, "prompt")
-    return await swarm.process_request(niche=niche, prompt=prompt, buyer_wallet=wallet)
-
-@app.post("/api/swarm/pause/{clone_id}")
-async def swarm_pause(clone_id: str, request: Request):
-    """Pause a clone. (#2) Admin auth required."""
-    from security import require_admin, check_rate_limit
-    check_rate_limit(request)
-    require_admin(request)
-    return await swarm.pause_clone(clone_id)
-
-@app.post("/api/swarm/resume/{clone_id}")
-async def swarm_resume(clone_id: str, request: Request):
-    """Resume a clone. (#2) Admin auth required."""
-    from security import require_admin, check_rate_limit
-    check_rate_limit(request)
-    require_admin(request)
-    return await swarm.resume_clone(clone_id)
-
-@app.post("/api/swarm/stop/{clone_id}")
-async def swarm_stop(clone_id: str, request: Request):
-    """Stop a clone. (#2) Admin auth required."""
-    from security import require_admin, check_rate_limit
-    check_rate_limit(request)
-    require_admin(request)
-    return await swarm.stop_clone(clone_id)
+# V11: CLONE SWARM — REMOVED (CEO VPS supprime S20)
 
 
 # ══════════════════════════════════════════════════════════
