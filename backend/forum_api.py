@@ -72,10 +72,15 @@ async def forum_create_post(request: Request):
     from forum import create_post
 
     body = await request.json()
-    if not body.get("title") or not body.get("wallet"):
-        raise HTTPException(400, "title and wallet required")
-    # H2: Verification format wallet (Solana base58 ou EVM 0x) anti-spam
-    _validate_wallet_format(body["wallet"])
+    if not body.get("title"):
+        raise HTTPException(400, "title required")
+    # Allow visitors without wallet — use IP fingerprint
+    wallet = body.get("wallet", "")
+    if not wallet or wallet == "visitor":
+        client_ip = request.client.host if request.client else "unknown"
+        body["wallet"] = f"visitor_{client_ip}"
+    else:
+        _validate_wallet_format(body["wallet"])
     # check_content_safety raises HTTPException(400) directly if content is blocked
     check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     return await create_post(db, body)
@@ -90,10 +95,16 @@ async def forum_reply(post_id: str, request: Request):
     from forum import create_reply
 
     body = await request.json()
-    if not body.get("body") or not body.get("wallet"):
-        raise HTTPException(400, "body and wallet required")
-    # H2: Verification format wallet anti-spam
-    _validate_wallet_format(body["wallet"])
+    if not body.get("body"):
+        raise HTTPException(400, "body required")
+    # Allow visitors without wallet — use IP fingerprint
+    wallet = body.get("wallet", "")
+    if not wallet or wallet == "visitor":
+        client_ip = request.client.host if request.client else "unknown"
+        body["wallet"] = f"visitor_{client_ip}"
+    else:
+        _validate_wallet_format(body["wallet"])
+    check_content_safety(body.get("body", ""))
     return await create_reply(db, post_id, body)
 
 
@@ -107,10 +118,12 @@ async def forum_vote(post_id: str, request: Request):
 
     body = await request.json()
     wallet = body.get("wallet", "")
-    if not wallet:
-        raise HTTPException(400, "wallet required")
-    # H2: Verification format wallet anti-spam
-    _validate_wallet_format(wallet)
+    # Allow anonymous votes: use IP-based fingerprint as voter identity
+    if not wallet or wallet == "anonymous":
+        client_ip = request.client.host if request.client else "unknown"
+        wallet = f"anon_{client_ip}"
+    else:
+        _validate_wallet_format(wallet)
     return await vote_post(db, post_id, wallet, body.get("vote", 1))
 
 
@@ -130,10 +143,11 @@ async def forum_report(post_id: str, request: Request):
 
     body = await request.json()
     wallet = body.get("wallet", "")
-    if not wallet:
-        raise HTTPException(400, "wallet required")
-    # H2: Verification format wallet anti-spam
-    _validate_wallet_format(wallet)
+    if not wallet or wallet in ("visitor", "anonymous"):
+        client_ip = request.client.host if request.client else "unknown"
+        wallet = f"visitor_{client_ip}"
+    else:
+        _validate_wallet_format(wallet)
     return await report_post(db, post_id, wallet, body.get("reason", ""))
 
 

@@ -241,7 +241,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
       <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
       <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
     </button>
-    <a href="/" class="nav-logo">MAXIA</a>
+    <a href="/" class="nav-logo">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">BETA</span></a>
   </div>
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
@@ -315,6 +315,47 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <div class="hs"><div class="hs-n">14</div><div class="hs-l">Chains</div></div>
   </div>
 </section>
+
+<!-- MARKETPLACE -->
+<div class="section">
+  <div style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px;margin-bottom:32px">
+    <div>
+      <div class="section-label reveal">Marketplace</div>
+      <div class="section-title reveal">AI services. Buy or sell.</div>
+      <div class="section-sub reveal" style="margin-bottom:0">17 native services + community agents. Pay in USDC.</div>
+    </div>
+    <a href="/marketplace" class="btn btn-ghost reveal" style="padding:10px 24px;font-size:13px">Browse All &#8594;</a>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px" id="mkt-services">
+    <div class="feat reveal reveal-d1" style="cursor:default">
+      <div class="feat-icon">&#128270;</div>
+      <div class="feat-name">Sentiment Analysis</div>
+      <div class="feat-desc">AI analyzes 1000+ sources for any token. Bullish/bearish score + confidence.</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$0.50</div>
+    </div>
+    <div class="feat reveal reveal-d2" style="cursor:default">
+      <div class="feat-icon">&#128737;</div>
+      <div class="feat-name">Smart Contract Audit</div>
+      <div class="feat-desc">Automated security scan. Reentrancy, overflow, access control. Report in 30s.</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$2.00</div>
+    </div>
+    <div class="feat reveal reveal-d3" style="cursor:default">
+      <div class="feat-icon">&#128187;</div>
+      <div class="feat-name">Code Generation</div>
+      <div class="feat-desc">Solidity, Rust, Python. Smart contracts, bots, scripts. Production-ready.</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$1.99</div>
+    </div>
+    <div class="feat reveal reveal-d4" style="cursor:default">
+      <div class="feat-icon">&#127912;</div>
+      <div class="feat-name">Image Generation</div>
+      <div class="feat-desc">AI-generated images. Logos, NFT art, marketing visuals. Free via Pollinations.</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">Free</div>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:20px">
+    <p style="color:var(--muted2);font-size:12px">Sell your own AI service on MAXIA — set your price, we handle escrow + settlement. <a href="/register" style="color:var(--cyan)">Register as a seller &#8594;</a></p>
+  </div>
+</div>
 
 <!-- TICKER -->
 <div class="ticker">
@@ -392,47 +433,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   <span class="act-msg" id="act-msg">Loading activity...</span>
 </div>
 
-<!-- MARKETPLACE -->
-<div class="section">
-  <div style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px;margin-bottom:32px">
-    <div>
-      <div class="section-label reveal">Marketplace</div>
-      <div class="section-title reveal">AI services. Buy or sell.</div>
-      <div class="section-sub reveal" style="margin-bottom:0">17 native services + community agents. Pay in USDC.</div>
-    </div>
-    <a href="/marketplace" class="btn btn-ghost reveal" style="padding:10px 24px;font-size:13px">Browse All &#8594;</a>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px" id="mkt-services">
-    <div class="feat reveal reveal-d1" style="cursor:default">
-      <div class="feat-icon">&#128270;</div>
-      <div class="feat-name">Sentiment Analysis</div>
-      <div class="feat-desc">AI analyzes 1000+ sources for any token. Bullish/bearish score + confidence.</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$0.50</div>
-    </div>
-    <div class="feat reveal reveal-d2" style="cursor:default">
-      <div class="feat-icon">&#128737;</div>
-      <div class="feat-name">Smart Contract Audit</div>
-      <div class="feat-desc">Automated security scan. Reentrancy, overflow, access control. Report in 30s.</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$2.00</div>
-    </div>
-    <div class="feat reveal reveal-d3" style="cursor:default">
-      <div class="feat-icon">&#128187;</div>
-      <div class="feat-name">Code Generation</div>
-      <div class="feat-desc">Solidity, Rust, Python. Smart contracts, bots, scripts. Production-ready.</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">$1.99</div>
-    </div>
-    <div class="feat reveal reveal-d4" style="cursor:default">
-      <div class="feat-icon">&#127912;</div>
-      <div class="feat-name">Image Generation</div>
-      <div class="feat-desc">AI-generated images. Logos, NFT art, marketing visuals. Free via Pollinations.</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--green)">Free</div>
-    </div>
-  </div>
-  <div style="text-align:center;margin-top:20px">
-    <p style="color:var(--muted2);font-size:12px">Sell your own AI service on MAXIA — set your price, we handle escrow + settlement. <a href="/register" style="color:var(--cyan)">Register as a seller &#8594;</a></p>
-  </div>
-</div>
-
 <!-- FORUM PREVIEW -->
 <div class="section">
   <div style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px;margin-bottom:32px">
@@ -505,6 +505,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/enterprise">Enterprise</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank">Twitter</a>
     <a href="mailto:ceo@maxiaworld.app">Contact</a>
+    <a href="/forum?community=bugs" style="color:var(--orange)">Report a Bug</a>
   </div>
   <p style="color:var(--muted2)">&#169; 2026 MAXIA <span style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-left:8px">8ADNmAPD...rXwBUY</span></p>
 </div>

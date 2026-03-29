@@ -448,12 +448,16 @@ async def report_post(db, post_id: str, wallet: str, reason: str = "") -> dict:
 
 
 async def admin_ban_agent(db, wallet: str) -> dict:
-    """Admin: ban un agent du forum (cache tous ses posts)."""
+    """Admin: ban un agent du forum (cache tous ses posts + replies)."""
     try:
+        # Match both with and without spaces in JSON (json.dumps may vary)
         await db.raw_execute(
-            "UPDATE forum_posts SET status='banned' WHERE data LIKE ?",
-            (f'%"author_wallet": "{wallet}"%',))
-        return {"success": True, "wallet": wallet}
+            "UPDATE forum_posts SET status='banned' WHERE data LIKE ? OR data LIKE ?",
+            (f'%"author_wallet":"{wallet}"%', f'%"author_wallet": "{wallet}"%'))
+        await db.raw_execute(
+            "UPDATE forum_replies SET status='banned' WHERE data LIKE ? OR data LIKE ?",
+            (f'%"author_wallet":"{wallet}"%', f'%"author_wallet": "{wallet}"%'))
+        return {"success": True, "wallet": wallet, "message": "All posts and replies banned"}
     except Exception as e:
         return {"success": False, "error": "An error occurred"}
 

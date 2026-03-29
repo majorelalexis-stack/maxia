@@ -1863,12 +1863,36 @@ async def marketplace_stats():
     except Exception:
         native_count = 17  # fallback connu
 
+    # Live counts from config
+    token_count = 0
+    stock_count = 0
+    mcp_count = 0
+    try:
+        from price_oracle import TOKEN_MINTS
+        stock_syms = {"AAPL","TSLA","NVDA","GOOGL","MSFT","AMZN","META","MSTR","SPY","QQQ",
+                      "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
+                      "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
+        token_count = len([s for s in TOKEN_MINTS if s not in stock_syms])
+        stock_count = len([s for s in TOKEN_MINTS if s in stock_syms])
+    except Exception:
+        token_count = 68
+        stock_count = 25
+    try:
+        from mcp_server import TOOLS
+        mcp_count = len(TOOLS)
+    except Exception:
+        mcp_count = 46
+
     return {
-        "registered_agents": max(len(_registered_agents), db_stats.get("agents_registered", 0), 1),  # MAXIA = au moins 1 agent
+        "registered_agents": max(len(_registered_agents), db_stats.get("agents_registered", 0), 1),
         "services_listed": max(len([s for s in _agent_services if s.get("status") == "active"]) + native_count, db_stats.get("services_listed", 0)),
+        "total_services": native_count + len([s for s in _agent_services if s.get("status") == "active"]),
         "total_transactions": max(mem_txs, db_stats.get("total_transactions", 0)),
         "total_volume_usdc": max(mem_vol, db_stats.get("total_volume_usdc", 0)),
         "total_commission_usdc": max(mem_comm, db_stats.get("total_commission_usdc", 0)),
+        "total_tokens": token_count,
+        "total_stocks": stock_count,
+        "mcp_tools": mcp_count,
         "commission_tiers": {
             "bronze": "1.5% (0-500 USDC)",
             "gold": "0.5% (500-5000 USDC)",

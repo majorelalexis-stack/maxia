@@ -137,7 +137,8 @@ TOKEN_MINTS = {
     "AAVE": "aave",
     "LDO": "lido-dao",
     "VIRTUAL": "virtual-protocol",
-    # V12.1: Tokens multi-chain ajoutes (prix via CoinGecko)
+    # V12.1: Tokens multi-chain ajoutes (prix via CoinGecko/Pyth)
+    "XRP": "ripple", "AVAX": "avalanche-2", "MATIC": "matic-network",
     "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
     "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
     "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
@@ -170,6 +171,7 @@ FALLBACK_PRICES = {
     "KMNO": 0.08, "PENGU": 0.01, "AI16Z": 0.5, "FARTCOIN": 0.8, "GRASS": 1.5,
     "ZEUS": 0.3, "NOSOL": 1.0, "SAMO": 0.008, "STEP": 0.04, "BOME": 0.003,
     "SLERF": 0.1, "MPLX": 0.03, "INF": 150, "PNUT": 0.2, "GOAT": 0.1,
+    "XRP": 2.10, "AVAX": 22.0, "MATIC": 0.35,
     "LINK": 15.0, "UNI": 7.5, "AAVE": 200.0, "LDO": 1.5, "VIRTUAL": 0.50,
     "OLAS": 1.0, "FET": 0.60, "PEPE": 0.000012, "DOGE": 0.15, "SHIB": 0.000015,
     "TAO": 300, "AKT": 2.5, "AIOZ": 0.04, "ARB": 0.35, "OP": 0.80,

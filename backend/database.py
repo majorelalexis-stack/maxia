@@ -325,6 +325,11 @@ class Database:
         4: ("Agent keypair — ed25519 public key for DID Document + signed intents", (
             "ALTER TABLE agent_permissions ADD COLUMN public_key TEXT DEFAULT '';"
         )),
+        6: ("Agent referral tracking — referred_by, agent_id, category columns", (
+            "ALTER TABLE agents ADD COLUMN referred_by TEXT DEFAULT '';"
+            "ALTER TABLE agents ADD COLUMN agent_id TEXT DEFAULT '';"
+            "ALTER TABLE agents ADD COLUMN category TEXT DEFAULT 'other';"
+        )),
         5: ("Financial precision — REAL to NUMERIC(18,6) for all monetary columns (PostgreSQL only)", (
             # PostgreSQL: ALTER COLUMN TYPE — SQLite ignores this (REAL is already 64-bit float)
             # exchange_tokens
