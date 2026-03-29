@@ -9,11 +9,10 @@ logger = logging.getLogger(__name__)
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
-async def _rpc_post(payload: dict, timeout: float = 8) -> dict:
-    """Post RPC avec failover sur toutes les URLs Solana.
-    Meme pattern que base_verifier._rpc_post."""
+async def _rpc_post(payload: dict, timeout: float = 5) -> dict:
+    """Post RPC avec failover sur toutes les URLs Solana (max 3 URLs tried)."""
     last_error = None
-    for rpc_url in SOLANA_RPC_URLS:
+    for rpc_url in SOLANA_RPC_URLS[:3]:  # Max 3 URLs to keep total time reasonable
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(rpc_url, json=payload)
