@@ -280,7 +280,7 @@ async def lifespan(app: FastAPI):
     t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
     t3 = asyncio.create_task(swarm.run_monitor())
     t4 = asyncio.create_task(retry_worker(db))  # V12: webhook retry worker
-    t5 = asyncio.create_task(scout_agent.run())  # V12: SCOUT IA-to-IA prospection
+    # t5 = asyncio.create_task(scout_agent.run())  # DISABLED: LangChain banned, get_http_client broken
 
     # V12: Health monitor (UptimeRobot-style)
     try:
