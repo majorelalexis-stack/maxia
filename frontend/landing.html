@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MAXIA — Trade Crypto + Stocks 24/7 with AI</title>
-<meta name="description" content="MAXIA — AI-powered trading across 14 blockchains. Swap on 7 chains, escrow on 2. 65 tokens, 25 stocks, leverage 100x, AI chat. No signup to explore.">
+<title>MAXIA — Trade Crypto 24/7 with AI</title>
+<meta name="description" content="MAXIA — AI-powered trading across 14 blockchains. Swap on 7 chains, escrow on 2. 65 tokens, leverage 100x, AI chat. No signup to explore.">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -311,8 +311,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 
   <div class="hero-stats">
     <div class="hs"><div class="hs-n" id="hero-tokens">65</div><div class="hs-l">Tokens</div></div>
-    <div class="hs"><div class="hs-n" id="hero-stocks">25</div><div class="hs-l">Stocks</div></div>
     <div class="hs"><div class="hs-n">14</div><div class="hs-l">Chains</div></div>
+    <div class="hs"><div class="hs-n">7</div><div class="hs-l">Swap Chains</div></div>
   </div>
 </section>
 
@@ -412,7 +412,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/app#trading" class="feat reveal reveal-d2">
       <div class="feat-icon">&#128200;</div>
       <div class="feat-name">Live Charts &lt;1s</div>
-      <div class="feat-desc">Second-by-second candlesticks. 6-source oracle with cross-validation. SOL, ETH, BTC + 25 tokenized stocks.</div>
+      <div class="feat-desc">Second-by-second candlesticks. 6-source oracle with cross-validation. SOL, ETH, BTC and more.</div>
       <div class="feat-link">See charts &#8594;</div>
     </a>
     <a href="/app#trading" class="feat reveal reveal-d3">
@@ -445,7 +445,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <div style="height:420px;background:linear-gradient(180deg,#0c1222,#060a14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px">
       <div style="font-size:56px">&#128200;</div>
       <div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:700">Trading Terminal</div>
-      <div style="color:var(--muted);font-size:14px;max-width:400px">Real-time candlesticks, 25 tokenized stocks, AI chat, leverage — one dashboard.</div>
+      <div style="color:var(--muted);font-size:14px;max-width:400px">Real-time candlesticks, AI chat, leverage, multi-chain trading — one dashboard.</div>
       <a href="/app#trading" class="btn btn-primary" target="_blank" style="color:#fff">Open App &#8594;</a>
     </div>
   </div>
@@ -540,6 +540,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/enterprise">Enterprise</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank">Twitter</a>
     <a href="mailto:ceo@maxiaworld.app">Contact</a>
+    <a href="/legal">Legal</a>
     <a href="/forum?community=bugs" style="color:var(--orange)">Report a Bug</a>
   </div>
   <p style="color:var(--muted2)">&#169; 2026 MAXIA <span style="font-family:'JetBrains Mono',monospace;font-size:11px;margin-left:8px">8ADNmAPD...rXwBUY</span></p>
@@ -604,7 +605,7 @@ loadForum();
 
 // Activity feed
 (function(){
-  var msgs=['Welcome to MAXIA — 14 chains, swap on 7','AI chat: try "price SOL" or "swap 10 USDC to ETH"','25 tokenized stocks — trade AAPL, TSLA 24/7','6-source oracle: Pyth + Chainlink + 4 fallbacks','Join the forum and earn XP badges'];
+  var msgs=['Welcome to MAXIA — 14 chains, swap on 7','AI chat: try "price SOL" or "swap 10 USDC to ETH"','65 tokens across 14 chains — trade 24/7','6-source oracle: Pyth + Chainlink + 4 fallbacks','Join the forum and earn XP badges'];
   var el=document.getElementById('act-msg');var i=0;
   setInterval(function(){el.style.opacity=0;setTimeout(function(){el.textContent=msgs[i%msgs.length];el.style.opacity=1;i++;},300);},4000);
   try{fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');if(d.services_listed>0)msgs.push(d.services_listed+' AI services available');});}catch(e){}
@@ -616,7 +617,7 @@ fetch('/api/public/marketplace-stats').then(r=>r.json()).then(d=>{
   if(d.total_services)document.getElementById('sp-services').textContent=d.total_services;
   if(d.mcp_tools)document.getElementById('sp-mcp').textContent=d.mcp_tools;
   if(d.total_tokens){document.getElementById('hero-tokens').textContent=d.total_tokens;}
-  if(d.total_stocks){document.getElementById('hero-stocks').textContent=d.total_stocks;}
+  // stocks stat removed from hero
 }).catch(()=>{});
 </script>
 <a href="/forum?community=bugs" id="bug-badge" style="position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:10px 18px;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;text-decoration:none;backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.3);transition:all .2s" onmouseenter="this.style.background='rgba(245,158,11,.25)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='rgba(245,158,11,.15)';this.style.transform=''"><span style="font-size:20px">&#128027;</span> Report Bug</a>

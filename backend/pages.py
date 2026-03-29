@@ -122,3 +122,9 @@ async def serve_marketplace():
 async def serve_creator():
     """Creator Dashboard — manage tool listings and track revenue."""
     return _serve("creator.html")
+
+
+@router.get("/legal", response_class=HTMLResponse)
+async def serve_legal():
+    """Legal Disclaimer — platform status, tokenized stocks, jurisdictional restrictions."""
+    return _serve("legal.html")
