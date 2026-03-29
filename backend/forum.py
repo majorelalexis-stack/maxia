@@ -349,7 +349,8 @@ async def get_posts(db, community: str = "", sort: str = "hot", limit: int = 20,
                 (limit, offset))
 
         return [json.loads(r["data"]) for r in rows]
-    except Exception:
+    except Exception as e:
+        logger.error("get_posts error: %s", e)
         return []
 
 
