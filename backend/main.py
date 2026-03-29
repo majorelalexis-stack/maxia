@@ -3627,6 +3627,29 @@ async def alert_plans():
 
 
 # ═══════════════════════════════════════════════════════════
+#  RPC INFRASTRUCTURE STATUS — Public transparency
+# ═══════════════════════════════════════════════════════════
+
+@app.get("/api/public/rpc-status")
+async def rpc_status():
+    """Public RPC infrastructure transparency."""
+    import httpx
+    from config import SOLANA_RPC_URLS
+    statuses = []
+    async with httpx.AsyncClient(timeout=3) as client:
+        for url in SOLANA_RPC_URLS[:4]:
+            name = "helius" if "helius" in url else url.split("//")[1].split("/")[0][:30]
+            try:
+                start = time.time()
+                resp = await client.post(url, json={"jsonrpc": "2.0", "id": 1, "method": "getHealth"})
+                latency = int((time.time() - start) * 1000)
+                statuses.append({"provider": name, "status": "operational" if resp.status_code == 200 else "degraded", "latency_ms": latency})
+            except Exception:
+                statuses.append({"provider": name, "status": "down", "latency_ms": None})
+    return {"rpc_providers": statuses, "failover": "automatic", "commitment": "finalized"}
+
+
+# ═══════════════════════════════════════════════════════════
 #  ENTERPRISE — Fleet Management & Compliance Reports
 # ═══════════════════════════════════════════════════════════
 

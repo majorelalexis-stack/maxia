@@ -476,6 +476,11 @@ async def get_crypto_prices() -> dict:
 
 
 async def get_stock_prices() -> dict:
+    """Recupere les prix des actions — Pyth -> Finnhub -> Yahoo -> fallback.
+
+    Utilise pyth_oracle.get_stock_price() pour les stocks avec feed Pyth (11 stocks),
+    puis Yahoo Finance pour les stocks restants sans feed Pyth.
+    """
     global _stock_cache, _stock_cache_ts
     stocks = ["AAPL", "TSLA", "NVDA", "GOOGL", "MSFT", "AMZN", "META", "MSTR", "SPY", "QQQ",
               "NFLX", "AMD", "PLTR", "COIN", "CRM", "INTC", "UBER", "MARA",
@@ -485,26 +490,80 @@ async def get_stock_prices() -> dict:
     if time.time() - _stock_cache_ts < _STOCK_CACHE_TTL and _stock_cache:
         return _stock_cache
 
-    # Try Yahoo Finance first (real-time, free)
-    yahoo_prices = await _fetch_yahoo_stock_prices()
-    logger.info(f"Yahoo returned {len(yahoo_prices)} stock prices, CB state: {_cb_yahoo.get_status()}")
-    if yahoo_prices and len(yahoo_prices) >= 1:
-        result = {}
+    result = {}
+
+    # ── Source 1: Pyth Hermes batch (11 stocks with Pyth feed IDs — real-time) ──
+    # NOTE: We call get_pyth_price() directly instead of get_stock_price() to avoid
+    # circular calls (get_stock_price -> price_oracle.get_stock_prices -> get_stock_price).
+    try:
+        from pyth_oracle import get_pyth_price, EQUITY_FEEDS
+        pyth_tasks = []
+        pyth_syms = []
+        for sym in stocks:
+            lookup = "GOOG" if sym == "GOOGL" else sym
+            if lookup in EQUITY_FEEDS:
+                pyth_tasks.append(get_pyth_price(EQUITY_FEEDS[lookup]))
+                pyth_syms.append(sym)
+
+        if pyth_tasks:
+            pyth_results = await asyncio.gather(*pyth_tasks, return_exceptions=True)
+            for sym, res in zip(pyth_syms, pyth_results):
+                if isinstance(res, Exception):
+                    continue
+                if isinstance(res, dict) and "error" not in res and res.get("price", 0) > 0:
+                    # Skip stale prices — let Yahoo/Finnhub handle them
+                    if res.get("stale"):
+                        logger.warning(f"STALE Pyth stock price for {sym} (age={res.get('age_s')}s), skipping")
+                        continue
+                    price = res["price"]
+                    change = 0
+                    prev = _stock_cache.get(sym, {})
+                    if prev and prev.get("price", 0) > 0 and prev.get("source") != "fallback":
+                        change = prev.get("change", 0)  # Keep previous change until Yahoo refreshes it
+                    result[sym] = {"price": round(price, 2), "change": change, "source": "pyth"}
+        pyth_count = sum(1 for v in result.values() if v.get("source") == "pyth")
+        if pyth_count:
+            logger.info(f"Pyth stock prices: {pyth_count}/{len(pyth_syms)} live")
+    except Exception as e:
+        logger.error(f"Pyth oracle stock fetch error: {e}")
+
+    # ── Source 2: Yahoo Finance for all stocks (best for change % data) ──
+    missing = [s for s in stocks if s not in result]
+    if missing or not result:
+        yahoo_prices = await _fetch_yahoo_stock_prices()
+        logger.info(f"Yahoo returned {len(yahoo_prices)} stock prices, CB state: {_cb_yahoo.get_status()}")
         for sym in stocks:
             if sym in yahoo_prices:
-                result[sym] = yahoo_prices[sym]
-            else:
-                result[sym] = {"price": FALLBACK_PRICES.get(sym, 0), "change": 0, "source": "fallback"}
-        _stock_cache = result
-        _stock_cache_ts = time.time()
-        return result
+                if sym not in result:
+                    # Yahoo is the only source for this stock
+                    result[sym] = yahoo_prices[sym]
+                else:
+                    # Stock already has a live price from Pyth — enrich with change % from Yahoo
+                    result[sym]["change"] = yahoo_prices[sym].get("change", 0)
 
-    # Fallback to Helius DAS (may not work for stocks)
-    helius_prices = await get_prices(stocks)
-    if helius_prices:
-        _stock_cache = helius_prices
-        _stock_cache_ts = time.time()
-        return helius_prices
+    # ── Source 3: Finnhub for any still-missing stocks ──
+    still_missing = [s for s in stocks if s not in result]
+    if still_missing:
+        try:
+            from pyth_oracle import get_stock_price_finnhub
+            finnhub_tasks = [get_stock_price_finnhub(sym) for sym in still_missing]
+            finnhub_results = await asyncio.gather(*finnhub_tasks, return_exceptions=True)
+            for sym, res in zip(still_missing, finnhub_results):
+                if isinstance(res, Exception):
+                    continue
+                if isinstance(res, dict) and "error" not in res and res.get("price", 0) > 0:
+                    result[sym] = {"price": round(res["price"], 2), "change": 0, "source": "finnhub"}
+        except Exception as e:
+            logger.error(f"Finnhub stock fetch error: {e}")
 
-    # Final fallback
-    return {s: {"price": FALLBACK_PRICES.get(s, 0), "change": 0, "source": "fallback"} for s in stocks}
+    # ── Final fallback for any remaining stocks ──
+    for sym in stocks:
+        if sym not in result:
+            result[sym] = {"price": FALLBACK_PRICES.get(sym, 0), "change": 0, "source": "fallback"}
+
+    live = sum(1 for v in result.values() if v.get("source") not in ("fallback",))
+    logger.info(f"Stock prices: {live} live, {len(stocks) - live} fallback (total {len(stocks)})")
+
+    _stock_cache = result
+    _stock_cache_ts = time.time()
+    return result

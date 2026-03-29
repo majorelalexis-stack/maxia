@@ -3351,18 +3351,38 @@ async def public_create_auction(req: dict, x_api_key: str = Header(None, alias="
 #  BOURSE D'ACTIONS TOKENISEES
 # ══════════════════════════════════════════
 
+def _is_us_market_open() -> bool:
+    """Check if US stock market is open (Mon-Fri 9:30-16:00 ET, simplified UTC-5)."""
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    now_utc = _dt.now(_tz.utc)
+    est = now_utc - _td(hours=5)  # EST = UTC-5 (simplified)
+    if est.weekday() >= 5:  # Weekend
+        return False
+    hour_min = est.hour * 100 + est.minute
+    return 930 <= hour_min < 1600
+
+
 @router.get("/stocks")
 async def list_stocks():
     """Liste les actions tokenisees disponibles avec prix. Sans auth."""
     from tokenized_stocks import stock_exchange
-    return await stock_exchange.list_stocks()
+    result = await stock_exchange.list_stocks()
+    market_open = _is_us_market_open()
+    result["market_open"] = market_open
+    result["market_status"] = "open" if market_open else "closed"
+    return result
 
 
 @router.get("/stocks/price/{symbol}")
 async def stock_price(symbol: str):
     """Prix temps reel d une action. Sans auth."""
     from tokenized_stocks import stock_exchange
-    return await stock_exchange.get_price(symbol)
+    result = await stock_exchange.get_price(symbol)
+    if "error" not in result:
+        market_open = _is_us_market_open()
+        result["market_open"] = market_open
+        result["market_status"] = "open" if market_open else "closed"
+    return result
 
 
 @router.post("/stocks/buy")

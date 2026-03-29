@@ -166,6 +166,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
       <a href="#gpu">GPU Rental</a>
       <a href="#stocks">Tokenized Stocks</a>
       <a href="#trust-api">Agent Trust</a>
+      <a href="#rpc-status">RPC Infrastructure</a>
       <a href="#defi">DeFi Yields</a>
       <a href="#marketplace">Agent Marketplace</a>
       <a href="#escrow">Escrow API</a>
@@ -584,6 +585,16 @@ print(f<span style="color:#A5D6FF">"Bought {result['shares']} shares of {result[
         </ul>
 
         <p style="color:var(--muted2);font-size:12px;margin-top:16px;font-style:italic">Tokenized stocks are synthetic assets backed by on-chain protocols (xStocks/Ondo/Dinari). Prices sourced from Pyth Network and Yahoo Finance. MAXIA does not provide investment advice. Trade at your own risk.</p>
+      </div>
+    </section>
+
+    <!-- RPC INFRASTRUCTURE -->
+    <section id="rpc-status" style="margin-bottom:48px">
+      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">RPC Infrastructure</h2>
+      <p style="color:var(--muted);margin-bottom:24px">Real-time status of our Solana RPC providers. Automatic failover between providers.</p>
+      <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:16px">
+        <div class="endpoint"><span class="method method-get">GET</span><code>/api/public/rpc-status</code></div>
+        <div class="endpoint-desc">Returns current RPC provider status, latency, and failover configuration. No auth required.</div>
       </div>
     </section>
 

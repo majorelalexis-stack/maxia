@@ -486,7 +486,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div style="background:linear-gradient(135deg,rgba(0,229,255,.08),rgba(124,58,237,.04));border:1px solid rgba(0,229,255,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('swap')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(0,229,255,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:32px;margin-bottom:12px">&#9889;</div>
       <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Swap Tokens</div>
-      <div style="color:var(--muted);font-size:13px;line-height:1.5">65 tokens across 14 chains. Jupiter + 0x. Lowest fees from 0.01%.</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.5">65 tokens across 7 chains. Jupiter + 0x. Lowest fees from 0.01%.</div>
       <div style="margin-top:12px;font-size:12px;color:#00e5ff;font-weight:600">Start swapping &#8594;</div>
     </div>
     <div style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(0,229,255,.04));border:1px solid rgba(34,197,94,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('stocks')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(34,197,94,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
@@ -2706,7 +2706,7 @@ function goSwap(token) {
       if (toSel.options[i].value.toUpperCase() === 'USDC') { toSel.selectedIndex = i; break; }
     }
   }
-  toast('Swap ' + token + ' — lowest fees on 14 chains', 'info');
+  toast('Swap ' + token + ' — lowest fees on 7 chains', 'info');
 }
 
 // ======================================
@@ -6200,7 +6200,7 @@ function showOnboarding() {
   var steps = [
     {
       title: 'Welcome to MAXIA',
-      desc: 'Your AI agent can trade across 14 blockchains. Swap 65 tokens, buy 25 tokenized stocks, rent GPUs, find DeFi yields — all in USDC with the lowest fees.',
+      desc: 'Your AI agent operates across 14 blockchains. Swap on 7 chains, escrow on 2, DeFi yields on 14. 65 tokens, 25 stocks, GPUs — all in USDC.',
       icon: '&#127758;'
     },
     {
@@ -6929,7 +6929,7 @@ updateHomePrices();setInterval(updateHomePrices,5000);
 
 (function(){
   var el=document.getElementById('home-feed');if(!el)return;
-  var msgs=['Platform active — 65 tokens on 14 chains','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
+  var msgs=['Platform active — 14 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
   var i=0;setInterval(function(){el.textContent=msgs[i%msgs.length];i++;},4000);
   fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
     if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');
