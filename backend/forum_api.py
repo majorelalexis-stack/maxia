@@ -70,7 +70,7 @@ async def forum_post(post_id: str):
     return await get_post_with_replies(db, post_id)
 
 
-@router.post("/api/public/forum/post")
+@router.post("/api/public/forum/create")
 async def forum_create_post(request: Request):
     """AI Forum — create a new post."""
     body = await _read_body(request)

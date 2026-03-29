@@ -595,10 +595,6 @@ app.middleware("http")(x402_middleware)
 # ── Security Headers ──
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    # Pre-read body to fix Starlette BaseHTTPMiddleware body streaming deadlock
-    # This caches the body so request.json() works in route handlers
-    if request.method in ("POST", "PUT", "PATCH"):
-        request._body = await request.body()
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
