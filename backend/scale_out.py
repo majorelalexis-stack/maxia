@@ -5,6 +5,8 @@ import httpx
 from config import SCALE_OUT_QUEUE_THRESHOLD, SCALE_OUT_COOLDOWN, RAILWAY_API_TOKEN
 from http_client import get_http_client
 
+logger = logging.getLogger(__name__)
+
 
 class ScaleOutManager:
     """
@@ -17,7 +19,7 @@ class ScaleOutManager:
         self._active_workers: list = []
         self._last_scale_out = 0
         self._total_scaled = 0
-        print(f"[ScaleOut] Seuil: {SCALE_OUT_QUEUE_THRESHOLD} items, cooldown: {SCALE_OUT_COOLDOWN}s")
+        logger.info(f"[ScaleOut] Seuil: {SCALE_OUT_QUEUE_THRESHOLD} items, cooldown: {SCALE_OUT_COOLDOWN}s")
 
     async def check_and_scale(self, queue_size: int) -> dict:
         """Verifie la charge et deploie un worker si necessaire."""
@@ -41,7 +43,7 @@ class ScaleOutManager:
     async def _deploy_worker(self) -> dict:
         """Deploie un worker supplementaire via Railway API."""
         if not RAILWAY_API_TOKEN:
-            print("[ScaleOut] RAILWAY_API_TOKEN manquant — simulation")
+            logger.warning("[ScaleOut] RAILWAY_API_TOKEN manquant — simulation")
             worker = {
                 "workerId": f"sim-worker-{self._total_scaled + 1}",
                 "status": "simulated",
@@ -81,7 +83,7 @@ class ScaleOutManager:
                     "deployedAt": int(time.time()),
                 }
                 self._active_workers.append(worker)
-                print(f"[ScaleOut] Worker deploye: {worker['workerId']}")
+                logger.info(f"[ScaleOut] Worker deploye: {worker['workerId']}")
                 return {"success": True, **worker}
 
             return {"success": False, "error": str(data.get("errors", "Unknown"))}

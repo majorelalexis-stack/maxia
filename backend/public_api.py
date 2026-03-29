@@ -3947,8 +3947,8 @@ async def rate_limits_info(x_api_key: str = Header(None, alias="X-API-Key")):
     except Exception:
         return {"current_tier": "free", "tiers": RATE_LIMIT_TIERS}
 
-    tier_name = get_agent_rate_tier(x_api_key)
-    usage = check_rate_limit_tiered(x_api_key)
+    tier_name = await get_agent_rate_tier(x_api_key)
+    usage = await check_rate_limit_tiered(x_api_key)
 
     return {
         "current_tier": tier_name,

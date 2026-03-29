@@ -1,5 +1,8 @@
 """MAXIA Oracle & Data Marketplace — Donnees de prix et datasets pour protocols et agents IA."""
+import logging
 import time, uuid
+
+logger = logging.getLogger(__name__)
 import httpx
 from http_client import get_http_client
 from typing import Optional, List
@@ -357,7 +360,7 @@ async def _build_defi_yields_dataset() -> dict:
                     defi_entries.append({"protocol": "Aave V3", "chain": "Arbitrum", "asset": "USDC",
                                          "apy_pct": round(apy, 2), "tvl_usd": round(tvl, 0), "risk": "low", "source": "defillama_live"})
     except Exception as e:
-        print(f"[Oracle] DeFiLlama fetch error pour dataset yields: {e}")
+        logger.error(f"[Oracle] DeFiLlama fetch error pour dataset yields: {e}")
 
     # Deduplication par protocol+chain
     seen = set()

@@ -8,10 +8,12 @@ Tiers :
 
 Fallback automatique : LOCAL -> FAST -> MID -> STRATEGIC
 """
-import asyncio, time, json
+import asyncio, logging, time, json
 import httpx
 from enum import Enum
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 
 class Tier(str, Enum):
@@ -122,7 +124,7 @@ class LLMRouter:
                     self._track(t, len(prompt), len(result))
                     return result
             except Exception as e:
-                print(f"[LLMRouter] {t.value} failed: {e}, trying next...")
+                logger.warning(f"[LLMRouter] {t.value} failed: {e}, trying next...")
                 continue
         return ""
 

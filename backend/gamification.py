@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS user_points (
     points INTEGER NOT NULL DEFAULT 0,
     streak_days INTEGER NOT NULL DEFAULT 0,
     last_active TEXT NOT NULL DEFAULT '',
-    total_volume REAL NOT NULL DEFAULT 0
+    total_volume NUMERIC(18,6) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS user_badges (

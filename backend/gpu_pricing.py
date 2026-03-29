@@ -9,9 +9,12 @@ Usage:
     await refresh_gpu_prices()  # Au demarrage + toutes les 30 min
     tiers = get_gpu_tiers()     # Toujours a jour
 """
+import logging
 import asyncio
 import time
 import httpx
+
+logger = logging.getLogger(__name__)
 from config import RUNPOD_API_KEY, GPU_TIERS, GPU_TIERS_FALLBACK
 from http_client import get_http_client
 
@@ -41,7 +44,7 @@ _RUNPOD_TO_MAXIA = {
 async def _fetch_runpod_gpu_types() -> list:
     """Fetch les types de GPU disponibles et leurs prix via l'API GraphQL RunPod."""
     if not RUNPOD_API_KEY:
-        print("[GPU Pricing] RUNPOD_API_KEY absent — utilisation prix fallback")
+        logger.info("RUNPOD_API_KEY absent — utilisation prix fallback")
         return []
 
     query = """
@@ -70,13 +73,13 @@ async def _fetch_runpod_gpu_types() -> list:
         data = resp.json()
         errors = data.get("errors")
         if errors:
-                print(f"[GPU Pricing] RunPod API error: {errors[0].get('message', '')}")
+                logger.error(f"RunPod API error: {errors[0].get('message', '')}")
                 return []
         gpu_types = data.get("data", {}).get("gpuTypes", [])
-        print(f"[GPU Pricing] {len(gpu_types)} GPU types fetches depuis RunPod")
+        logger.info(f"{len(gpu_types)} GPU types fetches depuis RunPod")
         return gpu_types
     except Exception as e:
-        print(f"[GPU Pricing] Fetch error: {e}")
+        logger.error(f"Fetch error: {e}")
         return []
 
 
@@ -163,17 +166,17 @@ async def refresh_gpu_prices() -> list:
             # Log les prix
             for t in new_tiers:
                 src = "LIVE" if t.get("live_price") else ("LOCAL" if t.get("local") else "CALC")
-                print(f"  [GPU] {t['label']:20s} {t['vram_gb']:>3d}GB  ${t['base_price_per_hour']:.2f}/h  [{src}]")
-            print(f"[GPU Pricing] {len(new_tiers)} tiers mis a jour (prix live RunPod, 0% markup)")
+                logger.info(f"  {t['label']:20s} {t['vram_gb']:>3d}GB  ${t['base_price_per_hour']:.2f}/h  [{src}]")
+            logger.info(f"{len(new_tiers)} tiers mis a jour (prix live RunPod, 0% markup)")
             return new_tiers
         else:
-            print("[GPU Pricing] Pas assez de tiers construits — garde les prix actuels")
+            logger.warning("Pas assez de tiers construits — garde les prix actuels")
     else:
         # Fallback — utiliser les prix statiques si pas encore charges
         if not _last_refresh:
             GPU_TIERS.clear()
             GPU_TIERS.extend(GPU_TIERS_FALLBACK)
-            print("[GPU Pricing] Utilisation prix fallback (API RunPod indisponible)")
+            logger.info("Utilisation prix fallback (API RunPod indisponible)")
 
     return GPU_TIERS
 
@@ -194,5 +197,5 @@ async def auto_refresh_loop():
         try:
             await refresh_gpu_prices()
         except Exception as e:
-            print(f"[GPU Pricing] Auto-refresh error: {e}")
+            logger.error(f"Auto-refresh error: {e}")
         await asyncio.sleep(_REFRESH_INTERVAL)

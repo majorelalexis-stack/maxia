@@ -42,7 +42,7 @@ async def ensure_marketplace_tables(db):
             "rating INTEGER, review TEXT, created_at INTEGER);"
             "CREATE TABLE IF NOT EXISTS creator_purchases("
             "id TEXT PRIMARY KEY, tool_id TEXT, buyer_wallet TEXT, "
-            "amount_usdc REAL, creator_share REAL, platform_share REAL, created_at INTEGER);"
+            "amount_usdc NUMERIC(18,6), creator_share NUMERIC(18,6), platform_share NUMERIC(18,6), created_at INTEGER);"
             "CREATE INDEX IF NOT EXISTS idx_tools_category ON creator_tools(category);"
             "CREATE INDEX IF NOT EXISTS idx_tools_creator ON creator_tools(creator_wallet);")
         _marketplace_ready = True
@@ -144,7 +144,7 @@ async def publish_tool(db, data: dict) -> dict:
             "rating INTEGER, review TEXT, created_at INTEGER);"
             "CREATE TABLE IF NOT EXISTS creator_purchases("
             "id TEXT PRIMARY KEY, tool_id TEXT, buyer_wallet TEXT, "
-            "amount_usdc REAL, creator_share REAL, platform_share REAL, created_at INTEGER);"
+            "amount_usdc NUMERIC(18,6), creator_share NUMERIC(18,6), platform_share NUMERIC(18,6), created_at INTEGER);"
             "CREATE INDEX IF NOT EXISTS idx_tools_category ON creator_tools(category);"
             "CREATE INDEX IF NOT EXISTS idx_tools_creator ON creator_tools(creator_wallet);")
         await db.raw_execute(

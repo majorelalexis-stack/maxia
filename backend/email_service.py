@@ -2,6 +2,7 @@
 
 Expose IMAP read + SMTP send via les endpoints FastAPI du dashboard.
 """
+import logging
 import asyncio
 import email
 import imaplib
@@ -9,6 +10,8 @@ import smtplib
 import os
 import json
 import time
+
+logger = logging.getLogger(__name__)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import decode_header
@@ -146,7 +149,7 @@ async def get_messages(request: Request, folder: str = "INBOX", limit: int = 30,
 
             imap.logout()
         except Exception as e:
-            print(f"[Email] IMAP error: {e}")
+            logger.error(f"[Email] IMAP error: {e}")
             raise
 
         return emails
@@ -211,7 +214,7 @@ async def get_message(uid: str, request: Request):
                 "message_id": msg.get("Message-ID", ""),
             }
         except Exception as e:
-            print(f"[Email] Fetch error: {e}")
+            logger.error(f"[Email] Fetch error: {e}")
             raise
 
     try:
@@ -284,7 +287,7 @@ MAXIA — AI-to-AI Marketplace on 14 Chains<br>
 
     try:
         await asyncio.to_thread(_send)
-        print(f"[Email] Sent to {to}: {subject[:40]}")
+        logger.info(f"[Email] Sent to {to}: {subject[:40]}")
         return {"success": True, "to": to, "subject": subject}
     except Exception as e:
         raise HTTPException(500, "Email service error")

@@ -1,8 +1,11 @@
 """MAXIA Alertes V12 — Alertes sensibles -> Telegram prive, systeme -> Discord public"""
+import logging
 import os, time, json
 import httpx
 from config import DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 _last_alert: dict = {}
 _COOLDOWN = 300
@@ -15,7 +18,7 @@ _COOLDOWN = 300
 async def _send_private(text: str, urgent: bool = False) -> bool:
     """Envoie un message au chat prive Telegram du fondateur (MAXIA CEO ALERTS)."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print(f"[Alertes] Telegram prive non configure — {text[:100]}")
+        logger.warning(f"Telegram prive non configure — {text[:100]}")
         return False
 
     key = text[:50]
@@ -37,10 +40,10 @@ async def _send_private(text: str, urgent: bool = False) -> bool:
         )
         if resp.status_code == 200:
             return True
-        print(f"[Alertes] Telegram prive erreur {resp.status_code}")
+        logger.error(f"Telegram prive erreur {resp.status_code}")
         return False
     except Exception as e:
-        print(f"[Alertes] Telegram prive erreur: {e}")
+        logger.error(f"Telegram prive erreur: {e}")
         return False
 
 

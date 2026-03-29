@@ -1,7 +1,10 @@
 """MAXIA Health Monitor — Checks all endpoints every 5 minutes"""
+import logging
 import asyncio, time
 import httpx
 from config import PORT
+
+logger = logging.getLogger(__name__)
 
 ENDPOINTS = [
     ("/health", 200),
@@ -14,7 +17,7 @@ ENDPOINTS = [
 
 async def run_health_monitor():
     """Check critical endpoints every 5 minutes. Alert on failure."""
-    print("[HealthMonitor] Started — checking 6 endpoints every 5 min")
+    logger.info("[HealthMonitor] Started — checking 6 endpoints every 5 min")
     while True:
         await asyncio.sleep(300)  # 5 minutes
         failures = []
@@ -32,7 +35,7 @@ async def run_health_monitor():
                 except Exception as e:
                     failures.append(f"{path}: {e}")
         if failures:
-            print(f"[HealthMonitor] {len(failures)} FAILURES: {failures}")
+            logger.error(f"[HealthMonitor] {len(failures)} FAILURES: {failures}")
             try:
                 from alerts import alert_error
                 await alert_error("HealthMonitor", f"{len(failures)} endpoints down: {', '.join(failures)}")
@@ -41,4 +44,4 @@ async def run_health_monitor():
         else:
             # Log OK every hour (not every 5 min to reduce noise)
             if int(time.time()) % 3600 < 300:
-                print(f"[HealthMonitor] All {len(ENDPOINTS)} endpoints OK")
+                logger.info(f"[HealthMonitor] All {len(ENDPOINTS)} endpoints OK")

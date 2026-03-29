@@ -258,4 +258,4 @@ async def prepare_launch(request: Request, body: TokenLaunchRequest):
         raise HTTPException(500, detail=safe_error(exc, "token_launch"))
 
 
-print("[TokenLauncher] Initialise — pump.fun + PumpPortal (0% commission MAXIA)")
+logger.info("Initialise — pump.fun + PumpPortal (0% commission MAXIA)")

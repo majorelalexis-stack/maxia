@@ -4,9 +4,12 @@ Systeme de notation composite pour tous les agents enregistres sur le marketplac
 Utilise un score Beta-Bayesian + metriques de performance (latence, uptime, taux de succes).
 Les grades vont de AAA (elite) a CCC (sous-performant).
 """
+import logging
 import time, uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Query, Request, HTTPException
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/leaderboard", tags=["leaderboard"])
 
@@ -22,13 +25,13 @@ CREATE TABLE IF NOT EXISTS agent_metrics (
     success_count INTEGER NOT NULL DEFAULT 0,
     failure_count INTEGER NOT NULL DEFAULT 0,
     total_requests INTEGER NOT NULL DEFAULT 0,
-    avg_latency_ms REAL NOT NULL DEFAULT 0,
-    p99_latency_ms REAL NOT NULL DEFAULT 0,
+    avg_latency_ms NUMERIC(18,6) NOT NULL DEFAULT 0,
+    p99_latency_ms NUMERIC(18,6) NOT NULL DEFAULT 0,
     uptime_minutes INTEGER NOT NULL DEFAULT 0,
     total_minutes INTEGER NOT NULL DEFAULT 0,
     disputes_won INTEGER NOT NULL DEFAULT 0,
     disputes_lost INTEGER NOT NULL DEFAULT 0,
-    revenue_usdc REAL NOT NULL DEFAULT 0
+    revenue_usdc NUMERIC(18,6) NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_metrics_agent_date ON agent_metrics(agent_id, date);
@@ -36,12 +39,12 @@ CREATE INDEX IF NOT EXISTS idx_metrics_agent_date ON agent_metrics(agent_id, dat
 CREATE TABLE IF NOT EXISTS agent_scores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     agent_id TEXT UNIQUE NOT NULL,
-    bayesian_trust REAL NOT NULL DEFAULT 0.5,
-    success_rate_30d REAL NOT NULL DEFAULT 0,
-    latency_score REAL NOT NULL DEFAULT 0,
-    uptime_score REAL NOT NULL DEFAULT 0,
-    stake_weight REAL NOT NULL DEFAULT 0,
-    composite_score REAL NOT NULL DEFAULT 0,
+    bayesian_trust NUMERIC(18,6) NOT NULL DEFAULT 0.5,
+    success_rate_30d NUMERIC(18,6) NOT NULL DEFAULT 0,
+    latency_score NUMERIC(18,6) NOT NULL DEFAULT 0,
+    uptime_score NUMERIC(18,6) NOT NULL DEFAULT 0,
+    stake_weight NUMERIC(18,6) NOT NULL DEFAULT 0,
+    composite_score NUMERIC(18,6) NOT NULL DEFAULT 0,
     grade TEXT NOT NULL DEFAULT 'B',
     last_calculated TEXT NOT NULL DEFAULT '',
     penalty_level TEXT NOT NULL DEFAULT 'none'
@@ -61,9 +64,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_LEADERBOARD_SCHEMA)
         _schema_ready = True
-        print("[Leaderboard] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[Leaderboard] Erreur schema: {e}")
+        logger.error(f"Erreur schema: {e}")
 
 
 # ── Calcul du score composite ──
@@ -309,7 +312,7 @@ async def recalculate_all_scores():
         )
         updated += 1
 
-    print(f"[Leaderboard] {updated} agents recalcules")
+    logger.info(f"{updated} agents recalcules")
     return updated
 
 
@@ -358,7 +361,9 @@ async def get_agent_details(agent_id: str):
 
     # Score actuel
     score_rows = await db.raw_execute_fetchall(
-        "SELECT * FROM agent_scores WHERE agent_id = ?", (agent_id,),
+        "SELECT id, agent_id, bayesian_trust, success_rate_30d, latency_score, "
+        "uptime_score, stake_weight, composite_score, grade, last_calculated "
+        "FROM agent_scores WHERE agent_id = ?", (agent_id,),
     )
 
     # Metriques des 30 derniers jours

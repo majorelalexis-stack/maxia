@@ -8,10 +8,13 @@ Surveille des wallets Solana en temps reel et alerte quand :
 
 Les IA paient un abonnement mensuel ou par alerte.
 """
+import logging
 import asyncio, time, uuid
 import httpx
 from http_client import get_http_client
 from config import get_rpc_url
+
+logger = logging.getLogger(__name__)
 
 # Wallets surveilles: {monitor_id: {wallet, owner_api_key, webhook_url, ...}}
 _monitors: dict = {}
@@ -24,7 +27,7 @@ _monitor_stats = {"total_monitors": 0, "total_alerts": 0, "active": 0}
 
 _running = False
 
-print("[WalletMonitor] Service initialise")
+logger.info("[WalletMonitor] Service initialise")
 
 
 async def add_monitor(api_key: str, owner_name: str, wallet_address: str,
@@ -63,7 +66,7 @@ async def add_monitor(api_key: str, owner_name: str, wallet_address: str,
     _monitor_stats["total_monitors"] += 1
     _monitor_stats["active"] = sum(1 for m in _monitors.values() if m["active"])
 
-    print(f"[WalletMonitor] Nouveau moniteur: {wallet_address[:8]}... par {owner_name}")
+    logger.info(f"[WalletMonitor] Nouveau moniteur: {wallet_address[:8]}... par {owner_name}")
 
     return {
         "success": True,
@@ -176,9 +179,9 @@ async def _send_alert(monitor: dict, alert_type: str, details: dict):
             client = get_http_client()
             await client.post(monitor["webhook_url"], json=alert, timeout=10)
         except Exception as e:
-            print(f"[WalletMonitor] Webhook error: {e}")
+            logger.error(f"[WalletMonitor] Webhook error: {e}")
 
-    print(f"[WalletMonitor] Alert [{alert_type}]: {monitor['wallet'][:8]}... — {details.get('message', '')[:60]}")
+    logger.info(f"[WalletMonitor] Alert [{alert_type}]: {monitor['wallet'][:8]}... — {details.get('message', '')[:60]}")
 
 
 async def _check_wallet(monitor: dict):
@@ -231,7 +234,7 @@ async def run_monitor_loop():
     global _running
     _running = True
 
-    print("[WalletMonitor] Boucle de surveillance demarree")
+    logger.info("[WalletMonitor] Boucle de surveillance demarree")
 
     while _running:
         try:
@@ -242,7 +245,7 @@ async def run_monitor_loop():
                 await asyncio.sleep(2)  # Rate limit RPC
 
         except Exception as e:
-            print(f"[WalletMonitor] Loop error: {e}")
+            logger.error(f"[WalletMonitor] Loop error: {e}")
 
         # Verifier toutes les 30 secondes
         await asyncio.sleep(30)

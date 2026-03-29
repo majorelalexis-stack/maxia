@@ -4,11 +4,14 @@ Enregistre et diffuse les evenements du marketplace (swaps, inscriptions, achats
 GPU, stocks, disputes...) via REST + SSE. Aucune authentification requise (feed public).
 Rotation automatique a 1000 evenements. Wallets anonymisees (4 premiers + 4 derniers chars).
 """
+import logging
 import asyncio, json, time
 from datetime import datetime, timezone
 from fastapi import APIRouter, Query, Request
 from starlette.responses import StreamingResponse
 from error_utils import safe_error
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/feed", tags=["activity-feed"])
 
@@ -35,7 +38,7 @@ CREATE TABLE IF NOT EXISTS activity_feed (
     event_type TEXT NOT NULL,
     actor TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT '',
-    amount_usdc REAL NOT NULL DEFAULT 0,
+    amount_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
     chain TEXT NOT NULL DEFAULT '',
     detail TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -55,9 +58,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_FEED_SCHEMA)
         _schema_ready = True
-        print("[ActivityFeed] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[ActivityFeed] Erreur schema: {e}")
+        logger.error(f"Erreur schema: {e}")
 
 
 # ── SSE : files d'attente pour les clients connectes ──
@@ -158,7 +161,7 @@ async def record_activity(
                 (overflow,),
             )
     except Exception as e:
-        print(f"[ActivityFeed] Erreur record: {e}")
+        logger.error(f"Erreur record: {e}")
 
     # Pousser vers les clients SSE connectes
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

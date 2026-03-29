@@ -12,8 +12,11 @@ Usage:
   results = vector_memory.search("whale conversion problem")
   → [{"text": "Changed HUNTER from memo to Reddit...", "score": 0.92, "metadata": {...}}]
 """
+import logging
 import json, os, time
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 _CHROMA_AVAILABLE = False
 try:
@@ -41,11 +44,11 @@ class VectorMemory:
                 os.makedirs(persist_dir, exist_ok=True)
                 self._client = chromadb.PersistentClient(path=persist_dir)
                 self._initialized = True
-                print(f"[VectorMemory] ChromaDB initialized at {persist_dir}")
+                logger.info(f"[VectorMemory] ChromaDB initialized at {persist_dir}")
             except Exception as e:
-                print(f"[VectorMemory] ChromaDB init failed: {e}, using keyword fallback")
+                logger.error(f"[VectorMemory] ChromaDB init failed: {e}, using keyword fallback")
         else:
-            print("[VectorMemory] ChromaDB not installed, using keyword fallback")
+            logger.warning("[VectorMemory] ChromaDB not installed, using keyword fallback")
 
     def _get_collection(self, name: str):
         """Get or create a ChromaDB collection."""
@@ -85,7 +88,7 @@ class VectorMemory:
                     ids=[doc_id],
                 )
             except Exception as e:
-                print(f"[VectorMemory] Store error: {e}")
+                logger.error(f"[VectorMemory] Store error: {e}")
 
         # Also store in keyword fallback
         try:
@@ -119,7 +122,7 @@ class VectorMemory:
                                 "metadata": meta,
                             })
                 except Exception as e:
-                    print(f"[VectorMemory] Search error in {coll_name}: {e}")
+                    logger.error(f"[VectorMemory] Search error in {coll_name}: {e}")
 
             # Sort by score
             results.sort(key=lambda x: -x["score"])

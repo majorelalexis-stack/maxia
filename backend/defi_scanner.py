@@ -3,9 +3,12 @@
 Scans APY across DeFi protocols. Free API, no key needed.
 Exposes tools for AI agents to find the best yields.
 """
+import logging
 import asyncio, time
 import httpx
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 DEFI_LLAMA_API = "https://yields.llama.fi"
 
@@ -47,10 +50,10 @@ async def _fetch_defillama_yields() -> dict:
                 }
         _defillama_cache = result
         _defillama_cache_ts = time.time()
-        print(f"[DeFi] Cache DeFiLlama: {len(result)} pools indexes")
+        logger.info(f"[DeFi] Cache DeFiLlama: {len(result)} pools indexes")
         return result
     except Exception as e:
-        print(f"[DeFi] DeFiLlama fallback fetch error: {e}")
+        logger.error(f"[DeFi] DeFiLlama fallback fetch error: {e}")
         return _defillama_cache or {}
 
 
@@ -123,7 +126,7 @@ async def _fetch_native_staking() -> list:
             pass
 
     except Exception as e:
-        print(f"[DeFi] Staking fetch error: {e}")
+        logger.error(f"[DeFi] Staking fetch error: {e}")
 
     # Fallback via DeFiLlama si les APIs natives ont echoue
     llama = await _fetch_defillama_yields()
@@ -329,11 +332,11 @@ async def get_best_yields(asset: str = "USDC", chain: str = "", min_tvl: float =
                 pools = data.get("data", [])
                 _yield_cache = pools
                 _yield_cache_ts = time.time()
-                print(f"[DeFi] Loaded {len(pools)} pools from DeFiLlama")
+                logger.info(f"[DeFi] Loaded {len(pools)} pools from DeFiLlama")
             else:
                 pools = []
         except Exception as e:
-            print(f"[DeFi] DeFiLlama error: {e}")
+            logger.error(f"[DeFi] DeFiLlama error: {e}")
             pools = []
 
     # Also fetch native staking yields
@@ -417,7 +420,7 @@ async def get_protocol_stats(protocol: str = "aave") -> dict:
                     "url": data.get("url", ""),
                 }
     except Exception as e:
-        print(f"[DeFi] Protocol stats error: {e}")
+        logger.error(f"[DeFi] Protocol stats error: {e}")
     return {}
 
 

@@ -6,6 +6,8 @@ Retry with exponential backoff: 30s, 2m, 10m, 1h (max 5 attempts).
 """
 import logging
 import asyncio, hashlib, hmac, json, time, uuid
+
+logger = logging.getLogger(__name__)
 from ipaddress import ip_address
 from typing import Optional
 from urllib.parse import urlparse
@@ -93,7 +95,7 @@ def _sign_payload(payload_bytes: bytes, secret: str) -> str:
 async def ensure_tables(db):
     """Create webhook_callbacks table if it doesn't exist."""
     await db.raw_executescript(WEBHOOK_SCHEMA)
-    print("[Webhooks] Tables ensured")
+    logger.info("Tables ensured")
 
 
 # ── Core functions ──
@@ -175,11 +177,11 @@ async def _deliver(
             # commit handled by raw_execute
             return True
         else:
-            print(f"[Webhooks] Delivery to {callback_url} returned {resp.status_code}")
+            logger.warning(f"Delivery to {callback_url} returned {resp.status_code}")
     except httpx.TimeoutException:
-        print(f"[Webhooks] Timeout delivering to {callback_url}")
+        logger.warning(f"Timeout delivering to {callback_url}")
     except Exception as e:
-        print(f"[Webhooks] Delivery error for {callback_url}: {e}")
+        logger.error(f"Delivery error for {callback_url}: {e}")
 
     return False
 
@@ -244,7 +246,7 @@ async def retry_worker(db):
     """Background async loop that retries failed deliveries.
     Run this as an asyncio.create_task() on startup.
     """
-    print("[Webhooks] Retry worker started")
+    logger.info("Retry worker started")
     while True:
         try:
             now = int(time.time())
@@ -295,10 +297,10 @@ async def retry_worker(db):
                     # commit handled by raw_execute
 
             if rows:
-                print(f"[Webhooks] Retried {len(rows)} webhook(s)")
+                logger.info(f"Retried {len(rows)} webhook(s)")
 
         except Exception as e:
-            print(f"[Webhooks] Retry worker error: {e}")
+            logger.error(f"Retry worker error: {e}")
 
         await asyncio.sleep(15)
 

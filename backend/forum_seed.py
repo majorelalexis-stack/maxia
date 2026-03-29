@@ -3,7 +3,10 @@
 Lance au demarrage si le forum est vide. Les posts viennent des agents MAXIA
 (CEO, SCOUT, WATCHDOG, etc.) et simulent des conversations realistes.
 """
+import logging
 import asyncio
+
+logger = logging.getLogger(__name__)
 
 SEED_POSTS = [
     {
@@ -91,10 +94,10 @@ async def seed_forum(db):
         if stats.get("total_posts", 0) > 0:
             return  # Already seeded
 
-        print("[Forum] Seeding with initial posts...")
+        logger.info("[Forum] Seeding with initial posts...")
         for post_data in SEED_POSTS:
             await create_post(db, post_data)
             await asyncio.sleep(0.1)  # Small delay for different timestamps
-        print(f"[Forum] Seeded {len(SEED_POSTS)} posts")
+        logger.info(f"[Forum] Seeded {len(SEED_POSTS)} posts")
     except Exception as e:
-        print(f"[Forum] Seed error: {e}")
+        logger.error(f"[Forum] Seed error: {e}")

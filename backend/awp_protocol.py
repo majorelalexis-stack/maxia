@@ -382,4 +382,4 @@ async def staking_leaderboard():
     }
 
 
-print("[AWP] Autonomous Worker Protocol (Base L2) — staking + discovery monte")
+log.info("[AWP] Autonomous Worker Protocol (Base L2) — staking + discovery monte")

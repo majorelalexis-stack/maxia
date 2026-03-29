@@ -1,5 +1,8 @@
 """MAXIA AgentWorker V11 — Groq LLaMA 3.3 Multilingue"""
+import logging
 import asyncio, json, os, time, hashlib
+
+logger = logging.getLogger(__name__)
 from config import GROQ_API_KEY, GROQ_MODEL, AGENT_TIMEOUT_S
 from error_utils import safe_error
 
@@ -8,11 +11,11 @@ if GROQ_API_KEY:
     try:
         from groq import Groq
         groq_client = Groq(api_key=GROQ_API_KEY)
-        print(f"[AgentWorker] Groq active ({GROQ_MODEL}) — multilingue")
+        logger.info(f"Groq active ({GROQ_MODEL}) — multilingue")
     except Exception as e:
-        print(f"[AgentWorker] Groq init failed: {e}")
+        logger.error(f"Groq init failed: {e}")
 else:
-    print("[AgentWorker] GROQ_API_KEY manquant")
+    logger.warning("GROQ_API_KEY manquant")
 
 try:
     from database import db
@@ -43,12 +46,12 @@ class AgentWorker:
         self._external[wallet] = time.time()
 
     async def run(self):
-        print(f"[AgentWorker] Demarre (timeout={AGENT_TIMEOUT_S}s, multilingue)")
+        logger.info(f"Demarre (timeout={AGENT_TIMEOUT_S}s, multilingue)")
         while True:
             try:
                 await self._tick()
             except Exception as e:
-                print(f"[AgentWorker] Erreur: {e}")
+                logger.error(f"Erreur: {e}")
             await asyncio.sleep(2)
 
     async def _tick(self):
@@ -91,7 +94,7 @@ class AgentWorker:
                     "agent": f"groq/{GROQ_MODEL}", "result": result,
                 })
         except Exception as e:
-            print(f"[AgentWorker] {cid[:8]}...: {e}")
+            logger.error(f"{cid[:8]}...: {e}")
             err = safe_error(e, "agent_worker_execute")
             await self._save(cid, {"status": "failed", "error": err["error"], "request_id": err["request_id"], "completedAt": int(time.time())})
         finally:
@@ -138,7 +141,7 @@ class AgentWorker:
             d.update(update)
             await db.raw_execute("UPDATE commands SET data=? WHERE command_id=?", (json.dumps(d), cid))
         except Exception as e:
-            print(f"[AgentWorker] DB error: {e}")
+            logger.error(f"DB error: {e}")
 
 
 agent_worker = AgentWorker()

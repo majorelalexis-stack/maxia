@@ -5,6 +5,8 @@ import httpx, asyncio
 from config import KITE_API_URL, KITE_API_KEY, KITE_AGENT_ID, KITE_AIR_URL
 from http_client import get_http_client
 
+logger = logging.getLogger(__name__)
+
 
 class KiteAIClient:
     """
@@ -24,9 +26,9 @@ class KiteAIClient:
         }
         if self.api_key:
             label = f"{self.agent_id[:12]}..." if self.agent_id else "no-agent-id"
-            print(f"[KiteAI] Client active ({label})")
+            logger.info(f"[KiteAI] Client active ({label})")
         else:
-            print("[KiteAI] KITE_API_KEY absent — client inactif")
+            logger.info("[KiteAI] KITE_API_KEY absent — client inactif")
 
     # ── Agent Identity (Kite AIR) ──
 
@@ -54,7 +56,7 @@ class KiteAIClient:
             data = resp.json()
             if resp.status_code in (200, 201) and data.get("agentId"):
                 self.agent_id = data["agentId"]
-                print(f"[KiteAI] Agent registered: {self.agent_id}")
+                logger.info(f"[KiteAI] Agent registered: {self.agent_id}")
                 return {"success": True, "agentId": self.agent_id, "passport": data.get("passport")}
             return {"success": False, "error": data.get("error", "Registration failed")}
         except Exception as e:

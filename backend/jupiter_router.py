@@ -13,12 +13,14 @@ from nacl.signing import SigningKey
 from config import get_rpc_url, ESCROW_PRIVKEY_B58, ESCROW_ADDRESS
 from http_client import get_http_client
 
+logger = logging.getLogger(__name__)
+
 JUPITER_QUOTE_API = "https://lite-api.jup.ag/swap/v1"
 JUPITER_SWAP_API = "https://lite-api.jup.ag/swap/v1/swap"
 JUPITER_TOKENS_API = "https://tokens.jup.ag/tokens"
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
-print("[Jupiter] Router initialise — Jupiter V6 API")
+logger.info("Router initialise — Jupiter V6 API")
 
 
 async def get_quote(input_mint: str, output_mint: str, amount_raw: int,
@@ -136,7 +138,7 @@ async def sign_and_send_swap(swap_transaction_b64: str) -> dict:
 
         if "result" in data:
             sig = data["result"]
-            print(f"[Jupiter] Swap TX sent: {sig[:20]}...")
+            logger.info(f"Swap TX sent: {sig[:20]}...")
             return {
                 "success": True,
                 "signature": sig,

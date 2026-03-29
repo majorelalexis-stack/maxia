@@ -7,12 +7,15 @@ Support des providers OIDC (Google, Microsoft, custom) avec :
 - Mapping tenant/org vers API key MAXIA
 - Degradation gracieuse si SSO non configure
 """
+import logging
 import os, time, json, hashlib, hmac, uuid, base64, struct
 from urllib.parse import urlencode, urlparse, parse_qs
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise/sso", tags=["enterprise-sso"])
 
@@ -91,9 +94,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_SSO_SCHEMA)
         _schema_ready = True
-        print("[SSO] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[SSO] Erreur schema: {e}")
+        logger.error(f"Erreur schema: {e}")
 
 
 def _is_configured() -> bool:
@@ -455,8 +458,7 @@ async def api_sso_login():
                 url = f"{auth_endpoint}?{urlencode(params)}"
                 return RedirectResponse(url)
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(f"OIDC discovery error: {e}")
+            logger.error(f"OIDC discovery error: {e}")
             raise HTTPException(500, "SSO configuration error")
 
     url = sso_login_url()

@@ -1,8 +1,11 @@
 """MAXIA Currency Converter — Multi-currency support (ETH/SOL native payments)"""
+import logging
 import os, time, asyncio
 import httpx
 from config import get_rpc_url, ETH_RPC
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana,ethereum&vs_currencies=usd"
 
@@ -20,7 +23,7 @@ async def _fetch_prices() -> dict:
         client = get_http_client()
         resp = await client.get(COINGECKO_URL, timeout=10)
         if resp.status_code == 429:
-            print("[CurrencyConverter] CoinGecko rate limit — using cached prices")
+            logger.warning("[CurrencyConverter] CoinGecko rate limit — using cached prices")
             return {}
         resp.raise_for_status()
         data = resp.json()
@@ -31,7 +34,7 @@ async def _fetch_prices() -> dict:
             prices["ETH"] = float(data["ethereum"]["usd"])
         return prices
     except Exception as e:
-        print(f"[CurrencyConverter] Erreur fetch prix: {e}")
+        logger.error(f"[CurrencyConverter] Erreur fetch prix: {e}")
         return {}
 
 
@@ -161,7 +164,7 @@ async def verify_native_sol_payment(tx_signature: str, expected_usdc: float,
                 }
 
         except Exception as e:
-            print(f"[CurrencyConverter] SOL verify attempt {attempt + 1}: {e}")
+            logger.error(f"[CurrencyConverter] SOL verify attempt {attempt + 1}: {e}")
             await asyncio.sleep(2 ** attempt)
 
     return {"valid": False, "error": "Verification echouee apres 3 tentatives"}
@@ -247,7 +250,7 @@ async def verify_native_eth_payment(tx_hash: str, expected_usdc: float,
                 }
 
         except Exception as e:
-            print(f"[CurrencyConverter] ETH verify attempt {attempt + 1}: {e}")
+            logger.error(f"[CurrencyConverter] ETH verify attempt {attempt + 1}: {e}")
             await asyncio.sleep(2 ** attempt)
 
     return {"valid": False, "error": "Verification echouee apres 3 tentatives"}

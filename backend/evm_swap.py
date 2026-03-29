@@ -6,6 +6,7 @@ via l'agregateur 0x. Commission dynamique par palier, check OFAC, cache prix 30s
 Cle API: ZERO_EX_API_KEY dans .env
 """
 
+import logging
 import os
 import time
 import uuid
@@ -18,11 +19,13 @@ from pydantic import BaseModel, Field
 
 from security import require_ofac_clear
 
+logger = logging.getLogger(__name__)
+
 
 # ── Logging ──
 
 def _log(msg: str):
-    print(f"[EVM-Swap] {msg}")
+    logger.info(f"[EVM-Swap] {msg}")
 
 
 # ── Config ──

@@ -4,11 +4,14 @@ Surveille les scores des agents et applique des penalites croissantes :
 warning -> reduced_visibility -> probation -> suspended -> delisted.
 Inclut un circuit breaker par agent (5 echecs consecutifs = suspension 5 min).
 """
+import logging
 import time
 from datetime import datetime
 import os
 from fastapi import APIRouter, Request, HTTPException
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sla", tags=["sla"])
 
@@ -93,9 +96,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_SLA_SCHEMA)
         _schema_ready = True
-        print("[SLA] Schema pret")
+        logger.info("[SLA] Schema pret")
     except Exception as e:
-        print(f"[SLA] Erreur schema: {e}")
+        logger.error(f"[SLA] Erreur schema: {e}")
 
 
 # ── Circuit breaker en memoire (par agent) ──
@@ -124,7 +127,7 @@ def _cleanup_circuit_breakers():
     for aid in to_remove:
         del _circuit_breakers[aid]
     if to_remove:
-        print(f"[SLA] Circuit breaker cleanup: {len(to_remove)} entrees supprimees, {len(_circuit_breakers)} restantes")
+        logger.info(f"[SLA] Circuit breaker cleanup: {len(to_remove)} entrees supprimees, {len(_circuit_breakers)} restantes")
 
 
 def circuit_breaker_record(agent_id: str, success: bool) -> dict:
@@ -223,9 +226,9 @@ async def _apply_penalty(agent_id: str, new_penalty: str, composite_score: float
                 f"L'agent est retire du marketplace actif.",
             )
         except Exception as e:
-            print(f"[SLA] Erreur alerte Telegram: {e}")
+            logger.error(f"[SLA] Erreur alerte Telegram: {e}")
 
-    print(f"[SLA] Agent {agent_id[:16]}... -> penalite: {new_penalty} (score: {composite_score:.2f})")
+    logger.info(f"[SLA] Agent {agent_id[:16]}... -> penalite: {new_penalty} (score: {composite_score:.2f})")
 
 
 async def enforce_sla_single(agent_id: str) -> dict:
@@ -317,7 +320,7 @@ async def enforce_sla_all() -> dict:
 
         checked += 1
 
-    print(f"[SLA] Verification complete: {checked} agents, {changed} changements")
+    logger.info(f"[SLA] Verification complete: {checked} agents, {changed} changements")
     return {"checked": checked, "changed": changed, "penalties": penalty_summary}
 
 

@@ -8,11 +8,14 @@ Systeme d'analytics complet pour les agents autonomes sur le marketplace :
 
 Table DB : agent_events (agent_id, event_type, data_json, timestamp)
 """
+import logging
 import asyncio, time, uuid, json
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analytics", tags=["agent-analytics"])
 
@@ -43,7 +46,7 @@ async def _ensure_schema():
         await db.raw_executescript(_SCHEMA_SQL)
         _schema_created = True
     except Exception as e:
-        print(f"[Analytics] Erreur schema: {e}")
+        logger.error(f"[Analytics] Erreur schema: {e}")
 
 
 # ── Accumulateur in-memory (flush toutes les 60s) ──
@@ -130,12 +133,12 @@ async def _flush_accumulator():
                 (event["id"], event["agent_id"], event["event_type"],
                  event["data_json"], event["timestamp"])
             )
-        print(f"[Analytics] Flush: {len(snapshot)} evenements ecrits en DB")
+        logger.info(f"[Analytics] Flush: {len(snapshot)} evenements ecrits en DB")
     except Exception as e:
         # Remettre les evenements dans l'accumulateur en cas d'erreur
         async with lock:
             _accumulator.extend(snapshot)
-        print(f"[Analytics] Erreur flush: {e}")
+        logger.error(f"[Analytics] Erreur flush: {e}")
 
 
 # ── Fonctions d'analyse ──
@@ -500,7 +503,7 @@ async def analytics_flush_loop():
         try:
             await _flush_accumulator()
         except Exception as e:
-            print(f"[Analytics] Erreur flush loop: {e}")
+            logger.error(f"[Analytics] Erreur flush loop: {e}")
 
 
-print("[Analytics] Agent Analytics charge")
+logger.info("[Analytics] Agent Analytics charge")

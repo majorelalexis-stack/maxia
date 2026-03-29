@@ -1,6 +1,8 @@
 """MAXIA Auction Manager V9"""
-import asyncio, json, time
+import asyncio, json, logging, time
 from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
 
 class AuctionManager:
     def __init__(self):
@@ -61,7 +63,7 @@ class AuctionManager:
             self._clients.pop(cid, None)
 
     async def run_expiry_worker(self):
-        print("[AuctionManager] Worker demarre")
+        logger.info("[AuctionManager] Worker demarre")
         while True:
             now = int(time.time() * 1000)
             for aid, a in list(self._auctions.items()):

@@ -1,10 +1,13 @@
 """MAXIA Art.2 V11 — Dynamic Pricing (Yield Management)"""
+import logging
 import time
 from config import (
     DYNAMIC_PRICING_ENABLED, DYNAMIC_PRICING_MIN_BPS,
     DYNAMIC_PRICING_MAX_BPS, DYNAMIC_PRICING_VOLUME_THRESH,
     COMMISSION_TIERS,
 )
+
+logger = logging.getLogger(__name__)
 
 # Etat du pricing dynamique
 _current_adjustment_bps = 0
@@ -44,7 +47,7 @@ async def adjust_market_fees(db) -> dict:
                 _current_adjustment_bps + 10,
                 DYNAMIC_PRICING_MAX_BPS,
             )
-            print(f"[DynamicPricing] Volume +{change_pct:.0f}% -> commission +10 BPS (total adj: {_current_adjustment_bps})")
+            logger.info(f"Volume +{change_pct:.0f}% -> commission +10 BPS (total adj: {_current_adjustment_bps})")
 
         elif change_pct < -DYNAMIC_PRICING_VOLUME_THRESH:
             # Volume baisse -> baisser les commissions (attirer du flux)
@@ -52,7 +55,7 @@ async def adjust_market_fees(db) -> dict:
                 _current_adjustment_bps - 10,
                 -DYNAMIC_PRICING_MAX_BPS,
             )
-            print(f"[DynamicPricing] Volume {change_pct:.0f}% -> commission -10 BPS (total adj: {_current_adjustment_bps})")
+            logger.info(f"Volume {change_pct:.0f}% -> commission -10 BPS (total adj: {_current_adjustment_bps})")
 
     _last_volume_24h = current_vol
 

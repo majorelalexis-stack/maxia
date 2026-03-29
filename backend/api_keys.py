@@ -5,9 +5,12 @@ Scopes: read, trade, admin
 Tiers: free (100/day), pro (10000/day), enterprise (unlimited)
 Stores SHA-256 hash only — plaintext never persisted.
 """
+import logging
 import hashlib, json, secrets, time, uuid
 from typing import Optional
 from fastapi import HTTPException, Header, Depends
+
+logger = logging.getLogger(__name__)
 
 # ── Constants ──
 
@@ -104,7 +107,7 @@ def _generate_key(scopes: list[str]) -> str:
 async def ensure_tables(db):
     """Create api_keys_v2 and api_audit_log tables if they don't exist."""
     await db.raw_executescript(API_KEYS_SCHEMA)
-    print("[APIKeys] Tables ensured")
+    logger.info("Tables ensured")
 
 
 # ── Core functions ──
@@ -261,7 +264,7 @@ async def log_audit(
             (entry_id, key_id, action, endpoint, ip, status_code),
         )
     except Exception as e:
-        print(f"[APIKeys] Audit log error: {e}")
+        logger.error(f"Audit log error: {e}")
 
 
 async def revoke_key(db, key_id: str, wallet: str) -> dict:

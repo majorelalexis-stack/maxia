@@ -1,16 +1,8 @@
 [
   {
     "inputs": [
-      {
-        "internalType": "address",
-        "name": "_usdc",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_treasury",
-        "type": "address"
-      }
+      {"internalType": "address", "name": "_usdc", "type": "address"},
+      {"internalType": "address", "name": "_treasury", "type": "address"}
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
@@ -18,24 +10,19 @@
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "sellerGets",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "commission",
-        "type": "uint256"
-      }
+      {"indexed": true, "internalType": "uint256", "name": "bronze", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "gold", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "whale", "type": "uint256"}
+    ],
+    "name": "CommissionUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"indexed": false, "internalType": "uint256", "name": "sellerGets", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "commission", "type": "uint256"}
     ],
     "name": "EscrowConfirmed",
     "type": "event"
@@ -43,30 +30,11 @@
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "seller",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
+      {"indexed": true, "internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "buyer", "type": "address"},
+      {"indexed": true, "internalType": "address", "name": "seller", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"indexed": false, "internalType": "string", "name": "serviceId", "type": "string"}
     ],
     "name": "EscrowCreated",
     "type": "event"
@@ -74,18 +42,8 @@
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "initiator",
-        "type": "address"
-      }
+      {"indexed": true, "internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "initiator", "type": "address"}
     ],
     "name": "EscrowDisputed",
     "type": "event"
@@ -93,24 +51,9 @@
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
+      {"indexed": true, "internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "buyer", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
     ],
     "name": "EscrowRefunded",
     "type": "event"
@@ -118,36 +61,23 @@
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "winner",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
+      {"indexed": true, "internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "winner", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
     ],
     "name": "EscrowSettled",
     "type": "event"
   },
   {
+    "anonymous": false,
     "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      }
+      {"indexed": false, "internalType": "address", "name": "newTreasury", "type": "address"}
     ],
+    "name": "TreasuryUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [{"internalType": "bytes32", "name": "escrowId", "type": "bytes32"}],
     "name": "autoRefund",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -156,160 +86,93 @@
   {
     "inputs": [],
     "name": "autoRefundDelay",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
     "name": "buyerVolume",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "commissionBronze",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "commissionGold",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "commissionWhale",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      }
-    ],
+    "inputs": [{"internalType": "bytes32", "name": "escrowId", "type": "bytes32"}],
     "name": "confirmDelivery",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
+    "inputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
     "name": "escrows",
     "outputs": [
-      {
-        "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "seller",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "commission",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "sellerGets",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "lockedAt",
-        "type": "uint256"
-      },
-      {
-        "internalType": "enum MaxiaEscrow.Status",
-        "name": "status",
-        "type": "uint8"
-      },
-      {
-        "internalType": "string",
-        "name": "serviceId",
-        "type": "string"
-      }
+      {"internalType": "address", "name": "buyer", "type": "address"},
+      {"internalType": "address", "name": "seller", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"internalType": "uint256", "name": "commission", "type": "uint256"},
+      {"internalType": "uint256", "name": "sellerGets", "type": "uint256"},
+      {"internalType": "uint256", "name": "lockedAt", "type": "uint256"},
+      {"internalType": "uint256", "name": "settledAt", "type": "uint256"},
+      {"internalType": "enum MaxiaEscrow.EscrowStatus", "name": "status", "type": "uint8"},
+      {"internalType": "string", "name": "serviceId", "type": "string"},
+      {"internalType": "string", "name": "intentHash", "type": "string"}
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "buyer",
-        "type": "address"
-      }
-    ],
+    "inputs": [{"internalType": "address", "name": "buyer", "type": "address"}],
     "name": "getCommissionTier",
     "outputs": [
+      {"internalType": "string", "name": "tier", "type": "string"},
+      {"internalType": "uint256", "name": "bps", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "bytes32", "name": "escrowId", "type": "bytes32"}],
+    "name": "getEscrow",
+    "outputs": [
       {
-        "internalType": "string",
-        "name": "tier",
-        "type": "string"
-      },
-      {
-        "internalType": "uint256",
-        "name": "bps",
-        "type": "uint256"
+        "components": [
+          {"internalType": "address", "name": "buyer", "type": "address"},
+          {"internalType": "address", "name": "seller", "type": "address"},
+          {"internalType": "uint256", "name": "amount", "type": "uint256"},
+          {"internalType": "uint256", "name": "commission", "type": "uint256"},
+          {"internalType": "uint256", "name": "sellerGets", "type": "uint256"},
+          {"internalType": "uint256", "name": "lockedAt", "type": "uint256"},
+          {"internalType": "uint256", "name": "settledAt", "type": "uint256"},
+          {"internalType": "enum MaxiaEscrow.EscrowStatus", "name": "status", "type": "uint8"},
+          {"internalType": "string", "name": "serviceId", "type": "string"},
+          {"internalType": "string", "name": "intentHash", "type": "string"}
+        ],
+        "internalType": "struct MaxiaEscrow.Escrow",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -319,21 +182,9 @@
     "inputs": [],
     "name": "getStats",
     "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
+      {"internalType": "uint256", "name": "total", "type": "uint256"},
+      {"internalType": "uint256", "name": "volume", "type": "uint256"},
+      {"internalType": "uint256", "name": "commissions", "type": "uint256"}
     ],
     "stateMutability": "view",
     "type": "function"
@@ -341,53 +192,24 @@
   {
     "inputs": [],
     "name": "goldThreshold",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
-      {
-        "internalType": "address",
-        "name": "seller",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "string",
-        "name": "serviceId",
-        "type": "string"
-      }
+      {"internalType": "address", "name": "seller", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"internalType": "string", "name": "serviceId", "type": "string"},
+      {"internalType": "string", "name": "intentHash", "type": "string"}
     ],
     "name": "lockEscrow",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
+    "outputs": [{"internalType": "bytes32", "name": "escrowId", "type": "bytes32"}],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      }
-    ],
+    "inputs": [{"internalType": "bytes32", "name": "escrowId", "type": "bytes32"}],
     "name": "openDispute",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -396,28 +218,14 @@
   {
     "inputs": [],
     "name": "owner",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "escrowId",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "winner",
-        "type": "address"
-      }
+      {"internalType": "bytes32", "name": "escrowId", "type": "bytes32"},
+      {"internalType": "address", "name": "winner", "type": "address"}
     ],
     "name": "settleDispute",
     "outputs": [],
@@ -427,72 +235,43 @@
   {
     "inputs": [],
     "name": "totalCommissions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "totalEscrows",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "totalVolume",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "treasury",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
+    "inputs": [{"internalType": "uint256", "name": "_delay", "type": "uint256"}],
+    "name": "updateAutoRefundDelay",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_bronze",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_gold",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_whale",
-        "type": "uint256"
-      }
+      {"internalType": "uint256", "name": "_bronze", "type": "uint256"},
+      {"internalType": "uint256", "name": "_gold", "type": "uint256"},
+      {"internalType": "uint256", "name": "_whale", "type": "uint256"}
     ],
     "name": "updateCommissions",
     "outputs": [],
@@ -500,13 +279,7 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_treasury",
-        "type": "address"
-      }
-    ],
+    "inputs": [{"internalType": "address", "name": "_treasury", "type": "address"}],
     "name": "updateTreasury",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -515,26 +288,14 @@
   {
     "inputs": [],
     "name": "usdc",
-    "outputs": [
-      {
-        "internalType": "contract IERC20",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "whaleThreshold",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   }

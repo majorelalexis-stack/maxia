@@ -1,6 +1,9 @@
 """MAXIA Analytics — Dashboard analytics with cached aggregation queries"""
+import logging
 import time, json
 from fastapi import APIRouter, Query
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
@@ -74,7 +77,7 @@ async def get_volume_timeseries(db, period_hours: int = 168,
             })
             t += bucket_size
     except Exception as e:
-        print(f"[Analytics] volume_timeseries error: {e}")
+        logger.error(f"[Analytics] volume_timeseries error: {e}")
 
     _cache_set(cache_key, buckets, ttl=30)
     return buckets
@@ -109,7 +112,7 @@ async def get_top_agents(db, limit: int = 20, period_days: int = 30) -> list:
                 "tx_count": int(row["tx_count"]),
             })
     except Exception as e:
-        print(f"[Analytics] top_agents error: {e}")
+        logger.error(f"[Analytics] top_agents error: {e}")
 
     _cache_set(cache_key, agents)
     return agents
@@ -153,7 +156,7 @@ async def get_revenue_breakdown(db, period_days: int = 30) -> dict:
         result["total_commission_usdc"] = round(float(comm_row["comm"]), 2) if comm_row else 0
 
     except Exception as e:
-        print(f"[Analytics] revenue_breakdown error: {e}")
+        logger.error(f"[Analytics] revenue_breakdown error: {e}")
 
     _cache_set(cache_key, result)
     return result
@@ -186,7 +189,7 @@ async def get_service_popularity(db, limit: int = 10) -> list:
                 "rating": svc.get("rating", 0) if svc else 0,
             })
     except Exception as e:
-        print(f"[Analytics] service_popularity error: {e}")
+        logger.error(f"[Analytics] service_popularity error: {e}")
 
     _cache_set(cache_key, services)
     return services

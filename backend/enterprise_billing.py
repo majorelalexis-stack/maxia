@@ -10,11 +10,14 @@ Systeme de facturation autonome (sans SDK externe) qui suit :
 
 Accumulateur in-memory avec flush vers DB toutes les 60 secondes.
 """
+import logging
 import os, time, uuid, asyncio, json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise/billing", tags=["enterprise-billing"])
 
@@ -87,7 +90,7 @@ CREATE TABLE IF NOT EXISTS billing_usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_id TEXT NOT NULL,
     metric TEXT NOT NULL,
-    value REAL NOT NULL DEFAULT 0,
+    value NUMERIC(18,6) NOT NULL DEFAULT 0,
     recorded_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
 
@@ -105,9 +108,9 @@ CREATE TABLE IF NOT EXISTS billing_invoices (
     tenant_id TEXT NOT NULL,
     month TEXT NOT NULL,
     tier TEXT NOT NULL,
-    base_price REAL NOT NULL DEFAULT 0,
-    overage_total REAL NOT NULL DEFAULT 0,
-    total_amount REAL NOT NULL DEFAULT 0,
+    base_price NUMERIC(18,6) NOT NULL DEFAULT 0,
+    overage_total NUMERIC(18,6) NOT NULL DEFAULT 0,
+    total_amount NUMERIC(18,6) NOT NULL DEFAULT 0,
     line_items TEXT NOT NULL DEFAULT '{}',
     status TEXT NOT NULL DEFAULT 'draft',
     generated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
@@ -126,9 +129,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_BILLING_SCHEMA)
         _schema_ready = True
-        print("[Billing] Schema pret")
+        logger.info("[Billing] Schema pret")
     except Exception as e:
-        print(f"[Billing] Erreur schema: {e}")
+        logger.error(f"[Billing] Erreur schema: {e}")
 
 
 # ── Accumulateur in-memory (flush toutes les 60s) ──
@@ -197,13 +200,13 @@ async def _flush_accumulator():
                 "INSERT INTO billing_usage (tenant_id, metric, value, recorded_at) VALUES (?, ?, ?, ?)",
                 (tenant_id, metric, value, now_ts),
             )
-        print(f"[Billing] Flush: {len(snapshot)} mesures ecrites en DB")
+        logger.info(f"[Billing] Flush: {len(snapshot)} mesures ecrites en DB")
     except Exception as e:
         # Remettre les donnees dans l'accumulateur en cas d'erreur
         async with lock:
             for key, value in snapshot.items():
                 _accumulator[key] = _accumulator.get(key, 0.0) + value
-        print(f"[Billing] Erreur flush: {e}")
+        logger.error(f"[Billing] Erreur flush: {e}")
 
 
 # ── Fonctions de calcul ──
@@ -286,7 +289,7 @@ async def _check_stripe_subscription(tenant_id: str) -> dict:
     except ImportError:
         pass  # stripe_billing non installe/disponible
     except Exception as e:
-        print(f"[Billing] Stripe check warning: {e}")
+        logger.warning(f"[Billing] Stripe check warning: {e}")
     return {"active": False, "plan": "", "stripe_covers_base": False}
 
 
@@ -581,4 +584,4 @@ async def billing_flush_loop():
         try:
             await _flush_accumulator()
         except Exception as e:
-            print(f"[Billing] Erreur flush loop: {e}")
+            logger.error(f"[Billing] Erreur flush loop: {e}")

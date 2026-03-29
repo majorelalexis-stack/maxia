@@ -37,7 +37,7 @@ ESCROW_RULES = {
     4: {"hold_hours": 0,  "escrow_required": False, "label": "Established"},
 }
 
-print(f"[AgentID] {'Enabled' if AGENTID_ENABLED else 'Disabled'} — API key {'present' if AGENTID_API_KEY else 'absent'}")
+log.info(f"[AgentID] {'Enabled' if AGENTID_ENABLED else 'Disabled'} — API key {'present' if AGENTID_API_KEY else 'absent'}")
 
 
 class AgentIDClient:

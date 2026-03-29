@@ -1,6 +1,9 @@
 """MAXIA V12 — Trading Features: Whale Tracker, OHLCV Candles, Copy Trading"""
+import logging
 import asyncio, time, uuid, json
 from fastapi import APIRouter, HTTPException, Header
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/public", tags=["trading"])
 
@@ -23,34 +26,34 @@ async def ensure_tables():
     await db.raw_executescript("""
         CREATE TABLE IF NOT EXISTS whale_monitors (
             id TEXT PRIMARY KEY, api_key TEXT NOT NULL, wallet_address TEXT NOT NULL,
-            chain TEXT DEFAULT 'solana', threshold_usdc REAL DEFAULT 1000,
+            chain TEXT DEFAULT 'solana', threshold_usdc NUMERIC(18,6) DEFAULT 1000,
             callback_url TEXT DEFAULT '', active INTEGER DEFAULT 1,
             created_at INTEGER DEFAULT (strftime('%s','now')));
         CREATE INDEX IF NOT EXISTS idx_whale_mon_key ON whale_monitors(api_key);
 
         CREATE TABLE IF NOT EXISTS whale_alerts (
             id TEXT PRIMARY KEY, monitor_id TEXT, wallet TEXT, action TEXT,
-            amount_usdc REAL, tx_signature TEXT, notified INTEGER DEFAULT 0,
+            amount_usdc NUMERIC(18,6), tx_signature TEXT, notified INTEGER DEFAULT 0,
             created_at INTEGER DEFAULT (strftime('%s','now')));
 
         CREATE TABLE IF NOT EXISTS price_candles (
             id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL,
-            interval TEXT NOT NULL, open REAL, high REAL, low REAL, close REAL,
-            volume REAL DEFAULT 0, timestamp INTEGER NOT NULL,
+            interval TEXT NOT NULL, open NUMERIC(18,6), high NUMERIC(18,6), low NUMERIC(18,6), close NUMERIC(18,6),
+            volume NUMERIC(18,6) DEFAULT 0, timestamp INTEGER NOT NULL,
             UNIQUE(symbol, interval, timestamp));
         CREATE INDEX IF NOT EXISTS idx_candles_sym ON price_candles(symbol, interval, timestamp);
 
         CREATE TABLE IF NOT EXISTS copy_trades (
             id TEXT PRIMARY KEY, api_key TEXT NOT NULL, target_wallet TEXT NOT NULL,
-            chain TEXT DEFAULT 'solana', max_per_trade_usdc REAL DEFAULT 100,
+            chain TEXT DEFAULT 'solana', max_per_trade_usdc NUMERIC(18,6) DEFAULT 100,
             active INTEGER DEFAULT 1, total_copied INTEGER DEFAULT 0,
-            total_volume_usdc REAL DEFAULT 0,
+            total_volume_usdc NUMERIC(18,6) DEFAULT 0,
             created_at INTEGER DEFAULT (strftime('%s','now')));
         CREATE INDEX IF NOT EXISTS idx_copy_key ON copy_trades(api_key);
 
         CREATE TABLE IF NOT EXISTS copy_trade_history (
             id TEXT PRIMARY KEY, follow_id TEXT, target_wallet TEXT,
-            token TEXT, side TEXT, amount_usdc REAL, commission_usdc REAL,
+            token TEXT, side TEXT, amount_usdc NUMERIC(18,6), commission_usdc NUMERIC(18,6),
             tx_signature TEXT DEFAULT '', created_at INTEGER DEFAULT (strftime('%s','now')));
     """)
 
@@ -180,9 +183,9 @@ async def check_whales():
                                             pass
                     await asyncio.sleep(1)
                 except Exception as e:
-                    print(f"[WhaleTracker] Monitor error: {e}")
+                    logger.error(f"[WhaleTracker] Monitor error: {e}")
         except Exception as e:
-            print(f"[WhaleTracker] Error: {e}")
+            logger.error(f"[WhaleTracker] Error: {e}")
         await asyncio.sleep(30)
 
 
@@ -308,7 +311,7 @@ async def update_candles():
                         (interval, cutoff))
     
         except Exception as e:
-            print(f"[Candles] Error: {e}")
+            logger.error(f"[Candles] Error: {e}")
         await asyncio.sleep(60)
 
 

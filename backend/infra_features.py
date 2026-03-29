@@ -3,6 +3,8 @@ import logging
 import asyncio, time, uuid, json
 from fastapi import APIRouter, HTTPException, Header
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/public", tags=["infrastructure"])
 
 
@@ -40,14 +42,14 @@ async def ensure_tables():
             id TEXT PRIMARY KEY, service_id TEXT UNIQUE NOT NULL,
             seller_api_key TEXT NOT NULL,
             max_response_time_ms INTEGER DEFAULT 30000,
-            uptime_guarantee_pct REAL DEFAULT 99.0,
+            uptime_guarantee_pct NUMERIC(18,6) DEFAULT 99.0,
             auto_refund INTEGER DEFAULT 1,
             created_at INTEGER DEFAULT (strftime('%s','now')));
 
         CREATE TABLE IF NOT EXISTS sla_violations (
             id TEXT PRIMARY KEY, service_id TEXT, sla_id TEXT,
             violation_type TEXT, response_time_ms INTEGER,
-            refunded INTEGER DEFAULT 0, refund_amount_usdc REAL DEFAULT 0,
+            refunded INTEGER DEFAULT 0, refund_amount_usdc NUMERIC(18,6) DEFAULT 0,
             buyer_wallet TEXT DEFAULT '',
             created_at INTEGER DEFAULT (strftime('%s','now')));
 
@@ -55,9 +57,9 @@ async def ensure_tables():
             id TEXT PRIMARY KEY, original_service_id TEXT NOT NULL,
             original_seller_key TEXT NOT NULL,
             clone_api_key TEXT NOT NULL, clone_service_id TEXT NOT NULL,
-            revenue_share_pct REAL DEFAULT 15,
-            total_revenue_usdc REAL DEFAULT 0,
-            total_royalties_usdc REAL DEFAULT 0,
+            revenue_share_pct NUMERIC(18,6) DEFAULT 15,
+            total_revenue_usdc NUMERIC(18,6) DEFAULT 0,
+            total_royalties_usdc NUMERIC(18,6) DEFAULT 0,
             active INTEGER DEFAULT 1,
             created_at INTEGER DEFAULT (strftime('%s','now')));
         CREATE INDEX IF NOT EXISTS idx_clone_orig ON clone_configs(original_seller_key);
@@ -180,10 +182,10 @@ async def notify_webhook_subscribers(event_type: str, data: dict, filter_wallet:
             if 200 <= resp.status_code < 300:
                     sent += 1
         except Exception as e:
-            print(f"[Webhooks] Notify error for {callback_url}: {e}")
+            logger.error(f"[Webhooks] Notify error for {callback_url}: {e}")
 
     if sent:
-        print(f"[Webhooks] {event_type}: {sent} subscriber(s) notified")
+        logger.info(f"[Webhooks] {event_type}: {sent} subscriber(s) notified")
     return sent
 
 
@@ -490,9 +492,9 @@ async def check_sla(service_id: str, response_time_ms: int, price_usdc: float, b
                 (vid, service_id, sla["id"], "timeout", response_time_ms,
                  1 if refund > 0 else 0, refund, buyer_wallet))
             if refund > 0:
-                print(f"[SLA] Violation: {service_id} took {response_time_ms}ms (max {sla['max_response_time_ms']}ms). Auto-refund ${refund}")
+                logger.warning(f"[SLA] Violation: {service_id} took {response_time_ms}ms (max {sla['max_response_time_ms']}ms). Auto-refund ${refund}")
     except Exception as e:
-        print(f"[SLA] Check error: {e}")
+        logger.error(f"[SLA] Check error: {e}")
 
 
 # ══════════════════════════════════════════
@@ -610,9 +612,9 @@ async def process_clone_royalty(clone_service_id: str, sale_amount_usdc: float):
         await db.raw_execute(
             "UPDATE clone_configs SET total_revenue_usdc=total_revenue_usdc+?, total_royalties_usdc=total_royalties_usdc+? WHERE id=?",
             (sale_amount_usdc, royalty, config["id"]))
-        print(f"[Clone] Royalty ${royalty} to original creator for clone {clone_service_id}")
+        logger.info(f"[Clone] Royalty ${royalty} to original creator for clone {clone_service_id}")
     except Exception as e:
-        print(f"[Clone] Royalty error: {e}")
+        logger.error(f"[Clone] Royalty error: {e}")
 
 
 def get_router():

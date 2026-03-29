@@ -1,6 +1,9 @@
 """MAXIA Redis Client V12 — Cache, rate limiting, sessions with graceful fallback."""
+import logging
 import json, time, os
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class RedisClient:
@@ -18,7 +21,7 @@ class RedisClient:
     async def connect(self, redis_url: str = ""):
         url = redis_url or os.getenv("REDIS_URL", "")
         if not url:
-            print("[Redis] No REDIS_URL — using in-memory fallback")
+            logger.info("[Redis] No REDIS_URL — using in-memory fallback")
             return
         try:
             import redis.asyncio as aioredis
@@ -32,9 +35,9 @@ class RedisClient:
             )
             await self._redis.ping()
             self._connected = True
-            print(f"[Redis] Connected to {url.split('@')[-1] if '@' in url else url}")
+            logger.info(f"[Redis] Connected to {url.split('@')[-1] if '@' in url else url}")
         except Exception as e:
-            print(f"[Redis] Connection failed ({e}) — using in-memory fallback")
+            logger.warning(f"[Redis] Connection failed ({e}) — using in-memory fallback")
             self._redis = None
             self._connected = False
 

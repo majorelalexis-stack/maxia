@@ -525,9 +525,9 @@ async def _fetch_all_yields() -> list[dict]:
                         "is_fallback": False,
                         "updated_at": now,
                     })
-            print(f"[Yield] DeFiLlama: {len(all_yields)} live yields fetched")
+            logger.info(f"[Yield] DeFiLlama: {len(all_yields)} live yields fetched")
         except Exception as e:
-            print(f"[Yield] DeFiLlama error: {e}")
+            logger.error(f"[Yield] DeFiLlama error: {e}")
 
         # 2. Marinade direct (more accurate for Solana staking)
         try:
@@ -547,7 +547,7 @@ async def _fetch_all_yields() -> list[dict]:
 
     # Fill in fallbacks ONLY if nothing was fetched
     if not all_yields:
-        print("[Yield] ALL fetchers failed — using hardcoded fallbacks")
+        logger.warning("[Yield] ALL fetchers failed — using hardcoded fallbacks")
         for fb in _FALLBACK_YIELDS:
             entry = {**fb, "updated_at": now, "source": "fallback", "is_fallback": True}
             all_yields.append(entry)

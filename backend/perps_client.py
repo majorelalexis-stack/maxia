@@ -279,4 +279,4 @@ async def get_funding_rates(request: Request):
         raise HTTPException(500, detail=safe_error(exc, "perps_funding"))
 
 
-print(f"[Perps] Initialise — {len(_MARKETS)} marches (read-only, Jupiter + Pyth)")
+logger.info(f"[Perps] Initialise — {len(_MARKETS)} marches (read-only, Jupiter + Pyth)")

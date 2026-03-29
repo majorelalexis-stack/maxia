@@ -1,9 +1,12 @@
 """MAXIA Art.15 — Google AP2 (Agent Payments Protocol) Manager"""
+import logging
 import os, uuid, time, json, hashlib, hmac
 import httpx, asyncio
 from config import AP2_ENABLED, AP2_AGENT_ID, AP2_SIGNING_KEY
 from error_utils import safe_error
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 
 class AP2Manager:
@@ -23,11 +26,11 @@ class AP2Manager:
         self._max_completed = 5000
         # #5: Warn if AP2_SIGNING_KEY is not set
         if not AP2_SIGNING_KEY:
-            print("[AP2] WARNING: AP2_SIGNING_KEY not set — signatures will be weak")
+            logger.warning("AP2_SIGNING_KEY not set — signatures will be weak")
         if AP2_ENABLED:
-            print(f"[AP2] Manager active (agent: {AP2_AGENT_ID})")
+            logger.info(f"Manager active (agent: {AP2_AGENT_ID})")
         else:
-            print("[AP2] Manager disabled")
+            logger.info("Manager disabled")
 
     # ── Intent Mandates ──
 

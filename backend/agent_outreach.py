@@ -11,9 +11,12 @@ Contacts agents via:
 
 Does NOT spam. Contacts max 5 agents/day. Tracks who was contacted.
 """
+import logging
 import asyncio, time, os, json, hashlib
 import httpx
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 MAXIA_URL = "https://maxiaworld.app"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -243,14 +246,14 @@ async def run_outreach_cycle() -> dict:
 
 async def run_outreach_bot():
     """Background loop — runs outreach once per day."""
-    print("[Outreach] Agent outreach bot started")
+    logger.info("Agent outreach bot started")
     while True:
         try:
             result = await run_outreach_cycle()
             if result.get("new_contacts", 0) > 0:
-                print(f"[Outreach] Contacted {result['new_contacts']} new agents")
+                logger.info(f"Contacted {result['new_contacts']} new agents")
         except Exception as e:
-            print(f"[Outreach] Error: {e}")
+            logger.error(f"Error: {e}")
         await asyncio.sleep(86400)  # Once per day
 
 

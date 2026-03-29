@@ -235,7 +235,7 @@ async def lifespan(app: FastAPI):
 
     # #1 Add metrics columns to agent_services (idempotent)
     for col in ["total_executions INTEGER DEFAULT 0", "successful_executions INTEGER DEFAULT 0",
-                 "avg_response_ms REAL DEFAULT 0", "uptime_pct REAL DEFAULT 100"]:
+                 "avg_response_ms NUMERIC(18,6) DEFAULT 0", "uptime_pct NUMERIC(18,6) DEFAULT 100"]:
         try:
             await db.raw_execute(f"ALTER TABLE agent_services ADD COLUMN {col}")
         except Exception:
@@ -311,6 +311,9 @@ async def lifespan(app: FastAPI):
         await ensure_trading_tables()
         t6 = asyncio.create_task(check_whales())
         t7 = asyncio.create_task(update_candles())
+        # Universal candle feeder — feeds ALL tokens (not just Pyth) every 5s
+        from pyth_oracle import _universal_candle_feeder
+        asyncio.create_task(_universal_candle_feeder())
     except Exception as e:
         logger.error("[MAXIA] Trading features init error: %s", e)
         t6 = t7 = None
@@ -600,6 +603,7 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if os.getenv("FORCE_HTTPS", "false").lower() == "true":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
@@ -766,11 +770,12 @@ try:
 except Exception as e:
     logger.error("[MAXIA] AWP router error: %s", e)
 
-# V12: GOAT Protocol Bridge (200+ onchain tools)
+# V12: Protocol Catalog — 50+ DeFi/Web3 protocols across 14 chains
 try:
-    from goat_bridge import router as goat_router
+    from goat_bridge import router as goat_router, router_alias as protocols_router
     app.include_router(goat_router)
-    logger.info("[GOAT] Protocol bridge (200+ tools) monte")
+    app.include_router(protocols_router)
+    logger.info("[Protocols] Protocol Catalog (50+ protocols, 14 chains) monte")
 except Exception as e:
     logger.error("[MAXIA] GOAT bridge error: %s", e)
 
@@ -1016,6 +1021,14 @@ try:
     logger.info("[Subcontract] Agent Subcontracting (delegation) monte")
 except Exception as e:
     logger.error("[MAXIA] Subcontract router error: %s", e)
+
+# V13+: Composable Agent Builder — assemble agents from components no-code (Art.59)
+try:
+    from agent_builder import router as agent_builder_router
+    app.include_router(agent_builder_router)
+    logger.info("[AgentBuilder] Composable Agent Builder monte")
+except Exception as e:
+    logger.error("[MAXIA] Agent Builder router error: %s", e)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
@@ -2506,7 +2519,7 @@ async def auction_ws(ws: WebSocket):
 
 # V-09: WebSocket connection limiter
 _ws_connections: dict = {}  # ip -> count
-_WS_MAX_PER_IP = 5
+_WS_MAX_PER_IP = 20
 
 @app.websocket("/ws/prices")
 async def ws_prices(websocket: WebSocket):

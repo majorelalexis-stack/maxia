@@ -1,0 +1,86 @@
+{
+ "decisions_1774766417377_779": {
+  "text": "{\"ts\": \"2026-03-29T06:37:39.065464\", \"level\": \"VERT\", \"decision\": \"HUNTER canal switched: solana_memo -> discord\", \"raison\": \"auto-executed\", \"cible\": \"HUNTER\"}",
+  "ts": "2026-03-29T06:40:17.773312"
+ },
+ "decisions_1774766417773_2498": {
+  "text": "{\"ts\": \"2026-03-29T06:37:39.065464\", \"level\": \"Moyenne\", \"decision\": \"Activer le mode bundle\", \"raison\": \"CEO directive\", \"cible\": \"NEGOTIATOR\"}",
+  "ts": "2026-03-29T06:40:17.916383"
+ },
+ "decisions_1774766417916_4672": {
+  "text": "{\"ts\": \"2026-03-29T06:37:39.065464\", \"level\": \"Basse\", \"decision\": \"Cr\u00e9er du contenu bas\u00e9 sur les tendances Oracle\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WRITER\"}",
+  "ts": "2026-03-29T06:40:18.074334"
+ },
+ "decisions_1774767036369_7463": {
+  "text": "{\"ts\": \"2026-03-29T06:40:20.912096\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er du contenu de blog sur les tendances Oracle\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WRITER\"}",
+  "ts": "2026-03-29T06:50:36.621948"
+ },
+ "decisions_1774767036621_6454": {
+  "text": "{\"ts\": \"2026-03-29T06:40:20.912096\", \"level\": \"Basse\", \"decision\": \"Activer le mode bundle pour les GPUs\", \"raison\": \"CEO directive\", \"cible\": \"NEGOTIATOR\"}",
+  "ts": "2026-03-29T06:50:36.780501"
+ },
+ "decisions_1774767036780_1603": {
+  "text": "{\"ts\": \"2026-03-29T06:40:20.927947\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T06:50:36.941171"
+ },
+ "decisions_1774767147109_7026": {
+  "text": "{\"ts\": \"2026-03-29T06:50:40.014302\", \"level\": \"\u00c9lev\u00e9e\", \"decision\": \"Changer le canal du Hunter de Discord \u00e0 Twitter\", \"raison\": \"CEO directive\", \"cible\": \"HUNTER\"}",
+  "ts": "2026-03-29T06:52:27.346696"
+ },
+ "decisions_1774767147348_890": {
+  "text": "{\"ts\": \"2026-03-29T06:50:40.021436\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er du contenu de blog sur les tendances Oracle pour attirer les d\u00e9veloppeurs de bots IA\", \"raison\": \"CEO directive\", \"cible\": \"",
+  "ts": "2026-03-29T06:52:27.505675"
+ },
+ "decisions_1774767147507_2883": {
+  "text": "{\"ts\": \"2026-03-29T06:50:40.027698\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T06:52:27.663841"
+ },
+ "decisions_1774782393461_9889": {
+  "text": "{\"ts\": \"2026-03-29T06:52:31.631384\", \"level\": \"\u00c9lev\u00e9e\", \"decision\": \"Changer le canal du Hunter de Discord \u00e0 Twitter\", \"raison\": \"CEO directive\", \"cible\": \"HUNTER\"}",
+  "ts": "2026-03-29T11:06:33.654216"
+ },
+ "decisions_1774782393657_8463": {
+  "text": "{\"ts\": \"2026-03-29T06:52:31.647199\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er du contenu de blog sur les tendances Oracle pour attirer les d\u00e9veloppeurs de bots IA\", \"raison\": \"CEO directive\", \"cible\": \"",
+  "ts": "2026-03-29T11:06:34.074682"
+ },
+ "decisions_1774782394077_4366": {
+  "text": "{\"ts\": \"2026-03-29T06:52:31.647199\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T11:06:34.324763"
+ },
+ "decisions_1774782793391_4340": {
+  "text": "{\"ts\": \"2026-03-29T11:06:46.736381\", \"level\": \"Moyenne\", \"decision\": \"Demander \u00e0 GHOST-WRITER de cr\u00e9er un contenu de blog sur les frais r\u00e9duits de MAXIA\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WR",
+  "ts": "2026-03-29T11:13:13.660787"
+ },
+ "decisions_1774782793668_5935": {
+  "text": "{\"ts\": \"2026-03-29T11:06:46.738385\", \"level\": \"Haute\", \"decision\": \"Demander \u00e0 SCOUT de contacter les agents autonomes sur les cha\u00eenes Solana et Ethereum\", \"raison\": \"CEO directive\", \"cible\": \"SCOUT\"}",
+  "ts": "2026-03-29T11:13:13.840008"
+ },
+ "decisions_1774782793842_3814": {
+  "text": "{\"ts\": \"2026-03-29T11:06:46.756648\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T11:13:14.014586"
+ },
+ "decisions_1774783054920_1673": {
+  "text": "{\"ts\": \"2026-03-29T11:13:18.247712\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er un blog sur les avantages de MAXIA\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WRITER\"}",
+  "ts": "2026-03-29T11:17:35.204699"
+ },
+ "decisions_1774783055204_7295": {
+  "text": "{\"ts\": \"2026-03-29T11:13:18.249717\", \"level\": \"Haute\", \"decision\": \"Contacter les agents autonomes sur Solana et Ethereum\", \"raison\": \"CEO directive\", \"cible\": \"SCOUT\"}",
+  "ts": "2026-03-29T11:17:35.368466"
+ },
+ "decisions_1774783055378_1557": {
+  "text": "{\"ts\": \"2026-03-29T11:13:18.258207\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T11:17:35.555616"
+ },
+ "decisions_1774783154483_7905": {
+  "text": "{\"ts\": \"2026-03-29T11:17:38.607060\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er un blog sur les avantages de MAXIA pour les agents autonomes\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WRITER\"}",
+  "ts": "2026-03-29T11:19:14.752290"
+ },
+ "decisions_1774783154770_721": {
+  "text": "{\"ts\": \"2026-03-29T11:17:38.607060\", \"level\": \"Haute\", \"decision\": \"Contacter les agents autonomes sur Solana et Ethereum pour proposer nos services\", \"raison\": \"CEO directive\", \"cible\": \"SCOUT\"}",
+  "ts": "2026-03-29T11:19:14.942525"
+ },
+ "decisions_1774783154958_4301": {
+  "text": "{\"ts\": \"2026-03-29T11:17:38.607060\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T11:19:15.131331"
+ }
+}

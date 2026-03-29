@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS agent_credits (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL UNIQUE,
     score INTEGER DEFAULT 0,
-    credit_limit REAL DEFAULT 0,
-    borrowed REAL DEFAULT 0,
-    repaid REAL DEFAULT 0,
+    credit_limit NUMERIC(18,6) DEFAULT 0,
+    borrowed NUMERIC(18,6) DEFAULT 0,
+    repaid NUMERIC(18,6) DEFAULT 0,
     status TEXT DEFAULT 'active',
     last_scored_at INTEGER DEFAULT 0,
     created_at INTEGER DEFAULT (strftime('%s','now')),
@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS credit_transactions (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
     type TEXT NOT NULL,
-    amount_usdc REAL NOT NULL,
+    amount_usdc NUMERIC(18,6) NOT NULL,
     tx_signature TEXT DEFAULT '',
-    balance_after REAL DEFAULT 0,
+    balance_after NUMERIC(18,6) DEFAULT 0,
     created_at INTEGER DEFAULT (strftime('%s','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_credit_tx_agent ON credit_transactions(agent_id, created_at);

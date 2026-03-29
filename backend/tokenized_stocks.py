@@ -33,15 +33,15 @@ _PRICE_AUDIT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS price_audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
-    price REAL NOT NULL,
+    price NUMERIC(18,6) NOT NULL,
     source TEXT NOT NULL,
     publish_time INTEGER DEFAULT 0,
-    confidence REAL DEFAULT 0,
-    confidence_pct REAL DEFAULT 0,
+    confidence NUMERIC(18,6) DEFAULT 0,
+    confidence_pct NUMERIC(18,6) DEFAULT 0,
     age_s INTEGER DEFAULT 0,
     trade_type TEXT NOT NULL,
-    amount_usdc REAL NOT NULL,
-    age_spread_pct REAL DEFAULT 0,
+    amount_usdc NUMERIC(18,6) NOT NULL,
+    age_spread_pct NUMERIC(18,6) DEFAULT 0,
     timestamp INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_price_audit_symbol ON price_audit_log(symbol);

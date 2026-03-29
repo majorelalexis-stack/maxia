@@ -64,7 +64,7 @@ AKASH_MAX_PRICE = {
 # Deployments actifs
 _active_deployments: dict = {}
 
-print(f"[Akash] Client initialise — API key {'present' if AKASH_API_KEY else 'ABSENTE'}")
+log.info(f"[Akash] Client initialise — API key {'present' if AKASH_API_KEY else 'ABSENTE'}")
 
 
 def _generate_sdl(tier_id: str, duration_hours: float) -> dict:

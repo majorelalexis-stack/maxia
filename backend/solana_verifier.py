@@ -1,7 +1,10 @@
 """MAXIA Solana Verifier V12 — Verification complete (destinataire + montant)
 RPC failover : essaie chaque URL dans l'ordre (Helius > custom > publics)."""
+import logging
 import os, httpx, asyncio
 from config import get_rpc_url, TREASURY_ADDRESS, SOLANA_RPC_URLS
+
+logger = logging.getLogger(__name__)
 
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
@@ -113,7 +116,7 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
                 }
 
         except Exception as e:
-            print(f"[Verifier] Tentative {attempt+1} echouee: {e}")
+            logger.error(f"Tentative {attempt+1} echouee: {e}")
             await asyncio.sleep(2 ** attempt)
 
     return {"valid": False, "error": "Verification echouee apres 3 tentatives"}

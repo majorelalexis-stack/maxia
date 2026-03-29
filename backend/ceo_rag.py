@@ -207,7 +207,7 @@ rag = RAGLocal()
 
 if __name__ == "__main__":
     # Test
-    print("=== RAG Local Test ===")
+    logger.debug("=== RAG Local Test ===")
 
     rag.index_entry("decisions", "d1", "Changement canal HUNTER de memo vers reddit car 0% conversion whale")
     rag.index_entry("decisions", "d2", "Commission crypto: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01%")
@@ -217,18 +217,18 @@ if __name__ == "__main__":
     rag.index_entry("conversations", "c3", "telegram angry My swap failed plainte")
     rag.index_entry("strategies", "s1", "Reddit convertit mieux que Twitter. Cibler les developpeurs.")
 
-    print("\nSearch 'whale conversion':")
+    logger.debug("Search 'whale conversion':")
     for r in rag.search("whale conversion"):
-        print(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
+        logger.debug(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
 
-    print("\nSearch 'swap reddit':")
+    logger.debug("Search 'swap reddit':")
     for r in rag.search("swap reddit"):
-        print(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
+        logger.debug(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
 
-    print("\nSearch 'AI tokens':")
+    logger.debug("Search 'AI tokens':")
     for r in rag.search("AI tokens"):
-        print(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
+        logger.debug(f"  [{r['collection']}] score={r['score']}: {r['text'][:80]}")
 
-    print(f"\nContext for LLM:\n{rag.search_context('whale repondu conversion')}")
+    logger.debug(f"Context for LLM:\n{rag.search_context('whale repondu conversion')}")
 
-    print(f"\nStats: {rag.stats()}")
+    logger.debug(f"Stats: {rag.stats()}")

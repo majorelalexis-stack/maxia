@@ -1,6 +1,8 @@
 """MAXIA Solana TX V11 — Transactions reelles via RPC HTTP (serialisation corrigee)"""
 import logging
 import asyncio, time, struct, base64
+
+logger = logging.getLogger(__name__)
 import httpx
 import base58
 from nacl.signing import SigningKey
@@ -12,7 +14,7 @@ def _get_marketing_wallet():
     from config import MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
     return MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
 
-print("[SolanaTx] Mode RPC HTTP natif — transactions reelles activees")
+logger.info("Mode RPC HTTP natif — transactions reelles activees")
 
 MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 SYSTEM_PROGRAM_ID = "11111111111111111111111111111111"
@@ -156,7 +158,7 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
 
         if "result" in data:
             sig = data["result"]
-            print(f"[SolanaTx] SENT: {sig[:20]}... -> {to_address[:8]}...")
+            logger.info(f"SENT: {sig[:20]}... -> {to_address[:8]}...")
             return {
                 "success": True, "status": "sent", "signature": sig,
                 "from": _wallet_addr, "to": to_address,
@@ -168,13 +170,13 @@ async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str)
             err_msg = error.get("message", str(error)) if isinstance(error, dict) else str(error)
             # Log concis, pas flood
             if "Blockhash" in err_msg:
-                print(f"[SolanaTx] Blockhash expire — retry au prochain cycle")
+                logger.warning("Blockhash expire — retry au prochain cycle")
             else:
-                print(f"[SolanaTx] RPC error: {err_msg[:120]}")
+                logger.error(f"RPC error: {err_msg[:120]}")
             return {"success": False, "error": err_msg}
 
     except Exception as e:
-        print(f"[SolanaTx] TX error: {e}")
+        logger.error(f"TX error: {e}")
         return {"success": False, "error": "An error occurred"}
 
 
@@ -224,7 +226,7 @@ async def find_token_account(wallet: str, mint: str = USDC_MINT) -> str:
         if accounts:
             return accounts[0].get("pubkey", "")
     except Exception as e:
-        print(f"[SolanaTx] Token account error: {e}")
+        logger.error(f"Token account error: {e}")
     return ""
 
 
@@ -328,7 +330,7 @@ async def send_usdc_transfer_real(to_address: str, amount_usdc: float,
 
         if "result" in data:
             sig = data["result"]
-            print(f"[SolanaTx] USDC SENT: {amount_usdc} USDC -> {to_address[:8]}... TX: {sig[:16]}...")
+            logger.info(f"USDC SENT: {amount_usdc} USDC -> {to_address[:8]}... TX: {sig[:16]}...")
             return {
                 "success": True, "signature": sig,
                 "amount_usdc": amount_usdc,
@@ -338,9 +340,9 @@ async def send_usdc_transfer_real(to_address: str, amount_usdc: float,
         else:
             error = data.get("error", {})
             err_msg = error.get("message", str(error)) if isinstance(error, dict) else str(error)
-            print(f"[SolanaTx] USDC error: {err_msg[:100]}")
+            logger.error(f"USDC error: {err_msg[:100]}")
             return {"success": False, "error": err_msg}
 
     except Exception as e:
-        print(f"[SolanaTx] USDC TX error: {e}")
+        logger.error(f"USDC TX error: {e}")
         return {"success": False, "error": "An error occurred"}

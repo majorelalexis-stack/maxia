@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS pod_disputes (
     reason TEXT NOT NULL,
     evidence_hash TEXT DEFAULT '',
     ai_recommendation TEXT,
-    ai_confidence REAL,
+    ai_confidence NUMERIC(18,6),
     resolution TEXT,
     resolved_at INTEGER,
     resolved_by TEXT,

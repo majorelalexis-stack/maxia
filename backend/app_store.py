@@ -4,7 +4,10 @@ Les devs publient leurs agents avec une description, un prix, et une demo.
 Les humains "installent" un agent (connectent leur wallet) et l'agent travaille pour eux.
 MAXIA prend 10% de commission sur chaque transaction.
 """
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 # Categories d'agents
 CATEGORIES = [
@@ -43,7 +46,7 @@ async def get_featured_agents(db, limit: int = 12) -> list:
             })
         return agents
     except Exception as e:
-        print(f"[AppStore] get_featured_agents error: {e}")
+        logger.error(f"get_featured_agents error: {e}")
         return []
 
 
@@ -70,7 +73,7 @@ async def get_agents_by_category(db, category: str, limit: int = 20) -> list:
             })
         return agents
     except Exception as e:
-        print(f"[AppStore] get_agents_by_category error: {e}")
+        logger.error(f"get_agents_by_category error: {e}")
         return []
 
 
@@ -97,5 +100,5 @@ async def search_agents(db, query: str, limit: int = 20) -> list:
             })
         return agents
     except Exception as e:
-        print(f"[AppStore] search_agents error: {e}")
+        logger.error(f"search_agents error: {e}")
         return []

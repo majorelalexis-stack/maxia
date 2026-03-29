@@ -12,6 +12,7 @@ Commission MAXIA : 1% sur chaque paiement de sous-tache (en plus de la
 commission standard du marketplace).
 """
 
+import logging
 import uuid, time, json
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -19,6 +20,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/subcontract", tags=["agent-subcontracting"])
 
@@ -34,9 +37,9 @@ CREATE TABLE IF NOT EXISTS subcontracts (
     id TEXT PRIMARY KEY,
     principal_agent_id TEXT NOT NULL,
     task TEXT NOT NULL,
-    budget_usdc REAL NOT NULL,
-    spent_usdc REAL NOT NULL DEFAULT 0,
-    commission_total REAL NOT NULL DEFAULT 0,
+    budget_usdc NUMERIC(18,6) NOT NULL,
+    spent_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
+    commission_total NUMERIC(18,6) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'open',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
@@ -51,8 +54,8 @@ CREATE TABLE IF NOT EXISTS subtasks (
     type TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     assigned_agent_id TEXT,
-    price_usdc REAL NOT NULL DEFAULT 0,
-    commission_usdc REAL NOT NULL DEFAULT 0,
+    price_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
+    commission_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     result TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -76,9 +79,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_SUBCONTRACT_SCHEMA)
         _schema_ready = True
-        print("[Subcontract] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[Subcontract] Erreur schema: {e}")
+        logger.error(f"Erreur schema: {e}")
 
 
 # ── Pydantic models ──
@@ -638,4 +641,4 @@ async def api_settle_contract(contract_id: str, wallet: str = Depends(require_au
 
 # ══════════════════════════════════════════════════════════════════════════════
 
-print("[Subcontract] Art.58 Agent Subcontracting charge — delegation automatique de sous-taches")
+logger.info("Art.58 Agent Subcontracting charge — delegation automatique de sous-taches")

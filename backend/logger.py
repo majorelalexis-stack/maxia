@@ -41,7 +41,7 @@ def get_logger(name: str) -> logging.Logger:
             file_handler.setFormatter(fmt)
             logger.addHandler(file_handler)
         except Exception as e:
-            print(f"[Logger] File handler error: {e}")
+            logging.getLogger(__name__).error(f"File handler error: {e}")
         logger.setLevel(logging.INFO)
     return logger
 
@@ -59,4 +59,4 @@ def log_json(level: str, module: str, msg: str, **extra):
         "msg": msg,
     }
     entry.update(extra)
-    print(json.dumps(entry, default=str), file=sys.stderr)
+    logging.getLogger(module).log(getattr(logging, level.upper(), logging.INFO), json.dumps(entry, default=str))

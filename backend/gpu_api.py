@@ -1,4 +1,5 @@
 """MAXIA GPU routes — extracted from main.py."""
+import logging
 import os
 import time
 import uuid
@@ -6,6 +7,8 @@ import json
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from error_utils import safe_error
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["gpu"])
 
@@ -297,7 +300,7 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
             total_cost = round(cost_per_hr * hours, 4)
 
     # Provision the GPU
-    print(f"[GPU Rent] Provisioning {tier_id} for {hours}h via {provider_name} — wallet: {wallet}")
+    logger.info(f"[GPU Rent] Provisioning {tier_id} for {hours}h via {provider_name} — wallet: {wallet}")
     if provider_name == "akash":
         result = await akash_client.rent_gpu(tier_id, hours)
     else:
@@ -306,7 +309,7 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
     if not result.get("success"):
         # Silent fallback to RunPod if Akash fails
         if provider_name == "akash":
-            print(f"[GPU Rent] Akash failed ({result.get('error','')}), silent fallback to RunPod")
+            logger.warning(f"[GPU Rent] Akash failed ({result.get('error','')}), silent fallback to RunPod")
             provider_name = "runpod"
             result = await runpod.rent_gpu(tier_id, hours)
         if not result.get("success"):
@@ -331,14 +334,14 @@ async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
             "scheduled_end": result.get("auto_terminate_at", 0),
         })
     except Exception as e:
-        print(f"[GPU Rent] DB save warning: {e}")
+        logger.warning(f"[GPU Rent] DB save warning: {e}")
 
     # Record the transaction (skip for free trial)
     if not is_free_trial:
         try:
             await db.record_transaction(wallet, payment_tx, total_cost, "gpu_rental")
         except Exception as e:
-            print(f"[GPU Rent] TX record warning: {e}")
+            logger.warning(f"[GPU Rent] TX record warning: {e}")
 
     return {
         "ok": True,
@@ -399,7 +402,7 @@ async def terminate_gpu(pod_id: str, wallet: str = Depends(require_auth)):
                 "actual_cost": result.get("actual_cost", 0),
             })
         except Exception as e:
-            print(f"[GPU] DB update warning: {e}")
+            logger.warning(f"[GPU] DB update warning: {e}")
     return result
 
 

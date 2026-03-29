@@ -8,9 +8,12 @@ Analyses crypto sentiment from free public sources:
 
 Weighted scoring: 60% price momentum + 40% market sentiment (Fear & Greed)
 """
+import logging
 import asyncio, time, re, os
 import httpx
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 LUNARCRUSH_KEY = os.getenv("LUNARCRUSH_API_KEY", "")
 
@@ -105,7 +108,7 @@ async def get_sentiment(token: str = "BTC") -> dict:
 
     _sentiment_cache[cache_key] = result
     _cache_ts[cache_key] = now
-    print(f"[Sentiment] {cache_key}: score={result['score']}, "
+    logger.info(f"[Sentiment] {cache_key}: score={result['score']}, "
           f"sentiment={result['overall_sentiment']}, "
           f"price_24h={price_change_24h:+.2f}%, fng={fng_value}")
     return result
@@ -156,7 +159,7 @@ async def _coingecko_sentiment(token: str) -> dict:
                 "market_cap_rank": data.get("market_cap_rank", 0),
             }
     except Exception as e:
-        print(f"[Sentiment] CoinGecko error: {e}")
+        logger.error(f"[Sentiment] CoinGecko error: {e}")
     return {}
 
 
@@ -216,7 +219,7 @@ async def _lunarcrush_sentiment(token: str) -> dict:
                 "sentiment": data.get("sentiment", 0),
             }
     except Exception as e:
-        print(f"[Sentiment] LunarCrush error: {e}")
+        logger.error(f"[Sentiment] LunarCrush error: {e}")
     return {}
 
 

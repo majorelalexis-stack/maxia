@@ -70,7 +70,7 @@ def get_confidence_threshold(symbol: str) -> float:
 _twap_data: dict[str, list] = {}  # {symbol: [(ts, price), ...]}
 _TWAP_WINDOW_S = 300  # 5 minutes
 _TWAP_MAX_DEVIATION_PCT = 20.0  # Rejeter si spot devie >20% du TWAP
-_TWAP_MAX_SYMBOLS = 50  # Max symbols tracked to prevent unbounded growth
+_TWAP_MAX_SYMBOLS = 100  # Max symbols tracked (65 crypto + 25 stocks)
 
 
 def update_twap(symbol: str, price: float):
@@ -153,7 +153,7 @@ class CandleBuilder:
 # Builders par symbol + intervalle — alimentes par le stream SSE
 _candle_builders: dict[str, dict[int, CandleBuilder]] = {}  # {symbol: {interval_s: builder}}
 _LIVE_INTERVALS = [1, 5, 60, 3600, 21600, 86400]  # 1s, 5s, 1m, 1h, 6h, 1d
-_CANDLE_MAX_SYMBOLS = 50  # Max symbols with candle builders
+_CANDLE_MAX_SYMBOLS = 100  # Max symbols with candle builders (65 crypto + 25 stocks)
 
 # Subscribers pour les candles live (WebSocket /ws/chart)
 _candle_subscribers: list[asyncio.Queue] = []
@@ -216,6 +216,43 @@ def get_recent_candles(symbol: str, interval_s: int = 1, limit: int = 300) -> li
     if current_bucket > 0:
         candles.append({"time": current_bucket, "open": o, "high": h, "low": l, "close": c})
     return candles[-limit:]
+
+# ── Universal candle feeder — polls ALL token prices every 5s ──
+
+async def _universal_candle_feeder():
+    """Background task: fetch prices for ALL 65+ tokens every 5s and feed CandleBuilders.
+    This ensures ALL tokens get live candle updates via WS, not just Pyth SSE tokens."""
+    await asyncio.sleep(10)  # Wait for server startup
+    logger.info("[CandleFeeder] Started — feeding all tokens every 5s")
+    while True:
+        try:
+            from price_oracle import get_crypto_prices
+            prices_data = await get_crypto_prices()
+            prices = prices_data.get("prices", prices_data) if isinstance(prices_data, dict) else {}
+            now = time.time()
+            fed = 0
+            for symbol, data in prices.items():
+                price = data.get("price", 0) if isinstance(data, dict) else 0
+                if price > 0:
+                    update_twap(symbol, price)
+                    _process_candle_tick(symbol, price, now)
+                    fed += 1
+            # Also feed stock prices
+            try:
+                from tokenized_stocks import fetch_stock_prices
+                stock_data = await fetch_stock_prices()
+                for sym, data in (stock_data or {}).items():
+                    price = data.get("price_usd", 0) if isinstance(data, dict) else 0
+                    if price > 0:
+                        update_twap(sym, price)
+                        _process_candle_tick(sym, price, now)
+                        fed += 1
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error("[CandleFeeder] Error: %s", e)
+        await asyncio.sleep(5)
+
 
 # ── Oracle monitoring (uptime, latency, freshness) ──
 _oracle_metrics = {
@@ -553,7 +590,7 @@ async def get_stock_price(symbol: str) -> dict:
             result["symbol"] = symbol.upper()
             # Stale stock price -> fallback au lieu de servir un prix stale
             if result.get("stale"):
-                print(f"[PythOracle] STALE stock price for {sym} (age={result.get('age_s')}s > {MAX_STALENESS_STOCK_S}s), falling back")
+                logger.warning(f"STALE stock price for {sym} (age={result.get('age_s')}s), falling back")
             else:
                 return result
 
@@ -621,7 +658,7 @@ async def get_crypto_price(symbol: str) -> dict:
         if "error" not in result and result.get("price", 0) > 0:
             result["symbol"] = sym
             if result.get("stale"):
-                print(f"[PythOracle] STALE crypto price for {sym} (age={result.get('age_s')}s > {MAX_STALENESS_CRYPTO_S}s), falling back")
+                logger.warning(f"STALE crypto price for {sym} (age={result.get('age_s')}s), falling back")
             else:
                 return result
 
@@ -737,7 +774,7 @@ async def get_batch_prices(symbols: list[str]) -> dict:
                 fallback_symbols.extend(pyth_symbols.keys())
 
         except Exception as e:
-            print(f"[PythOracle] Batch fetch error: {e}")
+            logger.error(f"Batch fetch error: {e}")
             fallback_symbols.extend(pyth_symbols.keys())
 
     # Aussi ajouter les symboles Pyth qui n'ont pas ete retournes dans le batch
@@ -1312,13 +1349,13 @@ async def check_oracle_health_alert():
                     f"Oracle STALE: {symbol} prix age {age}s (Pyth Hermes)"
                 )
             except Exception as e:
-                print(f"[PythOracle] Erreur envoi alerte stale {symbol}: {e}")
+                logger.error(f"Erreur envoi alerte stale {symbol}: {e}")
 
         except Exception as e:
-            print(f"[PythOracle] Health check error for {symbol}: {e}")
+            logger.error(f"Health check error for {symbol}: {e}")
 
     if stale_count > 0:
-        print(f"[PythOracle] Health check: {stale_count}/{len(EQUITY_FEEDS)} feeds stale (>{_ORACLE_STALE_ALERT_THRESHOLD}s)")
+        logger.warning(f"Health check: {stale_count}/{len(EQUITY_FEEDS)} feeds stale (>{_ORACLE_STALE_ALERT_THRESHOLD}s)")
 
 
 # ══════════════════════════════════════════
@@ -1364,7 +1401,7 @@ async def _equity_poll_loop():
     _sse_symbols = {"SOL", "ETH", "BTC", "USDC"}  # Already streamed via SSE
     non_sse_crypto = {sym: fid for sym, fid in CRYPTO_FEEDS.items() if sym not in _sse_symbols}
     all_poll_feeds = {**EQUITY_FEEDS, **non_sse_crypto}
-    print(f"[PythPoll] Loop started — {len(all_poll_feeds)} feeds ({len(EQUITY_FEEDS)} equity + {len(non_sse_crypto)} crypto, batches of 2)")
+    logger.info(f"Poll loop started — {len(all_poll_feeds)} feeds ({len(EQUITY_FEEDS)} equity + {len(non_sse_crypto)} crypto, batches of 2)")
     fid_to_sym = {fid: sym for sym, fid in all_poll_feeds.items()}
     # Pyth Hermes limite ~3 feeds par requete HTTP — batches de 2 pour etre safe
     feed_list = list(all_poll_feeds.items())
@@ -1411,7 +1448,7 @@ async def _equity_poll_loop():
                         except asyncio.QueueFull:
                             pass
             except Exception as e:
-                print(f"[PythEquity] Batch error: {e}")
+                logger.error(f"Equity batch error: {e}")
             await asyncio.sleep(0.5)  # 0.5s entre chaque batch = ~1.5s pour les 11 feeds
         await asyncio.sleep(1)  # 1s pause entre les cycles complets
 
@@ -1571,4 +1608,4 @@ async def stop_pyth_stream():
     logger.info("[PythStream] SSE streaming stopped")
 
 
-print(f"[PythOracle] Initialise — {len(EQUITY_FEEDS)} equity + {len(CRYPTO_FEEDS)} crypto feeds via Hermes")
+logger.info(f"Initialise — {len(EQUITY_FEEDS)} equity + {len(CRYPTO_FEEDS)} crypto feeds via Hermes")

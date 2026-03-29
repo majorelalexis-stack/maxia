@@ -3,10 +3,13 @@
 Scan DexScreener + CoinGecko pour les tokens avec volume > $100K/24h
 sur les chains supportees. Ajoute a SUPPORTED_TOKENS si criteres remplis.
 """
+import logging
 import asyncio
 import httpx
 import time
 from http_client import get_http_client
+
+logger = logging.getLogger(__name__)
 
 # Criteres de listing automatique
 MIN_VOLUME_24H = 100_000  # $100K minimum
@@ -45,7 +48,7 @@ async def scan_trending_tokens(chain: str = "solana", limit: int = 20) -> list:
                     })
             return candidates
     except Exception as e:
-        print(f"[AutoList] Scan {chain} error: {e}")
+        logger.error(f"Scan {chain} error: {e}")
         return []
 
 

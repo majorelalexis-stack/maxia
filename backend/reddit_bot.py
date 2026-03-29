@@ -20,6 +20,8 @@ import httpx
 from http_client import get_http_client
 from error_utils import safe_error
 
+logger = logging.getLogger(__name__)
+
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
 REDDIT_USERNAME = os.getenv("REDDIT_USERNAME", "")
@@ -150,7 +152,7 @@ async def _generate_post_body(template: dict) -> str:
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        print(f"[Reddit] Groq error: {e}")
+        logger.error(f"[Reddit] Groq error: {e}")
 
     return _fallback_body(template)
 
@@ -267,10 +269,10 @@ async def run_reddit_bot():
     _running = True
 
     if not REDDIT_CLIENT_ID:
-        print("[Reddit] Keys not configured — bot disabled")
+        logger.warning("[Reddit] Keys not configured — bot disabled")
         return
 
-    print("[Reddit] Bot started — monitoring + auto-posting")
+    logger.info("[Reddit] Bot started — monitoring + auto-posting")
 
     while _running:
         try:
@@ -290,14 +292,14 @@ async def run_reddit_bot():
                                 "url": result.get("url", ""),
                             })
                             _save_history(history)
-                            print(f"[Reddit] Posted to r/{sub}: {template['title']}")
+                            logger.info(f"[Reddit] Posted to r/{sub}: {template['title']}")
                         else:
-                            print(f"[Reddit] Failed r/{sub}: {result.get('error', '')}")
+                            logger.error(f"[Reddit] Failed r/{sub}: {result.get('error', '')}")
                         await asyncio.sleep(60)  # Wait between posts
                         break  # One post per cycle
 
         except Exception as e:
-            print(f"[Reddit] Loop error: {e}")
+            logger.error(f"[Reddit] Loop error: {e}")
 
         # Check every 6 hours
         await asyncio.sleep(21600)

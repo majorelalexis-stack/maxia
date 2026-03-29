@@ -10,7 +10,9 @@ async def get_fleet_overview(owner_wallet: str, db) -> dict:
     """Vue d'ensemble de tous les agents d'un wallet proprietaire."""
     try:
         agents = await db.raw_execute_fetchall(
-            "SELECT * FROM agents WHERE wallet=? OR referred_by=?",
+            "SELECT api_key, name, wallet, description, tier, volume_30d, "
+            "total_spent, total_earned, services_listed, created_at "
+            "FROM agents WHERE wallet=? OR referred_by=?",
             (owner_wallet, owner_wallet))
 
         fleet = []

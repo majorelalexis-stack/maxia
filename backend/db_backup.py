@@ -3,6 +3,8 @@ import logging
 import asyncio, shutil, time, os
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 DB_PATH = Path(__file__).parent / "maxia.db"
 BACKUP_DIR = Path(__file__).parent / "backups"
 MAX_BACKUPS = 30  # keep last 30 backups
@@ -23,10 +25,10 @@ async def backup_db():
         while len(backups) > MAX_BACKUPS:
             backups.pop(0).unlink()
         size_kb = dest.stat().st_size / 1024
-        print(f"[Backup] DB saved: {dest.name} ({size_kb:.0f} KB)")
+        logger.info(f"[Backup] DB saved: {dest.name} ({size_kb:.0f} KB)")
         return {"success": True, "file": str(dest), "size_kb": round(size_kb)}
     except Exception as e:
-        print(f"[Backup] Error: {e}")
+        logger.error(f"[Backup] Error: {e}")
         return {"success": False, "error": "An error occurred"}
 
 
@@ -58,11 +60,11 @@ async def restore_db(backup_name: str) -> dict:
         safety = BACKUP_DIR / f"maxia_pre_restore_{time.strftime('%Y%m%d_%H%M%S')}.db"
         if DB_PATH.exists():
             shutil.copy2(str(DB_PATH), str(safety))
-            print(f"[Backup] Safety backup: {safety.name}")
+            logger.info(f"[Backup] Safety backup: {safety.name}")
         # Restore
         shutil.copy2(str(backup_file), str(DB_PATH))
         size_kb = backup_file.stat().st_size / 1024
-        print(f"[Backup] RESTORED from {backup_name} ({size_kb:.0f} KB)")
+        logger.info(f"[Backup] RESTORED from {backup_name} ({size_kb:.0f} KB)")
         return {"success": True, "restored_from": backup_name, "size_kb": round(size_kb), "safety_backup": safety.name}
     except Exception as e:
         return {"success": False, "error": "An error occurred"}

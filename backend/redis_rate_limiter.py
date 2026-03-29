@@ -7,11 +7,14 @@ Remplace le rate limiting in-memory de security.py par un systeme Redis-backed :
 - Degradation gracieuse : fallback in-memory si Redis est indisponible
 - Endpoint : GET /api/rate-limit/status — usage courant par IP
 """
+import logging
 import time, os
 from datetime import datetime, timezone
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException, Request
 from security import get_real_ip
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/rate-limit", tags=["rate-limit"])
 
@@ -56,10 +59,10 @@ async def _get_redis():
         )
         await _redis.ping()
         _redis_available = True
-        print("[RateLimit] Redis connecte")
+        logger.info("[RateLimit] Redis connecte")
         return _redis
     except Exception as e:
-        print(f"[RateLimit] Redis indisponible ({e}) — fallback in-memory")
+        logger.warning(f"[RateLimit] Redis indisponible ({e}) — fallback in-memory")
         _redis_available = False
         _redis = False
         return None
@@ -173,4 +176,4 @@ async def rate_limit_status(request: Request):
     }
 
 
-print("[RateLimit] Redis rate limiter charge")
+logger.info("[RateLimit] Redis rate limiter charge")

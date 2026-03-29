@@ -4,6 +4,7 @@ Chaque action significative est loggee : trades, escrow, swaps, transferts, admi
 Entries structurees avec policy check integre (OFAC, rate limits, montants max).
 Export CSV pour auditeurs externes.
 """
+import logging
 import os
 import time
 import uuid
@@ -16,6 +17,8 @@ from collections import deque
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise/audit", tags=["enterprise-audit"])
 
@@ -60,7 +63,7 @@ CREATE TABLE IF NOT EXISTS audit_trail (
     actor TEXT NOT NULL,
     action TEXT NOT NULL,
     resource TEXT NOT NULL DEFAULT '',
-    amount_usdc REAL DEFAULT 0,
+    amount_usdc NUMERIC(18,6) DEFAULT 0,
     chain TEXT DEFAULT '',
     result TEXT DEFAULT 'success',
     policy_check TEXT DEFAULT 'pass',
@@ -462,5 +465,5 @@ async def route_recent_buffer(limit: int = Query(50, ge=1, le=500)):
     return {"count": len(recent), "entries": recent}
 
 
-print("[AuditTrail] Module charge — policy v1.0, buffer "
-      f"{AUDIT_BUFFER_SIZE} entries, retention {AUDIT_RETENTION_DAYS}j")
+logger.info("[AuditTrail] Module charge — policy v1.0, buffer "
+            f"{AUDIT_BUFFER_SIZE} entries, retention {AUDIT_RETENTION_DAYS}j")

@@ -944,51 +944,99 @@ RATE_LIMIT_TIERS = {
     "enterprise": {"req_per_day": 100000,"req_per_min": 1000,"label": "Enterprise"},
 }
 
-# Agent tier mapping (loaded from DB or set via API key prefix)
-_agent_tiers: dict = {}  # api_key -> tier name
+# Agent tier mapping — Redis-backed with in-memory fallback
+_agent_tiers: dict = {}  # local cache: api_key -> tier name
 
 
-def set_agent_rate_tier(api_key: str, tier: str):
-    """Set rate limit tier for an agent. Called when agent upgrades."""
-    if tier in RATE_LIMIT_TIERS:
-        _agent_tiers[api_key] = tier
+async def set_agent_rate_tier(api_key: str, tier: str):
+    """Set rate limit tier for an agent. Persists to Redis if available."""
+    if tier not in RATE_LIMIT_TIERS:
+        return
+    _agent_tiers[api_key] = tier
+    if _redis_client and _redis_client.is_connected:
+        try:
+            await _redis_client.cache_set(f"tier:{api_key}", tier, ttl=86400)
+        except Exception:
+            pass
 
 
-def get_agent_rate_tier(api_key: str) -> str:
-    """Get rate limit tier for an agent. Default: free."""
-    return _agent_tiers.get(api_key, "free")
+async def get_agent_rate_tier(api_key: str) -> str:
+    """Get rate limit tier for an agent. Checks Redis then local cache."""
+    # Local cache first
+    if api_key in _agent_tiers:
+        return _agent_tiers[api_key]
+    # Try Redis
+    if _redis_client and _redis_client.is_connected:
+        try:
+            tier = await _redis_client.cache_get(f"tier:{api_key}")
+            if tier and tier in RATE_LIMIT_TIERS:
+                _agent_tiers[api_key] = tier
+                return tier
+        except Exception:
+            pass
+    return "free"
 
 
-def check_rate_limit_tiered(api_key: str) -> dict:
-    """Check rate limits based on agent's tier. Returns {"allowed": bool, "tier": str, ...}"""
-    tier_name = get_agent_rate_tier(api_key)
+async def check_rate_limit_tiered(api_key: str) -> dict:
+    """Check rate limits based on agent's tier using Redis (with in-memory fallback).
+    Returns {"allowed": bool, "tier": str, ...}"""
+    tier_name = await get_agent_rate_tier(api_key)
     tier = RATE_LIMIT_TIERS[tier_name]
     now = time.time()
 
-    # Per-minute check
+    # Use Redis sliding window if available
+    if _redis_client and _redis_client.is_connected:
+        try:
+            # Per-minute check via Redis sorted set
+            allowed_min = await _redis_client.rate_limit_check(
+                f"agent:{api_key}:min", limit=tier["req_per_min"], window=60)
+            if not allowed_min:
+                return {
+                    "allowed": False, "tier": tier_name,
+                    "reason": f"Rate limit: {tier['req_per_min']} req/min ({tier['label']} tier)",
+                    "limit": tier["req_per_min"], "remaining": 0, "reset_in_s": 60,
+                }
+            # Per-day check via Redis INCR (daily counter)
+            from datetime import date
+            day_key = f"agent:{api_key}:day:{date.today().isoformat()}"
+            day_count = await _redis_client.cache_get(day_key)
+            day_count = int(day_count) if day_count else 0
+            if day_count >= tier["req_per_day"]:
+                return {
+                    "allowed": False, "tier": tier_name,
+                    "reason": f"Daily limit: {tier['req_per_day']} req/day ({tier['label']} tier)",
+                    "limit": tier["req_per_day"], "remaining": 0,
+                    "reset_in_s": int(86400 - (now % 86400)),
+                }
+            await _redis_client.cache_set(day_key, str(day_count + 1), ttl=86400)
+            return {
+                "allowed": True, "tier": tier_name,
+                "limit_min": tier["req_per_min"],
+                "remaining_min": max(0, tier["req_per_min"] - 1),
+                "limit_day": tier["req_per_day"],
+                "remaining_day": tier["req_per_day"] - day_count - 1,
+            }
+        except Exception:
+            pass  # Fallback to in-memory
+
+    # In-memory fallback
     key_min = f"tier:{api_key}:min"
     _rate_store[key_min] = [t for t in _rate_store.get(key_min, []) if t > now - 60]
     if len(_rate_store[key_min]) >= tier["req_per_min"]:
         return {
-            "allowed": False,
-            "tier": tier_name,
+            "allowed": False, "tier": tier_name,
             "reason": f"Rate limit: {tier['req_per_min']} req/min ({tier['label']} tier)",
-            "limit": tier["req_per_min"],
-            "remaining": 0,
-            "reset_in_s": 60,
+            "limit": tier["req_per_min"], "remaining": 0, "reset_in_s": 60,
         }
 
-    # Per-day check
     key_day = f"tier:{api_key}:day"
     day_start = now - (now % 86400)
     _rate_store[key_day] = [t for t in _rate_store.get(key_day, []) if t > day_start]
     if len(_rate_store[key_day]) >= tier["req_per_day"]:
         return {
-            "allowed": False,
-            "tier": tier_name,
+            "allowed": False, "tier": tier_name,
             "reason": f"Daily limit: {tier['req_per_day']} req/day ({tier['label']} tier)",
-            "limit": tier["req_per_day"],
-            "remaining": 0,
+            "limit": tier["req_per_day"], "remaining": 0,
             "reset_in_s": int(day_start + 86400 - now),
         }
 
@@ -996,8 +1044,7 @@ def check_rate_limit_tiered(api_key: str) -> dict:
     _rate_store[key_day].append(now)
 
     return {
-        "allowed": True,
-        "tier": tier_name,
+        "allowed": True, "tier": tier_name,
         "limit_min": tier["req_per_min"],
         "remaining_min": tier["req_per_min"] - len(_rate_store[key_min]),
         "limit_day": tier["req_per_day"],

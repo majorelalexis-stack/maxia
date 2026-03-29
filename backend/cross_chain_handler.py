@@ -29,9 +29,9 @@ class CrossChainHandler:
         self._pending_bridges: dict = {}
         self._completed: list = []
         if BRIDGE_ENABLED:
-            print("[CrossChain] Bridge Li.Fi actif")
+            logger.info("Bridge Li.Fi actif")
         else:
-            print("[CrossChain] Bridge desactive")
+            logger.info("Bridge desactive")
 
     async def get_quote(self, from_chain: str, from_token: str,
                         to_chain: str, to_token: str,
@@ -192,7 +192,7 @@ class CrossChainHandler:
         self._completed.append(bridge)
         del self._pending_bridges[bridge_id]
 
-        print(f"[CrossChain] Bridge {bridge_id[:8]}... confirme (tx: {tx_signature[:12]}...)")
+        logger.info(f"Bridge {bridge_id[:8]}... confirme (tx: {tx_signature[:12]}...)")
         return {"success": True, **bridge}
 
     async def test_connection(self) -> dict:

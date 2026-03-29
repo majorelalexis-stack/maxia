@@ -248,4 +248,4 @@ async def get_usage(x_api_key: str = Header(alias="X-API-Key")):
     }
 
 
-print("[LLM] LLM-as-a-Service (OpenAI-compatible, multi-provider) monte")
+log.info("[LLM] LLM-as-a-Service (OpenAI-compatible, multi-provider) monte")

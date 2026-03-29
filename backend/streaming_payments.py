@@ -11,6 +11,7 @@ Tables :
   - payment_streams : flux de paiement actifs/termines
 """
 
+import logging
 import uuid, time, asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -18,6 +19,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/stream", tags=["streaming-payments"])
 
@@ -33,13 +36,13 @@ CREATE TABLE IF NOT EXISTS payment_streams (
     id TEXT PRIMARY KEY,
     payer TEXT NOT NULL,
     receiver TEXT NOT NULL,
-    rate_per_hour REAL NOT NULL,
+    rate_per_hour NUMERIC(18,6) NOT NULL,
     started_at INTEGER NOT NULL,
     stopped_at INTEGER,
-    max_hours REAL NOT NULL,
-    total_locked REAL NOT NULL,
-    earned_so_far REAL NOT NULL DEFAULT 0,
-    commission_so_far REAL NOT NULL DEFAULT 0,
+    max_hours NUMERIC(18,6) NOT NULL,
+    total_locked NUMERIC(18,6) NOT NULL,
+    earned_so_far NUMERIC(18,6) NOT NULL DEFAULT 0,
+    commission_so_far NUMERIC(18,6) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active',
     service_id TEXT NOT NULL DEFAULT '',
     payment_tx TEXT NOT NULL DEFAULT '',
@@ -61,9 +64,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_STREAM_SCHEMA)
         _schema_ready = True
-        print("[StreamPay] Schema pret")
+        logger.info("[StreamPay] Schema pret")
     except Exception as e:
-        print(f"[StreamPay] Erreur schema: {e}")
+        logger.error(f"[StreamPay] Erreur schema: {e}")
 
 
 # ── Pydantic models ──
@@ -439,7 +442,7 @@ async def stream_updater_loop():
                 await _update_active_streams()
         except Exception as e:
             if "does not exist" not in str(e):
-                print(f"[StreamPay] Erreur update loop: {e}")
+                logger.error(f"[StreamPay] Erreur update loop: {e}")
         await asyncio.sleep(60)
 
 
@@ -501,4 +504,4 @@ async def api_settle_stream(req: SettleStreamRequest, wallet: str = Depends(requ
 
 # ══════════════════════════════════════════════════════════════════════════════
 
-print("[StreamPay] Art.57 Streaming Payments charge — pay-per-second pour GPU/LLM/services")
+logger.info("[StreamPay] Art.57 Streaming Payments charge — pay-per-second pour GPU/LLM/services")

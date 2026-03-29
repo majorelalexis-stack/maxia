@@ -1,6 +1,9 @@
 """MAXIA Art.9 V2 — x402 Middleware (14 chains: Solana + Base + Ethereum + XRPL + TON + SUI + Polygon + Arbitrum + Avalanche + BNB + TRON + NEAR + Aptos + SEI)"""
+import logging
 import asyncio, os
 from fastapi import Request
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import JSONResponse
 from config import (
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE, TREASURY_ADDRESS_ETH,
@@ -259,7 +262,7 @@ async def x402_middleware(request: Request, call_next):
 
         # ── Logging ──
         pay_tx = pay_header
-        print(f"[x402] Payment attempt: {pay_network} tx={pay_tx[:16]}... path={path} amount=${price}")
+        logger.info(f"[x402] Payment attempt: {pay_network} tx={pay_tx[:16]}... path={path} amount=${price}")
 
         # ── Verify payment with timeout ──
         try:
@@ -350,7 +353,7 @@ async def x402_middleware(request: Request, call_next):
         else:
             is_valid = result.get("valid", False)
 
-        print(f"[x402] Verification result: {'VALID' if is_valid else 'INVALID'}")
+        logger.info(f"[x402] Verification result: {'VALID' if is_valid else 'INVALID'}")
 
         # V-16: Replay protection — record tx signature to prevent reuse
         if is_valid and pay_header:
@@ -360,7 +363,7 @@ async def x402_middleware(request: Request, call_next):
                     return JSONResponse(status_code=402, content={"error": "Payment already used (replay detected)"})
                 await _x402_db.record_transaction("x402", pay_header, price, "x402_payment")
             except Exception as e:
-                print(f"[x402] Replay check error: {e}")
+                logger.error(f"[x402] Replay check error: {e}")
 
         if not is_valid:
             return JSONResponse(

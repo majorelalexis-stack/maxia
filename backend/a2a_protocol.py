@@ -410,4 +410,4 @@ async def a2a_agent_card_legacy():
     return A2A_AGENT_CARD
 
 
-print("[A2A] Agent2Agent Protocol (Google/Linux Foundation) monte — JSON-RPC 2.0 + SSE")
+log.info("[A2A] Agent2Agent Protocol (Google/Linux Foundation) monte — JSON-RPC 2.0 + SSE")

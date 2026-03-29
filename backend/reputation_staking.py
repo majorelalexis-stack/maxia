@@ -1,12 +1,15 @@
 """MAXIA Art.17 V11 — Reputation Staking (persiste en base de donnees)"""
+import logging
 import uuid, time, json
 from config import STAKING_MIN_USDC, STAKING_SLASH_PCT, STAKING_DISPUTE_DELAY
+
+logger = logging.getLogger(__name__)
 
 
 class ReputationStaking:
     def __init__(self):
         self._db = None
-        print(f"[Staking] Actif — min {STAKING_MIN_USDC} USDC, slash {STAKING_SLASH_PCT}%, delai {STAKING_DISPUTE_DELAY}h")
+        logger.info(f"[Staking] Actif — min {STAKING_MIN_USDC} USDC, slash {STAKING_SLASH_PCT}%, delai {STAKING_DISPUTE_DELAY}h")
 
     def set_db(self, db):
         self._db = db
@@ -40,7 +43,7 @@ class ReputationStaking:
             await self._db.save_stake(stake_info)
             await self._db.record_transaction(wallet, tx_signature, amount_usdc, "reputation_stake")
 
-        print(f"[Staking] Stake {amount_usdc} USDC par {wallet[:8]}...")
+        logger.info(f"[Staking] Stake {amount_usdc} USDC par {wallet[:8]}...")
         return {"success": True, **stake_info}
 
     async def get_stake(self, wallet: str) -> dict:
@@ -71,7 +74,7 @@ class ReputationStaking:
         if self._db:
             await self._db.save_dispute(dispute)
 
-        print(f"[Staking] Dispute: {reporter_wallet[:8]}... vs {accused_wallet[:8]}...")
+        logger.info(f"[Staking] Dispute: {reporter_wallet[:8]}... vs {accused_wallet[:8]}...")
         return {"success": True, **dispute}
 
     async def resolve_dispute(self, dispute_id: str, slash: bool) -> dict:

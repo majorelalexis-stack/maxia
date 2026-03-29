@@ -11,6 +11,8 @@ Scoring multi-attribut pour eviter la course vers le bas :
 """
 import logging
 import uuid, time, json
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone, timedelta
 from error_utils import safe_error
 from typing import Optional
@@ -50,7 +52,7 @@ CREATE TABLE IF NOT EXISTS auction_requests (
     buyer_id TEXT NOT NULL,
     service_type TEXT NOT NULL,
     description TEXT NOT NULL,
-    budget_max_usdc REAL NOT NULL,
+    budget_max_usdc NUMERIC(18,6) NOT NULL,
     sla_tier TEXT NOT NULL DEFAULT 'standard',
     deadline TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
@@ -68,11 +70,11 @@ CREATE TABLE IF NOT EXISTS auction_bids (
     request_id INTEGER NOT NULL,
     seller_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
-    price_usdc REAL NOT NULL,
+    price_usdc NUMERIC(18,6) NOT NULL,
     estimated_time_s INTEGER NOT NULL,
     sla_commitment TEXT NOT NULL DEFAULT 'standard',
     message TEXT,
-    score REAL NOT NULL DEFAULT 0,
+    score NUMERIC(18,6) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL,
     FOREIGN KEY (request_id) REFERENCES auction_requests(id)
@@ -92,9 +94,9 @@ async def _ensure_schema():
         from database import db
         await db.raw_executescript(_REVERSE_AUCTION_SCHEMA)
         _schema_ready = True
-        print("[ReverseAuction] Schema pret")
+        logger.info("Schema pret")
     except Exception as e:
-        print(f"[ReverseAuction] Erreur schema: {e}")
+        logger.error(f"Erreur schema: {e}")
 
 
 # ── Scoring multi-attribut ──
@@ -234,8 +236,8 @@ async def create_auction_request(
     )
     request_id = rows[0]["id"] if rows else 0
 
-    print(f"[ReverseAuction] Nouvelle demande #{request_id}: {req.service_type} "
-          f"(budget: ${req.budget_max_usdc}, deadline: {req.deadline_minutes}min)")
+    logger.info(f"Nouvelle demande #{request_id}: {req.service_type} "
+               f"(budget: ${req.budget_max_usdc}, deadline: {req.deadline_minutes}min)")
 
     return {
         "ok": True,
@@ -431,8 +433,8 @@ async def submit_bid(
             (request_id,),
         )
 
-    print(f"[ReverseAuction] Bid #{bid_id} sur demande #{request_id}: "
-          f"${bid.price_usdc} USDC, score={bid_score}")
+    logger.info(f"Bid #{bid_id} sur demande #{request_id}: "
+               f"${bid.price_usdc} USDC, score={bid_score}")
 
     return {
         "ok": True,
@@ -540,8 +542,8 @@ async def accept_bid(
     )
     rejected_count = rejected[0]["cnt"] if rejected else 0
 
-    print(f"[ReverseAuction] Demande #{request_id} attribuee au bid #{bid_id} "
-          f"(${bid_data['price_usdc']} USDC, {rejected_count} bids rejetes)")
+    logger.info(f"Demande #{request_id} attribuee au bid #{bid_id} "
+               f"(${bid_data['price_usdc']} USDC, {rejected_count} bids rejetes)")
 
     return {
         "ok": True,
@@ -596,7 +598,7 @@ async def cancel_request(
         (request_id,),
     )
 
-    print(f"[ReverseAuction] Demande #{request_id} annulee par le buyer")
+    logger.info(f"Demande #{request_id} annulee par le buyer")
 
     return {"ok": True, "request_id": request_id, "status": "cancelled"}
 
@@ -705,13 +707,13 @@ async def expire_old_requests():
             )
 
             if bid_count > 0:
-                print(f"[ReverseAuction] Demande #{req_id} expiree avec {bid_count} bids non evalues")
+                logger.info(f"Demande #{req_id} expiree avec {bid_count} bids non evalues")
 
-        print(f"[ReverseAuction] {len(expired_ids)} demande(s) expiree(s)")
+        logger.info(f"{len(expired_ids)} demande(s) expiree(s)")
         return {"expired": len(expired_ids), "ids": expired_ids}
 
     except Exception as e:
-        print(f"[ReverseAuction] Erreur expiration: {e}")
+        logger.error(f"Erreur expiration: {e}")
         return {"expired": 0, "error": "An error occurred"}
 
 

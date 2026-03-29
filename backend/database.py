@@ -26,13 +26,13 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")  # postgresql://... pour prod scale
 DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS exchange_tokens ("
     "mint TEXT PRIMARY KEY, symbol TEXT NOT NULL, name TEXT NOT NULL,"
-    "decimals INTEGER NOT NULL DEFAULT 9, price REAL NOT NULL DEFAULT 0,"
-    "change24h REAL DEFAULT 0, volume24h REAL DEFAULT 0,"
+    "decimals INTEGER NOT NULL DEFAULT 9, price NUMERIC(18,6) NOT NULL DEFAULT 0,"
+    "change24h NUMERIC(18,6) DEFAULT 0, volume24h NUMERIC(18,6) DEFAULT 0,"
     "creator_wallet TEXT, listed_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS exchange_orders ("
     "order_id TEXT PRIMARY KEY, side TEXT NOT NULL, mint TEXT NOT NULL,"
-    "qty REAL NOT NULL, qty_filled REAL DEFAULT 0, price_usdc REAL NOT NULL,"
+    "qty NUMERIC(18,6) NOT NULL, qty_filled NUMERIC(18,6) DEFAULT 0, price_usdc NUMERIC(18,6) NOT NULL,"
     "order_type TEXT DEFAULT 'LIMIT', wallet TEXT NOT NULL,"
     "escrow_tx TEXT NOT NULL, currency TEXT DEFAULT 'USDC',"
     "status TEXT DEFAULT 'open',"
@@ -47,14 +47,14 @@ DB_SCHEMA = (
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS exchange_trades ("
-    "trade_id TEXT PRIMARY KEY, mint TEXT NOT NULL, qty REAL NOT NULL,"
-    "price_usdc REAL NOT NULL, total_usdc REAL NOT NULL, fee_usdc REAL NOT NULL,"
+    "trade_id TEXT PRIMARY KEY, mint TEXT NOT NULL, qty NUMERIC(18,6) NOT NULL,"
+    "price_usdc NUMERIC(18,6) NOT NULL, total_usdc NUMERIC(18,6) NOT NULL, fee_usdc NUMERIC(18,6) NOT NULL,"
     "buyer TEXT NOT NULL, seller TEXT NOT NULL, tx_signature TEXT,"
     "executed_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS transactions ("
     "tx_signature TEXT PRIMARY KEY, wallet TEXT NOT NULL,"
-    "amount_usdc REAL NOT NULL DEFAULT 0, purpose TEXT DEFAULT 'marketplace',"
+    "amount_usdc NUMERIC(18,6) NOT NULL DEFAULT 0, purpose TEXT DEFAULT 'marketplace',"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE INDEX IF NOT EXISTS idx_tx_wallet ON transactions(wallet, created_at);"
@@ -104,7 +104,7 @@ DB_SCHEMA = (
     "CREATE INDEX IF NOT EXISTS idx_escrow_status ON escrow_records(status);"
 
     "CREATE TABLE IF NOT EXISTS stock_portfolios ("
-    "api_key TEXT NOT NULL, symbol TEXT NOT NULL, shares REAL NOT NULL DEFAULT 0,"
+    "api_key TEXT NOT NULL, symbol TEXT NOT NULL, shares NUMERIC(18,6) NOT NULL DEFAULT 0,"
     "updated_at INTEGER DEFAULT (strftime('%s','now')),"
     "PRIMARY KEY (api_key, symbol));"
 
@@ -115,8 +115,8 @@ DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS agents ("
     "api_key TEXT PRIMARY KEY, name TEXT NOT NULL, wallet TEXT NOT NULL,"
     "description TEXT DEFAULT '', tier TEXT DEFAULT 'BRONZE',"
-    "volume_30d REAL DEFAULT 0, total_spent REAL DEFAULT 0,"
-    "total_earned REAL DEFAULT 0, services_listed INTEGER DEFAULT 0,"
+    "volume_30d NUMERIC(18,6) DEFAULT 0, total_spent NUMERIC(18,6) DEFAULT 0,"
+    "total_earned NUMERIC(18,6) DEFAULT 0, services_listed INTEGER DEFAULT 0,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE INDEX IF NOT EXISTS idx_agents_wallet ON agents(wallet);"
@@ -124,9 +124,9 @@ DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS agent_services ("
     "id TEXT PRIMARY KEY, agent_api_key TEXT NOT NULL, agent_name TEXT NOT NULL,"
     "agent_wallet TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL,"
-    "type TEXT DEFAULT 'text', price_usdc REAL NOT NULL,"
+    "type TEXT DEFAULT 'text', price_usdc NUMERIC(18,6) NOT NULL,"
     "endpoint TEXT DEFAULT '', status TEXT DEFAULT 'active',"
-    "rating REAL DEFAULT 5.0, rating_count INTEGER DEFAULT 0, sales INTEGER DEFAULT 0,"
+    "rating NUMERIC(18,6) DEFAULT 5.0, rating_count INTEGER DEFAULT 0, sales INTEGER DEFAULT 0,"
     "listed_at INTEGER DEFAULT (strftime('%s','now')),"
     "FOREIGN KEY (agent_api_key) REFERENCES agents(api_key));"
 
@@ -135,30 +135,30 @@ DB_SCHEMA = (
     "CREATE TABLE IF NOT EXISTS swarm_clones ("
     "clone_id TEXT PRIMARY KEY, niche TEXT NOT NULL, name TEXT NOT NULL,"
     "status TEXT DEFAULT 'active', total_requests INTEGER DEFAULT 0,"
-    "total_revenue REAL DEFAULT 0, wallet_address TEXT DEFAULT '',"
+    "total_revenue NUMERIC(18,6) DEFAULT 0, wallet_address TEXT DEFAULT '',"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS gpu_instances ("
     "instance_id TEXT PRIMARY KEY, agent_wallet TEXT NOT NULL,"
     "agent_name TEXT NOT NULL, gpu_tier TEXT NOT NULL,"
-    "duration_hours REAL NOT NULL, price_per_hour REAL NOT NULL,"
-    "total_cost REAL NOT NULL, commission REAL NOT NULL DEFAULT 0,"
+    "duration_hours NUMERIC(18,6) NOT NULL, price_per_hour NUMERIC(18,6) NOT NULL,"
+    "total_cost NUMERIC(18,6) NOT NULL, commission NUMERIC(18,6) NOT NULL DEFAULT 0,"
     "payment_tx TEXT, runpod_pod_id TEXT,"
     "status TEXT DEFAULT 'provisioning', ssh_endpoint TEXT,"
-    "scheduled_end INTEGER, actual_end INTEGER, actual_cost REAL,"
+    "scheduled_end INTEGER, actual_end INTEGER, actual_cost NUMERIC(18,6),"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS marketplace_tx ("
     "tx_id TEXT PRIMARY KEY, buyer TEXT NOT NULL, seller TEXT NOT NULL,"
-    "service TEXT NOT NULL, price_usdc REAL NOT NULL,"
-    "commission_usdc REAL NOT NULL, seller_gets_usdc REAL NOT NULL,"
+    "service TEXT NOT NULL, price_usdc NUMERIC(18,6) NOT NULL,"
+    "commission_usdc NUMERIC(18,6) NOT NULL, seller_gets_usdc NUMERIC(18,6) NOT NULL,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
     "CREATE TABLE IF NOT EXISTS crypto_swaps ("
     "swap_id TEXT PRIMARY KEY, buyer_wallet TEXT NOT NULL,"
     "from_token TEXT NOT NULL, to_token TEXT NOT NULL,"
-    "amount_in REAL NOT NULL, amount_out REAL NOT NULL,"
-    "commission REAL DEFAULT 0, payment_tx TEXT, jupiter_tx TEXT,"
+    "amount_in NUMERIC(18,6) NOT NULL, amount_out NUMERIC(18,6) NOT NULL,"
+    "commission NUMERIC(18,6) DEFAULT 0, payment_tx TEXT, jupiter_tx TEXT,"
     "status TEXT DEFAULT 'completed',"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
@@ -303,9 +303,9 @@ class Database:
             "trust_level INTEGER NOT NULL DEFAULT 0,"
             "status TEXT NOT NULL DEFAULT 'active',"
             "scopes TEXT NOT NULL DEFAULT '*',"
-            "max_daily_spend_usd REAL NOT NULL DEFAULT 50,"
-            "max_single_tx_usd REAL NOT NULL DEFAULT 10,"
-            "daily_spent_usd REAL NOT NULL DEFAULT 0,"
+            "max_daily_spend_usd NUMERIC(18,6) NOT NULL DEFAULT 50,"
+            "max_single_tx_usd NUMERIC(18,6) NOT NULL DEFAULT 10,"
+            "daily_spent_usd NUMERIC(18,6) NOT NULL DEFAULT 0,"
             "daily_spent_date TEXT NOT NULL DEFAULT '',"
             "frozen_at TEXT,"
             "revoked_at TEXT,"
@@ -325,6 +325,53 @@ class Database:
         4: ("Agent keypair — ed25519 public key for DID Document + signed intents", (
             "ALTER TABLE agent_permissions ADD COLUMN public_key TEXT DEFAULT '';"
         )),
+        5: ("Financial precision — REAL to NUMERIC(18,6) for all monetary columns (PostgreSQL only)", (
+            # PostgreSQL: ALTER COLUMN TYPE — SQLite ignores this (REAL is already 64-bit float)
+            # exchange_tokens
+            "ALTER TABLE exchange_tokens ALTER COLUMN price TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_tokens ALTER COLUMN change24h TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_tokens ALTER COLUMN volume24h TYPE NUMERIC(18,6);"
+            # exchange_orders
+            "ALTER TABLE exchange_orders ALTER COLUMN qty TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_orders ALTER COLUMN qty_filled TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_orders ALTER COLUMN price_usdc TYPE NUMERIC(18,6);"
+            # exchange_trades
+            "ALTER TABLE exchange_trades ALTER COLUMN qty TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_trades ALTER COLUMN price_usdc TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_trades ALTER COLUMN total_usdc TYPE NUMERIC(18,6);"
+            "ALTER TABLE exchange_trades ALTER COLUMN fee_usdc TYPE NUMERIC(18,6);"
+            # transactions
+            "ALTER TABLE transactions ALTER COLUMN amount_usdc TYPE NUMERIC(18,6);"
+            # stock_portfolios
+            "ALTER TABLE stock_portfolios ALTER COLUMN shares TYPE NUMERIC(18,6);"
+            # agents
+            "ALTER TABLE agents ALTER COLUMN volume_30d TYPE NUMERIC(18,6);"
+            "ALTER TABLE agents ALTER COLUMN total_spent TYPE NUMERIC(18,6);"
+            "ALTER TABLE agents ALTER COLUMN total_earned TYPE NUMERIC(18,6);"
+            # agent_services
+            "ALTER TABLE agent_services ALTER COLUMN price_usdc TYPE NUMERIC(18,6);"
+            "ALTER TABLE agent_services ALTER COLUMN rating TYPE NUMERIC(18,6);"
+            # swarm_clones
+            "ALTER TABLE swarm_clones ALTER COLUMN total_revenue TYPE NUMERIC(18,6);"
+            # gpu_instances
+            "ALTER TABLE gpu_instances ALTER COLUMN duration_hours TYPE NUMERIC(18,6);"
+            "ALTER TABLE gpu_instances ALTER COLUMN price_per_hour TYPE NUMERIC(18,6);"
+            "ALTER TABLE gpu_instances ALTER COLUMN total_cost TYPE NUMERIC(18,6);"
+            "ALTER TABLE gpu_instances ALTER COLUMN commission TYPE NUMERIC(18,6);"
+            "ALTER TABLE gpu_instances ALTER COLUMN actual_cost TYPE NUMERIC(18,6);"
+            # marketplace_tx
+            "ALTER TABLE marketplace_tx ALTER COLUMN price_usdc TYPE NUMERIC(18,6);"
+            "ALTER TABLE marketplace_tx ALTER COLUMN commission_usdc TYPE NUMERIC(18,6);"
+            "ALTER TABLE marketplace_tx ALTER COLUMN seller_gets_usdc TYPE NUMERIC(18,6);"
+            # crypto_swaps
+            "ALTER TABLE crypto_swaps ALTER COLUMN amount_in TYPE NUMERIC(18,6);"
+            "ALTER TABLE crypto_swaps ALTER COLUMN amount_out TYPE NUMERIC(18,6);"
+            "ALTER TABLE crypto_swaps ALTER COLUMN commission TYPE NUMERIC(18,6);"
+            # agent_permissions (migration v2)
+            "ALTER TABLE agent_permissions ALTER COLUMN max_daily_spend_usd TYPE NUMERIC(18,6);"
+            "ALTER TABLE agent_permissions ALTER COLUMN max_single_tx_usd TYPE NUMERIC(18,6);"
+            "ALTER TABLE agent_permissions ALTER COLUMN daily_spent_usd TYPE NUMERIC(18,6);"
+        )),
     }
 
     async def _run_migrations(self):
@@ -340,11 +387,16 @@ class Database:
         current = rows[0]["v"] if rows and rows[0]["v"] is not None else 0
 
         # Appliquer les migrations manquantes
+        is_pg = getattr(self, '_pg', None) is not None
         applied = 0
         for version in sorted(self.MIGRATIONS.keys()):
             if version <= current:
                 continue
             desc, sql = self.MIGRATIONS[version]
+            # Migration v5 (REAL→NUMERIC) requires ALTER COLUMN — PostgreSQL only
+            if version == 5 and not is_pg:
+                logger.info("Migration %d skipped (SQLite — REAL is already 64-bit)", version)
+                sql = ""  # Skip SQL, still record version
             if sql:
                 try:
                     await self.raw_executescript(sql)

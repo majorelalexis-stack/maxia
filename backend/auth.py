@@ -1,4 +1,4 @@
-"""MAXIA Auth V12 - Signature Solana ed25519 + anti-replay"""
+"""MAXIA Auth V12 - Signature Solana ed25519 + anti-replay (Redis-backed nonces)"""
 import logging
 import os, time, secrets, hashlib, hmac
 
@@ -10,22 +10,49 @@ from nacl.exceptions import BadSignatureError
 import base58
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-NONCES: dict = {}
 NONCE_TTL = 300
-_NONCES_MAX_SIZE = 5000
+
+# Redis-backed nonce storage (with in-memory fallback via RedisClient)
+_rc = None  # Lazy init to avoid circular import
 
 
-def _cleanup_nonces():
-    """Prune expired nonces to prevent unbounded memory growth."""
-    now = time.time()
-    expired = [w for w, (_, exp) in NONCES.items() if exp < now]
-    for w in expired:
-        NONCES.pop(w, None)
-    # If still too large after expiry cleanup, remove oldest entries
-    if len(NONCES) > _NONCES_MAX_SIZE:
-        sorted_keys = sorted(NONCES, key=lambda w: NONCES[w][1])
-        for w in sorted_keys[:len(NONCES) - _NONCES_MAX_SIZE]:
-            NONCES.pop(w, None)
+def _get_rc():
+    """Lazy-load redis_client singleton."""
+    global _rc
+    if _rc is None:
+        from redis_client import redis_client
+        _rc = redis_client
+    return _rc
+
+
+async def _nonce_set(wallet: str, nonce: str):
+    """Store active nonce for a wallet (TTL = NONCE_TTL)."""
+    rc = _get_rc()
+    await rc.cache_set(f"nonce:{wallet}", nonce, ttl=NONCE_TTL)
+
+
+async def _nonce_get(wallet: str) -> str | None:
+    """Retrieve active nonce for a wallet."""
+    rc = _get_rc()
+    return await rc.cache_get(f"nonce:{wallet}")
+
+
+async def _nonce_delete(wallet: str):
+    """Delete active nonce after use."""
+    rc = _get_rc()
+    await rc.cache_delete(f"nonce:{wallet}")
+
+
+async def _nonce_mark_used(nonce: str):
+    """Mark nonce as used for anti-replay (TTL = 2x NONCE_TTL)."""
+    rc = _get_rc()
+    await rc.cache_set(f"used:{nonce}", "1", ttl=NONCE_TTL * 2)
+
+
+async def _nonce_is_used(nonce: str) -> bool:
+    """Check if nonce was already used (replay detection)."""
+    rc = _get_rc()
+    return (await rc.cache_get(f"used:{nonce}")) is not None
 
 # JWT-like session tokens (HMAC-signed, not ed25519)
 _JWT_SECRET = os.getenv("JWT_SECRET", "")
@@ -63,11 +90,7 @@ def verify_session_token(token: str) -> str:
         raise HTTPException(401, "Token expire")
     return wallet
 
-# Nonces deja utilises (anti-replay) — TTL de 10 min
-_USED_NONCES: dict = {}
-_USED_NONCES_MAX = 10000
-
-# Tentatives echouees par wallet (rate limit brute force)
+# Tentatives echouees par wallet (rate limit brute force — kept in-memory, non-critical)
 _FAILED_ATTEMPTS: dict = {}
 _MAX_FAILED_ATTEMPTS = 10
 _FAILED_WINDOW = 300  # 5 min
@@ -80,14 +103,6 @@ class AuthRequest(BaseModel):
     wallet: str
     signature: str
     nonce: str
-
-
-def _cleanup_used_nonces():
-    """Supprime les nonces expires du cache anti-replay."""
-    now = time.time()
-    expired = [n for n, t in _USED_NONCES.items() if now - t > NONCE_TTL * 2]
-    for n in expired:
-        _USED_NONCES.pop(n, None)
 
 
 def _check_brute_force(wallet: str):
@@ -106,10 +121,8 @@ def _record_failed(wallet: str):
 
 @router.post("/nonce")
 async def get_nonce(req: NonceRequest):
-    if len(NONCES) > _NONCES_MAX_SIZE:
-        _cleanup_nonces()
     nonce = secrets.token_hex(16)
-    NONCES[req.wallet] = (nonce, time.time() + NONCE_TTL)
+    await _nonce_set(req.wallet, nonce)
     return {"nonce": nonce, "message": f"MAXIA login: {nonce}"}
 
 
@@ -117,23 +130,19 @@ async def get_nonce(req: NonceRequest):
 async def verify_signature(req: AuthRequest):
     _check_brute_force(req.wallet)
 
-    entry = NONCES.get(req.wallet)
-    if not entry:
+    stored_nonce = await _nonce_get(req.wallet)
+    if not stored_nonce:
         _record_failed(req.wallet)
         raise HTTPException(401, "Nonce introuvable.")
-    nonce, expires = entry
-    if time.time() > expires + 60:  # 60s grace period pour clock skew
-        del NONCES[req.wallet]
-        raise HTTPException(401, "Nonce expire.")
-    if nonce != req.nonce:
+    if stored_nonce != req.nonce:
         _record_failed(req.wallet)
         raise HTTPException(401, "Nonce invalide.")
 
     # Anti-replay: verifier que le nonce n'a pas deja ete utilise
-    if req.nonce in _USED_NONCES:
+    if await _nonce_is_used(req.nonce):
         raise HTTPException(401, "Nonce deja utilise (replay detecte).")
 
-    message = f"MAXIA login: {nonce}".encode()
+    message = f"MAXIA login: {stored_nonce}".encode()
     try:
         pub_bytes = base58.b58decode(req.wallet)
         vk = VerifyKey(pub_bytes)
@@ -144,11 +153,9 @@ async def verify_signature(req: AuthRequest):
         logger.warning("Signature verification failed: %s", e)
         raise HTTPException(401, "Authentication failed")
 
-    # Consommer le nonce (anti-replay)
-    del NONCES[req.wallet]
-    _USED_NONCES[req.nonce] = time.time()
-    if len(_USED_NONCES) > _USED_NONCES_MAX:
-        _cleanup_used_nonces()
+    # Consommer le nonce (anti-replay) — Redis TTL handles cleanup automatically
+    await _nonce_delete(req.wallet)
+    await _nonce_mark_used(req.nonce)
 
     # Detecter premier login (nouveau wallet)
     first_login = False
@@ -188,18 +195,14 @@ async def require_auth(
 
     # Anti-replay: verifier que ce nonce+signature n'a pas deja ete utilise
     replay_key = f"{x_wallet}:{x_nonce}"
-    if replay_key in _USED_NONCES:
+    if await _nonce_is_used(replay_key):
         raise HTTPException(401, "Signature deja utilisee (replay detecte).")
 
     # Verifier que le nonce a ete delivre par notre serveur
-    entry = NONCES.get(x_wallet)
-    if not entry:
+    stored_nonce = await _nonce_get(x_wallet)
+    if not stored_nonce:
         _record_failed(x_wallet)
         raise HTTPException(401, "Nonce introuvable — demandez /api/auth/nonce d'abord.")
-    stored_nonce, expires = entry
-    if time.time() > expires + 60:  # 60s grace period pour clock skew
-        del NONCES[x_wallet]
-        raise HTTPException(401, "Nonce expire.")
     if stored_nonce != x_nonce:
         _record_failed(x_wallet)
         raise HTTPException(401, "Nonce invalide.")
@@ -214,11 +217,9 @@ async def require_auth(
         _record_failed(x_wallet)
         raise HTTPException(401, "Authentication failed")
 
-    # Consommer le nonce apres usage reussi
-    del NONCES[x_wallet]
-    _USED_NONCES[replay_key] = time.time()
-    if len(_USED_NONCES) > _USED_NONCES_MAX:
-        _cleanup_used_nonces()
+    # Consommer le nonce apres usage reussi — Redis TTL handles cleanup
+    await _nonce_delete(x_wallet)
+    await _nonce_mark_used(replay_key)
 
     return x_wallet
 

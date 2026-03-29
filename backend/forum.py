@@ -194,7 +194,7 @@ async def create_post(db, data: dict) -> dict:
         await db.raw_executescript(
             "CREATE TABLE IF NOT EXISTS forum_posts("
             "id TEXT PRIMARY KEY, data TEXT NOT NULL, community TEXT DEFAULT 'general', "
-            "hot_score REAL DEFAULT 0, created_at INTEGER, status TEXT DEFAULT 'active');"
+            "hot_score NUMERIC(18,6) DEFAULT 0, created_at INTEGER, status TEXT DEFAULT 'active');"
             "CREATE TABLE IF NOT EXISTS forum_replies("
             "id TEXT PRIMARY KEY, post_id TEXT, data TEXT NOT NULL, "
             "created_at INTEGER, status TEXT DEFAULT 'active');"

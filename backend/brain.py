@@ -1,9 +1,12 @@
 """MAXIA Brain V11 — Cerveau central avec Dynamic Pricing + Scale-Out"""
+import logging
 import asyncio, time
 from config import GROWTH_MONTHLY_BUDGET, GROWTH_RESERVE_ALERT
 from alerts import alert_system, alert_low_balance, alert_daily_report
 from dynamic_pricing import adjust_market_fees, get_pricing_status
 from scale_out import scale_out_manager
+
+logger = logging.getLogger(__name__)
 
 
 class Brain:
@@ -22,20 +25,20 @@ class Brain:
         self._monthly_spend = 0.0
         self._monthly_revenue = 0.0
         self._db = None
-        print("[Brain] Orchestrateur V11 initialise (Dynamic Pricing + Scale-Out)")
+        logger.info("[Brain] Orchestrateur V11 initialise (Dynamic Pricing + Scale-Out)")
 
     async def run(self, db=None):
         self._running = True
         self._started_at = int(time.time())
         self._db = db
-        print("[Brain] Cerveau V12 demarre — mode survie")
+        logger.info("[Brain] Cerveau V12 demarre — mode survie")
         await alert_system("🧠 Cerveau MAXIA V12 demarre", "Pricing dynamique + Scale-Out actifs\nMode : survie (beta)")
 
         while self._running:
             try:
                 await self._tick()
             except Exception as e:
-                print(f"[Brain] Erreur: {e}")
+                logger.error(f"[Brain] Erreur: {e}")
             await asyncio.sleep(60)
 
     def stop(self):
@@ -71,11 +74,11 @@ class Brain:
         if self._monthly_revenue > 500:
             if self._tier != "growth":
                 self._tier = "growth"
-                print("[Brain] Upgrade -> CROISSANCE (500+ USDC/mois)")
+                logger.info("[Brain] Upgrade -> CROISSANCE (500+ USDC/mois)")
         elif self._monthly_revenue > 100:
             if self._tier != "operational":
                 self._tier = "operational"
-                print("[Brain] Upgrade -> OPERATIONNEL (250 USDC/mois)")
+                logger.info("[Brain] Upgrade -> OPERATIONNEL (250 USDC/mois)")
         else:
             self._tier = "survival"
 

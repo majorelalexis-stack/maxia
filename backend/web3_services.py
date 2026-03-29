@@ -11,6 +11,8 @@ import asyncio, time
 import httpx
 from http_client import get_http_client
 
+logger = logging.getLogger(__name__)
+
 HELIUS_API_KEY = ""
 try:
     from config import HELIUS_API_KEY
@@ -203,10 +205,10 @@ async def get_fear_greed_index() -> dict:
             }
             _fng_cache = result
             _fng_cache_ts = now
-            print(f"[FearGreed] Live: {result['value']} ({result['label']})")
+            logger.info(f"Live: {result['value']} ({result['label']})")
             return result
     except Exception as e:
-        print(f"[FearGreed] API error: {e}")
+        logger.error(f"API error: {e}")
 
     # ── Fallback: seed-based calculation (old method) ──
     import hashlib

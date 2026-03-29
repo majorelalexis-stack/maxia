@@ -9,6 +9,8 @@ import asyncio, re, time, hashlib, ipaddress
 from urllib.parse import urlparse
 import httpx
 
+logger = logging.getLogger(__name__)
+
 # Cache pour eviter de scraper la meme page plusieurs fois
 _scrape_cache: dict = {}  # url_hash -> {content, timestamp}
 _CACHE_TTL = 300  # 5 minutes
@@ -27,7 +29,7 @@ BLOCKED_DOMAINS = [
     "darkweb", "onion", "tor2web",
 ]
 
-print("[WebScraper] Service initialise")
+logger.info("Service initialise")
 
 
 def _get_ua() -> str:
@@ -227,7 +229,7 @@ async def scrape_url(url: str, extract_links: bool = True,
         # Mettre en cache
         _scrape_cache[url_hash] = {"content": result, "timestamp": time.time()}
 
-        print(f"[WebScraper] Scraped: {url[:60]}... — {extracted['text_length']} chars")
+        logger.info(f"Scraped: {url[:60]}... — {extracted['text_length']} chars")
         return result
 
     except httpx.TimeoutException:

@@ -1,10 +1,13 @@
 """MAXIA Dispute Resolver V1 — Evaluation IA des litiges avec Groq LLaMA 3.3.
 Auto-execute si haute confiance + petit montant, sinon envoi Telegram pour approbation.
 Utilise le pattern UMA Optimistic Oracle adapte pour un marketplace AI-to-AI."""
+import logging
 import asyncio
 import json
 import os
 import time
+
+logger = logging.getLogger(__name__)
 
 from database import db
 from alerts import alert_system, alert_error
@@ -39,7 +42,7 @@ async def evaluate_dispute(delivery_id: str, reason: str, evidence_hash: str) ->
             "FROM deliveries WHERE id=?", (delivery_id,))
         delivery = dict(rows[0]) if rows else None
     except Exception as e:
-        print(f"[DisputeResolver] Erreur chargement delivery: {e}")
+        logger.error(f"Erreur chargement delivery: {e}")
 
     if not delivery:
         return {
@@ -55,7 +58,7 @@ async def evaluate_dispute(delivery_id: str, reason: str, evidence_hash: str) ->
         if rows:
             escrow = json.loads(rows[0]["data"])
     except Exception as e:
-        print(f"[DisputeResolver] Erreur chargement escrow: {e}")
+        logger.error(f"Erreur chargement escrow: {e}")
 
     # Charger l'historique du seller (nombre de disputes precedentes)
     seller_history = {"total_deliveries": 0, "total_disputes": 0}
@@ -113,8 +116,8 @@ async def evaluate_dispute(delivery_id: str, reason: str, evidence_hash: str) ->
     # Appeler Groq
     ai_result = await _call_groq(prompt)
 
-    print(f"[DisputeResolver] Evaluation delivery={delivery_id[:8]}... -> "
-          f"{ai_result['recommendation']} (confidence={ai_result['confidence']}%)")
+    logger.info(f"Evaluation delivery={delivery_id[:8]}... -> "
+               f"{ai_result['recommendation']} (confidence={ai_result['confidence']}%)")
     audit_log("dispute_ai_eval", "system",
               f"delivery={delivery_id} rec={ai_result['recommendation']} "
               f"conf={ai_result['confidence']}")
@@ -193,7 +196,7 @@ async def _call_groq(prompt: str) -> dict:
     """Appelle Groq LLaMA 3.3 pour l'evaluation. Fallback si API indisponible."""
     groq_api_key = os.getenv("GROQ_API_KEY", "")
     if not groq_api_key:
-        print("[DisputeResolver] GROQ_API_KEY manquant — fallback heuristique")
+        logger.warning("GROQ_API_KEY manquant — fallback heuristique")
         return {
             "recommendation": "split",
             "confidence": 30,
@@ -250,14 +253,14 @@ async def _call_groq(prompt: str) -> dict:
         }
 
     except json.JSONDecodeError as e:
-        print(f"[DisputeResolver] JSON invalide de Groq: {e}")
+        logger.error(f"JSON invalide de Groq: {e}")
         return {
             "recommendation": "split",
             "confidence": 30,
             "reasoning": f"Erreur parsing reponse IA. Split par defaut. Erreur: {str(e)[:100]}",
         }
     except Exception as e:
-        print(f"[DisputeResolver] Erreur Groq: {e}")
+        logger.error(f"Erreur Groq: {e}")
         return {
             "recommendation": "split",
             "confidence": 30,
@@ -352,7 +355,7 @@ async def resolve_dispute(dispute_id: str, resolution: str, resolved_by: str = "
 
         success = result.get("success", False)
     except Exception as e:
-        print(f"[DisputeResolver] Erreur resolution escrow: {e}")
+        logger.error(f"Erreur resolution escrow: {e}")
         success = False
 
     # Mettre a jour le dispute
@@ -366,8 +369,8 @@ async def resolve_dispute(dispute_id: str, resolution: str, resolved_by: str = "
         "UPDATE deliveries SET status=? WHERE id=?",
         (final_status, dispute["delivery_id"]))
 
-    print(f"[DisputeResolver] Dispute {dispute_id[:8]}... resolu -> {resolution} "
-          f"(par {resolved_by}, ${amount:.2f})")
+    logger.info(f"Dispute {dispute_id[:8]}... resolu -> {resolution} "
+               f"(par {resolved_by}, ${amount:.2f})")
     audit_log("dispute_resolved", "system",
               f"dispute={dispute_id} resolution={resolution} by={resolved_by} "
               f"amount=${amount:.2f}")

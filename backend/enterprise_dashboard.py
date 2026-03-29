@@ -4,6 +4,7 @@ Fournit des vues aggregees : overview flotte, analytics temporelles,
 drilldown par agent, compliance SLA, et breakdown revenus.
 Retourne des donnees demo (demo_data: true) si pas de donnees reelles.
 """
+import logging
 import os
 import time
 import json
@@ -13,6 +14,8 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Query
 from auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise/dashboard", tags=["enterprise-dashboard"])
 
@@ -670,5 +673,5 @@ async def route_revenue_breakdown(
     return await get_revenue_breakdown(wallet, db, period=period)
 
 
-print("[EnterpriseDashboard] Module charge — 5 endpoints "
-      "(overview, analytics, drilldown, sla, revenue)")
+logger.info("[EnterpriseDashboard] Module charge — 5 endpoints "
+            "(overview, analytics, drilldown, sla, revenue)")

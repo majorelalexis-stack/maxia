@@ -3,6 +3,7 @@
 Fonctionne avec SQLite (filtrage applicatif) et PostgreSQL (RLS en commentaires).
 Chaque tenant a ses propres limites de rate, volume, et agents isoles.
 """
+import logging
 import os
 import time
 import uuid
@@ -13,6 +14,8 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise/tenants", tags=["enterprise-tenants"])
 
@@ -124,33 +127,27 @@ _MIGRATION_ADD_TENANT_ID = [
     "ALTER TABLE crypto_swaps ADD COLUMN tenant_id TEXT DEFAULT ''",
 ]
 
-# ── PostgreSQL RLS (reference, pas execute sur SQLite) ──
-# -- ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
-# -- CREATE POLICY tenant_agents ON agents
-# --   USING (tenant_id = current_setting('app.current_tenant'))
-# --   WITH CHECK (tenant_id = current_setting('app.current_tenant'));
-#
-# -- ALTER TABLE agent_services ENABLE ROW LEVEL SECURITY;
-# -- CREATE POLICY tenant_services ON agent_services
-# --   USING (tenant_id = current_setting('app.current_tenant'))
-# --   WITH CHECK (tenant_id = current_setting('app.current_tenant'));
-#
-# -- ALTER TABLE marketplace_tx ENABLE ROW LEVEL SECURITY;
-# -- CREATE POLICY tenant_marketplace ON marketplace_tx
-# --   USING (tenant_id = current_setting('app.current_tenant'))
-# --   WITH CHECK (tenant_id = current_setting('app.current_tenant'));
-#
-# -- ALTER TABLE crypto_swaps ENABLE ROW LEVEL SECURITY;
-# -- CREATE POLICY tenant_swaps ON crypto_swaps
-# --   USING (tenant_id = current_setting('app.current_tenant'))
-# --   WITH CHECK (tenant_id = current_setting('app.current_tenant'));
-#
-# -- Pour activer dans PostgreSQL :
-# -- SET app.current_tenant = 'tenant-xxx';
+# ── PostgreSQL RLS policies (applied during schema init if PostgreSQL detected) ──
+
+_RLS_POLICIES = [
+    "ALTER TABLE agents ENABLE ROW LEVEL SECURITY",
+    "CREATE POLICY tenant_agents ON agents USING (tenant_id = current_setting('app.current_tenant', true)) WITH CHECK (tenant_id = current_setting('app.current_tenant', true))",
+    "ALTER TABLE agent_services ENABLE ROW LEVEL SECURITY",
+    "CREATE POLICY tenant_services ON agent_services USING (tenant_id = current_setting('app.current_tenant', true)) WITH CHECK (tenant_id = current_setting('app.current_tenant', true))",
+    "ALTER TABLE marketplace_tx ENABLE ROW LEVEL SECURITY",
+    "CREATE POLICY tenant_marketplace ON marketplace_tx USING (tenant_id = current_setting('app.current_tenant', true)) WITH CHECK (tenant_id = current_setting('app.current_tenant', true))",
+    "ALTER TABLE crypto_swaps ENABLE ROW LEVEL SECURITY",
+    "CREATE POLICY tenant_swaps ON crypto_swaps USING (tenant_id = current_setting('app.current_tenant', true)) WITH CHECK (tenant_id = current_setting('app.current_tenant', true))",
+]
+
+
+def _is_pg() -> bool:
+    """Check if we're running on PostgreSQL (via DATABASE_URL)."""
+    return bool(os.getenv("DATABASE_URL", "").startswith("postgres"))
 
 
 async def _ensure_schema(db):
-    """Cree la table tenants + migration tenant_id si necessaire."""
+    """Cree la table tenants + migration tenant_id + RLS policies (PostgreSQL) si necessaire."""
     global _schema_ready
     if _schema_ready:
         return
@@ -168,6 +165,14 @@ async def _ensure_schema(db):
             await db.raw_execute(stmt)
         except Exception:
             pass  # Colonne existe deja, OK
+    # RLS policies (PostgreSQL only)
+    if _is_pg():
+        for stmt in _RLS_POLICIES:
+            try:
+                await db.raw_execute(stmt)
+            except Exception:
+                pass  # Policy/RLS already exists, OK
+        logger.info("PostgreSQL RLS policies activated for multi-tenant isolation")
     _schema_ready = True
 
 
@@ -178,12 +183,23 @@ async def _ensure_schema(db):
 async def TenantContext(tenant_id: str):
     """Context manager async pour definir le tenant courant.
 
+    Sets the ContextVar for application-level filtering AND
+    configures PostgreSQL session variable for RLS enforcement.
+
     Usage:
         async with TenantContext("tenant-abc"):
             data = await get_agents(db)  # filtre automatiquement
     """
     token = _current_tenant.set(tenant_id)
     try:
+        # Set PostgreSQL session variable for RLS (if using PG)
+        if _is_pg() and tenant_id:
+            try:
+                from database import db
+                await db.raw_execute(
+                    f"SET LOCAL app.current_tenant = '{tenant_id.replace(chr(39), '')}'")
+            except Exception:
+                pass  # Non-critical: app-level filtering still works
         yield tenant_id
     finally:
         _current_tenant.reset(token)
@@ -500,6 +516,6 @@ async def route_tenant_usage(tenant_id: str):
     }
 
 
-print("[TenantIsolation] Module charge — "
-      f"{len(TENANT_PLANS)} plans (free/pro/enterprise/custom), "
-      "filtrage applicatif SQLite + RLS PostgreSQL pret")
+logger.info(f"Module charge — "
+            f"{len(TENANT_PLANS)} plans (free/pro/enterprise/custom), "
+            "filtrage applicatif SQLite + RLS PostgreSQL pret")

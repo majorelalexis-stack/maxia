@@ -1,12 +1,15 @@
 """MAXIA SLA Manager — SLA & Quality Guarantee (Service Level Agreements)"""
+import logging
 import uuid, time, json
+
+logger = logging.getLogger(__name__)
 
 
 SLA_TABLES = (
     "CREATE TABLE IF NOT EXISTS service_sla ("
     "service_id TEXT PRIMARY KEY, max_response_time_s INTEGER NOT NULL DEFAULT 30,"
-    "min_quality_rating REAL NOT NULL DEFAULT 3.0,"
-    "guarantee_refund_pct REAL NOT NULL DEFAULT 100,"
+    "min_quality_rating NUMERIC(18,6) NOT NULL DEFAULT 3.0,"
+    "guarantee_refund_pct NUMERIC(18,6) NOT NULL DEFAULT 100,"
     "auto_refund_enabled INTEGER NOT NULL DEFAULT 1,"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
@@ -22,7 +25,7 @@ SLA_TABLES = (
     "CREATE TABLE IF NOT EXISTS sla_violations ("
     "id TEXT PRIMARY KEY, service_id TEXT NOT NULL, violation_type TEXT NOT NULL,"
     "details TEXT DEFAULT '', detected_at INTEGER DEFAULT (strftime('%s','now')),"
-    "refund_tx TEXT DEFAULT '', refund_amount_usdc REAL DEFAULT 0);"
+    "refund_tx TEXT DEFAULT '', refund_amount_usdc NUMERIC(18,6) DEFAULT 0);"
 
     "CREATE INDEX IF NOT EXISTS idx_violations_service ON sla_violations(service_id);"
 )
@@ -32,9 +35,9 @@ async def ensure_tables(db):
     """Create SLA tables if they don't exist."""
     try:
         await db.raw_executescript(SLA_TABLES)
-        print("[SLA] Tables initialisees")
+        logger.info("Tables initialisees")
     except Exception as e:
-        print(f"[SLA] Erreur creation tables: {e}")
+        logger.error(f"Erreur creation tables: {e}")
 
 
 async def set_sla(db, service_id: str, config_dict: dict) -> dict:
@@ -70,7 +73,9 @@ async def set_sla(db, service_id: str, config_dict: dict) -> dict:
 async def get_sla(db, service_id: str) -> dict:
     """Returns SLA config for a service, or defaults if not set."""
     rows = await db.raw_execute_fetchall(
-        "SELECT * FROM service_sla WHERE service_id=?", (service_id,))
+        "SELECT service_id, max_response_time_s, min_quality_rating, "
+        "guarantee_refund_pct, auto_refund_enabled, created_at "
+        "FROM service_sla WHERE service_id=?", (service_id,))
     if rows:
         row = dict(rows[0])
         row["auto_refund_enabled"] = bool(row["auto_refund_enabled"])

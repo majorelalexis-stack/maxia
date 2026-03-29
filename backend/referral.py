@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS referral_codes (
     referred_id TEXT,
     code TEXT UNIQUE NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    total_earned_usdc REAL NOT NULL DEFAULT 0,
+    total_earned_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active'
 );
 
@@ -70,8 +70,8 @@ CREATE TABLE IF NOT EXISTS referral_earnings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     referrer_id TEXT NOT NULL,
     referred_id TEXT NOT NULL,
-    commission_usdc REAL NOT NULL,
-    credited_usdc REAL NOT NULL,
+    commission_usdc NUMERIC(18,6) NOT NULL,
+    credited_usdc NUMERIC(18,6) NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -8,12 +8,15 @@ Permet aux utilisateurs de lister des businesses IA complets a la vente :
 Categories: saas_bot, trading_bot, data_service, content_creator,
            defi_bot, nft_bot, analytics, custom
 """
+import logging
 import uuid, time, json
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from auth import require_auth
 from security import check_content_safety, require_ofac_clear
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/business", tags=["business-listing"])
 
@@ -72,11 +75,11 @@ async def _ensure_schema():
             title TEXT NOT NULL,
             description TEXT NOT NULL,
             agent_id TEXT DEFAULT '',
-            monthly_revenue_usdc REAL NOT NULL DEFAULT 0,
-            monthly_costs_usdc REAL NOT NULL DEFAULT 0,
+            monthly_revenue_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
+            monthly_costs_usdc NUMERIC(18,6) NOT NULL DEFAULT 0,
             clients_count INTEGER NOT NULL DEFAULT 0,
             months_active INTEGER NOT NULL DEFAULT 0,
-            asking_price_usdc REAL NOT NULL,
+            asking_price_usdc NUMERIC(18,6) NOT NULL,
             category TEXT NOT NULL DEFAULT 'custom',
             tech_stack TEXT DEFAULT '',
             chains TEXT DEFAULT '',
@@ -93,7 +96,7 @@ async def _ensure_schema():
             id TEXT PRIMARY KEY,
             listing_id TEXT NOT NULL,
             buyer_id TEXT NOT NULL,
-            offer_usdc REAL NOT NULL,
+            offer_usdc NUMERIC(18,6) NOT NULL,
             message TEXT DEFAULT '',
             status TEXT NOT NULL DEFAULT 'pending',
             created_at TEXT NOT NULL
@@ -334,7 +337,7 @@ async def create_listing(req: BusinessListRequest, wallet: str = Depends(require
         ),
     )
 
-    print(f"[Business] Nouveau listing: {listing_id} par {wallet[:8]}... — {req.title} ({req.asking_price_usdc} USDC)")
+    logger.info(f"[Business] Nouveau listing: {listing_id} par {wallet[:8]}... — {req.title} ({req.asking_price_usdc} USDC)")
 
     return {
         "ok": True,
@@ -391,7 +394,7 @@ async def make_offer(listing_id: str, req: BusinessOfferRequest, wallet: str = D
         (offer_id, listing_id, wallet, req.offer_usdc, req.message, now),
     )
 
-    print(f"[Business] Offre {offer_id}: {wallet[:8]}... offre {req.offer_usdc} USDC sur {listing_id}")
+    logger.info(f"[Business] Offre {offer_id}: {wallet[:8]}... offre {req.offer_usdc} USDC sur {listing_id}")
 
     return {
         "ok": True,
@@ -465,7 +468,7 @@ async def accept_offer(offer_id: str, wallet: str = Depends(require_auth)):
         (tx_id, wallet, sale_price),
     )
 
-    print(
+    logger.info(
         f"[Business] VENTE: {listing['title']} vendu a {offer['buyer_id'][:8]}... "
         f"pour {sale_price} USDC (commission: {commission} USDC, vendeur recoit: {seller_gets} USDC)"
     )
@@ -516,7 +519,7 @@ async def withdraw_listing(listing_id: str, wallet: str = Depends(require_auth))
         (listing_id,),
     )
 
-    print(f"[Business] Listing retire: {listing_id} par {wallet[:8]}...")
+    logger.info(f"[Business] Listing retire: {listing_id} par {wallet[:8]}...")
 
     return {
         "ok": True,

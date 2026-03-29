@@ -168,7 +168,8 @@ async def get_escrow(escrow_id_hex: str) -> dict:
         commission = int(clean[192:256], 16) / 1e6
         seller_gets = int(clean[256:320], 16) / 1e6
         locked_at = int(clean[320:384], 16)
-        status_int = int(clean[384:448], 16)
+        settled_at = int(clean[384:448], 16)
+        status_int = int(clean[448:512], 16)
 
         status_names = ["Locked", "Confirmed", "Disputed", "Refunded", "Settled"]
         status = status_names[status_int] if status_int < len(status_names) else "Unknown"
@@ -181,6 +182,7 @@ async def get_escrow(escrow_id_hex: str) -> dict:
             "commission_usdc": round(commission, 2),
             "seller_gets_usdc": round(seller_gets, 2),
             "locked_at": locked_at,
+            "settled_at": settled_at,
             "status": status,
             "chain": "base",
             "contract": ESCROW_CONTRACT,
@@ -241,7 +243,7 @@ def get_contract_info() -> dict:
         "explorer": f"https://basescan.org/address/{ESCROW_CONTRACT}",
         "abi_available": len(_ABI) > 0,
         "functions": [
-            "lockEscrow(seller, amount, serviceId)",
+            "lockEscrow(seller, amount, serviceId, intentHash)",
             "confirmDelivery(escrowId)",
             "autoRefund(escrowId)",
             "openDispute(escrowId)",
@@ -250,4 +252,4 @@ def get_contract_info() -> dict:
     }
 
 
-print(f"[BaseEscrow] Contract {ESCROW_CONTRACT[:10]}...{ESCROW_CONTRACT[-6:]} on Base (chain {CHAIN_ID})")
+logger.info(f"[BaseEscrow] Contract {ESCROW_CONTRACT[:10]}...{ESCROW_CONTRACT[-6:]} on Base (chain {CHAIN_ID})")

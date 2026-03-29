@@ -1,6 +1,9 @@
 """MAXIA Preflight V12 — Diagnostic systeme avant lancement"""
+import logging
 import os, asyncio
 import httpx
+
+logger = logging.getLogger(__name__)
 from http_client import get_http_client
 from config import (
     ESCROW_ADDRESS, ESCROW_PRIVKEY_B58, get_rpc_url,
@@ -142,20 +145,20 @@ async def check_system_ready() -> dict:
 
 def print_preflight(results: dict):
     """Affiche le rapport de preflight en console."""
-    print("\n" + "=" * 50)
-    print("  MAXIA V12 — PRE-FLIGHT CHECK")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("  MAXIA V12 — PRE-FLIGHT CHECK")
+    logger.info("=" * 50)
 
     for key, val in results.items():
         if key.startswith("_"):
             continue
         status = "✓" if val["ok"] else "✗"
-        print(f"  {status} {key}: {val['detail']}")
+        logger.info(f"  {status} {key}: {val['detail']}")
 
     summary = results.get("_summary", {})
-    print(f"\n  {summary.get('passed', 0)}/{summary.get('total', 0)} checks OK")
+    logger.info(f"  {summary.get('passed', 0)}/{summary.get('total', 0)} checks OK")
     if summary.get("ready"):
-        print("  ✅ Systeme pret pour le lancement")
+        logger.info("  Systeme pret pour le lancement")
     else:
-        print("  ⚠️  Certains composants manquent")
-    print("=" * 50 + "\n")
+        logger.warning("  Certains composants manquent")
+    logger.info("=" * 50)

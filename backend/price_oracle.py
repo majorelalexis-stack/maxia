@@ -13,8 +13,11 @@ Optimisations V12:
 - Circuit breaker (coupe apres 3 echecs, retry apres 60s)
 - Connection pool HTTP partage
 """
+import logging
 import asyncio, time
 import httpx
+
+logger = logging.getLogger(__name__)
 from config import get_rpc_url, HELIUS_API_KEY
 
 
@@ -47,7 +50,7 @@ class CircuitBreaker:
         self._failures += 1
         if self._failures >= self.max_failures:
             self._open_until = time.time() + self.cooldown_s
-            print(f"[CircuitBreaker] {self.name} OPEN — {self._failures} failures, retry in {self.cooldown_s}s")
+            logger.warning(f"[CircuitBreaker] {self.name} OPEN — {self._failures} failures, retry in {self.cooldown_s}s")
 
     def get_status(self) -> dict:
         return {
@@ -200,7 +203,7 @@ _SYMBOL_CACHE_MAX = 200  # Max symbols cached
 # Stats compteur (pour monitoring)
 _cache_stats = {"hits": 0, "misses": 0}
 
-print("[PriceOracle] Initialise — Helius DAS API + Yahoo Finance + CoinGecko + fallback (cache 60s)")
+logger.info("Initialise — Helius DAS API + Yahoo Finance + CoinGecko + fallback (cache 60s)")
 
 
 async def _fetch_yahoo_stock_prices() -> dict:
@@ -241,9 +244,7 @@ async def _fetch_yahoo_stock_prices() -> dict:
                         except Exception:
                             pass
     except Exception as e:
-        import traceback
-        print(f"[PriceOracle] Yahoo Finance error: {e}")
-        traceback.print_exc()
+        logger.error(f"Yahoo Finance error: {e}", exc_info=True)
 
     # Fallback: try v7 quote API if v8 fails
     if not prices:
@@ -261,11 +262,11 @@ async def _fetch_yahoo_stock_prices() -> dict:
                         if sym and price:
                             prices[sym] = {"price": round(price, 2), "change": round(change, 2), "source": "yahoo_v7"}
         except Exception as e2:
-            print(f"[PriceOracle] Yahoo v7 error: {e2}")
+            logger.error(f"Yahoo v7 error: {e2}")
 
     if prices:
         _cb_yahoo.record_success()
-        print(f"[PriceOracle] Yahoo Finance: {len(prices)} stock prices live")
+        logger.info(f"Yahoo Finance: {len(prices)} stock prices live")
     else:
         _cb_yahoo.record_failure()
     return prices
@@ -397,12 +398,12 @@ async def get_prices(symbols: list = None) -> dict:
                     cg_count = sum(1 for s in missing_crypto if s in prices)
                     if cg_count:
                         _cb_coingecko.record_success()
-                        print(f"[PriceOracle] CoinGecko: {cg_count} additional prices fetched")
+                        logger.info(f"CoinGecko: {cg_count} additional prices fetched")
                 else:
                     _cb_coingecko.record_failure()
             except Exception as e:
                 _cb_coingecko.record_failure()
-                print(f"[PriceOracle] CoinGecko error: {e}")
+                logger.error(f"CoinGecko error: {e}")
 
     # Source 3: Fallback pour tout ce qui manque encore
     for sym, fb_price in FALLBACK_PRICES.items():
@@ -414,7 +415,7 @@ async def get_prices(symbols: list = None) -> dict:
 
     live = sum(1 for p in prices.values() if p.get("source") == "helius_das")
     fb = sum(1 for p in prices.values() if p.get("source") == "fallback")
-    print(f"[PriceOracle] {live} live (Helius DAS), {fb} fallback (total {len(prices)})")
+    logger.info(f"{live} live (Helius DAS), {fb} fallback (total {len(prices)})")
 
     if symbols:
         return {s: prices.get(s, {"price": FALLBACK_PRICES.get(s, 0), "source": "fallback"}) for s in symbols}
@@ -478,7 +479,7 @@ async def get_stock_prices() -> dict:
 
     # Try Yahoo Finance first (real-time, free)
     yahoo_prices = await _fetch_yahoo_stock_prices()
-    print(f"[PriceOracle] Yahoo returned {len(yahoo_prices)} stock prices, CB state: {_cb_yahoo.get_status()}")
+    logger.info(f"Yahoo returned {len(yahoo_prices)} stock prices, CB state: {_cb_yahoo.get_status()}")
     if yahoo_prices and len(yahoo_prices) >= 1:
         result = {}
         for sym in stocks:
