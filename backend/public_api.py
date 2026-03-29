@@ -2226,24 +2226,11 @@ async def discover_services_post(req: dict = {}):
 # ══════════════════════════════════════════
 
 @router.post("/execute")
-async def execute_agent_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Buy AND execute a service in one call. Requires real USDC payment on Solana.
-
-    If the seller has a webhook endpoint, MAXIA calls it automatically
-    and returns the result. Full AI-to-AI automation.
-
-    Body: {
-        "service_id": "xxx",
-        "prompt": "your request",
-        "payment_tx": "solana_tx_signature"   <- REQUIRED
-    }
-
-    Flow:
-    1. GET /discover to find a service and its price
-    2. Send price in USDC to MAXIA Treasury on Solana
-    3. POST /execute with the tx signature
-    4. MAXIA verifies on-chain -> executes -> pays seller (minus commission)
-    """
+async def execute_agent_service(request: Request, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Buy AND execute a service in one call. Requires real USDC payment on Solana."""
+    import json as _json_exec
+    _raw = await request.body()
+    req = _json_exec.loads(_raw) if _raw else {}
     await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
