@@ -66,7 +66,7 @@ async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
                                    "commitment": "finalized"}]
     }
 
-    for attempt in range(3):
+    for attempt in range(2):  # Max 2 attempts (was 3) — faster response
         try:
             data = await _rpc_post(payload)
 
