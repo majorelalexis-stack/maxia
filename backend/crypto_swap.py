@@ -307,6 +307,16 @@ SUPPORTED_TOKENS = {
         "mint": "HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC",
         "name": "ai16z", "decimals": 9, "logo": "",
     },
+    # ═══ Multi-chain tokens (prix via CoinGecko, pas de mint Solana) ═══
+    "XRP": {
+        "mint": "ripple", "name": "XRP", "decimals": 6, "logo": "",
+    },
+    "AVAX": {
+        "mint": "avalanche-2", "name": "Avalanche", "decimals": 18, "logo": "",
+    },
+    "MATIC": {
+        "mint": "matic-network", "name": "Polygon", "decimals": 18, "logo": "",
+    },
 }
 
 # Commission concurrence (mis a jour dynamiquement)
