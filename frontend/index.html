@@ -3085,19 +3085,17 @@ async function loadBugs() {
       list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Aucun bug report pour le moment</div>';
     } else {
       window._bugPosts = posts;
-      list.innerHTML = '<table class="data-table" style="margin:0;width:100%"><thead><tr><th style="min-width:50%">Titre</th><th>Auteur</th><th>Date</th><th style="text-align:center;width:50px">&#9650;</th></tr></thead><tbody>' +
-        posts.map(function(p, i) {
-          var date = new Date((p.created_at || 0) * 1000);
-          var dateStr = date.toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit'}) + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
-          var score = (p.upvotes || 0) - (p.downvotes || 0);
-          var scoreColor = score > 0 ? 'var(--green)' : 'var(--muted)';
-          return '<tr onclick="showBugDetail('+i+')" style="cursor:pointer" onmouseenter="this.style.background=\'rgba(245,158,11,.06)\'" onmouseleave="this.style.background=\'\'">' +
-            '<td style="font-weight:600">' + esc(p.title || '--') + (p.body ? '' : ' <span style="color:var(--muted);font-size:10px">(no desc)</span>') + '</td>' +
-            '<td style="font-size:12px;color:var(--muted)">' + esc(p.author_name || 'Anon') + '</td>' +
-            '<td style="font-size:12px;color:var(--muted);white-space:nowrap">' + dateStr + '</td>' +
-            '<td style="text-align:center;color:' + scoreColor + ';font-weight:600">' + score + '</td>' +
-          '</tr>';
-        }).join('') + '</tbody></table>';
+      var html = '';
+      posts.forEach(function(p, i) {
+        var date = new Date((p.created_at || 0) * 1000);
+        var dateStr = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+        var score = (p.upvotes || 0) - (p.downvotes || 0);
+        html += '<div onclick="showBugDetail('+i+')" style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onmouseenter="this.style.background=\'rgba(245,158,11,.06)\'" onmouseleave="this.style.background=\'\'">'
+          + '<div style="font-weight:600;font-size:14px;color:#e4e4e7;margin-bottom:4px">' + esc(p.title || '--') + '</div>'
+          + '<div style="font-size:12px;color:#a1a1aa">' + esc(p.author_name || 'Anon') + ' · ' + dateStr + ' · <span style="color:#10b981">▲ ' + score + '</span> · <span style="color:#a1a1aa">' + (p.reply_count || 0) + ' replies</span></div>'
+          + '</div>';
+      });
+      list.innerHTML = html;
     }
     // Stats
     const forumStats = await fetch('/api/public/forum').then(r => r.json());
