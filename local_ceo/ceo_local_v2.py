@@ -681,6 +681,11 @@ async def run():
                     await mission_competitive_watch(mem, actions)
                     last_competitive = now
 
+            # Mission 9: Check emails de Alexis (toutes les 5 min)
+            if now - mem.get("_last_email_check", 0) >= 300:
+                await mission_check_alexis_emails(mem)
+                mem["_last_email_check"] = now
+
             # Sauvegarder
             _save_memory(mem)
             _save_actions(actions)
@@ -691,11 +696,177 @@ async def run():
         await asyncio.sleep(60)  # Check toutes les minutes
 
 
+# ══════════════════════════════════════════
+# Mission 9 — Check emails de Alexis (mode mail)
+# ══════════════════════════════════════════
+
+async def mission_check_alexis_emails(mem: dict):
+    """Lit ceo@maxiaworld.app, si Alexis a envoyé un mail → répond avec le LLM."""
+    try:
+        from email_manager import read_inbox
+        emails = await read_inbox(max_emails=5)
+        if not emails:
+            return
+
+        answered_ids = set(mem.get("emails_answered", []))
+        for em in emails:
+            msg_id = em.get("message_id", em.get("uid", ""))
+            if msg_id in answered_ids:
+                continue
+
+            from_addr = em.get("from_addr", "").lower()
+            subject = em.get("subject", "")
+            body = em.get("body", "")
+
+            # Repondre seulement aux mails d'Alexis
+            if "majorel" not in from_addr and "maxia" not in from_addr:
+                continue
+
+            log.info("Email recu de %s: %s", from_addr, subject[:50])
+
+            # Generer la reponse avec le LLM + knowledge base
+            response = await llm(
+                f"Alexis (the founder of MAXIA) sent you this email:\n\n"
+                f"Subject: {subject}\n"
+                f"Body: {body[:2000]}\n\n"
+                f"Reply as the MAXIA CEO. Be helpful, concise, and factual. "
+                f"If he asks you to do something, explain what you can do and what you've done. "
+                f"If he asks about MAXIA status, give real info from your knowledge base.",
+                system=CEO_SYSTEM_PROMPT,
+                max_tokens=500,
+            )
+
+            if response:
+                # Envoyer la reponse par mail
+                reply_subject = f"Re: {subject}" if not subject.startswith("Re:") else subject
+                await send_mail(reply_subject, response)
+                log.info("Email repondu: %s", reply_subject[:50])
+
+                mem.setdefault("emails_answered", []).append(msg_id)
+                if len(mem["emails_answered"]) > 100:
+                    mem["emails_answered"] = mem["emails_answered"][-100:]
+    except Exception as e:
+        log.error("Email check error: %s", e)
+
+
+# ══════════════════════════════════════════
+# Mode terminal interactif
+# ══════════════════════════════════════════
+
+async def terminal_mode():
+    """Mode interactif — parler au CEO en direct."""
+    print("\n  ╔═══════════════════════════════════════╗")
+    print("  ║  MAXIA CEO — Mode Terminal            ║")
+    print("  ║  Tape ta question, 'quit' pour sortir ║")
+    print("  ╚═══════════════════════════════════════╝\n")
+
+    mem = _load_memory()
+
+    while True:
+        try:
+            user_input = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: input("\n[Alexis] > ")
+            )
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        if not user_input.strip():
+            continue
+        if user_input.strip().lower() in ("quit", "exit", "q"):
+            print("[CEO] Au revoir, Alexis.")
+            break
+
+        cmd = user_input.strip().lower()
+
+        # Commandes speciales
+        if cmd == "status":
+            print(f"[CEO] Tweets postes: {len(mem.get('tweets_posted', []))}")
+            print(f"[CEO] Opportunites accumulees: {len(mem.get('todays_opportunities', []))}")
+            print(f"[CEO] Agents vus: {len(mem.get('agents_seen', []))}")
+            print(f"[CEO] Health alerts: {len(mem.get('health_alerts', []))}")
+            continue
+
+        if cmd == "scan twitter":
+            print("[CEO] Scan Twitter en cours...")
+            await mission_twitter_scan_hourly(mem)
+            _save_memory(mem)
+            print(f"[CEO] Done — {len(mem.get('todays_opportunities', []))} opportunites accumulees")
+            continue
+
+        if cmd == "scan github":
+            print("[CEO] Scan GitHub en cours...")
+            actions = _load_actions_today()
+            await mission_daily_report(mem, actions)
+            _save_memory(mem)
+            _save_actions(actions)
+            print("[CEO] Rapport envoye par mail.")
+            continue
+
+        if cmd == "health":
+            print("[CEO] Health check...")
+            await mission_health_check(mem)
+            _save_memory(mem)
+            continue
+
+        if cmd == "tweet":
+            print("[CEO] Redaction du tweet...")
+            actions = _load_actions_today()
+            await mission_tweet_feature(mem, actions)
+            _save_memory(mem)
+            _save_actions(actions)
+            continue
+
+        if cmd == "send opportunities":
+            print("[CEO] Envoi du best-of Twitter...")
+            actions = _load_actions_today()
+            await mission_send_best_opportunities(mem, actions)
+            _save_memory(mem)
+            _save_actions(actions)
+            continue
+
+        if cmd == "help":
+            print("[CEO] Commandes disponibles:")
+            print("  status           — voir les stats du jour")
+            print("  scan twitter     — forcer un scan Twitter maintenant")
+            print("  scan github      — forcer un scan GitHub + rapport")
+            print("  health           — verifier la sante du site")
+            print("  tweet            — poster le tweet du jour")
+            print("  send opportunities — envoyer le best-of Twitter par mail")
+            print("  help             — cette aide")
+            print("  quit             — quitter")
+            print("  (ou pose une question libre)")
+            continue
+
+        # Question libre → LLM
+        print("[CEO] Reflexion...")
+        response = await llm(
+            f"Alexis asks: {user_input}\n\nRespond as the MAXIA CEO. Be helpful and factual. Use your knowledge of MAXIA.",
+            system=CEO_SYSTEM_PROMPT,
+            max_tokens=500,
+        )
+        if response:
+            # Nettoyer le thinking de Qwen3
+            if "<think>" in response and "</think>" in response:
+                response = response.split("</think>")[-1].strip()
+            print(f"\n[CEO] {response}")
+        else:
+            print("[CEO] Erreur LLM — pas de reponse")
+
+
 if __name__ == "__main__":
-    print("""
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "chat":
+        print("""
+    ╔═══════════════════════════════════════╗
+    ║    MAXIA CEO Local V2 — Chat Mode     ║
+    ╚═══════════════════════════════════════╝
+        """)
+        asyncio.run(terminal_mode())
+    else:
+        print("""
     ╔═══════════════════════════════════════╗
     ║    MAXIA CEO Local V2                 ║
     ║    8 missions · 1 modele · 0 spam     ║
     ╚═══════════════════════════════════════╝
-    """)
-    asyncio.run(run())
+        """)
+        asyncio.run(run())
