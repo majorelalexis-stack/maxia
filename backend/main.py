@@ -277,10 +277,10 @@ async def lifespan(app: FastAPI):
     # disputes table is already created in DB_SCHEMA (database.py)
 
     t1 = asyncio.create_task(auction_manager.run_expiry_worker())
-    t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))
-    t3 = asyncio.create_task(swarm.run_monitor())
+    # t2 = asyncio.create_task(scheduler.run(brain, growth_agent, agent_worker, db))  # DISABLED: CEO cut — burns LLM quota + sends Discord spam
+    # t3 = asyncio.create_task(swarm.run_monitor())  # DISABLED: CEO cut
     t4 = asyncio.create_task(retry_worker(db))  # V12: webhook retry worker
-    # t5 = asyncio.create_task(scout_agent.run())  # DISABLED: LangChain banned, get_http_client broken
+    # t5 = asyncio.create_task(scout_agent.run())  # DISABLED: LangChain banned
 
     # V12: Health monitor (UptimeRobot-style)
     try:
