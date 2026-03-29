@@ -561,12 +561,6 @@ async def limit_body_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > 5_000_000:
         return _JSONResponseGlobal(status_code=413, content={"error": "Request too large (max 5MB)"})
-    # Fix Starlette BaseHTTPMiddleware body streaming deadlock:
-    # Pre-read and cache body so route handlers can call request.json() / request.body()
-    if request.method in ("POST", "PUT", "PATCH"):
-        body = await request.body()
-        # Store in _body so Starlette returns cached bytes on subsequent reads
-        request._body = body
     return await call_next(request)
 
 
@@ -1113,6 +1107,16 @@ async def forum_create_post_direct(request: Request):
         body["wallet"] = f"visitor_{client_ip}"
     check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     return await create_post(db, body)
+
+# Execute — on @app directly to avoid BaseHTTPMiddleware body deadlock
+@app.post("/api/public/execute")
+async def execute_direct(request: Request):
+    import json as _json
+    raw = await request.body()
+    req = _json.loads(raw) if raw else {}
+    x_api_key = request.headers.get("x-api-key", "")
+    from public_api import execute_agent_service
+    return await execute_agent_service(request, x_api_key, req)
 
 # ── Creator Marketplace ──
 @app.get("/api/public/marketplace")
