@@ -1108,13 +1108,9 @@ async def forum_create_post_direct(request: Request):
     check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     return await create_post(db, body)
 
-# Execute — on @app directly to avoid BaseHTTPMiddleware body deadlock
+# Execute — on @app with FastAPI Body() parsing (avoids middleware body deadlock)
 @app.post("/api/public/execute")
-async def execute_direct(request: Request):
-    import json as _json
-    raw = await request.body()
-    req = _json.loads(raw) if raw else {}
-    x_api_key = request.headers.get("x-api-key", "")
+async def execute_direct(request: Request, req: dict = {}, x_api_key: str = Header(None, alias="X-API-Key")):
     from public_api import execute_agent_service
     return await execute_agent_service(request, x_api_key, req)
 
