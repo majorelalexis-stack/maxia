@@ -1,38 +1,8 @@
 {
-  "twitter": {
-    "score": 9,
-    "trend": "=",
-    "actions": 94,
-    "successes": 89
-  },
-  "reddit": {
-    "score": 5,
-    "trend": "=",
-    "actions": 0,
-    "successes": 0
-  },
-  "github": {
-    "score": 7,
-    "trend": "=",
-    "actions": 34,
-    "successes": 28
-  },
-  "discord": {
-    "score": 5,
-    "trend": "=",
-    "actions": 0,
-    "successes": 0
-  },
-  "telegram": {
-    "score": 10,
-    "trend": "=",
-    "actions": 11,
-    "successes": 11
-  },
-  "email": {
-    "score": 10,
-    "trend": "=",
-    "actions": 13,
-    "successes": 13
-  }
+  "twitter": {"role": "scan + 1 tweet/jour", "active": true},
+  "github": {"role": "scan repos only", "active": true},
+  "email": {"role": "envoi rapports a Alexis", "active": true},
+  "reddit": {"role": "disabled", "active": false},
+  "discord": {"role": "disabled", "active": false},
+  "telegram": {"role": "disabled", "active": false}
 }
