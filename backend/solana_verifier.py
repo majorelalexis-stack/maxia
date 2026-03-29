@@ -10,9 +10,14 @@ USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
 async def _rpc_post(payload: dict, timeout: float = 5) -> dict:
-    """Post RPC avec failover sur toutes les URLs Solana (max 3 URLs tried)."""
+    """Post RPC avec failover. Skip Helius if it keeps failing, try publics first."""
     last_error = None
-    for rpc_url in SOLANA_RPC_URLS[:3]:  # Max 3 URLs to keep total time reasonable
+    # Prioritize public RPCs (Helius often rate-limited/down)
+    urls_to_try = [u for u in SOLANA_RPC_URLS if "helius" not in u][:2]
+    # Add Helius last as fallback
+    helius = [u for u in SOLANA_RPC_URLS if "helius" in u]
+    urls_to_try.extend(helius[:1])
+    for rpc_url in urls_to_try:
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(rpc_url, json=payload)
@@ -20,8 +25,10 @@ async def _rpc_post(payload: dict, timeout: float = 5) -> dict:
             if "error" in data and data["error"]:
                 last_error = Exception(f"RPC error: {data['error']}")
                 continue
+            logger.info("RPC success: %s", rpc_url.split("?")[0][:40])
             return data
         except httpx.TimeoutException as e:
+            logger.warning("RPC timeout: %s", rpc_url.split("?")[0][:40])
             last_error = e
         except httpx.ConnectError as e:
             last_error = e
