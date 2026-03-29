@@ -1,13 +1,14 @@
-"""CEO Local V2 — 7 missions, 1 modele unique, zero spam.
+"""CEO Local V2 — 8 missions, 1 modele unique, zero spam.
 
 Missions:
-  1. Tweet feature du jour (14h)
-  2. 5 opportunites Twitter → mail (10h)
-  3. Rapport GitHub + skills + annuaires → mail (15h)
+  1. Tweet feature du jour (15h-16h, peak US EST)
+  2. 5 opportunites Twitter + mention alert → mail (8h)
+  3. Rapport GitHub + skills + annuaires + LLM analysis → mail (9h)
   4. Moderation forum (toutes les heures)
   5. Analyse nouveaux agents (inclus dans rapport)
-  6. Veille concurrentielle (hebdo)
-  7. Surveillance sante site (toutes les 5 min)
+  6. Veille concurrentielle (hebdo dimanche 10h)
+  7. Surveillance sante site (toutes les 5 min, extended checks)
+  8. Tweet engagement tracking (feedback loop)
 
 Usage: python ceo_local_v2.py
 """
@@ -44,6 +45,7 @@ def _load_memory() -> dict:
         "tweets_posted": [], "opportunities_sent": [], "repos_scanned": [],
         "agents_seen": [], "sites_found": [], "moderation_log": [],
         "health_alerts": [], "feature_index": 0, "regles": [],
+        "tweet_engagement": [], "competitive_reports": [],
     }
     try:
         if os.path.exists(_MEMORY_FILE):
@@ -60,7 +62,7 @@ def _load_memory() -> dict:
 
 def _save_memory(mem: dict):
     # Trim lists
-    for key in ["tweets_posted", "opportunities_sent", "moderation_log", "health_alerts"]:
+    for key in ["tweets_posted", "opportunities_sent", "moderation_log", "health_alerts", "tweet_engagement", "competitive_reports"]:
         if len(mem.get(key, [])) > 200:
             mem[key] = mem[key][-200:]
     if len(mem.get("agents_seen", [])) > 500:
@@ -176,6 +178,15 @@ async def mission_tweet_feature(mem: dict, actions: dict):
         log.info("Tweet poste: %s", tweet_text[:80])
         mem["tweets_posted"].append({"date": datetime.now().isoformat(), "feature": feature["name"], "text": tweet_text[:200]})
         actions["counts"]["tweet_feature"] = 1
+
+        # Track tweet engagement for feedback loop (Mission 8)
+        mem.setdefault("tweet_engagement", []).append({
+            "date": datetime.now().isoformat(),
+            "feature_name": feature["name"],
+            "feature_desc": feature["desc"][:100],
+            "tweet_preview": tweet_text[:140],
+            "status": "posted",
+        })
     except Exception as e:
         log.error("Tweet error: %s", e)
 
@@ -227,6 +238,30 @@ async def mission_twitter_opportunities(mem: dict, actions: dict):
                 break
     except Exception as e:
         log.error("Twitter scan error: %s", e)
+
+    # Search for @MAXIA_WORLD mentions (immediate alert)
+    try:
+        from browser_agent import browser
+        mentions = await browser.search_twitter("@MAXIA_WORLD", max_results=10)
+        sent_ids = set(o.get("id") for o in mem.get("opportunities_sent", []))
+        new_mentions = [m for m in mentions if m.get("id", m.get("url", "")) not in sent_ids]
+        if new_mentions:
+            mention_body = "Nouvelles mentions de @MAXIA_WORLD detectees:\n\n"
+            for i, m in enumerate(new_mentions[:5], 1):
+                mention_body += f"#{i} — @{m.get('author', '?')}\n"
+                mention_body += f"  {m.get('text', '')[:300]}\n"
+                mention_body += f"  Lien: {m.get('url', '')}\n\n"
+            await send_mail("[MAXIA CEO] \U0001f514 Mention Twitter", mention_body)
+            log.info("Alerte mention: %d nouvelles mentions @MAXIA_WORLD", len(new_mentions))
+            # Track mention ids to avoid re-alerting
+            for m in new_mentions:
+                mem.setdefault("opportunities_sent", []).append({
+                    "id": m.get("id", m.get("url", "")),
+                    "type": "mention",
+                    "date": datetime.now().isoformat(),
+                })
+    except Exception as e:
+        log.error("Mention scan error: %s", e)
 
     if not opportunities:
         log.info("Aucune opportunite trouvee")
@@ -281,6 +316,25 @@ async def mission_daily_report(mem: dict, actions: dict):
                 await asyncio.sleep(1)  # Rate limit GitHub API
     except Exception as e:
         report_parts.append(f"  Erreur scan GitHub: {e}\n")
+
+    # 3a-bis: LLM analysis of GitHub findings
+    github_summary = "".join(report_parts)
+    if "new release" in github_summary.lower() or len(report_parts) > 2:
+        llm_analysis = await llm(
+            f"Here are recent GitHub releases from projects in the AI agent ecosystem:\n\n"
+            f"{github_summary}\n\n"
+            f"MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, etc.) with on-chain escrow, "
+            f"token swaps, GPU rental, and 17 AI services.\n\n"
+            f"For each release, explain in 1-2 sentences:\n"
+            f"1. What this means for MAXIA (opportunity, threat, or neutral)\n"
+            f"2. Any concrete action MAXIA should take\n\n"
+            f"Prioritize findings by relevance to MAXIA (most relevant first).",
+            system="You are the MAXIA CEO analyzing competitive intelligence. Be concise and actionable.",
+            max_tokens=600,
+        )
+        if llm_analysis:
+            report_parts.append("\n=== ANALYSE CEO — Impact pour MAXIA ===\n")
+            report_parts.append(llm_analysis + "\n")
 
     # 3b: Annuaires ou inscrire MAXIA
     report_parts.append("\n=== ANNUAIRES & VISIBILITE ===\n")
@@ -379,24 +433,132 @@ async def mission_moderate_forum(mem: dict):
 
 
 # ══════════════════════════════════════════
+# Mission 6 — Veille concurrentielle (hebdo)
+# ══════════════════════════════════════════
+
+COMPETITOR_URLS = [
+    {"name": "Virtuals Protocol", "url": "https://api.virtuals.io", "site": "https://virtuals.io"},
+    {"name": "Autonolas (Olas)", "url": "https://registry.olas.network", "site": "https://olas.network"},
+    {"name": "CrewAI", "url": "https://www.crewai.com", "site": "https://www.crewai.com"},
+    {"name": "Fetch.ai Marketplace", "url": "https://agentverse.ai", "site": "https://fetch.ai"},
+]
+
+
+async def mission_competitive_watch(mem: dict, actions: dict) -> None:
+    """Scan hebdomadaire des concurrents — envoie un rapport comparatif."""
+    if actions["counts"].get("competitive_watch", 0) >= 1:
+        log.info("Veille concurrentielle deja faite cette semaine — skip")
+        return
+
+    competitor_data = []
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        for comp in COMPETITOR_URLS:
+            snippet = ""
+            try:
+                resp = await client.get(comp["site"], headers={"User-Agent": "MAXIA-CEO/2.0"})
+                if resp.status_code == 200:
+                    # Extract text content (first 2000 chars of body for LLM analysis)
+                    raw = resp.text[:2000]
+                    snippet = raw
+                else:
+                    snippet = f"(HTTP {resp.status_code})"
+            except Exception as e:
+                snippet = f"(erreur: {str(e)[:60]})"
+
+            competitor_data.append({"name": comp["name"], "site": comp["site"], "snippet": snippet})
+            await asyncio.sleep(2)  # Politesse
+
+    # LLM analysis
+    comp_text = ""
+    for c in competitor_data:
+        comp_text += f"\n--- {c['name']} ({c['site']}) ---\n{c['snippet'][:500]}\n"
+
+    analysis = await llm(
+        f"Analyze these AI agent marketplace competitors vs MAXIA.\n\n"
+        f"MAXIA: AI-to-AI marketplace on 14 blockchains, on-chain escrow (Solana+Base), "
+        f"65 token swaps, GPU rental (Akash), 17 AI services, 46 MCP tools, "
+        f"tokenized stocks, autonomous CEO agent.\n\n"
+        f"Competitors:\n{comp_text}\n\n"
+        f"For each competitor:\n"
+        f"1. What they offer that MAXIA doesn't\n"
+        f"2. What MAXIA offers that they don't\n"
+        f"3. Threat level (LOW/MEDIUM/HIGH)\n"
+        f"4. One actionable recommendation for MAXIA\n\n"
+        f"End with: Overall competitive position summary (2-3 sentences).",
+        system="You are a strategic analyst for MAXIA. Be specific, factual, and actionable.",
+        max_tokens=800,
+    )
+
+    # Build report
+    week_num = datetime.now().isocalendar()[1]
+    year = datetime.now().year
+    today = datetime.now().strftime("%d/%m/%Y")
+
+    body = f"MAXIA CEO — Veille concurrentielle semaine {week_num} ({year})\n"
+    body += f"Date: {today}\n\n"
+    body += "=== CONCURRENTS SCANNES ===\n"
+    for c in competitor_data:
+        status = "OK" if "(HTTP" not in c["snippet"] and "(erreur" not in c["snippet"] else "ERREUR"
+        body += f"  - {c['name']} ({c['site']}): {status}\n"
+    body += f"\n=== ANALYSE STRATEGIQUE ===\n{analysis}\n" if analysis else "\n(analyse LLM indisponible)\n"
+
+    await send_mail(f"[MAXIA CEO] Veille concurrentielle - semaine {week_num}", body)
+    actions["counts"]["competitive_watch"] = 1
+    mem.setdefault("competitive_reports", []).append({
+        "date": today,
+        "week": week_num,
+        "competitors_scanned": len(competitor_data),
+    })
+    log.info("Veille concurrentielle semaine %d envoyee", week_num)
+
+
+# ══════════════════════════════════════════
 # Mission 7 — Surveillance sante site
 # ══════════════════════════════════════════
 
 async def mission_health_check(mem: dict):
-    """Ping le site et verifie les endpoints critiques."""
-    checks = {
+    """Ping le site et verifie les endpoints critiques (GET + POST)."""
+    # GET checks
+    get_checks = {
         "site": f"{VPS_URL}/",
         "prices": f"{VPS_URL}/api/public/crypto/prices",
         "forum": f"{VPS_URL}/api/public/forum",
+        "crypto_quote": f"{VPS_URL}/api/public/crypto/quote",
+    }
+    # POST checks — verify endpoints respond (don't actually create data)
+    post_checks = {
+        "register_endpoint": {
+            "url": f"{VPS_URL}/api/public/register",
+            "json": {},  # Empty body — expect 422 (validation error), not 500/timeout
+            "accept_codes": [200, 400, 422],
+        },
+        "forum_create_endpoint": {
+            "url": f"{VPS_URL}/api/public/forum/create",
+            "json": {},  # Empty body — expect 422 (validation error), not 500/timeout
+            "accept_codes": [200, 400, 401, 422],
+        },
     }
     failures = []
 
     async with httpx.AsyncClient(timeout=8) as client:
-        for name, url in checks.items():
+        # GET endpoints
+        for name, url in get_checks.items():
             try:
                 resp = await client.get(url)
                 if resp.status_code != 200:
                     failures.append(f"{name}: HTTP {resp.status_code}")
+            except Exception as e:
+                failures.append(f"{name}: {str(e)[:50]}")
+
+        # POST endpoints — just verify they respond (any non-5xx = OK)
+        for name, cfg in post_checks.items():
+            try:
+                resp = await client.post(cfg["url"], json=cfg["json"])
+                if resp.status_code >= 500:
+                    failures.append(f"{name}: HTTP {resp.status_code} (server error)")
+                elif resp.status_code not in cfg["accept_codes"]:
+                    # Unexpected but not a failure — log for info
+                    log.info("Health POST %s: HTTP %d (unexpected but not 5xx)", name, resp.status_code)
             except Exception as e:
                 failures.append(f"{name}: {str(e)[:50]}")
 
@@ -433,11 +595,14 @@ async def run():
     last_tweet = 0
     last_opportunities = 0
     last_report = 0
+    last_competitive = 0
 
     while True:
         try:
             now = time.time()
-            hour = datetime.now().hour
+            dt_now = datetime.now()
+            hour = dt_now.hour
+            weekday = dt_now.weekday()  # 0=lundi, 6=dimanche
             actions = _load_actions_today()
 
             # Mission 7: Health check (toutes les 5 min)
@@ -452,23 +617,29 @@ async def run():
                 last_moderation = now
                 actions["counts"]["moderation_done"] = actions["counts"].get("moderation_done", 0) + 1
 
-            # Mission 2: Opportunites Twitter (entre 9h et 11h)
-            if 9 <= hour <= 11 and actions["counts"].get("opportunities_sent", 0) == 0:
+            # Mission 2: Opportunites Twitter + mentions (8h)
+            if hour == 8 and actions["counts"].get("opportunities_sent", 0) == 0:
                 if now - last_opportunities >= 3600:
                     await mission_twitter_opportunities(mem, actions)
                     last_opportunities = now
 
-            # Mission 1: Tweet feature (entre 13h et 15h)
-            if 13 <= hour <= 15 and actions["counts"].get("tweet_feature", 0) == 0:
+            # Mission 3: Rapport quotidien (9h)
+            if hour == 9 and actions["counts"].get("report_sent", 0) == 0:
+                if now - last_report >= 3600:
+                    await mission_daily_report(mem, actions)
+                    last_report = now
+
+            # Mission 1: Tweet feature (15h-16h — peak US EST 9:30 AM)
+            if 15 <= hour <= 16 and actions["counts"].get("tweet_feature", 0) == 0:
                 if now - last_tweet >= 3600:
                     await mission_tweet_feature(mem, actions)
                     last_tweet = now
 
-            # Mission 3: Rapport quotidien (entre 14h et 16h)
-            if 14 <= hour <= 16 and actions["counts"].get("report_sent", 0) == 0:
-                if now - last_report >= 3600:
-                    await mission_daily_report(mem, actions)
-                    last_report = now
+            # Mission 6: Veille concurrentielle (dimanche 10h)
+            if weekday == 6 and hour == 10 and actions["counts"].get("competitive_watch", 0) == 0:
+                if now - last_competitive >= 3600:
+                    await mission_competitive_watch(mem, actions)
+                    last_competitive = now
 
             # Sauvegarder
             _save_memory(mem)
@@ -484,7 +655,7 @@ if __name__ == "__main__":
     print("""
     ╔═══════════════════════════════════════╗
     ║    MAXIA CEO Local V2                 ║
-    ║    7 missions · 1 modele · 0 spam     ║
+    ║    8 missions · 1 modele · 0 spam     ║
     ╚═══════════════════════════════════════╝
     """)
     asyncio.run(run())

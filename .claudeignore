@@ -1,0 +1,32 @@
+# Large/binary files — never scan
+*.db
+*.db-wal
+*.db-shm
+*.sqlite3
+*.whl
+*.tar.gz
+*.bin
+*.png
+*.jpg
+*.ico
+*.svg
+*.woff2
+
+# Build/deps
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# Heavy directories
+backend/ceo_vector_db/
+backend/ceo_archives/
+frontend-backup/
+frontend-backup-1727/
+frontend-new/
+.claude/worktrees/
+local_ceo/finetune/
+langchain-maxia/dist/

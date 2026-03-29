@@ -82,5 +82,17 @@
  "decisions_1774783154958_4301": {
   "text": "{\"ts\": \"2026-03-29T11:17:38.607060\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
   "ts": "2026-03-29T11:19:15.131331"
+ },
+ "decisions_1774793959849_7436": {
+  "text": "{\"ts\": \"2026-03-29T11:19:18.905946\", \"level\": \"Moyenne\", \"decision\": \"Cr\u00e9er un blog sur les avantages de MAXIA pour les agents autonomes\", \"raison\": \"CEO directive\", \"cible\": \"GHOST-WRITER\"}",
+  "ts": "2026-03-29T14:19:20.039044"
+ },
+ "decisions_1774793960039_2305": {
+  "text": "{\"ts\": \"2026-03-29T11:19:18.913705\", \"level\": \"Haute\", \"decision\": \"Contacter les agents autonomes sur Solana et Ethereum pour proposer nos services\", \"raison\": \"CEO directive\", \"cible\": \"SCOUT\"}",
+  "ts": "2026-03-29T14:19:20.212728"
+ },
+ "decisions_1774793960212_5193": {
+  "text": "{\"ts\": \"2026-03-29T11:19:18.921727\", \"level\": \"VERT\", \"decision\": \"Blog deployed: MAXIA Update\", \"raison\": \"auto-executed\", \"cible\": \"DEPLOYER\"}",
+  "ts": "2026-03-29T14:19:20.387317"
  }
 }

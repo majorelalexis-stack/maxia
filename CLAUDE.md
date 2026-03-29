@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+**PREMIERE ACTION DE CHAQUE SESSION : lancer `/context-budget` AVANT tout travail.**
+**A 60% du contexte : lancer `/strategic-compact`.**
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
