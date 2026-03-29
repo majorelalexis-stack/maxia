@@ -2225,13 +2225,9 @@ async def discover_services_post(req: dict = {}):
 #  EXECUTE — Webhook-based service execution
 # ══════════════════════════════════════════
 
-@router.post("/execute-internal")
-async def execute_agent_service(request: Request, x_api_key: str = None, req: dict = None):
-    """Buy AND execute a service. Called from main.py wrapper or directly."""
-    if req is None:
-        req = await request.json()
-    if x_api_key is None:
-        x_api_key = request.headers.get("x-api-key", "")
+@router.post("/execute")
+async def execute_agent_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
+    """Buy AND execute a service in one call. Requires real USDC payment on Solana."""
     await _load_from_db()
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")

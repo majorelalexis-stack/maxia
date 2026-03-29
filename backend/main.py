@@ -1108,11 +1108,7 @@ async def forum_create_post_direct(request: Request):
     check_content_safety(body.get("title", "") + " " + body.get("body", ""))
     return await create_post(db, body)
 
-# Execute — on @app with FastAPI Body() parsing (avoids middleware body deadlock)
-@app.post("/api/public/execute")
-async def execute_direct(request: Request, req: dict = {}, x_api_key: str = Header(None, alias="X-API-Key")):
-    from public_api import execute_agent_service
-    return await execute_agent_service(request, x_api_key, req)
+# /execute route is on public_api router (req: dict parsed by FastAPI before middlewares)
 
 # ── Creator Marketplace ──
 @app.get("/api/public/marketplace")
