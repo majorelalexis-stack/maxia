@@ -304,8 +304,7 @@ async def mission_send_best_opportunities(mem: dict, actions: dict):
     best_gh = all_gh[:5]
 
     today = datetime.now().strftime("%d/%m/%Y")
-    total = len(best) + len(best_gh)
-    body = f"MAXIA CEO — {total} opportunites du {today}\n\n"
+    body = f"MAXIA CEO — Opportunites du {today}\n\n"
 
     if best:
         body += f"═══ TWITTER ({len(best)} / {len(all_opps)} scannes) ═══\n\n"
@@ -326,14 +325,43 @@ async def mission_send_best_opportunities(mem: dict, actions: dict):
             body += f"Lien: {opp.get('url', '')}\n"
             body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
 
-    if not best and not best_gh:
+    # Reddit opportunities
+    all_reddit = mem.get("todays_reddit_opportunities", [])
+    best_reddit = all_reddit[:3]
+
+    if best_reddit:
+        body += f"═══ REDDIT ({len(best_reddit)} / {len(all_reddit)} scannes) ═══\n\n"
+        for i, opp in enumerate(best_reddit, 1):
+            body += f"--- Reddit #{i} ---\n"
+            body += f"Subreddit: r/{opp.get('subreddit', '')}\n"
+            body += f"Post: {opp.get('title', '')}\n"
+            body += f"Auteur: u/{opp.get('author', '')}\n"
+            body += f"Lien: {opp.get('url', '')}\n"
+            body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
+
+    # Discord servers
+    all_discord = mem.get("todays_discord_opportunities", [])
+    if all_discord:
+        body += f"═══ DISCORD ({len(all_discord)} serveurs trouves) ═══\n\n"
+        for i, srv in enumerate(all_discord[:5], 1):
+            body += f"--- Serveur #{i} ---\n"
+            body += f"Nom: {srv.get('name', '')}\n"
+            body += f"Description: {srv.get('description', '')}\n"
+            body += f"Lien: {srv.get('url', '')}\n\n"
+
+    total = len(best) + len(best_gh) + len(best_reddit) + len(all_discord)
+    if total == 0:
         body += "Aucune opportunite pertinente trouvee aujourd'hui.\n"
 
-    await send_mail(f"[MAXIA CEO] {total} opportunites (Twitter+GitHub) - {today}", body)
+    await send_mail(f"[MAXIA CEO] {total} opportunites du jour - {today}", body)
     mem["opportunities_sent"].extend(best)
     mem.setdefault("github_opportunities", []).extend(best_gh)
+    mem.setdefault("reddit_opportunities", []).extend(best_reddit)
+    mem.setdefault("discord_opportunities", []).extend(all_discord)
     mem["todays_opportunities"] = []
     mem["todays_github_opportunities"] = []
+    mem["todays_reddit_opportunities"] = []
+    mem["todays_discord_opportunities"] = []
     actions["counts"]["opportunities_sent"] = 1
 
 
@@ -450,6 +478,129 @@ async def mission_github_scan_hourly(mem: dict):
         log.error("GitHub scan error: %s", e)
 
     log.info("GitHub scan [%s]: %d opportunities (total today: %d)", repo, found, len(mem.get("todays_github_opportunities", [])))
+
+
+# ══════════════════════════════════════════
+# Mission 2d — Scan Reddit (horaire)
+# ══════════════════════════════════════════
+
+_REDDIT_SUBS = ["LocalLLaMA", "SolanaDev", "solana", "ethereum", "MachineLearning", "artificial", "ollama", "defi"]
+
+async def mission_reddit_scan_hourly(mem: dict):
+    """Scan Reddit — cherche des posts pertinents pour MAXIA."""
+    sub = random.choice(_REDDIT_SUBS)
+    found = 0
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://www.reddit.com/r/{sub}/new.json?limit=15",
+                headers={"User-Agent": "MAXIA-CEO/2.0"},
+            )
+            if resp.status_code != 200:
+                log.warning("Reddit %d for r/%s", resp.status_code, sub)
+                return
+
+            posts = resp.json().get("data", {}).get("children", [])
+            sent_ids = set(o.get("id") for o in mem.get("reddit_opportunities", []))
+            today_reddit = mem.setdefault("todays_reddit_opportunities", [])
+            today_ids = set(o.get("id") for o in today_reddit)
+
+            for post in posts:
+                data = post.get("data", {})
+                post_id = data.get("id", "")
+                if post_id in sent_ids or post_id in today_ids:
+                    continue
+
+                title = data.get("title", "")
+                selftext = (data.get("selftext") or "")[:300]
+                content = f"{title} {selftext}".lower()
+
+                relevant = any(kw.lower() in content for kw in _GITHUB_KEYWORDS)
+                if not relevant:
+                    continue
+
+                comment = await llm(
+                    f"A developer posted this on r/{sub}:\n"
+                    f"Title: {title}\n"
+                    f"Body: {selftext[:200]}\n\n"
+                    f"Write a helpful reply (max 200 chars). Be a helpful community member, not a salesperson.",
+                    system=CEO_SYSTEM_PROMPT,
+                    max_tokens=80,
+                )
+
+                today_reddit.append({
+                    "id": post_id,
+                    "subreddit": sub,
+                    "title": title[:150],
+                    "url": f"https://reddit.com{data.get('permalink', '')}",
+                    "author": data.get("author", ""),
+                    "suggested_comment": comment[:200] if comment else "",
+                    "ts": time.time(),
+                })
+                found += 1
+                if found >= 3:
+                    break
+
+    except Exception as e:
+        log.error("Reddit scan error: %s", e)
+
+    log.info("Reddit scan [r/%s]: %d opportunities (total today: %d)", sub, found, len(mem.get("todays_reddit_opportunities", [])))
+
+
+# ══════════════════════════════════════════
+# Mission 2e — Scan Discord (via serveurs publics indexés)
+# ══════════════════════════════════════════
+
+_DISCORD_SEARCH_TERMS = ["AI agent marketplace", "autonomous agent crypto", "MCP server solana", "agent escrow USDC"]
+
+async def mission_discord_scan_hourly(mem: dict):
+    """Scan Discord — cherche des discussions via des index publics (Disboard, top.gg)."""
+    found = 0
+    try:
+        # Discord n'a pas d'API publique pour lire les messages
+        # On scanne les serveurs indexes sur Disboard pour trouver des communautes pertinentes
+        async with httpx.AsyncClient(timeout=10) as client:
+            term = random.choice(_DISCORD_SEARCH_TERMS)
+            resp = await client.get(
+                f"https://disboard.org/search?keyword={term.replace(' ', '+')}",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            if resp.status_code != 200:
+                log.info("Disboard %d — skip", resp.status_code)
+                return
+
+            # Parser les resultats basiques (noms de serveurs + descriptions)
+            html = resp.text
+            today_discord = mem.setdefault("todays_discord_opportunities", [])
+            sent_ids = set(o.get("name") for o in mem.get("discord_opportunities", []))
+
+            # Extraire les serveurs (parsing HTML basique)
+            import re
+            servers = re.findall(r'class="server-name[^"]*"[^>]*>([^<]+)<', html)
+            descriptions = re.findall(r'class="server-description[^"]*"[^>]*>([^<]+)<', html)
+            links = re.findall(r'href="(/server/join/[^"]+)"', html)
+
+            for i, name in enumerate(servers[:5]):
+                name = name.strip()
+                if name in sent_ids or any(o.get("name") == name for o in today_discord):
+                    continue
+
+                desc = descriptions[i].strip() if i < len(descriptions) else ""
+                link = f"https://disboard.org{links[i]}" if i < len(links) else ""
+
+                today_discord.append({
+                    "name": name,
+                    "description": desc[:200],
+                    "url": link,
+                    "search_term": term,
+                    "ts": time.time(),
+                })
+                found += 1
+
+    except Exception as e:
+        log.error("Discord scan error: %s", e)
+
+    log.info("Discord scan: %d servers found (total today: %d)", found, len(mem.get("todays_discord_opportunities", [])))
 
 
 # ══════════════════════════════════════════
@@ -789,10 +940,12 @@ async def run():
                 last_moderation = now
                 actions["counts"]["moderation_done"] = actions["counts"].get("moderation_done", 0) + 1
 
-            # Mission 2a: Scan Twitter + GitHub HOURLY (accumule les opportunites)
+            # Mission 2a: Scan ALL platforms HOURLY (accumule les opportunites)
             if now - last_twitter_scan >= 3600:
                 await mission_twitter_scan_hourly(mem)
                 await mission_github_scan_hourly(mem)
+                await mission_reddit_scan_hourly(mem)
+                await mission_discord_scan_hourly(mem)
                 last_twitter_scan = now
 
             # Mission 2b: Envoyer le best-of par mail (10h)
