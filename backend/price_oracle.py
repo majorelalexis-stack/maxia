@@ -467,7 +467,12 @@ async def get_crypto_prices() -> dict:
                   "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
                   "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
     cryptos = [s for s in TOKEN_MINTS if s not in stock_syms]
-    return await get_prices(cryptos)
+    prices = await get_prices(cryptos)
+    # Ensure all crypto tokens have a price (fallback if missing from cache)
+    for s in cryptos:
+        if s not in prices or not prices.get(s):
+            prices[s] = {"price": FALLBACK_PRICES.get(s, 0), "source": "fallback"}
+    return prices
 
 
 async def get_stock_prices() -> dict:
