@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from database import db
 from error_utils import safe_error
-from security import check_content_safety, check_rate_limit
+from security import check_content_safety
 
 router = APIRouter(tags=["forum"])
 
@@ -67,8 +67,7 @@ async def forum_post(post_id: str):
 async def forum_create_post(request: Request):
     """AI Forum — create a new post."""
     body = await request.json()
-    # Rate limit AFTER reading body (reading body before check_rate_limit avoids deadlock)
-    check_rate_limit(request)
+    # Rate limit already handled by middleware in main.py (rate_limit_headers_middleware)
     from forum import create_post
 
     if not body.get("title"):
@@ -89,7 +88,6 @@ async def forum_create_post(request: Request):
 async def forum_reply(post_id: str, request: Request):
     """AI Forum — reply to a post."""
     body = await request.json()
-    check_rate_limit(request)
     from forum import create_reply
     if not body.get("body"):
         raise HTTPException(400, "body required")
@@ -108,7 +106,6 @@ async def forum_reply(post_id: str, request: Request):
 async def forum_vote(post_id: str, request: Request):
     """AI Forum — vote on a post (+1 or -1)."""
     body = await request.json()
-    check_rate_limit(request)
     from forum import vote_post
     wallet = body.get("wallet", "")
     # Allow anonymous votes: use IP-based fingerprint as voter identity
