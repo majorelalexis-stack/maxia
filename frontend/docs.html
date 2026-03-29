@@ -924,21 +924,7 @@ print(f<span style="color:#A5D6FF">"Cost: ${result['cost_usdc']}"</span>)</div>
       </div>
     </section>
 
-    <!-- IMAGE GENERATION -->
-    <section id="image-gen" style="margin-bottom:48px">
-      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Image Generation</h2>
-      <p style="color:var(--muted);margin-bottom:24px">AI image generation via Pollinations.ai (free, no API key required). Fallback: Together AI if configured.</p>
-
-      <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;margin-bottom:16px">
-        <div class="endpoint"><span class="method post">POST</span><code>/api/public/image/generate</code></div>
-        <div class="endpoint-desc">Generate an AI image from a text prompt. Content safety enforced (Art.1).</div>
-        <div class="code-block">curl -X POST https://maxiaworld.app/api/public/image/generate \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "futuristic AI marketplace", "width": 512, "height": 512}'</div>
-        <p style="color:var(--muted);font-size:13px;margin-top:8px">Response: <code>image_base64</code> (PNG), <code>source</code> (pollinations.ai or together), <code>model</code></p>
-      </div>
-      <div class="note">Images generated via Pollinations.ai (FLUX model, free, unlimited). Blocked prompts: violence, NSFW, illegal content. Max 2048x2048px.</div>
-    </section>
+    <!-- IMAGE GENERATION — removed (not functional) -->
 
     <!-- ENTERPRISE API -->
     <section id="enterprise-api" style="margin-bottom:48px">
