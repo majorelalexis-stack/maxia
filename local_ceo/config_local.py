@@ -18,7 +18,7 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 # Ollama — modele unique (texte + vision)
 # ══════════════════════════════════════════
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-vl:32b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:32b")
 
 # Backward compat
 OLLAMA_CEO_MODEL = OLLAMA_MODEL
