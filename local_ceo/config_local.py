@@ -59,6 +59,10 @@ MAX_DISCORD_MESSAGES_DAY = 0
 MAX_TELEGRAM_MESSAGES_DAY = 0
 OFF_DAYS_PER_WEEK = 0  # Pas de jour off — monitoring continu
 
+# Backward compat pour browser_agent.py
+MIN_ACTION_SPACING_S = 3600
+MIN_TWEET_SPACING_S = 86400  # 1 tweet/jour = 24h spacing
+
 # Fichiers
 ACTIONS_TODAY_FILE = os.path.join(os.path.dirname(__file__), "actions_today.json")
 STRATEGY_FILE = os.path.join(os.path.dirname(__file__), "strategy.md")

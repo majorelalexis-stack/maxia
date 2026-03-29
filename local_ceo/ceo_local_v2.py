@@ -554,53 +554,10 @@ async def mission_reddit_scan_hourly(mem: dict):
 _DISCORD_SEARCH_TERMS = ["AI agent marketplace", "autonomous agent crypto", "MCP server solana", "agent escrow USDC"]
 
 async def mission_discord_scan_hourly(mem: dict):
-    """Scan Discord — cherche des discussions via des index publics (Disboard, top.gg)."""
-    found = 0
-    try:
-        # Discord n'a pas d'API publique pour lire les messages
-        # On scanne les serveurs indexes sur Disboard pour trouver des communautes pertinentes
-        async with httpx.AsyncClient(timeout=10) as client:
-            term = random.choice(_DISCORD_SEARCH_TERMS)
-            resp = await client.get(
-                f"https://disboard.org/search?keyword={term.replace(' ', '+')}",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-            if resp.status_code != 200:
-                log.info("Disboard %d — skip", resp.status_code)
-                return
-
-            # Parser les resultats basiques (noms de serveurs + descriptions)
-            html = resp.text
-            today_discord = mem.setdefault("todays_discord_opportunities", [])
-            sent_ids = set(o.get("name") for o in mem.get("discord_opportunities", []))
-
-            # Extraire les serveurs (parsing HTML basique)
-            import re
-            servers = re.findall(r'class="server-name[^"]*"[^>]*>([^<]+)<', html)
-            descriptions = re.findall(r'class="server-description[^"]*"[^>]*>([^<]+)<', html)
-            links = re.findall(r'href="(/server/join/[^"]+)"', html)
-
-            for i, name in enumerate(servers[:5]):
-                name = name.strip()
-                if name in sent_ids or any(o.get("name") == name for o in today_discord):
-                    continue
-
-                desc = descriptions[i].strip() if i < len(descriptions) else ""
-                link = f"https://disboard.org{links[i]}" if i < len(links) else ""
-
-                today_discord.append({
-                    "name": name,
-                    "description": desc[:200],
-                    "url": link,
-                    "search_term": term,
-                    "ts": time.time(),
-                })
-                found += 1
-
-    except Exception as e:
-        log.error("Discord scan error: %s", e)
-
-    log.info("Discord scan: %d servers found (total today: %d)", found, len(mem.get("todays_discord_opportunities", [])))
+    """Discord — pas d'API publique. Utilise une liste statique de serveurs pertinents."""
+    # Disboard bloque les bots (403). On maintient une liste statique.
+    # Le CEO inclura ces serveurs dans le rapport hebdomadaire pour qu'Alexis les rejoigne manuellement.
+    pass  # Scan actif desactive — serveurs listes dans le rapport concurrentiel
 
 
 # ══════════════════════════════════════════
@@ -844,8 +801,8 @@ async def mission_health_check(mem: dict):
         "site": f"{VPS_URL}/",
         "prices": f"{VPS_URL}/api/public/crypto/prices",
         "forum": f"{VPS_URL}/api/public/forum",
-        "crypto_quote": f"{VPS_URL}/api/public/crypto/quote",
     }
+    # crypto_quote needs params — check via POST checks instead
     # POST checks — verify endpoints respond (don't actually create data)
     post_checks = {
         "register_endpoint": {
