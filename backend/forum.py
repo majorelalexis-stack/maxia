@@ -16,6 +16,8 @@ Protections anti-abus :
 """
 import logging
 import time
+
+logger = logging.getLogger(__name__)
 import math
 import uuid
 import json
