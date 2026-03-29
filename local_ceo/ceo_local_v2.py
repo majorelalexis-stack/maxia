@@ -299,20 +299,157 @@ async def mission_send_best_opportunities(mem: dict, actions: dict):
     else:
         best = all_opps[:5]
 
-    today = datetime.now().strftime("%d/%m/%Y")
-    body = f"MAXIA CEO — Top {len(best)} opportunites Twitter du {today}\n"
-    body += f"(Scanne {len(all_opps)} tweets au total)\n\n"
-    for i, opp in enumerate(best, 1):
-        body += f"--- Opportunite #{i} ---\n"
-        body += f"Auteur: @{opp['author']}\n"
-        body += f"Tweet: {opp['text']}\n"
-        body += f"Lien: {opp['url']}\n"
-        body += f"Commentaire suggere: {opp['suggested_comment']}\n\n"
+    # GitHub opportunities
+    all_gh = mem.get("todays_github_opportunities", [])
+    best_gh = all_gh[:5]
 
-    await send_mail(f"[MAXIA CEO] Top {len(best)} opportunites Twitter - {today}", body)
+    today = datetime.now().strftime("%d/%m/%Y")
+    total = len(best) + len(best_gh)
+    body = f"MAXIA CEO — {total} opportunites du {today}\n\n"
+
+    if best:
+        body += f"═══ TWITTER ({len(best)} / {len(all_opps)} scannes) ═══\n\n"
+        for i, opp in enumerate(best, 1):
+            body += f"--- Twitter #{i} ---\n"
+            body += f"Auteur: @{opp['author']}\n"
+            body += f"Tweet: {opp['text']}\n"
+            body += f"Lien: {opp['url']}\n"
+            body += f"Commentaire suggere: {opp['suggested_comment']}\n\n"
+
+    if best_gh:
+        body += f"═══ GITHUB ({len(best_gh)} / {len(all_gh)} scannes) ═══\n\n"
+        for i, opp in enumerate(best_gh, 1):
+            body += f"--- GitHub #{i} ---\n"
+            body += f"Repo: {opp.get('repo', '')}\n"
+            body += f"Issue: {opp.get('title', '')}\n"
+            body += f"Auteur: @{opp.get('author', '')}\n"
+            body += f"Lien: {opp.get('url', '')}\n"
+            body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
+
+    if not best and not best_gh:
+        body += "Aucune opportunite pertinente trouvee aujourd'hui.\n"
+
+    await send_mail(f"[MAXIA CEO] {total} opportunites (Twitter+GitHub) - {today}", body)
     mem["opportunities_sent"].extend(best)
-    mem["todays_opportunities"] = []  # Reset pour demain
+    mem.setdefault("github_opportunities", []).extend(best_gh)
+    mem["todays_opportunities"] = []
+    mem["todays_github_opportunities"] = []
     actions["counts"]["opportunities_sent"] = 1
+
+
+# ══════════════════════════════════════════
+# Mission 2c — Scan GitHub issues/discussions (horaire)
+# ══════════════════════════════════════════
+
+_GITHUB_KEYWORDS = [
+    "marketplace", "monetize", "AI agent", "MCP server", "escrow",
+    "autonomous agent", "agent-to-agent", "USDC payment", "swap token",
+    "GPU rental", "agent protocol", "agent marketplace",
+]
+
+_BLOCKED_ORGS = ["langchain-ai"]  # Banni — ne pas scanner
+
+async def mission_github_scan_hourly(mem: dict):
+    """Scan horaire GitHub — cherche des issues/discussions pertinentes."""
+    repos_to_scan = [r for r in GITHUB_REPOS if not any(blocked in r for blocked in _BLOCKED_ORGS)]
+    repo = random.choice(repos_to_scan)
+    found = 0
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Scanner les issues recentes
+            resp = await client.get(
+                f"https://api.github.com/repos/{repo}/issues?state=open&sort=updated&per_page=10",
+                headers={"Accept": "application/vnd.github.v3+json"},
+            )
+            if resp.status_code != 200:
+                log.warning("GitHub API %d for %s", resp.status_code, repo)
+                return
+
+            issues = resp.json()
+            sent_ids = set(o.get("id") for o in mem.get("github_opportunities", []))
+            today_gh = mem.setdefault("todays_github_opportunities", [])
+            today_ids = set(o.get("id") for o in today_gh)
+
+            for issue in issues:
+                issue_id = str(issue.get("id", ""))
+                if issue_id in sent_ids or issue_id in today_ids:
+                    continue
+
+                title = issue.get("title", "")
+                body_text = (issue.get("body") or "")[:500]
+                content = f"{title} {body_text}".lower()
+
+                # Verifier la pertinence
+                relevant = any(kw.lower() in content for kw in _GITHUB_KEYWORDS)
+                if not relevant:
+                    continue
+
+                # Generer un commentaire suggere
+                comment = await llm(
+                    f"A developer posted this GitHub issue:\n"
+                    f"Repo: {repo}\n"
+                    f"Title: {title}\n"
+                    f"Body: {body_text[:300]}\n\n"
+                    f"Write a helpful reply (max 200 chars) that adds value. "
+                    f"Mention MAXIA only if directly relevant to their problem. "
+                    f"Be a helpful developer, not a salesperson.",
+                    system=CEO_SYSTEM_PROMPT,
+                    max_tokens=80,
+                )
+
+                today_gh.append({
+                    "id": issue_id,
+                    "repo": repo,
+                    "title": title[:150],
+                    "url": issue.get("html_url", ""),
+                    "author": issue.get("user", {}).get("login", ""),
+                    "body_preview": body_text[:200],
+                    "suggested_comment": comment[:200] if comment else "",
+                    "type": "issue",
+                    "ts": time.time(),
+                })
+                found += 1
+
+                if found >= 3:
+                    break
+
+            await asyncio.sleep(1)  # Rate limit GitHub
+
+            # Scanner aussi les discussions si le repo en a
+            try:
+                resp_disc = await client.get(
+                    f"https://api.github.com/repos/{repo}/discussions?per_page=5",
+                    headers={"Accept": "application/vnd.github.v3+json"},
+                )
+                if resp_disc.status_code == 200:
+                    for disc in resp_disc.json():
+                        disc_id = str(disc.get("id", ""))
+                        if disc_id in sent_ids or disc_id in today_ids:
+                            continue
+                        title = disc.get("title", "")
+                        if any(kw.lower() in title.lower() for kw in _GITHUB_KEYWORDS):
+                            comment = await llm(
+                                f"A developer started this GitHub discussion:\n"
+                                f"Repo: {repo}\nTitle: {title}\n\n"
+                                f"Write a helpful reply (max 200 chars).",
+                                system=CEO_SYSTEM_PROMPT,
+                                max_tokens=80,
+                            )
+                            today_gh.append({
+                                "id": disc_id, "repo": repo, "title": title[:150],
+                                "url": disc.get("html_url", ""), "author": disc.get("user", {}).get("login", ""),
+                                "suggested_comment": comment[:200] if comment else "",
+                                "type": "discussion", "ts": time.time(),
+                            })
+                            found += 1
+            except Exception:
+                pass  # Discussions API not available for all repos
+
+    except Exception as e:
+        log.error("GitHub scan error: %s", e)
+
+    log.info("GitHub scan [%s]: %d opportunities (total today: %d)", repo, found, len(mem.get("todays_github_opportunities", [])))
 
 
 # ══════════════════════════════════════════
@@ -652,9 +789,10 @@ async def run():
                 last_moderation = now
                 actions["counts"]["moderation_done"] = actions["counts"].get("moderation_done", 0) + 1
 
-            # Mission 2a: Scan Twitter HOURLY (accumule les opportunites)
+            # Mission 2a: Scan Twitter + GitHub HOURLY (accumule les opportunites)
             if now - last_twitter_scan >= 3600:
                 await mission_twitter_scan_hourly(mem)
+                await mission_github_scan_hourly(mem)
                 last_twitter_scan = now
 
             # Mission 2b: Envoyer le best-of par mail (10h)
@@ -790,11 +928,18 @@ async def terminal_mode():
             print("[CEO] Scan Twitter en cours...")
             await mission_twitter_scan_hourly(mem)
             _save_memory(mem)
-            print(f"[CEO] Done — {len(mem.get('todays_opportunities', []))} opportunites accumulees")
+            print(f"[CEO] Done — {len(mem.get('todays_opportunities', []))} opportunites Twitter accumulees")
             continue
 
         if cmd == "scan github":
-            print("[CEO] Scan GitHub en cours...")
+            print("[CEO] Scan GitHub issues/discussions en cours...")
+            await mission_github_scan_hourly(mem)
+            _save_memory(mem)
+            print(f"[CEO] Done — {len(mem.get('todays_github_opportunities', []))} opportunites GitHub accumulees")
+            continue
+
+        if cmd == "rapport":
+            print("[CEO] Generation du rapport quotidien...")
             actions = _load_actions_today()
             await mission_daily_report(mem, actions)
             _save_memory(mem)
