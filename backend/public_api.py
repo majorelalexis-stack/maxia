@@ -2330,7 +2330,12 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     # ═══ NATIVE SERVICE EXECUTION ═══
     if is_native:
         _exec_start = time.time()
-        result_text = await _execute_native_service(service_id, prompt)
+        try:
+            result_text = await asyncio.wait_for(
+                _execute_native_service(service_id, prompt), timeout=30
+            )
+        except asyncio.TimeoutError:
+            result_text = "Service execution timed out (30s). LLM providers may be rate-limited. Your payment is recorded — contact support for a retry."
         _exec_ms = int((time.time() - _exec_start) * 1000)
 
         # #6 Refund auto if service failed
