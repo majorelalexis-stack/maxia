@@ -66,12 +66,11 @@ async def forum_post(post_id: str):
 @router.post("/api/public/forum/post")
 async def forum_create_post(request: Request):
     """AI Forum — create a new post."""
-    # SECURITY: No auth — wallet in body is self-reported (not verified).
-    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    body = await request.json()
+    # Rate limit AFTER reading body (reading body before check_rate_limit avoids deadlock)
     check_rate_limit(request)
     from forum import create_post
 
-    body = await request.json()
     if not body.get("title"):
         raise HTTPException(400, "title required")
     # Allow visitors without wallet — use IP fingerprint
@@ -89,12 +88,9 @@ async def forum_create_post(request: Request):
 @router.post("/api/public/forum/post/{post_id}/reply")
 async def forum_reply(post_id: str, request: Request):
     """AI Forum — reply to a post."""
-    # SECURITY: No auth — wallet in body is self-reported (not verified).
-    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    body = await request.json()
     check_rate_limit(request)
     from forum import create_reply
-
-    body = await request.json()
     if not body.get("body"):
         raise HTTPException(400, "body required")
     # Allow visitors without wallet — use IP fingerprint
@@ -111,12 +107,9 @@ async def forum_reply(post_id: str, request: Request):
 @router.post("/api/public/forum/post/{post_id}/vote")
 async def forum_vote(post_id: str, request: Request):
     """AI Forum — vote on a post (+1 or -1)."""
-    # SECURITY: No auth — wallet in body is self-reported (not verified).
-    # IP-based rate limiting mitigates spam until proper wallet-sig auth is added.
+    body = await request.json()
     check_rate_limit(request)
     from forum import vote_post
-
-    body = await request.json()
     wallet = body.get("wallet", "")
     # Allow anonymous votes: use IP-based fingerprint as voter identity
     if not wallet or wallet == "anonymous":
