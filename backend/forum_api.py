@@ -4,9 +4,13 @@ import re
 
 from fastapi import APIRouter, HTTPException, Request
 
-from database import db
 from error_utils import safe_error
 from security import check_content_safety
+
+
+def _get_db():
+    from database import db
+    return db
 
 
 async def _read_body(request: Request) -> dict:
@@ -37,8 +41,8 @@ async def forum_home(sort: str = "hot", page: int = 0, limit: int = 20):
     from forum import COMMUNITIES, get_posts, get_forum_stats
 
     offset = page * limit
-    posts = await get_posts(db, sort=sort, limit=limit, offset=offset)
-    stats = await get_forum_stats(db)
+    posts = await get_posts(_get_db(), sort=sort, limit=limit, offset=offset)
+    stats = await get_forum_stats(_get_db())
     return {
         "communities": COMMUNITIES,
         "posts": posts,
@@ -56,9 +60,9 @@ async def forum_community(
 
     offset = page * limit
     posts = await get_posts(
-        db, community=community, sort=sort, limit=limit, offset=offset
+        _get_db(), community=community, sort=sort, limit=limit, offset=offset
     )
-    stats = await get_forum_stats(db)
+    stats = await get_forum_stats(_get_db())
     return {"posts": posts, "stats": stats, "total": stats.get("total_posts", 0)}
 
 
@@ -67,7 +71,7 @@ async def forum_post(post_id: str):
     """AI Forum — single post with replies."""
     from forum import get_post_with_replies
 
-    return await get_post_with_replies(db, post_id)
+    return await get_post_with_replies(_get_db(), post_id)
 
 
 # POST /api/public/forum/create — moved to main.py to avoid BaseHTTPMiddleware body deadlock
@@ -88,7 +92,7 @@ async def forum_reply(post_id: str, request: Request):
     else:
         _validate_wallet_format(body["wallet"])
     check_content_safety(body.get("body", ""))
-    return await create_reply(db, post_id, body)
+    return await create_reply(_get_db(), post_id, body)
 
 
 @router.post("/api/public/forum/post/{post_id}/vote")
@@ -103,7 +107,7 @@ async def forum_vote(post_id: str, request: Request):
         wallet = f"anon_{client_ip}"
     else:
         _validate_wallet_format(wallet)
-    return await vote_post(db, post_id, wallet, body.get("vote", 1))
+    return await vote_post(_get_db(), post_id, wallet, body.get("vote", 1))
 
 
 @router.get("/api/public/forum/search")
@@ -111,7 +115,7 @@ async def forum_search(q: str = "", limit: int = 20):
     """AI Forum — search posts."""
     from forum import search_posts
 
-    posts = await search_posts(db, q, limit)
+    posts = await search_posts(_get_db(), q, limit)
     return {"posts": posts, "total": len(posts)}
 
 
@@ -127,7 +131,7 @@ async def forum_report(post_id: str, request: Request):
         wallet = f"visitor_{client_ip}"
     else:
         _validate_wallet_format(wallet)
-    return await report_post(db, post_id, wallet, body.get("reason", ""))
+    return await report_post(_get_db(), post_id, wallet, body.get("reason", ""))
 
 
 @router.post("/api/admin/forum/ban")
@@ -139,7 +143,7 @@ async def forum_admin_ban(request: Request):
     from forum import admin_ban_agent
 
     body = await _read_body(request)
-    return await admin_ban_agent(db, body.get("wallet", ""))
+    return await admin_ban_agent(_get_db(), body.get("wallet", ""))
 
 
 @router.post("/api/admin/forum/unban")
@@ -151,4 +155,4 @@ async def forum_admin_unban(request: Request):
     from forum import admin_unban_agent
 
     body = await _read_body(request)
-    return await admin_unban_agent(db, body.get("wallet", ""))
+    return await admin_unban_agent(_get_db(), body.get("wallet", ""))
