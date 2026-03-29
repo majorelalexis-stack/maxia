@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
-async def _rpc_post(payload: dict, timeout: float = 15) -> dict:
+async def _rpc_post(payload: dict, timeout: float = 8) -> dict:
     """Post RPC avec failover sur toutes les URLs Solana.
     Meme pattern que base_verifier._rpc_post."""
     last_error = None
@@ -46,6 +46,18 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
     if not expected_recipient:
         expected_recipient = TREASURY_ADDRESS
 
+    # Global timeout — never hang more than 20s total
+    try:
+        return await asyncio.wait_for(
+            _verify_transaction_inner(tx_signature, expected_wallet, expected_amount_usdc, expected_recipient),
+            timeout=20
+        )
+    except asyncio.TimeoutError:
+        return {"valid": False, "error": "Transaction verification timed out (20s). Solana RPC may be slow. Try again."}
+
+
+async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
+                                      expected_amount_usdc: float, expected_recipient: str) -> dict:
     payload = {
         "jsonrpc": "2.0", "id": 1,
         "method": "getTransaction",
