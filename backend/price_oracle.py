@@ -372,6 +372,7 @@ async def get_prices(symbols: list = None) -> dict:
             "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
             "DOGE": "dogecoin", "SHIB": "shiba-inu",
             # Tokens multi-chain ajoutes V12.1 (etaient sans prix)
+            "XRP": "ripple", "AVAX": "avalanche-2", "MATIC": "matic-network",
             "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
             "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
             "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
