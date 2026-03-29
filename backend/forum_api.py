@@ -1,4 +1,5 @@
 """MAXIA Forum API routes — extracted from main.py."""
+import json
 import re
 
 from fastapi import APIRouter, HTTPException, Request
@@ -6,6 +7,12 @@ from fastapi import APIRouter, HTTPException, Request
 from database import db
 from error_utils import safe_error
 from security import check_content_safety
+
+
+async def _read_body(request: Request) -> dict:
+    """Read JSON body — works around Starlette BaseHTTPMiddleware body streaming bug."""
+    raw = await request.body()
+    return json.loads(raw) if raw else {}
 
 router = APIRouter(tags=["forum"])
 
@@ -66,7 +73,7 @@ async def forum_post(post_id: str):
 @router.post("/api/public/forum/post")
 async def forum_create_post(request: Request):
     """AI Forum — create a new post."""
-    body = await request.json()
+    body = await _read_body(request)
     # Rate limit already handled by middleware in main.py (rate_limit_headers_middleware)
     from forum import create_post
 
@@ -87,7 +94,7 @@ async def forum_create_post(request: Request):
 @router.post("/api/public/forum/post/{post_id}/reply")
 async def forum_reply(post_id: str, request: Request):
     """AI Forum — reply to a post."""
-    body = await request.json()
+    body = await _read_body(request)
     from forum import create_reply
     if not body.get("body"):
         raise HTTPException(400, "body required")
@@ -105,7 +112,7 @@ async def forum_reply(post_id: str, request: Request):
 @router.post("/api/public/forum/post/{post_id}/vote")
 async def forum_vote(post_id: str, request: Request):
     """AI Forum — vote on a post (+1 or -1)."""
-    body = await request.json()
+    body = await _read_body(request)
     from forum import vote_post
     wallet = body.get("wallet", "")
     # Allow anonymous votes: use IP-based fingerprint as voter identity
@@ -131,7 +138,7 @@ async def forum_report(post_id: str, request: Request):
     """AI Forum — report a post."""
     from forum import report_post
 
-    body = await request.json()
+    body = await _read_body(request)
     wallet = body.get("wallet", "")
     if not wallet or wallet in ("visitor", "anonymous"):
         client_ip = request.client.host if request.client else "unknown"
@@ -149,7 +156,7 @@ async def forum_admin_ban(request: Request):
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
     from forum import admin_ban_agent
 
-    body = await request.json()
+    body = await _read_body(request)
     return await admin_ban_agent(db, body.get("wallet", ""))
 
 
@@ -161,5 +168,5 @@ async def forum_admin_unban(request: Request):
     await require_ceo_auth(request, request.headers.get("X-CEO-Key"))
     from forum import admin_unban_agent
 
-    body = await request.json()
+    body = await _read_body(request)
     return await admin_unban_agent(db, body.get("wallet", ""))
