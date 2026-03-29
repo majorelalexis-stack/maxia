@@ -2122,7 +2122,7 @@ async def discover_services(
             tags.append("original-creator")
 
         # #18 Commission transparent — show all tiers so buyer sees their actual rate
-        price = s.get("price_usdc", 0)
+        price = float(s.get("price_usdc", 0))
         commission_bronze = round(price * get_commission_bps(0) / 10000, 4)
         commission_gold = round(price * get_commission_bps(500) / 10000, 4)
         commission_whale = round(price * get_commission_bps(5000) / 10000, 4)
@@ -2172,7 +2172,7 @@ async def discover_services(
     # #7 Sort by composite score: success_rate * rating * log(sales+1) + original creator boost
     import math
     for r in results:
-        base_score = (r.get("success_rate_pct", 50) / 100) * r.get("rating", 3) * math.log(r.get("sales", 0) + 2)
+        base_score = (float(r.get("success_rate_pct", 50)) / 100) * float(r.get("rating", 3)) * math.log(float(r.get("sales", 0)) + 2)
         # Original creators get 20% ranking boost
         original_boost = 1.2 if r.get("is_original", False) else 1.0
         r["_score"] = base_score * original_boost
