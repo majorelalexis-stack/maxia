@@ -561,6 +561,12 @@ async def limit_body_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > 5_000_000:
         return _JSONResponseGlobal(status_code=413, content={"error": "Request too large (max 5MB)"})
+    # Fix Starlette BaseHTTPMiddleware body streaming deadlock:
+    # Pre-read and cache body so route handlers can call request.json() / request.body()
+    if request.method in ("POST", "PUT", "PATCH"):
+        body = await request.body()
+        # Store in _body so Starlette returns cached bytes on subsequent reads
+        request._body = body
     return await call_next(request)
 
 
