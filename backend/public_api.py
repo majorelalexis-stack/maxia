@@ -105,7 +105,7 @@ async def _load_from_db():
     _db_last_sync = now
     try:
         from database import db
-        agents = await db.get_all_agents()
+        agents = await asyncio.wait_for(db.get_all_agents(), timeout=10)
         for a in agents:
             key = a["api_key"]
             existing = _registered_agents.get(key)
@@ -129,7 +129,7 @@ async def _load_from_db():
                 }
         # Services: merge par ID (pas d'append duplicatif)
         existing_ids = {s["id"] for s in _agent_services}
-        services = await db.get_services()
+        services = await asyncio.wait_for(db.get_services(), timeout=10)
         for s in services:
             sd = dict(s)
             if sd["id"] not in existing_ids:
@@ -1893,10 +1893,18 @@ async def marketplace_stats():
         "total_tokens": token_count,
         "total_stocks": stock_count,
         "mcp_tools": mcp_count,
+        "swap_count": db_stats.get("swap_count", 0),
+        "swap_commission_usdc": db_stats.get("swap_commission_usdc", 0),
         "commission_tiers": {
             "bronze": "1.5% (0-500 USDC)",
             "gold": "0.5% (500-5000 USDC)",
             "whale": "0.1% (5000+ USDC)",
+        },
+        "swap_commission_tiers": {
+            "bronze": "0.10% (0-1000 USDC)",
+            "silver": "0.05% (1000-5000 USDC)",
+            "gold": "0.03% (5000-25000 USDC)",
+            "whale": "0.01% (25000+ USDC)",
         },
     }
 
@@ -2228,7 +2236,12 @@ async def discover_services_post(req: dict = {}):
 @router.post("/execute")
 async def execute_agent_service(request: Request, req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
     """Buy AND execute a service in one call. Requires real USDC payment on Solana."""
-    await _load_from_db()
+    logger.info("/execute ENTERED — loading DB...")
+    try:
+        await asyncio.wait_for(_load_from_db(), timeout=10)
+    except asyncio.TimeoutError:
+        logger.warning("/execute _load_from_db timed out — using cached data")
+    logger.info("/execute DB loaded, checking auth...")
     if not x_api_key:
         raise HTTPException(401, "Header X-API-Key requis")
 
@@ -2295,21 +2308,31 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
     # Idempotency: reject reused payment signatures
     from database import db as _exec_db
-    if await _exec_db.tx_already_processed(payment_tx):
-        raise HTTPException(400, "Payment already used for a previous purchase")
+    try:
+        if await asyncio.wait_for(_exec_db.tx_already_processed(payment_tx), timeout=5):
+            raise HTTPException(400, "Payment already used for a previous purchase")
+    except asyncio.TimeoutError:
+        logger.warning("/execute tx_already_processed timed out — proceeding")
+    except HTTPException:
+        raise
 
-    # On-chain verification via solana_verifier
+    # On-chain verification via solana_verifier (max 20s built-in)
     try:
         from solana_verifier import verify_transaction
-        verification = await verify_transaction(
-            tx_signature=payment_tx,
-            expected_amount_usdc=price,
-            expected_recipient=TREASURY_ADDRESS,
+        verification = await asyncio.wait_for(
+            verify_transaction(
+                tx_signature=payment_tx,
+                expected_amount_usdc=price,
+                expected_recipient=TREASURY_ADDRESS,
+            ),
+            timeout=25,
         )
         if not verification.get("valid"):
             raise HTTPException(400,
                 f"Payment invalid: {verification.get('error', 'verification failed')}. "
                 f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Payment verification timed out (25s). Solana RPC may be slow. Try again.")
     except HTTPException:
         raise
     except Exception as e:
@@ -3652,11 +3675,53 @@ async def crypto_compare_fees(volume_30d: float = 0):
     return compare_fees(volume_30d)
 
 
+@router.post("/crypto/log-swap")
+async def crypto_log_swap(req: dict):
+    """Log a frontend swap (Jupiter/Phantom) — no API key needed.
+    Called fire-and-forget after on-chain swap succeeds."""
+    from database import db
+    tx_sig = (req.get("tx_signature") or "").strip()
+    if not tx_sig or len(tx_sig) < 20:
+        raise HTTPException(400, "tx_signature required")
+    # Prevent duplicates
+    if await db.tx_already_processed(tx_sig):
+        return {"status": "already_logged"}
+    wallet = (req.get("wallet") or "").strip()
+    from_token = (req.get("from_token") or "").upper()
+    to_token = (req.get("to_token") or "").upper()
+    amount = float(req.get("amount") or 0)
+    # Estimate USD value
+    try:
+        from crypto_swap import fetch_prices
+        prices = await fetch_prices()
+        price = prices.get(from_token, {}).get("price", 0)
+        value_usd = amount * price if price > 0 else amount
+    except Exception:
+        value_usd = amount
+    # Record in transactions table (shows in dashboard activity + stats)
+    await db.record_transaction(wallet, tx_sig, value_usd, "crypto_swap")
+    # Record in crypto_swaps table
+    import uuid
+    await db.save_swap({
+        "swap_id": str(uuid.uuid4())[:12],
+        "buyer_wallet": wallet,
+        "from_token": from_token,
+        "to_token": to_token,
+        "amount_in": amount,
+        "amount_out": float(req.get("output_amount") or 0),
+        "commission": round(value_usd * 0.001, 6),
+        "payment_tx": tx_sig,
+        "jupiter_tx": tx_sig,
+        "status": "completed",
+    })
+    return {"status": "logged", "value_usd": round(value_usd, 4)}
+
+
 @router.get("/crypto/stats")
 async def crypto_stats():
     """Stats des swaps. Sans auth."""
     from crypto_swap import get_swap_stats
-    return get_swap_stats()
+    return await get_swap_stats()
 
 
 # ══════════════════════════════════════════

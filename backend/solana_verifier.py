@@ -17,17 +17,20 @@ async def _rpc_post(payload: dict, timeout: float = 5) -> dict:
     # Add Helius last as fallback
     helius = [u for u in SOLANA_RPC_URLS if "helius" in u]
     urls_to_try.extend(helius[:1])
+    _timeout = httpx.Timeout(connect=3, read=timeout, write=3, pool=3)
     for rpc_url in urls_to_try:
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(rpc_url, json=payload)
+            async with httpx.AsyncClient(timeout=_timeout) as client:
+                resp = await asyncio.wait_for(
+                    client.post(rpc_url, json=payload), timeout=timeout + 2
+                )
                 data = resp.json()
             if "error" in data and data["error"]:
                 last_error = Exception(f"RPC error: {data['error']}")
                 continue
             logger.info("RPC success: %s", rpc_url.split("?")[0][:40])
             return data
-        except httpx.TimeoutException as e:
+        except (httpx.TimeoutException, asyncio.TimeoutError) as e:
             logger.warning("RPC timeout: %s", rpc_url.split("?")[0][:40])
             last_error = e
         except httpx.ConnectError as e:

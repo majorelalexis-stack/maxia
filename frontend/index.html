@@ -2098,7 +2098,7 @@ async function loadListings() {
     if (ms.ok && ms.data) {
       document.getElementById('mkt-listings').textContent = ms.data.services_listed || services.length || 0;
       if (document.getElementById('mkt-agents')) document.getElementById('mkt-agents').textContent = ms.data.registered_agents || 0;
-      if (document.getElementById('mkt-revenue')) document.getElementById('mkt-revenue').textContent = '$' + (ms.data.total_commission_usdc || 0).toFixed(2);
+      if (document.getElementById('mkt-revenue')) { const c = ms.data.total_commission_usdc || 0; document.getElementById('mkt-revenue').textContent = '$' + (c > 0 && c < 0.01 ? c.toFixed(4) : c.toFixed(2)); }
       if (document.getElementById('mkt-txs')) document.getElementById('mkt-txs').textContent = ms.data.total_transactions || 0;
     }
   } catch(e){}
@@ -2239,8 +2239,8 @@ async function loadActivity() {
   const tb = document.getElementById('activity-table');
   const r = await api('/api/activity');
   if (r.ok && r.data && r.data.length > 0) {
-    const typeMap = {gpu_auction:'GPU Auction',subscription:'Abonnement',data_purchase:'Data',marketplace:'Marketplace',exchange:'Exchange'};
-    const colorMap = {gpu_auction:'gold',subscription:'purple',data_purchase:'cyan',marketplace:'green',exchange:'cyan'};
+    const typeMap = {gpu_auction:'GPU Auction',subscription:'Abonnement',data_purchase:'Data',marketplace:'Marketplace',exchange:'Exchange',crypto_swap:'Swap',evm_swap:'Swap EVM'};
+    const colorMap = {gpu_auction:'gold',subscription:'purple',data_purchase:'cyan',marketplace:'green',exchange:'cyan',crypto_swap:'orange',evm_swap:'orange'};
     tb.innerHTML = r.data.map(a => {
       const label = typeMap[a.purpose] || esc(a.purpose);
       const color = colorMap[a.purpose] || 'green';
@@ -2250,7 +2250,7 @@ async function loadActivity() {
       return '<tr>' +
         '<td><span class="badge ' + color + '">' + label + '</span></td>' +
         '<td class="mono" style="font-size:11px">' + w.slice(0,6) + '...' + w.slice(-4) + '</td>' +
-        '<td style="font-family:var(--font-mono);color:var(--green);font-weight:700">' + parseFloat(a.amount_usdc||0).toFixed(2) + ' <span style=\"color:var(--muted)\">USDC</span></td>' +
+        '<td style="font-family:var(--font-mono);color:var(--green);font-weight:700">' + (function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(parseFloat(a.amount_usdc||0)) + ' <span style=\"color:var(--muted)\">USDC</span></td>' +
         '<td><span class="badge green">confirmed</span></td>' +
         '<td style="color:var(--muted);font-size:11px">' + time + '</td>' +
         '</tr>';
@@ -2282,7 +2282,7 @@ async function loadDashboardStats() {
             <div class="stat-card"><div class="stat-label">Agents inscrits</div><div class="stat-value">${d.registered_agents||0}</div></div>
             <div class="stat-card"><div class="stat-label">Services listes</div><div class="stat-value">${d.services_listed||0}</div></div>
             <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value">${d.total_transactions||0}</div></div>
-            <div class="stat-card"><div class="stat-label">Commission MAXIA</div><div class="stat-value">$${(d.total_commission_usdc||0).toFixed(2)}</div></div>
+            <div class="stat-card"><div class="stat-label">Commission MAXIA</div><div class="stat-value">$${(function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(d.total_commission_usdc||0)}</div></div>
           </div>
           <div class="panel"><div class="panel-header">Services disponibles (${svcs.length})</div><div class="panel-body">
             ${svcs.length > 0 ? '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--muted);text-align:left"><th style="padding:8px">Service</th><th>Type</th><th>Prix</th><th>Fournisseur</th></tr>' + svcs.map(sv => '<tr style="border-top:1px solid var(--border)"><td style="padding:8px">' + (sv.name||'') + '</td><td>' + (sv.type||'') + '</td><td>' + (sv.price_usdc||'?') + ' USDC</td><td>' + (sv.provider||sv.seller||'MAXIA') + '</td></tr>').join('') + '</table>' : '<p style="color:var(--muted);text-align:center;padding:20px">Aucun service externe. Les IA peuvent lister via POST /api/public/sell</p>'}
@@ -2387,7 +2387,7 @@ async function loadDashboardStats() {
       const r = await fetch('/api/stocks/stats');
       const d = await r.json();
       document.getElementById('ss-trades').textContent = d.total_trades || 0;
-      document.getElementById('ss-volume').textContent = (d.total_volume_usdc || 0).toFixed(2);
+      document.getElementById('ss-volume').textContent = (function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(d.total_volume_usdc || 0);
       document.getElementById('ss-commission').textContent = (d.total_commission_usdc || 0).toFixed(4);
       document.getElementById('ss-holders').textContent = d.unique_holders || 0;
     } catch(e) {}
@@ -2406,11 +2406,12 @@ async function loadDashboardStats() {
   showPage = _showPagePatched;
 
   // Charger stats reelles depuis l'API
-  const [statsR, listingsR, auctionsR, mktR] = await Promise.all([
+  const [statsR, listingsR, auctionsR, mktR, swapR] = await Promise.all([
     api('/api/stats'),
     api('/api/public/services'),
     api('/api/gpu/auctions/active'),
     api('/api/public/marketplace-stats'),
+    api('/api/public/crypto/stats'),
   ]);
 
   // Marketplace stats
@@ -2419,9 +2420,13 @@ async function loadDashboardStats() {
   const mktAgents = mktR.ok ? (mktR.data.registered_agents || 0) : 0;
   const mktTxs = mktR.ok ? (mktR.data.total_transactions || 0) : 0;
 
-  // Volume 24h (classic + marketplace)
-  const vol = (statsR.ok ? (statsR.data.volume_24h || 0) : 0) + mktVol;
-  document.getElementById('vol24').textContent = vol.toFixed(2) + ' USDC';
+  // Swap stats
+  const swapVol = swapR.ok ? (swapR.data.total_volume_usd || 0) : 0;
+  const swapRev = swapR.ok ? (swapR.data.total_commission_usd || 0) : 0;
+
+  // Volume 24h (classic + marketplace + swaps)
+  const vol = (statsR.ok ? (statsR.data.volume_24h || 0) : 0) + mktVol + swapVol;
+  document.getElementById('vol24').textContent = (vol > 0 && vol < 0.01 ? vol.toFixed(4) : vol.toFixed(2)) + ' USDC';
   if (!statsR.ok) clog('⚠️ /api/stats: ' + (statsR.data.detail || statsR.status), 'warn');
 
   // Services count (MAXIA + external agents)
@@ -2430,9 +2435,9 @@ async function loadDashboardStats() {
   const svc = Array.isArray(svcList) ? svcList.length : (svcData.total || 0);
   document.getElementById('svc-count').textContent = svc || mktAgents;
 
-  // Revenue (classic + marketplace commission)
-  const rev = (statsR.ok ? (statsR.data.total_revenue || 0) : 0) + mktRev;
-  document.getElementById('rev-total').textContent = rev.toFixed(2) + ' USDC';
+  // Revenue (classic + marketplace commission + swap commission)
+  const rev = (statsR.ok ? (statsR.data.total_revenue || 0) : 0) + mktRev + swapRev;
+  document.getElementById('rev-total').textContent = (rev > 0 && rev < 0.01 ? rev.toFixed(4) : rev.toFixed(2)) + ' USDC';
 
   const gpu = auctionsR.ok ? (Array.isArray(auctionsR.data) ? auctionsR.data.length : 0) : 0;
   document.getElementById('gpu-count').textContent = gpu;
@@ -2671,7 +2676,7 @@ async function verifyBaseUsdc() {
   const r = await api('/api/base/verify-usdc', { method: 'POST', body: JSON.stringify({ tx_hash: hash }) });
   if (r.ok && r.data.valid) {
     const t = r.data.usdcTransfer || {};
-    el.innerHTML = '<div class="badge green">✓ USDC Transfer vérifié</div><div style="font-size:11px;color:var(--muted);margin-top:6px">' + (t.amount_usdc||0).toFixed(2) + ' USDC</div>';
+    el.innerHTML = '<div class="badge green">✓ USDC Transfer vérifié</div><div style="font-size:11px;color:var(--muted);margin-top:6px">' + (function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(t.amount_usdc||0) + ' USDC</div>';
   } else {
     el.innerHTML = '<div class="badge red">✗ ' + (r.data.error || 'Erreur') + '</div>';
   }
@@ -2734,7 +2739,7 @@ async function loadAP2Stats() {
     el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
       '<div class="tier-card" style="text-align:center"><div class="stat-label">Mandats actifs</div><div style="font-size:24px;font-weight:800;color:var(--purple2)">' + (r.data.activeMandates||0) + '</div></div>' +
       '<div class="tier-card" style="text-align:center"><div class="stat-label">Paiements</div><div style="font-size:24px;font-weight:800;color:var(--green)">' + (r.data.completedPayments||0) + '</div></div>' +
-      '<div class="tier-card" style="text-align:center"><div class="stat-label">Volume USDC</div><div style="font-size:24px;font-weight:800;color:var(--gold)">' + (r.data.totalVolumeUsdc||0).toFixed(2) + '</div></div>' +
+      '<div class="tier-card" style="text-align:center"><div class="stat-label">Volume USDC</div><div style="font-size:24px;font-weight:800;color:var(--gold)">' + (function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(r.data.totalVolumeUsdc||0) + '</div></div>' +
       '</div>';
   }
 }

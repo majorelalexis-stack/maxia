@@ -78,15 +78,22 @@ async def get_tiers():
         else:
             sell_price = base_price
 
+        # Check live availability on Akash
+        is_avail = False
+        if AKASH_ENABLED and akash_client and tier_id in AKASH_GPU_MAP:
+            try:
+                is_avail = await akash_client.check_tier_available(tier_id)
+            except Exception:
+                is_avail = False
+
         tier = {
             "id": tier_id, "label": g["label"], "vram_gb": g["vram_gb"],
             "price_per_hour_usdc": sell_price,
-            "available": True,
+            "available": is_avail,
             "source": "live" if AKASH_ENABLED else "fallback",
             "maxia_markup": f"{int(_GPU_MARKUP*100)}%",
             "provider": "akash",
         }
-        # Disponibilite live Akash
         if g.get("local"):
             tier["local"] = True
             tier["available"] = False
@@ -246,15 +253,16 @@ async def get_all_prices():
 
 
 @router.post("/api/gpu/rent")
-async def rent_gpu_direct(req: dict, auth_wallet: str = Depends(require_auth)):
+async def rent_gpu_direct(req: dict, request: Request):
     """Rent a GPU. Requires USDC payment verified on-chain.
 
-    Body: { gpu: str (tier ID or label), hours: float, payment_tx: str }
+    Body: { gpu: str (tier ID or label), hours: float, payment_tx: str, wallet: str }
     """
     db = _get_db()
     runpod = _get_runpod()
     gpu_input = req.get("gpu") or req.get("gpu_tier_id", "")
-    wallet = auth_wallet  # Use authenticated wallet, not body
+    # Accept wallet from header (agents) or body (frontend)
+    wallet = request.headers.get("X-Wallet") or req.get("wallet", "")
     hours = float(req.get("hours", 1))
     payment_tx = req.get("payment_tx")
 

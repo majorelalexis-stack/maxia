@@ -18,6 +18,7 @@ import time
 import os
 import random
 import logging
+import subprocess
 import httpx
 from datetime import datetime
 
@@ -27,9 +28,13 @@ from config_local import (
     HEALTH_CHECK_INTERVAL_S, MODERATION_INTERVAL_S,
     GITHUB_REPOS, MAXIA_FEATURES,
 )
+from kaspa_miner import start_miner, stop_miner, is_mining, get_stats
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
+
+# Mining Kaspa — active par defaut, desactivable via env
+KASPA_MINING_ENABLED = os.getenv("KASPA_MINING_ENABLED", "1") == "1"
 
 # ══════════════════════════════════════════
 # Knowledge Base — CEO connait MAXIA
@@ -125,22 +130,59 @@ def _save_actions(actions: dict):
 # LLM — appel Ollama (modele unique)
 # ══════════════════════════════════════════
 
-async def llm(prompt: str, system: str = "", max_tokens: int = 1000) -> str:
-    """Appel Ollama local."""
+_last_llm_call = 0.0  # timestamp du dernier appel LLM
+
+
+async def llm(prompt: str, system: str = "", max_tokens: int = 1000, retries: int = 2) -> str:
+    """Appel Ollama local avec retry. think=False pour Qwen3 (sinon response vide).
+    Auto-switch: arrete le miner Kaspa avant l'appel. La relance est geree par la boucle principale."""
+    global _last_llm_call
+
+    # Stop miner avant d'utiliser le GPU (seulement si il mine vraiment)
+    if is_mining():
+        log.info("[MINING] Pause miner pour appel LLM...")
+        stop_miner()
+        await asyncio.sleep(3)  # Laisser le GPU se liberer
+        # Restart Ollama pour qu'il recupere la VRAM liberee
+        log.info("[OLLAMA] Restart Ollama apres arret miner...")
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "ollama.exe"],
+                           capture_output=True, timeout=5)
+            await asyncio.sleep(2)
+            subprocess.Popen(["ollama", "serve"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            await asyncio.sleep(5)  # Attendre qu'Ollama soit pret
+            # Warmup — forcer le chargement du modele en VRAM
+            async with httpx.AsyncClient(timeout=30) as warmup:
+                await warmup.post(f"{OLLAMA_URL}/api/generate", json={
+                    "model": OLLAMA_MODEL, "prompt": "hi", "stream": False,
+                    "think": False, "options": {"num_predict": 1}})
+            log.info("[OLLAMA] Warmup OK — modele charge en VRAM")
+        except Exception as e:
+            log.warning("[OLLAMA] Restart/warmup error: %s", e)
+
+    _last_llm_call = time.time()
     full = f"{system}\n\n{prompt}" if system else prompt
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
-                "model": OLLAMA_MODEL,
-                "prompt": full,
-                "stream": False,
-                "options": {"num_predict": max_tokens, "temperature": 0.7},
-            })
-            resp.raise_for_status()
-            return resp.json().get("response", "")
-    except Exception as e:
-        log.error("LLM error: %s", e)
-        return ""
+    for attempt in range(retries):
+        try:
+            async with httpx.AsyncClient(timeout=180) as client:
+                resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": full,
+                    "stream": False,
+                    "think": False,
+                    "options": {"num_predict": max_tokens, "temperature": 0.7},
+                })
+                resp.raise_for_status()
+                result = resp.json().get("response", "").strip()
+                if result:
+                    return result
+                log.warning("LLM returned empty response (attempt %d/%d)", attempt + 1, retries)
+        except Exception as e:
+            log.error("LLM error (attempt %d/%d): %s", attempt + 1, retries, e)
+        if attempt < retries - 1:
+            await asyncio.sleep(5)
+    return ""
 
 
 # ══════════════════════════════════════════
@@ -237,11 +279,11 @@ async def mission_twitter_scan_hourly(mem: dict):
                 continue
 
             comment = await llm(
-                f"Write a short, helpful reply (max 200 chars) to this tweet:\n"
+                f"Write a short, helpful reply (max 500 chars) to this tweet:\n"
                 f"Tweet: {tweet.get('text', '')[:300]}\n\n"
-                f"Rules:\n- Be helpful, add value\n- Mention MAXIA only if relevant\n- Max 200 chars",
+                f"Rules:\n- Be helpful, add value\n- Mention MAXIA only if relevant\n- Max 280 chars\n- Complete your sentence.",
                 system=CEO_SYSTEM_PROMPT,
-                max_tokens=80,
+                max_tokens=300,
             )
 
             mem.setdefault("todays_opportunities", []).append({
@@ -249,7 +291,7 @@ async def mission_twitter_scan_hourly(mem: dict):
                 "url": tweet.get("url", ""),
                 "author": tweet.get("author", ""),
                 "text": tweet.get("text", "")[:300],
-                "suggested_comment": comment[:200] if comment else "",
+                "suggested_comment": comment[:500] if comment else "",
                 "keyword": kw,
                 "ts": time.time(),
             })
@@ -299,9 +341,48 @@ async def mission_send_best_opportunities(mem: dict, actions: dict):
     else:
         best = all_opps[:5]
 
-    # GitHub opportunities
+    # GitHub opportunities — re-generer les commentaires vides
     all_gh = mem.get("todays_github_opportunities", [])
+    for opp in all_gh:
+        if not opp.get("suggested_comment"):
+            comment = await llm(
+                f"A developer posted this GitHub issue:\n"
+                f"Repo: {opp.get('repo', '')}\n"
+                f"Title: {opp.get('title', '')}\n"
+                f"Body: {opp.get('body_preview', '')}\n\n"
+                f"Write a helpful reply (max 500 chars) that adds value. "
+                f"Mention MAXIA only if directly relevant to their problem. "
+                f"Be a helpful developer, not a salesperson. Complete your sentence.",
+                system=CEO_SYSTEM_PROMPT,
+                max_tokens=300,
+            )
+            opp["suggested_comment"] = comment[:500] if comment else ""
     best_gh = all_gh[:5]
+
+    # Reddit opportunities — re-generer les commentaires vides
+    all_reddit = mem.get("todays_reddit_opportunities", [])
+    for opp in all_reddit:
+        if not opp.get("suggested_comment"):
+            comment = await llm(
+                f"A developer posted this on r/{opp.get('subreddit', '')}:\n"
+                f"Title: {opp.get('title', '')}\n"
+                f"Body: {opp.get('body_preview', opp.get('title', ''))[:200]}\n\n"
+                f"Write a helpful reply (max 500 chars). Be a helpful community member, not a salesperson. Complete your sentence.",
+                system=CEO_SYSTEM_PROMPT,
+                max_tokens=300,
+            )
+            opp["suggested_comment"] = comment[:500] if comment else ""
+
+    # Twitter opportunities — re-generer les commentaires vides
+    for opp in best:
+        if not opp.get("suggested_comment"):
+            comment = await llm(
+                f"A developer tweeted: {opp.get('text', '')[:200]}\n\n"
+                f"Write a helpful reply (max 500 chars). Be insightful, not promotional. Complete your sentence.",
+                system=CEO_SYSTEM_PROMPT,
+                max_tokens=300,
+            )
+            opp["suggested_comment"] = comment[:500] if comment else ""
 
     today = datetime.now().strftime("%d/%m/%Y")
     body = f"MAXIA CEO — Opportunites du {today}\n\n"
@@ -325,8 +406,7 @@ async def mission_send_best_opportunities(mem: dict, actions: dict):
             body += f"Lien: {opp.get('url', '')}\n"
             body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
 
-    # Reddit opportunities
-    all_reddit = mem.get("todays_reddit_opportunities", [])
+    # Reddit opportunities (all_reddit deja charge + commentaires re-generes)
     best_reddit = all_reddit[:3]
 
     if best_reddit:
@@ -419,11 +499,11 @@ async def mission_github_scan_hourly(mem: dict):
                     f"Repo: {repo}\n"
                     f"Title: {title}\n"
                     f"Body: {body_text[:300]}\n\n"
-                    f"Write a helpful reply (max 200 chars) that adds value. "
+                    f"Write a helpful reply (max 500 chars) that adds value. "
                     f"Mention MAXIA only if directly relevant to their problem. "
-                    f"Be a helpful developer, not a salesperson.",
+                    f"Be a helpful developer, not a salesperson. Complete your sentence.",
                     system=CEO_SYSTEM_PROMPT,
-                    max_tokens=80,
+                    max_tokens=300,
                 )
 
                 today_gh.append({
@@ -433,7 +513,7 @@ async def mission_github_scan_hourly(mem: dict):
                     "url": issue.get("html_url", ""),
                     "author": issue.get("user", {}).get("login", ""),
                     "body_preview": body_text[:200],
-                    "suggested_comment": comment[:200] if comment else "",
+                    "suggested_comment": comment[:500] if comment else "",
                     "type": "issue",
                     "ts": time.time(),
                 })
@@ -523,9 +603,9 @@ async def mission_reddit_scan_hourly(mem: dict):
                     f"A developer posted this on r/{sub}:\n"
                     f"Title: {title}\n"
                     f"Body: {selftext[:200]}\n\n"
-                    f"Write a helpful reply (max 200 chars). Be a helpful community member, not a salesperson.",
+                    f"Write a helpful reply (max 500 chars). Be a helpful community member, not a salesperson. Complete your sentence.",
                     system=CEO_SYSTEM_PROMPT,
-                    max_tokens=80,
+                    max_tokens=300,
                 )
 
                 today_reddit.append({
@@ -865,11 +945,20 @@ async def run():
     log.info("  Modele: %s", OLLAMA_MODEL)
     log.info("  Email: %s", ALEXIS_EMAIL)
     log.info("  VPS: %s", VPS_URL)
+    log.info("  Kaspa Mining: %s", "ACTIF" if KASPA_MINING_ENABLED else "DESACTIVE")
     log.info("═══════════════════════════════════════")
+
+    # Demarrer le miner Kaspa si active
+    if KASPA_MINING_ENABLED:
+        if start_miner():
+            log.info("[MINING] Kaspa miner demarre au boot")
+        else:
+            log.warning("[MINING] Echec demarrage miner — verifier TeamRedMiner")
 
     mem = _load_memory()
     mem.setdefault("todays_opportunities", [])
     last_health = 0
+    last_mining_stats = 0
     last_moderation = 0
     last_twitter_scan = 0
     last_tweet = 0
@@ -933,6 +1022,21 @@ async def run():
             if now - mem.get("_last_email_check", 0) >= 300:
                 await mission_check_alexis_emails(mem)
                 mem["_last_email_check"] = now
+
+            # Mining — relancer si GPU libre depuis 60s (pas d'appel LLM recent)
+            if KASPA_MINING_ENABLED and not is_mining() and _last_llm_call > 0:
+                idle_since = now - _last_llm_call
+                if idle_since >= 60:
+                    start_miner()
+                    log.info("[MINING] Miner relance (GPU idle depuis %ds)", int(idle_since))
+
+            # Mining stats (toutes les heures)
+            if KASPA_MINING_ENABLED and now - last_mining_stats >= 3600:
+                stats = get_stats()
+                log.info("[MINING] Stats: mining=%s, total=%.2fh, starts=%d, stops=%d, hashrate=%s",
+                         stats["is_mining"], stats["total_mining_hours"],
+                         stats["starts"], stats["stops"], stats["hashrate"])
+                last_mining_stats = now
 
             # Sauvegarder
             _save_memory(mem)

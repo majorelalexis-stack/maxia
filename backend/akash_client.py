@@ -28,37 +28,24 @@ AKASH_API_KEY = os.getenv("AKASH_API_KEY", "")
 AKASH_WALLET = os.getenv("AKASH_WALLET", "")
 
 # Mapping MAXIA tier -> Akash GPU model + specs
+# Models must match Akash network names exactly (from /v1/gpu endpoint)
 AKASH_GPU_MAP = {
-    "rtx3090":     {"model": "rtx3090",     "vram": 24,  "cpu": 8,  "ram": 16,  "disk": 50},
+    "rtx3090":     {"model": "rtx3090ti",   "vram": 24,  "cpu": 8,  "ram": 16,  "disk": 50},
     "rtx4090":     {"model": "rtx4090",     "vram": 24,  "cpu": 8,  "ram": 16,  "disk": 50},
-    "rtx5090":     {"model": "rtx5090",     "vram": 32,  "cpu": 8,  "ram": 32,  "disk": 100},
-    "a6000":       {"model": "a6000",       "vram": 48,  "cpu": 8,  "ram": 32,  "disk": 100},
-    "l4":          {"model": "t4",          "vram": 16,  "cpu": 4,  "ram": 16,  "disk": 50},
-    "l40s":        {"model": "l40s",        "vram": 48,  "cpu": 8,  "ram": 32,  "disk": 100},
     "rtx_pro6000": {"model": "pro6000se",   "vram": 96,  "cpu": 8,  "ram": 64,  "disk": 200},
     "a100_80":     {"model": "a100",        "vram": 80,  "cpu": 16, "ram": 64,  "disk": 200},
     "h100_sxm":    {"model": "h100",        "vram": 80,  "cpu": 16, "ram": 64,  "disk": 200},
-    "h100_nvl":    {"model": "h100",        "vram": 94,  "cpu": 16, "ram": 64,  "disk": 200},
     "h200":        {"model": "h200",        "vram": 141, "cpu": 16, "ram": 128, "disk": 200},
-    "b200":        {"model": "h200",        "vram": 180, "cpu": 32, "ram": 256, "disk": 400},
-    "4xa100":      {"model": "a100",        "vram": 320, "cpu": 64, "ram": 256, "disk": 400},
 }
 
 # Prix plafond par tier — on n'accepte pas de bid au-dessus
 AKASH_MAX_PRICE = {
     "rtx3090":     0.25,
     "rtx4090":     0.50,
-    "rtx5090":     0.80,
-    "a6000":       0.40,
-    "l4":          0.50,
-    "l40s":        0.85,
     "rtx_pro6000": 1.80,
-    "a100_80":     1.30,
-    "h100_sxm":    2.80,
-    "h100_nvl":    2.70,
-    "h200":        3.80,
-    "b200":        6.00,
-    "4xa100":      5.00,
+    "a100_80":     1.50,
+    "h100_sxm":    3.50,
+    "h200":        4.50,
 }
 
 # Deployments actifs
@@ -67,12 +54,13 @@ _active_deployments: dict = {}
 log.info(f"[Akash] Client initialise — API key {'present' if AKASH_API_KEY else 'ABSENTE'}")
 
 
-def _generate_sdl(tier_id: str, duration_hours: float) -> dict:
-    """Genere un SDL (Stack Definition Language) pour Akash deployment."""
+def _generate_sdl(tier_id: str, duration_hours: float) -> str:
+    """Genere un SDL (Stack Definition Language) pour Akash deployment. Retourne un YAML string."""
+    import json as _json
     specs = AKASH_GPU_MAP.get(tier_id)
     if not specs:
-        return {}
-    return {
+        return ""
+    sdl_dict = {
         "version": "2.0",
         "services": {
             "gpu-worker": {
@@ -112,6 +100,13 @@ def _generate_sdl(tier_id: str, duration_hours: float) -> dict:
             "gpu-worker": {"global": {"profile": "gpu-worker", "count": 1}}
         },
     }
+    # Akash Console API expects SDL as YAML string
+    try:
+        import yaml
+        return yaml.dump(sdl_dict, default_flow_style=False)
+    except ImportError:
+        # Fallback: JSON string (Akash Console also accepts this)
+        return _json.dumps(sdl_dict)
 
 
 class AkashClient:
@@ -143,8 +138,8 @@ class AkashClient:
             return safe_error(e, "akash_request")
 
     def is_available(self, tier_id: str) -> bool:
-        """Verifie si un tier est disponible sur Akash."""
-        return tier_id in AKASH_GPU_MAP and self.api_key
+        """Verifie si un tier est dans le mapping (check live via check_tier_available)."""
+        return tier_id in AKASH_GPU_MAP and bool(self.api_key)
 
     # Cache dispo GPU (refresh toutes les 5 min)
     _gpu_avail_cache: dict = {}
@@ -214,8 +209,10 @@ class AkashClient:
         # 1. Creer le deployment
         log.info(f"[Akash] Creating deployment: {tier_id} for {duration_hours}h (max ${max_price}/h)")
         create_resp = await self._request("POST", "/v1/deployments", {
-            "sdl": sdl,
-            "deposit": int(max_price * duration_hours * 1_000_000),  # uUSD
+            "data": {
+                "sdl": sdl,
+                "deposit": int(max_price * duration_hours * 1_000_000),  # uUSD
+            }
         })
         if "error" in create_resp:
             return {"success": False, "error": f"Deployment creation failed: {create_resp['error']}"}
@@ -253,8 +250,10 @@ class AkashClient:
         log.info(f"[Akash] Accepting bid {bid_id} from {provider} at ${price}/h")
 
         accept_resp = await self._request("POST", f"/v1/deployments/{deployment_id}/accept", {
-            "bidId": bid_id,
-            "provider": provider,
+            "data": {
+                "bidId": bid_id,
+                "provider": provider,
+            }
         })
         if "error" in accept_resp:
             return {"success": False, "error": f"Bid accept failed: {accept_resp['error']}"}

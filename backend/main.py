@@ -796,6 +796,14 @@ try:
 except Exception as e:
     logger.error("[MAXIA] A2A router error: %s", e)
 
+# V12: Agentverse Bridge (Fetch.ai ecosystem registration + health)
+try:
+    from agentverse_bridge import router as agentverse_router
+    app.include_router(agentverse_router)
+    logger.info("[AGENTVERSE] Fetch.ai Agentverse bridge monte")
+except Exception as e:
+    logger.error("[MAXIA] Agentverse bridge router error: %s", e)
+
 # V13: Proof of Delivery + Dispute Resolution (Art.47)
 try:
     from proof_of_delivery import router as pod_router
@@ -1227,8 +1235,28 @@ async def sitemap():
     return HTMLResponse("Not found", status_code=404)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
-_ADMIN_SESSIONS: dict = {}  # token_opaque -> expiry_timestamp
 _ADMIN_SESSIONS_MAX = 100  # Cap to prevent unbounded growth
+_ADMIN_SESSIONS_FILE = Path(__file__).parent / ".admin_sessions.json"
+
+def _load_admin_sessions() -> dict:
+    """Load sessions from disk — survives restarts."""
+    try:
+        if _ADMIN_SESSIONS_FILE.exists():
+            data = json.loads(_ADMIN_SESSIONS_FILE.read_text())
+            now = time.time()
+            return {k: v for k, v in data.items() if v > now}
+    except Exception:
+        pass
+    return {}
+
+def _save_admin_sessions():
+    """Persist sessions to disk."""
+    try:
+        _ADMIN_SESSIONS_FILE.write_text(json.dumps(_ADMIN_SESSIONS))
+    except Exception:
+        pass
+
+_ADMIN_SESSIONS: dict = _load_admin_sessions()
 
 
 def _verify_admin(request: Request) -> bool:
@@ -1244,7 +1272,8 @@ def _verify_admin(request: Request) -> bool:
         if _ADMIN_SESSIONS[cookie_token] > time.time():
             return True
         else:
-            _ADMIN_SESSIONS.pop(cookie_token, None)  # Expire
+            _ADMIN_SESSIONS.pop(cookie_token, None)
+            _save_admin_sessions()
     return False
 
 @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
@@ -1278,8 +1307,8 @@ button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,229,255,.3)
 function doLogin(){
   var key=document.getElementById('admin-key').value;
   if(!key)return false;
-  fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key})})
-  .then(function(r){if(r.redirected){window.location.href=r.url}else{return r.json().then(function(d){document.getElementById('err').style.display='block'})}})
+  fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key}),credentials:'include',redirect:'manual'})
+  .then(function(r){if(r.type==='opaqueredirect'||r.status===302||r.ok){window.location.href='/dashboard'}else{document.getElementById('err').style.display='block'}})
   .catch(function(){document.getElementById('err').style.display='block'});
   return false;
 }
@@ -1310,6 +1339,7 @@ async def admin_login(req: Request):
         oldest = min(_ADMIN_SESSIONS, key=_ADMIN_SESSIONS.get)
         _ADMIN_SESSIONS.pop(oldest, None)
     _ADMIN_SESSIONS[token] = now + 86400  # 24h
+    _save_admin_sessions()
     resp = RedirectResponse(url="/dashboard", status_code=302)
     resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp
@@ -2117,6 +2147,50 @@ async def maxia_did_document():
         "maxia:tokens": 107,
         "maxia:escrow": "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
     })
+
+
+# ═══════════════════════════════════════════════════════════
+#  AI CARD — AgentMesh Discovery (.well-known/ai-card.json)
+# ═══════════════════════════════════════════════════════════
+
+AI_CARD = {
+    "name": "MAXIA",
+    "description": "AI-to-AI marketplace on 14 blockchains",
+    "version": "12.0.0",
+    "homepage": "https://maxiaworld.app",
+    "identity": {
+        "did": "did:web:maxiaworld.app",
+        "public_key": "7RtCpikgfd6xiFQyVoxjV51HN14XXRrQJiJ3KrzUdQsW",
+        "algorithm": "Ed25519",
+    },
+    "capabilities": [
+        "marketplace", "swap", "gpu-rental", "escrow", "stocks",
+        "llm", "mcp", "sentiment", "defi", "wallet-analysis",
+    ],
+    "services": [
+        {"protocol": "a2a", "url": "https://maxiaworld.app/a2a"},
+        {"protocol": "mcp", "url": "https://maxiaworld.app/mcp/manifest"},
+        {"protocol": "aip", "url": "https://maxiaworld.app/api/public"},
+    ],
+    "trust": {
+        "escrow_chains": ["solana", "base"],
+        "payment_tokens": ["USDC"],
+        "solana_program": "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
+        "base_contract": "0xBd31bB973183F8476d0C4cF57a92e648b130510C",
+    },
+}
+
+
+@app.get("/.well-known/ai-card.json")
+async def ai_card_wellknown():
+    """AgentMesh AI Card for MAXIA discovery."""
+    return AI_CARD
+
+
+@app.get("/ai-card.json")
+async def ai_card_shortcut():
+    """AgentMesh AI Card (shortcut path)."""
+    return AI_CARD
 
 
 @app.post("/api/public/intent/verify")

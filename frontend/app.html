@@ -1869,6 +1869,7 @@ function fmtUSD(n) {
   if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
   if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
   if (n >= 1e3) return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n > 0 && n < 0.01) return '$' + Number(n).toFixed(4);
   return '$' + Number(n).toFixed(2);
 }
 function fmtAmount(n) {
@@ -3813,12 +3814,13 @@ async function executeSolanaSwap(from, to, amount) {
     btn.disabled = true;
 
     // Also log to backend (fire and forget)
-    fetch('/api/public/crypto/swap', {
+    fetch('/api/public/crypto/log-swap', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Wallet': wallet },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from_token: from, to_token: to, amount: amount,
-        wallet: wallet, tx_signature: txSignature, source: 'jupiter_phantom'
+        output_amount: outHuman, wallet: wallet,
+        tx_signature: txSignature, source: 'jupiter_phantom'
       })
     }).catch(function(err) { console.warn('Swap log failed:', err); });
 
@@ -4051,15 +4053,13 @@ async function executeEvmSwap(from, to, amount) {
     btn.disabled = true;
 
     // Log to backend (fire and forget)
-    fetch('/api/public/crypto/swap', {
+    fetch('/api/public/crypto/log-swap', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Wallet': wallet },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from_token: from, to_token: to, amount: amount,
         wallet: wallet, tx_signature: txHash,
-        source: 'paraswap_' + chainInfo.name.toLowerCase(),
-        chain: chainInfo.name.toLowerCase(),
-        chain_id: chainId
+        source: 'paraswap_' + chainInfo.name.toLowerCase()
       })
     }).catch(function(err) { console.warn('EVM swap log failed:', err); });
 
@@ -4242,6 +4242,7 @@ async function executeGpuRent(tierId, name) {
       body: JSON.stringify(body)
     });
 
+    if (!result) throw new Error('Server error — check payment tx and try again');
     closeGpuModal();
     showGpuCredentials(result, name);
     toast('GPU ' + name + ' provisioned!', 'success');

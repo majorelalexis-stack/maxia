@@ -596,6 +596,25 @@ async def execute_swap(req: ExecuteRequest):
         "timestamp": time.time(),
     })
 
+    # Persist to database so dashboard sees EVM swaps
+    try:
+        from database import db
+        await db.save_swap({
+            "swap_id": swap_id,
+            "buyer_wallet": req.taker_address,
+            "from_token": sell_info["symbol"],
+            "to_token": buy_info["symbol"],
+            "amount_in": req.sell_amount,
+            "amount_out": buy_amount,
+            "commission": fee_usd,
+            "payment_tx": req.tx_signature,
+            "jupiter_tx": "",
+            "status": "completed",
+        })
+        await db.record_transaction(req.taker_address, req.tx_signature, estimated_usd, "crypto_swap")
+    except Exception as e:
+        logger.warning("[EVM-SWAP] DB persistence error: %s", e)
+
     return {
         "swap_id": swap_id,
         "status": "ready",

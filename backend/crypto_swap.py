@@ -947,13 +947,34 @@ def list_tokens() -> dict:
     }
 
 
-def get_swap_stats() -> dict:
-    """Stats des swaps."""
-    total_volume = sum(s.get("commission_usd", 0) / (s.get("commission_bps", 15) / 10000) for s in _swap_history if s.get("commission_bps", 0) > 0)
-    total_commission = sum(s.get("commission_usd", 0) for s in _swap_history)
+async def get_swap_stats() -> dict:
+    """Stats des swaps — combine in-memory + DB pour survivre aux restarts."""
+    # In-memory (session courante)
+    mem_volume = sum(s.get("commission_usd", 0) / (s.get("commission_bps", 15) / 10000) for s in _swap_history if s.get("commission_bps", 0) > 0)
+    mem_commission = sum(s.get("commission_usd", 0) for s in _swap_history)
+    mem_count = len(_swap_history)
+
+    # DB (persistant, survit aux restarts)
+    db_count, db_volume, db_commission = 0, 0.0, 0.0
+    try:
+        from database import db
+        rows = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt, COALESCE(SUM(amount_in),0) as vol, COALESCE(SUM(commission),0) as comm FROM crypto_swaps", ())
+        if rows:
+            db_count = int(rows[0]["cnt"])
+            db_volume = float(rows[0]["vol"])
+            db_commission = float(rows[0]["comm"])
+    except Exception:
+        pass
+
+    # Prendre le max (DB inclut tout, mem = session seulement)
+    total_swaps = max(mem_count, db_count)
+    total_volume = max(mem_volume, db_volume)
+    total_commission = max(mem_commission, db_commission)
+
     return {
-        "total_swaps": len(_swap_history),
-        "total_volume_usd": round(total_volume, 2),
+        "total_swaps": total_swaps,
+        "total_volume_usd": round(total_volume, 4),
         "total_commission_usd": round(total_commission, 4),
         "tokens_supported": len(SUPPORTED_TOKENS),
         "pairs_available": len(SUPPORTED_TOKENS) * (len(SUPPORTED_TOKENS) - 1),

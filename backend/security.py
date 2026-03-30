@@ -90,20 +90,28 @@ def get_audit_log(limit: int = 50) -> list:
 # ── Admin auth helper ──
 
 def require_admin(request: Request) -> str:
-    """Verifie l'admin key depuis le header X-Admin-Key uniquement.
-    Log chaque tentative dans l'audit log."""
+    """Verifie l'admin via header X-Admin-Key OU cookie session opaque."""
     admin_key = os.getenv("ADMIN_KEY", "")
     if not admin_key:
         raise HTTPException(500, "ADMIN_KEY not configured")
     ip = get_real_ip(request)
-    # Header only (secure)
     import hmac
+    # 1) Header (API calls)
     key = request.headers.get("X-Admin-Key", "")
-    if not hmac.compare_digest(key, admin_key):
-        audit_log("admin_auth_failed", ip, f"method=header path={request.url.path}")
-        raise HTTPException(403, "Unauthorized")
-    audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")
-    return key
+    if key and hmac.compare_digest(key, admin_key):
+        audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")
+        return key
+    # 2) Cookie session opaque (dashboard browser)
+    import time as _t
+    from main import _ADMIN_SESSIONS
+    cookie_token = request.cookies.get("maxia_admin", "")
+    if cookie_token and cookie_token in _ADMIN_SESSIONS:
+        if _ADMIN_SESSIONS[cookie_token] > _t.time():
+            return "cookie"
+        else:
+            _ADMIN_SESSIONS.pop(cookie_token, None)
+    audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
+    raise HTTPException(403, "Unauthorized")
 
 
 # ── JWT secret validation ──
@@ -266,6 +274,8 @@ _FREE_PATH_KEYWORDS = [
     "fear-greed", "stocks", "gpu/tiers", "sentiment", "token-risk",
     "wallet-analysis", "defi", "sla", "clone/stats",
     "mcp", "docs-html", "docs",
+    "swap-quote", "oracle", "health", "ai-card", "agent.json",
+    "agentverse", "marketplace-stats", "swap/history",
 ]
 
 _smart_rate_info: dict = defaultdict(dict)

@@ -555,7 +555,7 @@ class Database:
             r1 = await self._fetchone(
                 "SELECT COALESCE(SUM(amount_usdc),0) AS vol FROM transactions WHERE created_at>=?", (cutoff,))
             r2 = await self._fetchone(
-                "SELECT COALESCE(SUM(amount_usdc),0) AS rev FROM transactions")
+                "SELECT COALESCE(SUM(amount_usdc),0) AS rev FROM transactions WHERE purpose != 'crypto_swap'")
             r3 = await self._fetchone("SELECT COUNT(*) AS cnt FROM listings")
             return {
                 "volume_24h": float(r1["vol"]) if r1 else 0.0,
@@ -703,14 +703,20 @@ class Database:
         agents_count = rows[0]["c"] if rows else 0
         rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c FROM agent_services WHERE status='active'")
         services_count = rows[0]["c"] if rows else 0
+        # Marketplace transactions
         rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c, COALESCE(SUM(price_usdc),0) as vol, COALESCE(SUM(commission_usdc),0) as comm FROM marketplace_tx")
-        txs = rows[0] if rows else {}
+        mkt = rows[0] if rows else {}
+        # Swap commissions
+        swap_rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c, COALESCE(SUM(commission),0) as comm FROM crypto_swaps")
+        swaps = swap_rows[0] if swap_rows else {}
         return {
             "agents_registered": agents_count,
             "services_listed": services_count,
-            "total_transactions": txs["c"] if txs else 0,
-            "total_volume_usdc": txs["vol"] if txs else 0,
-            "total_commission_usdc": txs["comm"] if txs else 0,
+            "total_transactions": (mkt.get("c", 0) or 0) + (swaps.get("c", 0) or 0),
+            "total_volume_usdc": mkt.get("vol", 0) or 0,
+            "total_commission_usdc": (mkt.get("comm", 0) or 0) + (swaps.get("comm", 0) or 0),
+            "swap_count": swaps.get("c", 0) or 0,
+            "swap_commission_usdc": swaps.get("comm", 0) or 0,
         }
 
     # ── Crypto Swaps ──
