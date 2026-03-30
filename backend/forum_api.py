@@ -156,3 +156,44 @@ async def forum_admin_unban(request: Request):
 
     body = await _read_body(request)
     return await admin_unban_agent(_get_db(), body.get("wallet", ""))
+
+
+@router.get("/api/public/forum/my-posts")
+async def forum_my_posts(request: Request, wallet: str = "", limit: int = 50):
+    """Get posts and replies by a specific user (wallet or IP-based session)."""
+    db = _get_db()
+    # Determine identity: wallet (priority) or IP fingerprint
+    identity = wallet.strip() if wallet else ""
+    if not identity:
+        client_ip = request.client.host if request.client else ""
+        identity = f"anon_{client_ip}"
+
+    if not identity:
+        return {"posts": [], "replies": []}
+
+    # Search posts by author_wallet (stored in JSON data column)
+    try:
+        all_posts = await db.raw_execute_fetchall(
+            "SELECT data FROM forum_posts WHERE status='active' ORDER BY created_at DESC LIMIT 500", ())
+        my_posts = []
+        my_replies = []
+        for row in all_posts:
+            post = json.loads(row["data"])
+            if post.get("author_wallet") == identity:
+                my_posts.append(post)
+            # Check replies
+            for reply in post.get("replies", []):
+                if reply.get("author_wallet") == identity:
+                    my_replies.append({
+                        "post_id": post.get("id"),
+                        "post_title": post.get("title", ""),
+                        "reply": reply,
+                    })
+        return {
+            "posts": my_posts[:limit],
+            "replies": my_replies[:limit],
+            "total_posts": len(my_posts),
+            "total_replies": len(my_replies),
+        }
+    except Exception as e:
+        return safe_error(e, "forum_my_posts")

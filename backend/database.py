@@ -330,6 +330,28 @@ class Database:
             "ALTER TABLE agents ADD COLUMN agent_id TEXT DEFAULT '';"
             "ALTER TABLE agents ADD COLUMN category TEXT DEFAULT 'other';"
         )),
+        7: ("Analytics — page views and sessions tracking", (
+            "CREATE TABLE IF NOT EXISTS page_views ("
+            "id SERIAL PRIMARY KEY,"
+            "session_id TEXT NOT NULL,"
+            "page TEXT NOT NULL,"
+            "referrer TEXT DEFAULT '',"
+            "ip TEXT DEFAULT '',"
+            "user_agent TEXT DEFAULT '',"
+            "device TEXT DEFAULT 'desktop',"
+            "created_at INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER));"
+            "CREATE INDEX IF NOT EXISTS idx_pv_session ON page_views(session_id);"
+            "CREATE INDEX IF NOT EXISTS idx_pv_page ON page_views(page);"
+            "CREATE INDEX IF NOT EXISTS idx_pv_created ON page_views(created_at);"
+            "CREATE TABLE IF NOT EXISTS analytics_sessions ("
+            "session_id TEXT PRIMARY KEY,"
+            "ip TEXT DEFAULT '',"
+            "device TEXT DEFAULT 'desktop',"
+            "first_page TEXT DEFAULT '',"
+            "pages_count INTEGER DEFAULT 1,"
+            "first_seen INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER),"
+            "last_seen INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER));"
+        )),
         5: ("Financial precision — REAL to NUMERIC(18,6) for all monetary columns (PostgreSQL only)", (
             # PostgreSQL: ALTER COLUMN TYPE — SQLite ignores this (REAL is already 64-bit float)
             # exchange_tokens
@@ -840,6 +862,100 @@ class Database:
             (cutoff,))
         return [{"purpose": r["purpose"], "total_usdc": float(r["total"]),
                  "tx_count": r["tx_count"]} for r in rows]
+
+
+    # ── Analytics ──
+
+    async def track_page_view(self, session_id: str, page: str, referrer: str,
+                               ip: str, user_agent: str, device: str):
+        """Record a page view and update session."""
+        now = int(time.time())
+        await self.raw_execute(
+            "INSERT INTO page_views(session_id,page,referrer,ip,user_agent,device,created_at) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (session_id, page, referrer, ip, user_agent, device, now))
+        # Upsert session
+        existing = await self._fetchone(
+            "SELECT 1 FROM analytics_sessions WHERE session_id=?", (session_id,))
+        if existing:
+            await self.raw_execute(
+                "UPDATE analytics_sessions SET last_seen=?, pages_count=pages_count+1 WHERE session_id=?",
+                (now, session_id))
+        else:
+            await self.raw_execute(
+                "INSERT INTO analytics_sessions(session_id,ip,device,first_page,pages_count,first_seen,last_seen) "
+                "VALUES(?,?,?,?,1,?,?)",
+                (session_id, ip, device, page, now, now))
+
+    async def get_analytics_summary(self, period_days: int = 30):
+        """Analytics dashboard data."""
+        now = int(time.time())
+        day_ago = now - 86400
+        week_ago = now - 7 * 86400
+        cutoff = now - period_days * 86400
+
+        # Visitors (unique sessions)
+        r1 = await self._fetchone(
+            "SELECT COUNT(DISTINCT session_id) AS cnt FROM page_views WHERE created_at>=?", (day_ago,))
+        r7 = await self._fetchone(
+            "SELECT COUNT(DISTINCT session_id) AS cnt FROM page_views WHERE created_at>=?", (week_ago,))
+        r30 = await self._fetchone(
+            "SELECT COUNT(DISTINCT session_id) AS cnt FROM page_views WHERE created_at>=?", (cutoff,))
+
+        # Page views total
+        pv1 = await self._fetchone(
+            "SELECT COUNT(*) AS cnt FROM page_views WHERE created_at>=?", (day_ago,))
+        pv30 = await self._fetchone(
+            "SELECT COUNT(*) AS cnt FROM page_views WHERE created_at>=?", (cutoff,))
+
+        # Top pages
+        top_pages = await self.raw_execute_fetchall(
+            "SELECT page, COUNT(*) AS views, COUNT(DISTINCT session_id) AS visitors "
+            "FROM page_views WHERE created_at>=? GROUP BY page ORDER BY views DESC LIMIT 15",
+            (cutoff,))
+
+        # Avg session duration
+        avg_dur = await self._fetchone(
+            "SELECT AVG(last_seen - first_seen) AS avg_dur FROM analytics_sessions "
+            "WHERE first_seen>=? AND last_seen > first_seen", (cutoff,))
+
+        # Top referrers
+        refs = await self.raw_execute_fetchall(
+            "SELECT referrer, COUNT(*) AS cnt FROM page_views "
+            "WHERE created_at>=? AND referrer != '' GROUP BY referrer ORDER BY cnt DESC LIMIT 10",
+            (cutoff,))
+
+        # Devices
+        devices = await self.raw_execute_fetchall(
+            "SELECT device, COUNT(DISTINCT session_id) AS cnt FROM page_views "
+            "WHERE created_at>=? GROUP BY device ORDER BY cnt DESC",
+            (cutoff,))
+
+        # Visitors per hour (last 24h)
+        hourly = await self.raw_execute_fetchall(
+            "SELECT (created_at / 3600) * 3600 AS hour, COUNT(DISTINCT session_id) AS visitors "
+            "FROM page_views WHERE created_at>=? GROUP BY hour ORDER BY hour",
+            (day_ago,))
+
+        # Visitors per day (last 30d)
+        daily = await self.raw_execute_fetchall(
+            "SELECT (created_at / 86400) * 86400 AS day, COUNT(DISTINCT session_id) AS visitors, COUNT(*) AS views "
+            "FROM page_views WHERE created_at>=? GROUP BY day ORDER BY day",
+            (cutoff,))
+
+        return {
+            "visitors_24h": int(r1["cnt"]) if r1 else 0,
+            "visitors_7d": int(r7["cnt"]) if r7 else 0,
+            "visitors_30d": int(r30["cnt"]) if r30 else 0,
+            "page_views_24h": int(pv1["cnt"]) if pv1 else 0,
+            "page_views_30d": int(pv30["cnt"]) if pv30 else 0,
+            "avg_session_seconds": round(float(avg_dur["avg_dur"] or 0)) if avg_dur else 0,
+            "top_pages": [{"page": r["page"], "views": r["views"], "visitors": r["visitors"]} for r in top_pages],
+            "referrers": [{"referrer": r["referrer"], "count": r["cnt"]} for r in refs],
+            "devices": [{"device": r["device"], "count": r["cnt"]} for r in devices],
+            "hourly": [{"hour": r["hour"], "visitors": r["visitors"]} for r in hourly],
+            "daily": [{"day": r["day"], "visitors": r["visitors"], "views": r["views"]} for r in daily],
+        }
 
 
 db = Database()

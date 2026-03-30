@@ -103,13 +103,26 @@ def require_admin(request: Request) -> str:
         return key
     # 2) Cookie session opaque (dashboard browser)
     import time as _t
-    from main import _ADMIN_SESSIONS
+    import json as _json
+    from pathlib import Path as _Path
     cookie_token = request.cookies.get("maxia_admin", "")
-    if cookie_token and cookie_token in _ADMIN_SESSIONS:
-        if _ADMIN_SESSIONS[cookie_token] > _t.time():
-            return "cookie"
-        else:
-            _ADMIN_SESSIONS.pop(cookie_token, None)
+    if cookie_token:
+        # Check in-memory first
+        try:
+            from main import _ADMIN_SESSIONS
+            if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > _t.time():
+                return "cookie"
+        except Exception:
+            pass
+        # Fallback: check persisted sessions on disk (multi-worker safe)
+        try:
+            sf = _Path(__file__).parent / ".admin_sessions.json"
+            if sf.exists():
+                sessions = _json.loads(sf.read_text())
+                if cookie_token in sessions and sessions[cookie_token] > _t.time():
+                    return "cookie"
+        except Exception:
+            pass
     audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
     raise HTTPException(403, "Unauthorized")
 

@@ -1250,9 +1250,21 @@ def _load_admin_sessions() -> dict:
     return {}
 
 def _save_admin_sessions():
-    """Persist sessions to disk."""
+    """Persist sessions to disk — merge with existing file (multi-worker safe)."""
     try:
-        _ADMIN_SESSIONS_FILE.write_text(json.dumps(_ADMIN_SESSIONS))
+        now = time.time()
+        # Read existing from disk (other workers may have added sessions)
+        existing = {}
+        if _ADMIN_SESSIONS_FILE.exists():
+            try:
+                existing = json.loads(_ADMIN_SESSIONS_FILE.read_text())
+            except Exception:
+                pass
+        # Merge: combine disk + memory, remove expired
+        merged = {k: v for k, v in {**existing, **_ADMIN_SESSIONS}.items() if v > now}
+        _ADMIN_SESSIONS_FILE.write_text(json.dumps(merged))
+        # Update local memory too
+        _ADMIN_SESSIONS.update(merged)
     except Exception:
         pass
 
@@ -1268,12 +1280,15 @@ def _verify_admin(request: Request) -> bool:
         return True
     # 2) Cookie session opaque (pour dashboard browser)
     cookie_token = request.cookies.get("maxia_admin", "")
-    if cookie_token and cookie_token in _ADMIN_SESSIONS:
-        if _ADMIN_SESSIONS[cookie_token] > time.time():
+    if cookie_token:
+        # Check memory first
+        if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > time.time():
             return True
-        else:
-            _ADMIN_SESSIONS.pop(cookie_token, None)
-            _save_admin_sessions()
+        # Fallback: reload from disk (another worker may have created it)
+        refreshed = _load_admin_sessions()
+        _ADMIN_SESSIONS.update(refreshed)
+        if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > time.time():
+            return True
     return False
 
 @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
@@ -1307,8 +1322,9 @@ button:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,229,255,.3)
 function doLogin(){
   var key=document.getElementById('admin-key').value;
   if(!key)return false;
-  fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key}),credentials:'include',redirect:'manual'})
-  .then(function(r){if(r.type==='opaqueredirect'||r.status===302||r.ok){window.location.href='/dashboard'}else{document.getElementById('err').style.display='block'}})
+  fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key}),credentials:'include'})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.ok){window.location.href='/dashboard'}else{document.getElementById('err').style.display='block'}})
   .catch(function(){document.getElementById('err').style.display='block'});
   return false;
 }
@@ -1340,7 +1356,7 @@ async def admin_login(req: Request):
         _ADMIN_SESSIONS.pop(oldest, None)
     _ADMIN_SESSIONS[token] = now + 86400  # 24h
     _save_admin_sessions()
-    resp = RedirectResponse(url="/dashboard", status_code=302)
+    resp = JSONResponse({"ok": True, "redirect": "/dashboard"})
     resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp
 
@@ -3273,6 +3289,65 @@ async def agent_status(request: Request):
     from security import require_admin
     require_admin(request)
     return {"status": "CEO VPS removed", "daily_spend": get_daily_spend_stats()}
+
+# ══════════════════════════════════════════
+#  ANALYTICS — Page tracking (no external deps)
+# ══════════════════════════════════════════
+
+_track_dedup: dict = {}  # "session:page" -> timestamp (anti-spam)
+
+@app.post("/api/track")
+async def track_page(request: Request, req: dict):
+    """Track a page view. Public, no auth. Rate-limited per session+page."""
+    import hashlib
+    page = (req.get("page") or "").strip()[:200]
+    referrer = (req.get("referrer") or "").strip()[:500]
+    if not page:
+        return {"ok": True}  # Silent ignore
+
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    ua = (request.headers.get("user-agent") or "")[:300]
+    device = "mobile" if any(k in ua.lower() for k in ("mobile", "android", "iphone")) else "desktop"
+
+    # Session cookie (anonymous)
+    sid = request.cookies.get("maxia_sid", "")
+    if not sid:
+        sid = hashlib.sha256(f"{ip}{ua}{time.time()}".encode()).hexdigest()[:16]
+
+    # Dedup: 1 track per page per session per 5 min
+    dedup_key = f"{sid}:{page}"
+    now = time.time()
+    if dedup_key in _track_dedup and now - _track_dedup[dedup_key] < 300:
+        return {"ok": True}
+    _track_dedup[dedup_key] = now
+
+    # Cleanup old dedup entries (keep last 1000)
+    if len(_track_dedup) > 1000:
+        oldest = sorted(_track_dedup, key=_track_dedup.get)[:500]
+        for k in oldest:
+            _track_dedup.pop(k, None)
+
+    try:
+        await db.track_page_view(sid, page, referrer, ip, ua, device)
+    except Exception as e:
+        logger.warning("[Analytics] Track error: %s", e)
+
+    from starlette.responses import JSONResponse as _TrackResp
+    resp = _TrackResp({"ok": True})
+    if not request.cookies.get("maxia_sid"):
+        resp.set_cookie("maxia_sid", sid, httponly=True, secure=True, samesite="lax", max_age=365*86400)
+    return resp
+
+
+@app.get("/api/analytics/site")
+async def analytics_dashboard(request: Request):
+    """Analytics dashboard data. Admin only."""
+    from security import require_admin
+    require_admin(request)
+    period = int(request.query_params.get("period", "30"))
+    period = min(period, 365)
+    return await db.get_analytics_summary(period)
+
 
 @app.get("/api/agent/preflight")
 async def preflight(request: Request):

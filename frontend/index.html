@@ -146,7 +146,7 @@ body::before {
   box-shadow: 0 0 20px rgba(124,107,248,.3);
 }
 .btn-wallet:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(124,107,248,.5); }
-.btn-wallet.connected { background: linear-gradient(135deg,#0D3B2E, #0A2E25); border: 1px solid rgba(0,230,118,.3); color: var(--green); }
+.btn-wallet.connected { background: rgba(16,185,129,.2) !important; border: 1px solid rgba(16,185,129,.5) !important; color: #00ff88 !important; box-shadow: 0 0 12px rgba(16,185,129,.3); }
 
 /* ── PAGE CONTENT ── */
 .page { display: none; padding: 28px; flex: 1; }
@@ -397,6 +397,7 @@ body::before {
 <meta name="theme-color" content="#3B82F6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
 </head>
 <body>
 <div class="shell">
@@ -489,6 +490,10 @@ body::before {
     <div class="nav-item" onclick="showPage('ceo-analytics',this)"><span class="icon">📊</span>CEO Analytics</div>
     <div class="nav-item" onclick="showPage('agent-bus',this)"><span class="icon">🔌</span>Agent Bus</div>
     <div class="nav-item" onclick="showPage('roi-tracking',this)"><span class="icon">💰</span>ROI Tracking</div>
+    <div class="nav-section">Analytics</div>
+    <div class="nav-item" onclick="showPage('site-analytics',this)" id="nav-analytics">
+      <span class="icon">&#128200;</span> Site Analytics
+    </div>
     <div class="nav-section">Support</div>
     <div class="nav-item" onclick="showPage('bugs',this)" id="nav-bugs">
       <span class="icon">&#128027;</span> Bug Reports <span class="nav-badge" id="bugs-badge" style="display:none;background:rgba(245,158,11,.2);color:var(--orange)">0</span>
@@ -1893,6 +1898,37 @@ body::before {
     </div>
   </div>
 
+  <!-- ══ SITE ANALYTICS ══ -->
+  <div class="page" id="page-site-analytics">
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px">
+      <div class="stat-card"><div class="stat-label">Visiteurs 24h</div><div class="stat-value cyan" id="an-v24">—</div></div>
+      <div class="stat-card"><div class="stat-label">Visiteurs 7j</div><div class="stat-value green" id="an-v7">—</div></div>
+      <div class="stat-card"><div class="stat-label">Visiteurs 30j</div><div class="stat-value purple" id="an-v30">—</div></div>
+      <div class="stat-card"><div class="stat-label">Pages vues 24h</div><div class="stat-value gold" id="an-pv24">—</div></div>
+      <div class="stat-card"><div class="stat-label">Durée moy.</div><div class="stat-value" id="an-dur">—</div></div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Visiteurs (30 jours)</span><button class="panel-action" onclick="loadSiteAnalytics()">Refresh</button></div>
+        <div class="panel-body"><canvas id="an-chart-daily" height="200"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Pages les plus vues</span></div>
+        <div class="panel-body"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted)"><th style="text-align:left;padding:8px">Page</th><th>Vues</th><th>Visiteurs</th></tr></thead><tbody id="an-top-pages"></tbody></table></div>
+      </div>
+    </div>
+    <div class="panels-row">
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Referrers</span></div>
+        <div class="panel-body"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="color:var(--muted)"><th style="text-align:left;padding:8px">Source</th><th>Visites</th></tr></thead><tbody id="an-referrers"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Devices</span></div>
+        <div class="panel-body" id="an-devices" style="padding:16px"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ══ BUG REPORTS ══ -->
   <div class="page" id="page-bugs">
     <div class="panels-row">
@@ -1967,6 +2003,7 @@ function showPage(name, el) {
   if (name === 'approvals') loadApprovals();
   if (name === 'inbox') loadInbox();
   if (name === 'bugs') loadBugs();
+  if (name === 'site-analytics') loadSiteAnalytics();
 }
 
 // ── HTML escape helper (XSS protection for user-generated content) ──
@@ -3071,6 +3108,67 @@ function showBugDetail(idx) {
         '<a href="/forum?community=bugs" target="_blank" style="font-size:12px;color:var(--cyan);text-decoration:none">Voir sur le forum &#8594;</a>' +
       '</div>' +
     '</div>';
+}
+
+async function loadSiteAnalytics() {
+  const resp = await api('/api/analytics/site?period=30');
+  if (!resp || !resp.ok) return;
+  const r = resp.data;
+  document.getElementById('an-v24').textContent = r.visitors_24h || 0;
+  document.getElementById('an-v7').textContent = r.visitors_7d || 0;
+  document.getElementById('an-v30').textContent = r.visitors_30d || 0;
+  document.getElementById('an-pv24').textContent = r.page_views_24h || 0;
+  const dur = r.avg_session_seconds || 0;
+  document.getElementById('an-dur').textContent = dur >= 60 ? Math.round(dur/60) + 'min' : dur + 's';
+
+  // Top pages table
+  const tb = document.getElementById('an-top-pages');
+  tb.innerHTML = (r.top_pages || []).map(p =>
+    '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-family:var(--font-mono);font-size:12px">' + esc(p.page) + '</td><td style="text-align:center">' + p.views + '</td><td style="text-align:center">' + p.visitors + '</td></tr>'
+  ).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:16px">No data yet</td></tr>';
+
+  // Referrers
+  const refs = document.getElementById('an-referrers');
+  refs.innerHTML = (r.referrers || []).map(ref =>
+    '<tr style="border-top:1px solid var(--border)"><td style="padding:8px;font-size:12px">' + esc(ref.referrer || 'Direct') + '</td><td style="text-align:center">' + ref.count + '</td></tr>'
+  ).join('') || '<tr><td colspan="2" style="text-align:center;color:var(--muted);padding:16px">No referrers yet</td></tr>';
+
+  // Devices
+  const devs = document.getElementById('an-devices');
+  const total = (r.devices || []).reduce((s, d) => s + d.count, 0) || 1;
+  devs.innerHTML = (r.devices || []).map(d => {
+    const pct = Math.round(d.count / total * 100);
+    const color = d.device === 'mobile' ? 'var(--cyan)' : 'var(--green)';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-weight:600">' + esc(d.device) + '</span><div style="display:flex;align-items:center;gap:8px"><div style="width:100px;height:8px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:' + color + ';border-radius:4px"></div></div><span class="mono">' + pct + '%</span></div></div>';
+  }).join('') || '<span style="color:var(--muted)">No data yet</span>';
+
+  // Daily chart (30d)
+  const canvas = document.getElementById('an-chart-daily');
+  if (canvas && r.daily && r.daily.length > 0 && typeof Chart !== 'undefined') {
+    const existing = Chart.getChart(canvas);
+    if (existing) existing.destroy();
+    new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: r.daily.map(d => new Date(d.day * 1000).toLocaleDateString('fr-FR', {day:'numeric',month:'short'})),
+        datasets: [{
+          label: 'Visiteurs',
+          data: r.daily.map(d => d.visitors),
+          backgroundColor: 'rgba(0,229,255,.3)',
+          borderColor: 'rgba(0,229,255,.8)',
+          borderWidth: 1, borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#666', font: { size: 10 } } },
+          y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#666', stepSize: 1 }, beginAtZero: true }
+        }
+      }
+    });
+  }
 }
 
 async function loadBugs() {

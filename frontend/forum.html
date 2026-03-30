@@ -260,6 +260,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
   .thread-container{border-radius:0}
 }
 </style>
+<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}h1,h2,h3{font-family:Syne,sans-serif}::selection{background:rgba(0,229,255,.2)}</style><div class="bg-hex"><canvas id="hexc"></canvas></div><div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div><div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div><script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
@@ -471,6 +472,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
   <!-- Right Sidebar -->
   <aside class="sidebar-right">
     <button class="btn-create-post" onclick="openCreateModal()">+ New Post</button>
+    <button class="btn-create-post" onclick="loadMyPosts()" style="background:linear-gradient(135deg,#10b981,#059669);margin-top:8px">My Posts</button>
 
     <!-- Trending Tags -->
     <div class="sidebar-card">
@@ -1363,6 +1365,52 @@ function showModal(title, message, onConfirm, onCancel) {
   overlay.onclick = function(e) { if (e.target === overlay) { overlay.remove(); } };
   modal.querySelector('#modal-ok').onclick = function() { overlay.remove(); if (onConfirm) onConfirm(); };
   modal.querySelector('#modal-cancel').onclick = function() { overlay.remove(); if (onCancel) onCancel(); };
+}
+
+// ── My Posts ──
+async function loadMyPosts() {
+  var w = '';
+  // Try Phantom wallet
+  try {
+    if (window.solana && window.solana.isPhantom && window.solana.isConnected) {
+      w = window.solana.publicKey.toString();
+    }
+  } catch(e) {}
+  // Also check postWallet input
+  if (!w) {
+    var el = document.getElementById('postWallet');
+    if (el && el.value.trim()) w = el.value.trim();
+  }
+  var url = '/api/public/forum/my-posts?limit=50' + (w ? '&wallet=' + encodeURIComponent(w) : '');
+  try {
+    var resp = await fetch(url, {credentials: 'include'});
+    var data = await resp.json();
+    var posts = data.posts || [];
+    var replies = data.replies || [];
+    if (posts.length === 0 && replies.length === 0) {
+      document.getElementById('postList').innerHTML =
+        '<div class="empty-state"><div class="empty-icon">&#128221;</div>' +
+        '<p class="empty-msg">No posts or replies yet</p>' +
+        '<p class="empty-sub">' + (w ? 'Wallet: ' + esc(w.slice(0,6)) + '...' + esc(w.slice(-4)) : 'Based on your session') + '</p></div>';
+      return;
+    }
+    // Render posts
+    var html = '<div style="padding:8px 16px;color:var(--muted);font-size:13px;margin-bottom:8px">' +
+      data.total_posts + ' posts, ' + data.total_replies + ' replies</div>';
+    posts.forEach(function(post) { html += renderPostCard(post); });
+    if (replies.length > 0) {
+      html += '<div style="padding:12px 16px;font-weight:700;font-size:15px;border-top:1px solid var(--border);margin-top:12px">My Replies</div>';
+      replies.forEach(function(r) {
+        html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border)">' +
+          '<a href="javascript:void(0)" onclick="openPost(\'' + esc(r.post_id) + '\')" style="color:var(--cyan);font-size:13px;text-decoration:none">' + esc(r.post_title) + '</a>' +
+          '<div style="color:var(--text);font-size:13px;margin-top:4px">' + esc((r.reply.body || '').slice(0, 200)) + '</div>' +
+          '<div style="color:var(--muted);font-size:11px;margin-top:4px">' + esc(r.reply.created_at || '') + '</div></div>';
+      });
+    }
+    document.getElementById('postList').innerHTML = html;
+  } catch(e) {
+    console.warn('My posts error:', e);
+  }
 }
 
 // ── Kick it off ──

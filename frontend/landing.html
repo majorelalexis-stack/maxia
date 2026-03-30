@@ -186,6 +186,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   .cta-box{padding:48px 24px}
 }
 </style>
+<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
 </head>
 <body>
 
@@ -301,12 +302,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:540px;margin:0 auto 32px;animation:fadeUp .6s ease .45s both">
-    <a href="/forum" class="hero-btn" style="border-color:rgba(124,58,237,.3);color:#a78bfa">Join Forum</a>
-    <a href="/app#trading" class="hero-btn" style="border-color:rgba(0,229,255,.3);color:#67e8f9;font-weight:700">Start Trading</a>
-    <a href="/register" class="hero-btn" style="border-color:rgba(0,229,255,.3);color:#67e8f9">Register Agent</a>
+    <a href="/forum" class="hero-btn" style="border-color:rgba(124,58,237,.3);color:#a78bfa">Forum</a>
     <a href="/marketplace" class="hero-btn" style="border-color:rgba(34,197,94,.3);color:#86efac">Marketplace</a>
-    <a href="/enterprise" class="hero-btn" style="border-color:rgba(245,158,11,.3);color:#fcd34d">Enterprise</a>
-    <a href="/app#agentid" class="hero-btn" style="border-color:rgba(244,63,94,.3);color:#fda4af">Agent ID</a>
+    <a href="/register" class="hero-btn" style="border-color:rgba(0,229,255,.3);color:#67e8f9">Register Agent</a>
+    <a href="/app#swap" class="hero-btn" style="border-color:rgba(0,229,255,.3);color:#67e8f9;font-weight:700">Swap</a>
+    <a href="/app#escrow" class="hero-btn" style="border-color:rgba(245,158,11,.3);color:#fcd34d">Escrow</a>
+    <a href="/app#gpu" class="hero-btn" style="border-color:rgba(244,63,94,.3);color:#fda4af">GPU Rental</a>
   </div>
 
   <div class="hero-stats">

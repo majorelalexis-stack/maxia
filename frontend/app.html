@@ -42,7 +42,7 @@ h1,h2,h3,h4{font-family:'Syne',sans-serif}
 .sidebar-bottom{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
 .btn-connect{padding:10px 16px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:white;border-radius:10px;font-weight:600;border:none;cursor:pointer;font-size:13px;font-family:'Outfit',sans-serif;transition:all .2s;width:100%}
 .btn-connect:hover{opacity:.9;transform:translateY(-1px)}
-.btn-connect.connected{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.btn-connect.connected{background:rgba(16,185,129,.2) !important;color:#00ff88 !important;border:1px solid rgba(16,185,129,.5) !important;box-shadow:0 0 12px rgba(16,185,129,.3)}
 .wallet-opt{display:block;width:100%;text-align:left;padding:10px 12px;background:none;border:none;color:var(--text);font-size:13px;font-family:'Outfit',sans-serif;cursor:pointer;border-radius:8px;transition:background .15s}
 .wallet-opt:hover{background:rgba(59,130,246,.1)}
 .form-input{background:var(--bg2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border .2s}
@@ -330,6 +330,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 </style>
 <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" defer></script>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.min.js" defer></script>
+<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
 </head>
 <body>
 <!-- HEX BG + BLOBS -->
@@ -410,8 +411,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- ========== MAIN ========== -->
 <div class="main">
 
-<!-- Notification bell (top-right) -->
-<div id="notif-bell" style="position:fixed;top:16px;right:20px;z-index:1500;cursor:pointer" onclick="toggleNotifPanel()">
+<!-- Notification bell (below wallet button) -->
+<div id="notif-bell" style="position:fixed;top:56px;right:20px;z-index:1500;cursor:pointer" onclick="toggleNotifPanel()">
   <div style="width:40px;height:40px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background='var(--card)'">&#128276;</div>
 </div>
 <div id="notif-panel" style="display:none;position:fixed;top:64px;right:20px;z-index:1500;width:320px;background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
@@ -1467,18 +1468,17 @@ function updateWalletDisplay() {
     evmEl.style.display = 'none';
   }
 
-  // Update main button text
+  // Update main button text (sidebar + top nav)
+  var btnTop = document.getElementById('btn-wallet-top');
+  var buttons = [btn, btnTop].filter(Boolean);
   if (connectedWallets.solana && connectedWallets.evm) {
-    btn.textContent = '2 Wallets Connected';
-    btn.classList.add('connected');
+    buttons.forEach(function(b) { b.textContent = '2 Wallets Connected'; b.classList.add('connected'); });
   } else if (connectedWallets.solana || connectedWallets.evm) {
     var active = connectedWallets.solana || connectedWallets.evm;
     var d = active.address.length > 20 ? active.address.slice(0, 6) + '...' + active.address.slice(-4) : active.address;
-    btn.textContent = d;
-    btn.classList.add('connected');
+    buttons.forEach(function(b) { b.textContent = d; b.classList.add('connected'); });
   } else {
-    btn.textContent = 'Connect Wallet';
-    btn.classList.remove('connected');
+    buttons.forEach(function(b) { b.textContent = 'Connect Wallet'; b.classList.remove('connected'); });
   }
 }
 
