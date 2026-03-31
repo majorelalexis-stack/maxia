@@ -318,7 +318,7 @@ MCP_TOOLS = [
     {
         "name": "maxia_whales",
         "description": "Track whale movements (large transfers) across 14 chains.",
-        "inputSchema": {"type": "object", "properties": {"chain": {"type": "string", "default": "all"}, "min_usd": {"type": "number", "default": 10000}, "limit": {"type": "integer", "default": 10}}},
+        "inputSchema": {"type": "object", "properties": {"chain": {"type": "string", "default": "solana", "description": "Chain: solana, base, ethereum, polygon, arbitrum, avalanche, bnb, ton, sui, tron, near, aptos, sei, xrp"}, "min_usd": {"type": "number", "default": 10000}, "limit": {"type": "integer", "default": 10}}},
     },
     {
         "name": "maxia_candles",
@@ -613,8 +613,19 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.post(f"/api/rpc/{chain}", json={"jsonrpc": "2.0", "id": 1, "method": args.get("method", ""), "params": args.get("params", [])}, headers={"X-API-Key": "mcp-internal"})
             return r.json()
         elif name == "maxia_oracle_feed":
-            r = await client.get("/api/oracle/feed")
-            return r.json()
+            # Use /api/public/crypto/prices (CoinGecko live) — NOT /api/oracle/feed (fallback statique)
+            r = await client.get("/api/public/crypto/prices")
+            data = r.json()
+            # Reformat to oracle feed format
+            prices = data.get("prices", data)
+            price_list = []
+            ts = int(time.time())
+            for sym, entry in prices.items():
+                price_val = entry.get("price", 0) if isinstance(entry, dict) else entry
+                source = entry.get("source", "live") if isinstance(entry, dict) else "live"
+                price_list.append({"token": sym, "price_usd": price_val, "timestamp": ts, "source": source, "confidence": "high"})
+            price_list.sort(key=lambda x: x["token"])
+            return {"prices": price_list, "meta": {"total_tokens": len(price_list), "cache_age_s": 0, "updated_at": ts, "oracle": "maxia", "version": "v12", "chains_supported": 14}}
         elif name == "maxia_datasets":
             r = await client.get("/api/oracle/datasets")
             return r.json()
@@ -635,7 +646,7 @@ async def _execute_tool(name: str, args: dict) -> dict:
 
         # ── Trading tools ──
         elif name == "maxia_whales":
-            chain = args.get("chain", "all")
+            chain = args.get("chain", "solana")
             min_usd = args.get("min_usd", 10000)
             limit = args.get("limit", 10)
             r = await client.get(f"/api/trading/whales?chain={chain}&min_usd={min_usd}&limit={limit}")

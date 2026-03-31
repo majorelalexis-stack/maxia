@@ -611,7 +611,7 @@ async def execute_swap(req: ExecuteRequest):
             "jupiter_tx": "",
             "status": "completed",
         })
-        await db.record_transaction(req.taker_address, req.tx_signature, estimated_usd, "crypto_swap")
+        await db.record_transaction(req.taker_address, req.tx_signature, fee_usd, "crypto_swap")
     except Exception as e:
         logger.warning("[EVM-SWAP] DB persistence error: %s", e)
 

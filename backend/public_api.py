@@ -3698,8 +3698,9 @@ async def crypto_log_swap(req: dict):
         value_usd = amount * price if price > 0 else amount
     except Exception:
         value_usd = amount
-    # Record in transactions table (shows in dashboard activity + stats)
-    await db.record_transaction(wallet, tx_sig, value_usd, "crypto_swap")
+    # Record in transactions table — commission only (not volume)
+    swap_commission = round(value_usd * 0.001, 6)
+    await db.record_transaction(wallet, tx_sig, swap_commission, "crypto_swap")
     # Record in crypto_swaps table
     import uuid
     await db.save_swap({

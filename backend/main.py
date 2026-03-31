@@ -492,7 +492,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     # Cancel all background tasks
-    for t in [t1, t2, t3, t4, t5]:
+    for t in [t1, t4]:
         try:
             t.cancel()
         except Exception:

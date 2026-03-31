@@ -893,7 +893,7 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
             "tenant_id": _tenant_id,
             "status": "completed",
         })
-        await db.record_transaction(buyer_wallet, payment_tx, value_usd, "crypto_swap")
+        await db.record_transaction(buyer_wallet, payment_tx, commission_usd, "crypto_swap")
     except Exception as e:
         _log_swap(f"DB persistence error: {e}")
 
