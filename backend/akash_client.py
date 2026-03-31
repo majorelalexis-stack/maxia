@@ -150,7 +150,7 @@ class AkashClient:
     def __init__(self):
         self.api_url = AKASH_API_URL
         self.api_key = AKASH_API_KEY
-        self.wallet = AKASH_WALLET
+        self.key_name = AKASH_KEY_NAME
         self._monitor_started = False
 
     def _headers(self) -> dict:
