@@ -205,7 +205,8 @@ class AkashClient:
         if "error" in create_resp:
             return {"success": False, "error": f"Deployment creation failed: {create_resp['error']}"}
 
-        deployment_id = create_resp.get("dseq") or create_resp.get("deploymentId", "")
+        resp_data = create_resp.get("data", create_resp)
+        deployment_id = resp_data.get("dseq") or resp_data.get("deploymentId", "")
         if not deployment_id:
             return {"success": False, "error": "No deployment ID returned"}
 
@@ -217,7 +218,8 @@ class AkashClient:
             bids_resp = await self._request("GET", f"/v1/deployments/{deployment_id}/bids")
             if "error" in bids_resp:
                 continue
-            bids = bids_resp.get("bids", [])
+            bids_data = bids_resp.get("data", bids_resp)
+            bids = bids_data.get("bids", [])
             if not bids:
                 continue
             # Filtrer les bids sous le plafond et prendre le moins cher
