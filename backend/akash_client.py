@@ -199,7 +199,7 @@ class AkashClient:
         create_resp = await self._request("POST", "/v1/deployments", {
             "data": {
                 "sdl": sdl,
-                "deposit": int(max_price * duration_hours * 1_000_000),  # uUSD
+                "deposit": round(max_price * duration_hours, 2),  # dollars (API expects e.g. 5.5)
             }
         })
         if "error" in create_resp:
