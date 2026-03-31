@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
-async def _rpc_post(payload: dict, timeout: float = 5) -> dict:
+async def _rpc_post(payload: dict, timeout: float = 8) -> dict:
     """Post RPC avec failover. Skip Helius if it keeps failing, try publics first."""
     last_error = None
     # Prioritize public RPCs (Helius often rate-limited/down)
@@ -55,14 +55,14 @@ async def verify_transaction(tx_signature: str, expected_wallet: str = None,
     if not expected_recipient:
         expected_recipient = TREASURY_ADDRESS
 
-    # Global timeout — never hang more than 20s total
+    # Global timeout — never hang more than 45s total
     try:
         return await asyncio.wait_for(
             _verify_transaction_inner(tx_signature, expected_wallet, expected_amount_usdc, expected_recipient),
-            timeout=20
+            timeout=45
         )
     except asyncio.TimeoutError:
-        return {"valid": False, "error": "Transaction verification timed out (20s). Solana RPC may be slow. Try again."}
+        return {"valid": False, "error": "Transaction verification timed out (45s). Solana RPC may be slow. Try again."}
 
 
 async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
@@ -75,7 +75,7 @@ async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
                                    "commitment": "finalized"}]
     }
 
-    for attempt in range(2):  # Max 2 attempts (was 3) — faster response
+    for attempt in range(3):  # 3 attempts with backoff
         try:
             data = await _rpc_post(payload)
 
