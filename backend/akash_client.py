@@ -242,23 +242,25 @@ class AkashClient:
 
         log.info(f"[Akash] Lease created + manifest sent!")
 
-        # 4. Poll for forwarded ports (container startup ~10-30s)
+        # 4. Poll for forwarded ports (in lease.status.forwarded_ports)
         ssh_endpoint = ""
         jupyter_url = ""
-        for attempt in range(12):  # 12 x 5s = 60s
-            await asyncio.sleep(5)
+        for attempt in range(15):  # 15 x 4s = 60s
+            await asyncio.sleep(4)
             dep = await self._request("GET", f"/v1/deployments/{dseq}")
             dep_data = dep.get("data", dep)
             for lease in dep_data.get("leases", []):
-                fwd = lease.get("forwarded_ports", lease.get("forwardedPorts", []))
-                for fp in (fwd if isinstance(fwd, list) else []):
-                    host = fp.get("host", "")
-                    ext_port = fp.get("externalPort", 0)
-                    port = fp.get("port", 0)
-                    if port == 22 and host:
-                        ssh_endpoint = f"ssh root@{host} -p {ext_port}"
-                    if port == 8888 and host:
-                        jupyter_url = f"http://{host}:{ext_port}"
+                status = lease.get("status") or {}
+                fwd = status.get("forwarded_ports", {})
+                for svc_name, ports in (fwd if isinstance(fwd, dict) else {}).items():
+                    for fp in (ports if isinstance(ports, list) else [ports]):
+                        host = fp.get("host", "")
+                        ext_port = fp.get("externalPort", 0)
+                        port = fp.get("port", 0)
+                        if port in (22, 2222) and host:
+                            ssh_endpoint = f"ssh root@{host} -p {ext_port}"
+                        if port in (8888, 8080) and host:
+                            jupyter_url = f"http://{host}:{ext_port}"
             if ssh_endpoint or jupyter_url:
                 break
 
@@ -284,6 +286,7 @@ class AkashClient:
             "akash_deployment_id": dseq,
             "akash_provider": provider,
             "status": "running",
+            "ssh_command": ssh_endpoint,
             "ssh_endpoint": ssh_endpoint,
             "jupyter_url": jupyter_url,
             "cost_per_hr": max_price,
