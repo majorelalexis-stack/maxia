@@ -121,7 +121,7 @@ class AkashClient:
     def _headers(self) -> dict:
         h = {"Content-Type": "application/json"}
         if self.api_key:
-            h["Authorization"] = f"Bearer {self.api_key}"
+            h["x-api-key"] = self.api_key
         return h
 
     async def _request(self, method: str, path: str, json_data: dict = None) -> dict:
@@ -178,21 +178,9 @@ class AkashClient:
         return models.get(model, 0) > 0
 
     async def get_price_estimate(self, tier_id: str) -> float | None:
-        """Estime le prix/heure pour un tier sur Akash (basee sur les bids recents)."""
+        """Prix/heure pour un tier sur Akash — basé sur le plafond avec réduction typique réseau."""
         if tier_id not in AKASH_GPU_MAP:
             return None
-        specs = AKASH_GPU_MAP[tier_id]
-        try:
-            result = await self._request("GET", f"/v1/pricing/gpu/{specs['model']}")
-            if "error" not in result:
-                # Retourner le prix median des bids recents
-                prices = result.get("prices", [])
-                if prices:
-                    median = sorted(prices)[len(prices) // 2]
-                    return round(median, 4)
-        except Exception:
-            pass
-        # Fallback : retourner le prix plafond avec 20% de reduction typique
         return round(AKASH_MAX_PRICE.get(tier_id, 1.0) * 0.8, 4)
 
     async def rent_gpu(self, tier_id: str, duration_hours: float) -> dict:
