@@ -215,8 +215,9 @@ class AkashClient:
                 best_bid = min(bids, key=lambda b: float(
                     b.get("bid", {}).get("price", {}).get("amount", "999999999")
                 ))
-                bid_id = best_bid.get("bid", {}).get("bid_id", {})
-                log.info(f"[Akash] Bid received from {bid_id.get('provider', '?')} after {(i+1)*5}s")
+                bid_obj = best_bid.get("bid", {})
+                bid_id = bid_obj.get("id", bid_obj.get("bid_id", {}))
+                log.info(f"[Akash] {len(bids)} bids — best: {bid_id.get('provider', '?')} after {(i+1)*5}s")
                 break
             if i % 4 == 3:
                 log.info(f"[Akash] Waiting for bids... ({(i+1)*5}s)")
@@ -226,7 +227,8 @@ class AkashClient:
             return {"success": False, "error": "No bids after 2 min — deployment closed"}
 
         # 3. Create lease + send manifest via POST /v1/leases
-        bid_id = best_bid.get("bid", {}).get("bid_id", {})
+        bid_obj = best_bid.get("bid", {})
+        bid_id = bid_obj.get("id", bid_obj.get("bid_id", {}))
         provider = bid_id.get("provider", "")
         gseq = bid_id.get("gseq", 1)
         oseq = bid_id.get("oseq", 1)
