@@ -54,11 +54,10 @@ log.info(f"[Akash] Client initialise — API key {'present' if AKASH_API_KEY els
 
 
 def _generate_sdl(tier_id: str) -> str:
-    """Genere un SDL pour Akash deployment. YAML string, pricing en uusd (Console credits)."""
+    """Genere un SDL pour Akash deployment. Format identique aux templates officiels Akash."""
     specs = AKASH_GPU_MAP.get(tier_id)
     if not specs:
         return ""
-    max_price_uusd = int(AKASH_MAX_PRICE.get(tier_id, 1.0) * 1_000_000)
     return f"""---
 version: "2.0"
 services:
@@ -81,23 +80,22 @@ profiles:
           units: {specs['cpu']}
         memory:
           size: {specs['ram']}Gi
-        storage:
-          - size: {specs['disk']}Gi
         gpu:
           units: 1
           attributes:
             vendor:
               nvidia:
-                - model: {specs['model']}
+        storage:
+          size: {specs['disk']}Gi
   placement:
-    dcloud:
+    akash:
       pricing:
         gpu-worker:
-          denom: uusd
-          amount: {max_price_uusd}
+          denom: uact
+          amount: 10000
 deployment:
   gpu-worker:
-    dcloud:
+    akash:
       profile: gpu-worker
       count: 1
 """
