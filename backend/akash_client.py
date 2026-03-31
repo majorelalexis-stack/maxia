@@ -3,18 +3,22 @@
 Akash = marketplace GPU decentralise. Les providers enchérissent pour servir les workloads.
 Avantages : moins cher que RunPod/AWS (H100 ~$1.33/h vs $3.93 AWS), paiement USDC/AKT.
 
-Flow :
-  1. Creer un deployment (SDL manifest avec GPU specs)
-  2. Attendre les bids des providers
-  3. Accepter le bid le moins cher (sous un plafond)
-  4. Le provider provisionne le GPU
-  5. Monitor + terminate quand expire
+Flow (CLI-based — reliable, full control):
+  1. Write SDL to temp file
+  2. akash tx deployment create — posts SDL on-chain
+  3. akash query market bid list — polls for provider bids
+  4. akash tx market lease create — accepts cheapest bid
+  5. akash provider send-manifest — sends workload to provider
+  6. Monitor + terminate when expired
 
-Utilise l'Akash Console API (api.cloudmos.io) — pas besoin de CLI.
+Listing GPU availability still via Console API (reliable for reads).
 """
 import asyncio
+import json as _json
 import logging
 import os
+import subprocess
+import tempfile
 import time
 import httpx
 from error_utils import safe_error
@@ -22,10 +26,15 @@ from http_client import get_http_client
 
 log = logging.getLogger("akash")
 
-# Akash Console API (Cloudmos/Akash Console backend)
+# Akash Console API (reads only — listing GPUs)
 AKASH_API_URL = os.getenv("AKASH_API_URL", "https://console-api.akash.network")
 AKASH_API_KEY = os.getenv("AKASH_API_KEY", "")
-AKASH_WALLET = os.getenv("AKASH_WALLET", "")
+
+# Akash CLI config
+AKASH_CLI = os.getenv("AKASH_CLI", "akash")
+AKASH_KEY_NAME = os.getenv("AKASH_KEY_NAME", "maxia-gpu-hot")
+AKASH_NODE = os.getenv("AKASH_NODE", "https://rpc.akashnet.net:443")
+AKASH_CHAIN_ID = os.getenv("AKASH_CHAIN_ID", "akashnet-2")
 
 # Mapping MAXIA tier -> Akash GPU model + specs
 # Models must match Akash network names exactly (from /v1/gpu endpoint)
@@ -51,62 +60,88 @@ AKASH_MAX_PRICE = {
 # Deployments actifs
 _active_deployments: dict = {}
 
-log.info(f"[Akash] Client initialise — API key {'present' if AKASH_API_KEY else 'ABSENTE'}")
+log.info(f"[Akash] Client initialise — CLI={AKASH_CLI}, key={AKASH_KEY_NAME}, API={'present' if AKASH_API_KEY else 'ABSENTE'}")
+
+
+def _run_cli(args: list, timeout: int = 30) -> dict:
+    """Run akash CLI command synchronously. Returns parsed JSON or error dict."""
+    cmd = [AKASH_CLI] + args + [
+        "--node", AKASH_NODE,
+        "--chain-id", AKASH_CHAIN_ID,
+        "--keyring-backend", "test",
+        "--output", "json",
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if result.returncode != 0:
+            err = result.stderr.strip() or result.stdout.strip()
+            log.error(f"[Akash CLI] {' '.join(args[:3])} failed: {err[:200]}")
+            return {"error": err[:200]}
+        if result.stdout.strip():
+            return _json.loads(result.stdout)
+        return {"ok": True}
+    except subprocess.TimeoutExpired:
+        return {"error": f"CLI timeout after {timeout}s"}
+    except _json.JSONDecodeError:
+        return {"error": f"Invalid JSON: {result.stdout[:100]}"}
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+
+async def _run_cli_async(args: list, timeout: int = 30) -> dict:
+    """Run akash CLI asynchronously (non-blocking)."""
+    return await asyncio.get_event_loop().run_in_executor(None, _run_cli, args, timeout)
 
 
 def _generate_sdl(tier_id: str, duration_hours: float) -> str:
     """Genere un SDL (Stack Definition Language) pour Akash deployment. Retourne un YAML string."""
-    import json as _json
     specs = AKASH_GPU_MAP.get(tier_id)
     if not specs:
         return ""
-    sdl_dict = {
-        "version": "2.0",
-        "services": {
-            "gpu-worker": {
-                "image": "nvidia/cuda:12.4.0-runtime-ubuntu22.04",
-                "expose": [
-                    {"port": 22, "as": 22, "to": [{"global": True}]},     # SSH
-                    {"port": 8888, "as": 8888, "to": [{"global": True}]},  # Jupyter
-                ],
-            }
-        },
-        "profiles": {
-            "compute": {
-                "gpu-worker": {
-                    "resources": {
-                        "cpu": {"units": specs["cpu"]},
-                        "memory": {"size": f"{specs['ram']}Gi"},
-                        "storage": [{"size": f"{specs['disk']}Gi"}],
-                        "gpu": {
-                            "units": 1,
-                            "attributes": {"vendor": {"nvidia": [{"model": specs["model"]}]}},
-                        },
-                    }
-                }
-            },
-            "placement": {
-                "global": {
-                    "pricing": {
-                        "gpu-worker": {
-                            "denom": "uusd",
-                            "amount": int(AKASH_MAX_PRICE.get(tier_id, 1.0) * 1_000_000),
-                        }
-                    }
-                }
-            }
-        },
-        "deployment": {
-            "gpu-worker": {"global": {"profile": "gpu-worker", "count": 1}}
-        },
-    }
-    # Akash Console API expects SDL as YAML string
-    try:
-        import yaml
-        return yaml.dump(sdl_dict, default_flow_style=False)
-    except ImportError:
-        # Fallback: JSON string (Akash Console also accepts this)
-        return _json.dumps(sdl_dict)
+    max_price_uusd = int(AKASH_MAX_PRICE.get(tier_id, 1.0) * 1_000_000)
+    sdl_yaml = f"""---
+version: "2.0"
+services:
+  gpu-worker:
+    image: nvidia/cuda:12.4.0-runtime-ubuntu22.04
+    expose:
+      - port: 22
+        as: 22
+        to:
+          - global: true
+      - port: 8888
+        as: 8888
+        to:
+          - global: true
+profiles:
+  compute:
+    gpu-worker:
+      resources:
+        cpu:
+          units: {specs['cpu']}
+        memory:
+          size: {specs['ram']}Gi
+        storage:
+          - size: {specs['disk']}Gi
+        gpu:
+          units: 1
+          attributes:
+            vendor:
+              nvidia:
+                - model: {specs['model']}
+  placement:
+    dcloud:
+      pricing:
+        gpu-worker:
+          denom: uakt
+          amount: {max_price_uusd}
+deployment:
+  gpu-worker:
+    dcloud:
+      profile: gpu-worker
+      count: 1
+"""
+    return sdl_yaml
 
 
 class AkashClient:
@@ -138,8 +173,8 @@ class AkashClient:
             return safe_error(e, "akash_request")
 
     def is_available(self, tier_id: str) -> bool:
-        """Verifie si un tier est dans le mapping (check live via check_tier_available)."""
-        return tier_id in AKASH_GPU_MAP and bool(self.api_key)
+        """Verifie si un tier est dans le mapping."""
+        return tier_id in AKASH_GPU_MAP
 
     # Cache dispo GPU (refresh toutes les 5 min)
     _gpu_avail_cache: dict = {}
@@ -184,7 +219,7 @@ class AkashClient:
         return round(AKASH_MAX_PRICE.get(tier_id, 1.0) * 0.8, 4)
 
     async def rent_gpu(self, tier_id: str, duration_hours: float) -> dict:
-        """Loue un GPU sur Akash. Cree un deployment + accepte le meilleur bid."""
+        """Loue un GPU sur Akash via CLI. Flow complet: create → bid → lease → manifest."""
         if not self.is_available(tier_id):
             return {"success": False, "error": f"Tier {tier_id} non disponible sur Akash"}
 
@@ -194,100 +229,208 @@ class AkashClient:
 
         max_price = AKASH_MAX_PRICE.get(tier_id, 1.0)
 
-        # 1. Creer le deployment
-        log.info(f"[Akash] Creating deployment: {tier_id} for {duration_hours}h (max ${max_price}/h)")
-        create_resp = await self._request("POST", "/v1/deployments", {
-            "data": {
-                "sdl": sdl,
-                "deposit": round(max_price * duration_hours, 2),  # dollars (API expects e.g. 5.5)
-            }
-        })
-        if "error" in create_resp:
-            return {"success": False, "error": f"Deployment creation failed: {create_resp['error']}"}
+        # Write SDL to temp file
+        sdl_path = os.path.join(tempfile.gettempdir(), f"akash_sdl_{tier_id}_{int(time.time())}.yaml")
+        with open(sdl_path, "w") as f:
+            f.write(sdl)
 
-        resp_data = create_resp.get("data", create_resp)
-        deployment_id = resp_data.get("dseq") or resp_data.get("deploymentId", "")
-        if not deployment_id:
-            return {"success": False, "error": "No deployment ID returned"}
+        try:
+            # 1. Create deployment on-chain
+            log.info(f"[Akash] Creating deployment: {tier_id} for {duration_hours}h")
+            deposit = max(5000000, int(max_price * duration_hours * 1_000_000))  # min 5 AKT deposit in uakt
+            create = await _run_cli_async([
+                "tx", "deployment", "create", sdl_path,
+                "--from", AKASH_KEY_NAME,
+                "--deposit", f"{deposit}uakt",
+                "--gas-prices", "0.025uakt",
+                "--gas", "auto",
+                "--gas-adjustment", "1.5",
+                "--yes",
+            ], timeout=30)
 
-        # 2. Poll deployment until lease is assigned (Console handles bids automatically)
-        log.info(f"[Akash] Deployment {deployment_id} created, waiting for lease (Console auto-bids)...")
-        lease_info = {}
-        for i in range(36):  # 36 x 5s = 3 min
+            if "error" in create:
+                return {"success": False, "error": f"Deployment create failed: {create['error']}"}
+
+            # Parse dseq from tx response
+            dseq = ""
+            for evt in create.get("events", create.get("logs", [{}])[0].get("events", [])):
+                for attr in evt.get("attributes", []):
+                    if attr.get("key") == "dseq":
+                        dseq = attr["value"]
+                        break
+                if dseq:
+                    break
+            if not dseq:
+                # Try txhash → query tx for dseq
+                txhash = create.get("txhash", "")
+                if txhash:
+                    await asyncio.sleep(6)
+                    tx_info = await _run_cli_async(["query", "tx", txhash], timeout=15)
+                    for evt in tx_info.get("events", []):
+                        for attr in evt.get("attributes", []):
+                            if attr.get("key") == "dseq":
+                                dseq = attr["value"]
+                                break
+                        if dseq:
+                            break
+
+            if not dseq:
+                return {"success": False, "error": "Deployment created but could not parse dseq"}
+
+            # Get owner address
+            owner_resp = _run_cli(["keys", "show", AKASH_KEY_NAME, "-a"], timeout=5)
+            owner = owner_resp.get("error", "") if "error" in owner_resp else ""
+            if not owner:
+                # keys show -a outputs plain text, not JSON
+                result = subprocess.run(
+                    [AKASH_CLI, "keys", "show", AKASH_KEY_NAME, "-a", "--keyring-backend", "test"],
+                    capture_output=True, text=True, timeout=5
+                )
+                owner = result.stdout.strip()
+
+            log.info(f"[Akash] Deployment created: dseq={dseq}, owner={owner}")
+
+            # 2. Wait for bids (max 90s)
+            log.info(f"[Akash] Waiting for bids...")
+            best_bid = None
+            for i in range(18):  # 18 x 5s = 90s
+                await asyncio.sleep(5)
+                bids = await _run_cli_async([
+                    "query", "market", "bid", "list",
+                    "--owner", owner,
+                    "--dseq", dseq,
+                    "--state", "open",
+                ], timeout=15)
+                bid_list = bids.get("bids", [])
+                if bid_list:
+                    # Pick cheapest bid
+                    valid = []
+                    for b in bid_list:
+                        bp = b.get("bid", {}).get("price", {})
+                        amount = float(bp.get("amount", "999999999"))
+                        provider = b.get("bid", {}).get("bid_id", {}).get("provider", "")
+                        valid.append({"provider": provider, "amount": amount, "bid": b})
+                    if valid:
+                        best_bid = min(valid, key=lambda x: x["amount"])
+                        log.info(f"[Akash] Best bid: {best_bid['provider']} at {best_bid['amount']} uakt/block")
+                        break
+                if i % 6 == 5:
+                    log.info(f"[Akash] Still waiting for bids... ({(i+1)*5}s)")
+
+            if not best_bid:
+                # Close deployment
+                await _run_cli_async([
+                    "tx", "deployment", "close", "--from", AKASH_KEY_NAME,
+                    "--owner", owner, "--dseq", dseq,
+                    "--gas-prices", "0.025uakt", "--gas", "auto", "--gas-adjustment", "1.5", "--yes",
+                ], timeout=30)
+                return {"success": False, "error": "No bids received after 90s"}
+
+            # 3. Create lease (accept bid)
+            provider = best_bid["provider"]
+            log.info(f"[Akash] Accepting bid from {provider}")
+            gseq = best_bid["bid"].get("bid", {}).get("bid_id", {}).get("gseq", "1")
+            oseq = best_bid["bid"].get("bid", {}).get("bid_id", {}).get("oseq", "1")
+
+            lease = await _run_cli_async([
+                "tx", "market", "lease", "create",
+                "--from", AKASH_KEY_NAME,
+                "--owner", owner,
+                "--dseq", dseq,
+                "--gseq", str(gseq),
+                "--oseq", str(oseq),
+                "--provider", provider,
+                "--gas-prices", "0.025uakt",
+                "--gas", "auto",
+                "--gas-adjustment", "1.5",
+                "--yes",
+            ], timeout=30)
+
+            if "error" in lease:
+                return {"success": False, "error": f"Lease create failed: {lease['error']}"}
+
+            log.info(f"[Akash] Lease created, sending manifest...")
+
+            # 4. Send manifest to provider
+            await asyncio.sleep(3)
+            manifest = await _run_cli_async([
+                "provider", "send-manifest", sdl_path,
+                "--from", AKASH_KEY_NAME,
+                "--owner", owner,
+                "--dseq", dseq,
+                "--gseq", str(gseq),
+                "--oseq", str(oseq),
+                "--provider", provider,
+            ], timeout=30)
+
+            if "error" in manifest:
+                log.warning(f"[Akash] Manifest send warning: {manifest['error']}")
+                # Not fatal — sometimes returns error but works
+
+            # 5. Get lease status for endpoints
             await asyncio.sleep(5)
-            dep_resp = await self._request("GET", f"/v1/deployments/{deployment_id}")
-            dep_data = dep_resp.get("data", dep_resp)
-            leases = dep_data.get("leases", [])
-            state = dep_data.get("deployment", {}).get("state", "")
-            if leases:
-                lease_info = dep_data
-                log.info(f"[Akash] Lease assigned after {(i+1)*5}s — {len(leases)} lease(s)")
-                break
-            if state == "closed":
-                await self._request("DELETE", f"/v1/deployments/{deployment_id}")
-                return {"success": False, "error": "Deployment closed by provider — no lease"}
-            if i % 6 == 5:
-                log.info(f"[Akash] Still waiting for lease... ({(i+1)*5}s)")
+            status = await _run_cli_async([
+                "provider", "lease-status",
+                "--from", AKASH_KEY_NAME,
+                "--owner", owner,
+                "--dseq", dseq,
+                "--gseq", str(gseq),
+                "--oseq", str(oseq),
+                "--provider", provider,
+            ], timeout=15)
 
-        if not lease_info:
-            await self._request("DELETE", f"/v1/deployments/{deployment_id}")
-            return {"success": False, "error": f"No lease after 3 min — closed deployment"}
+            ssh_endpoint = ""
+            jupyter_url = ""
+            fwd_ports = status.get("forwarded_ports", {})
+            for svc_name, ports in (fwd_ports if isinstance(fwd_ports, dict) else {}).items():
+                for fp in (ports if isinstance(ports, list) else [ports]):
+                    host = fp.get("host", "")
+                    ext_port = fp.get("externalPort", 0)
+                    port = fp.get("port", 0)
+                    if port == 22 and host:
+                        ssh_endpoint = f"ssh root@{host} -p {ext_port}"
+                    if port == 8888 and host:
+                        jupyter_url = f"http://{host}:{ext_port}"
 
-        # 3. Extraire les endpoints depuis les leases
-        leases = lease_info.get("leases", [])
-        provider = ""
-        ssh_endpoint = ""
-        jupyter_url = ""
-        price = max_price
-        for lease in leases:
-            provider = lease.get("provider", {}).get("address", "") if isinstance(lease.get("provider"), dict) else lease.get("provider", "")
-            price_info = lease.get("price", {})
-            if isinstance(price_info, dict) and price_info.get("amount"):
-                try:
-                    price = float(price_info["amount"]) / 1_000_000  # uusd to USD
-                except (ValueError, TypeError):
-                    pass
-            # Forwarded ports from lease
-            fwd = lease.get("forwarded_ports", lease.get("forwardedPorts", []))
-            for fp in (fwd if isinstance(fwd, list) else []):
-                host = fp.get("host", "")
-                ext_port = fp.get("externalPort", 0)
-                port = fp.get("port", 0)
-                if port == 22 and host:
-                    ssh_endpoint = f"ssh root@{host} -p {ext_port}"
-                if port == 8888 and host:
-                    jupyter_url = f"http://{host}:{ext_port}"
+            # 6. Register active deployment
+            instance_id = f"akash_{dseq}"
+            now = time.time()
+            price_hr = best_bid["amount"] * 600 / 1_000_000  # uakt/block * ~600 blocks/h → USD approx
+            _active_deployments[instance_id] = {
+                "deployment_id": dseq,
+                "provider": provider,
+                "owner": owner,
+                "gseq": str(gseq),
+                "oseq": str(oseq),
+                "tier": tier_id,
+                "price_per_hour": price_hr,
+                "start_time": now,
+                "hours": duration_hours,
+                "scheduled_end": now + duration_hours * 3600,
+            }
 
-        # 4. Enregistrer le deployment actif
-        instance_id = f"akash_{deployment_id}"
-        now = time.time()
-        _active_deployments[instance_id] = {
-            "deployment_id": deployment_id,
-            "provider": provider,
-            "tier": tier_id,
-            "price_per_hour": price,
-            "start_time": now,
-            "hours": duration_hours,
-            "scheduled_end": now + duration_hours * 3600,
-        }
+            self._ensure_monitor_started()
 
-        # Demarrer le monitor si pas deja fait
-        self._ensure_monitor_started()
-
-        return {
-            "success": True,
-            "instanceId": instance_id,
-            "gpu": tier_id,
-            "provider": "akash",
-            "akash_deployment_id": deployment_id,
-            "akash_provider": provider,
-            "status": "running",
-            "ssh_endpoint": ssh_endpoint,
-            "jupyter_url": jupyter_url,
-            "cost_per_hr": price,
-            "total_estimated": round(price * duration_hours, 2),
-            "auto_terminate_at": int(now + duration_hours * 3600),
-        }
+            return {
+                "success": True,
+                "instanceId": instance_id,
+                "gpu": tier_id,
+                "provider": "akash",
+                "akash_deployment_id": dseq,
+                "akash_provider": provider,
+                "status": "running",
+                "ssh_endpoint": ssh_endpoint,
+                "jupyter_url": jupyter_url,
+                "cost_per_hr": round(price_hr, 4),
+                "total_estimated": round(price_hr * duration_hours, 2),
+                "auto_terminate_at": int(now + duration_hours * 3600),
+            }
+        finally:
+            # Cleanup temp SDL file
+            try:
+                os.unlink(sdl_path)
+            except OSError:
+                pass
 
     async def get_deployment_status(self, instance_id: str) -> dict:
         """Statut d'un deployment Akash."""
@@ -323,8 +466,13 @@ class AkashClient:
         actual_hours = round(elapsed / 3600, 2)
         actual_cost = round(info["price_per_hour"] * actual_hours, 2)
 
-        # Fermer le deployment sur Akash (libere l'escrow restant)
-        resp = await self._request("DELETE", f"/v1/deployments/{deployment_id}")
+        # Fermer le deployment via CLI (libere l'escrow restant)
+        owner = info.get("owner", "")
+        resp = await _run_cli_async([
+            "tx", "deployment", "close", "--from", AKASH_KEY_NAME,
+            "--owner", owner, "--dseq", deployment_id,
+            "--gas-prices", "0.025uakt", "--gas", "auto", "--gas-adjustment", "1.5", "--yes",
+        ], timeout=30)
         success = "error" not in resp
 
         log.info(f"[Akash] Terminated {instance_id}: {actual_hours}h, ${actual_cost}")
