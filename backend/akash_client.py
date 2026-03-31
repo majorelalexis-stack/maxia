@@ -210,68 +210,55 @@ class AkashClient:
         if not deployment_id:
             return {"success": False, "error": "No deployment ID returned"}
 
-        # 2. Attendre les bids (max 90s)
-        log.info(f"[Akash] Deployment {deployment_id} created, waiting for bids...")
-        best_bid = None
-        for _ in range(18):  # 18 x 5s = 90s
-            await asyncio.sleep(5)
-            bids_resp = await self._request("GET", f"/v1/deployments/{deployment_id}/bids")
-            if "error" in bids_resp:
-                continue
-            bids_data = bids_resp.get("data", bids_resp)
-            bids = bids_data.get("bids", [])
-            if not bids:
-                continue
-            # Filtrer les bids sous le plafond et prendre le moins cher
-            valid_bids = [b for b in bids if b.get("price", 999) <= max_price]
-            if valid_bids:
-                best_bid = min(valid_bids, key=lambda b: b.get("price", 999))
-                break
-
-        if not best_bid:
-            # Pas de bid acceptable — fermer le deployment
-            await self._request("DELETE", f"/v1/deployments/{deployment_id}")
-            return {"success": False, "error": f"No bids under ${max_price}/h after 90s"}
-
-        # 3. Accepter le bid
-        bid_id = best_bid.get("bidId") or best_bid.get("id", "")
-        provider = best_bid.get("provider", "")
-        price = best_bid.get("price", max_price)
-        log.info(f"[Akash] Accepting bid {bid_id} from {provider} at ${price}/h")
-
-        accept_resp = await self._request("POST", f"/v1/deployments/{deployment_id}/accept", {
-            "data": {
-                "bidId": bid_id,
-                "provider": provider,
-            }
-        })
-        if "error" in accept_resp:
-            return {"success": False, "error": f"Bid accept failed: {accept_resp['error']}"}
-
-        # 4. Attendre que le lease soit actif (max 60s)
+        # 2. Poll deployment until lease is assigned (Console handles bids automatically)
+        log.info(f"[Akash] Deployment {deployment_id} created, waiting for lease (Console auto-bids)...")
         lease_info = {}
-        for _ in range(12):
+        for i in range(36):  # 36 x 5s = 3 min
             await asyncio.sleep(5)
-            status = await self._request("GET", f"/v1/deployments/{deployment_id}/status")
-            if status.get("state") in ("active", "running"):
-                lease_info = status
+            dep_resp = await self._request("GET", f"/v1/deployments/{deployment_id}")
+            dep_data = dep_resp.get("data", dep_resp)
+            leases = dep_data.get("leases", [])
+            state = dep_data.get("deployment", {}).get("state", "")
+            if leases:
+                lease_info = dep_data
+                log.info(f"[Akash] Lease assigned after {(i+1)*5}s — {len(leases)} lease(s)")
                 break
+            if state == "closed":
+                await self._request("DELETE", f"/v1/deployments/{deployment_id}")
+                return {"success": False, "error": "Deployment closed by provider — no lease"}
+            if i % 6 == 5:
+                log.info(f"[Akash] Still waiting for lease... ({(i+1)*5}s)")
 
-        # Extraire les endpoints
-        services = lease_info.get("services", {})
-        forwarded = lease_info.get("forwarded_ports", {})
+        if not lease_info:
+            await self._request("DELETE", f"/v1/deployments/{deployment_id}")
+            return {"success": False, "error": f"No lease after 3 min — closed deployment"}
+
+        # 3. Extraire les endpoints depuis les leases
+        leases = lease_info.get("leases", [])
+        provider = ""
         ssh_endpoint = ""
         jupyter_url = ""
-        for svc_name, svc_info in (forwarded if isinstance(forwarded, dict) else {}).items():
-            for port_info in (svc_info if isinstance(svc_info, list) else [svc_info]):
-                ext_port = port_info.get("externalPort", 0)
-                host = port_info.get("host", "")
-                if port_info.get("port") == 22 and host:
+        price = max_price
+        for lease in leases:
+            provider = lease.get("provider", {}).get("address", "") if isinstance(lease.get("provider"), dict) else lease.get("provider", "")
+            price_info = lease.get("price", {})
+            if isinstance(price_info, dict) and price_info.get("amount"):
+                try:
+                    price = float(price_info["amount"]) / 1_000_000  # uusd to USD
+                except (ValueError, TypeError):
+                    pass
+            # Forwarded ports from lease
+            fwd = lease.get("forwarded_ports", lease.get("forwardedPorts", []))
+            for fp in (fwd if isinstance(fwd, list) else []):
+                host = fp.get("host", "")
+                ext_port = fp.get("externalPort", 0)
+                port = fp.get("port", 0)
+                if port == 22 and host:
                     ssh_endpoint = f"ssh root@{host} -p {ext_port}"
-                if port_info.get("port") == 8888 and host:
+                if port == 8888 and host:
                     jupyter_url = f"http://{host}:{ext_port}"
 
-        # 5. Enregistrer le deployment actif
+        # 4. Enregistrer le deployment actif
         instance_id = f"akash_{deployment_id}"
         now = time.time()
         _active_deployments[instance_id] = {
