@@ -177,7 +177,7 @@ class AkashClient:
         return round(AKASH_MAX_PRICE.get(tier_id, 1.0) * 0.8, 4)
 
     async def rent_gpu(self, tier_id: str, duration_hours: float) -> dict:
-        """Loue un GPU via Console API ($120 credits). Create → poll leases → return endpoints."""
+        """Loue un GPU via Console API. Create → poll bids → create lease + manifest → endpoints."""
         if not self.is_available(tier_id):
             return {"success": False, "error": f"Tier {tier_id} non disponible sur Akash"}
 
@@ -186,9 +186,9 @@ class AkashClient:
             return {"success": False, "error": f"SDL generation failed for {tier_id}"}
 
         max_price = AKASH_MAX_PRICE.get(tier_id, 1.0)
-        deposit = round(max(5.0, max_price * duration_hours * 1.5), 2)  # 1.5x buffer
+        deposit = round(max(5.0, max_price * duration_hours * 1.5), 2)
 
-        # 1. Create deployment via Console API
+        # 1. Create deployment
         log.info(f"[Akash] Creating deployment: {tier_id} for {duration_hours}h (deposit ${deposit})")
         create_resp = await self._request("POST", "/v1/deployments", {
             "data": {"sdl": sdl, "deposit": deposit}
@@ -198,45 +198,54 @@ class AkashClient:
 
         resp_data = create_resp.get("data", create_resp)
         dseq = resp_data.get("dseq", "")
+        manifest = resp_data.get("manifest", "")
         if not dseq:
             return {"success": False, "error": "No deployment ID returned"}
 
-        log.info(f"[Akash] Deployment {dseq} created, waiting for provider...")
+        log.info(f"[Akash] Deployment {dseq} created (manifest={'yes' if manifest else 'no'})")
 
-        # 2. Poll until lease assigned (Console auto-selects provider)
-        provider = ""
+        # 2. Poll bids via GET /v1/bids/{dseq}
+        best_bid = None
         for i in range(24):  # 24 x 5s = 2 min
             await asyncio.sleep(5)
-            dep = await self._request("GET", f"/v1/deployments/{dseq}")
-            dep_data = dep.get("data", dep)
-            leases = dep_data.get("leases", [])
-            state = dep_data.get("deployment", {}).get("state", "")
-
-            if leases:
-                # Extract provider from first lease
-                first = leases[0]
-                lid = first.get("lease_id", first.get("id", {}))
-                provider = lid.get("provider", "") if isinstance(lid, dict) else ""
-                if not provider:
-                    provider = first.get("provider", "")
-                log.info(f"[Akash] Lease assigned after {(i+1)*5}s — provider: {provider}")
+            bids_resp = await self._request("GET", f"/v1/bids/{dseq}")
+            bids = bids_resp.get("data", bids_resp)
+            if isinstance(bids, list) and bids:
+                # Pick cheapest bid
+                best_bid = min(bids, key=lambda b: float(
+                    b.get("bid", {}).get("price", {}).get("amount", "999999999")
+                ))
+                bid_id = best_bid.get("bid", {}).get("bid_id", {})
+                log.info(f"[Akash] Bid received from {bid_id.get('provider', '?')} after {(i+1)*5}s")
                 break
-
-            if state == "closed":
-                return {"success": False, "error": "Deployment closed — no provider accepted"}
-
             if i % 4 == 3:
-                log.info(f"[Akash] Still waiting... ({(i+1)*5}s)")
+                log.info(f"[Akash] Waiting for bids... ({(i+1)*5}s)")
 
-        if not provider:
-            # Timeout — close deployment to get deposit back
+        if not best_bid:
             await self._request("DELETE", f"/v1/deployments/{dseq}")
-            return {"success": False, "error": "No provider after 2 min — deployment closed"}
+            return {"success": False, "error": "No bids after 2 min — deployment closed"}
 
-        # 3. Get forwarded ports from lease status
+        # 3. Create lease + send manifest via POST /v1/leases
+        bid_id = best_bid.get("bid", {}).get("bid_id", {})
+        provider = bid_id.get("provider", "")
+        gseq = bid_id.get("gseq", 1)
+        oseq = bid_id.get("oseq", 1)
+
+        log.info(f"[Akash] Creating lease: provider={provider}, gseq={gseq}, oseq={oseq}")
+        lease_resp = await self._request("POST", "/v1/leases", {
+            "manifest": manifest,
+            "leases": [{"dseq": str(dseq), "gseq": gseq, "oseq": oseq, "provider": provider}],
+        })
+        if "error" in lease_resp:
+            await self._request("DELETE", f"/v1/deployments/{dseq}")
+            return {"success": False, "error": f"Lease failed: {lease_resp['error']}"}
+
+        log.info(f"[Akash] Lease created + manifest sent!")
+
+        # 4. Poll for forwarded ports (container startup ~10-30s)
         ssh_endpoint = ""
         jupyter_url = ""
-        for attempt in range(6):  # 6 x 5s = 30s for container to start
+        for attempt in range(12):  # 12 x 5s = 60s
             await asyncio.sleep(5)
             dep = await self._request("GET", f"/v1/deployments/{dseq}")
             dep_data = dep.get("data", dep)
@@ -253,7 +262,7 @@ class AkashClient:
             if ssh_endpoint or jupyter_url:
                 break
 
-        # 4. Register active deployment
+        # 5. Register active deployment
         instance_id = f"akash_{dseq}"
         now = time.time()
         _active_deployments[instance_id] = {
