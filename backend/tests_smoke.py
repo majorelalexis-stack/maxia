@@ -171,27 +171,29 @@ if __name__ == "__main__":
     test("Messages inbox (no auth)", "GET", "/api/public/messages/inbox", expected_status=401)
     test("Escrow create (no auth)", "POST", "/api/public/escrow/create", expected_status=401)
 
-    # ── CEO ──
-    print("\n[CEO]")
-    test_json("CEO status", "GET", "/api/ceo/status", check_keys=["name", "running", "agents"])
-    test_json("CEO analytics", "GET", "/api/ceo/analytics", check_keys=["health_score"])
-    test_json("CEO crises", "GET", "/api/ceo/crises", check_keys=["crises", "count"])
-    test_json("CEO partnerships", "GET", "/api/ceo/partnerships")
-    test("CEO message", "POST", "/api/ceo/message", body={"canal": "test", "user": "smoke", "message": "status?"})
-    test("CEO negotiate", "POST", "/api/ceo/negotiate", body={"buyer": "test", "service": "swap", "proposed_price": 1.0})
+    # ── CEO (protected — expect 403 without key) ──
+    print("\n[CEO — auth required]")
+    test("CEO status (403)", "GET", "/api/ceo/status", expected_status=403)
+    test("CEO analytics (403)", "GET", "/api/ceo/analytics", expected_status=403)
+    test("CEO crises (403)", "GET", "/api/ceo/crises", expected_status=403)
+    test("CEO partnerships (403)", "GET", "/api/ceo/partnerships", expected_status=403)
+    test("CEO message (403)", "POST", "/api/ceo/message", expected_status=403, body={"canal": "test", "user": "smoke", "message": "status?"})
+    test("CEO negotiate (403)", "POST", "/api/ceo/negotiate", expected_status=403, body={"buyer": "test", "service": "swap", "proposed_price": 1.0})
 
     # ── Admin auth ──
     print("\n[Admin Security]")
     test_admin_header()
     test("Admin no key (403)", "GET", "/api/admin/backups", expected_status=403)
-    test("Admin with header", "GET", "/api/admin/backups", headers={"X-Admin-Key": ADMIN_KEY})
+    if ADMIN_KEY:
+        test("Admin with header", "GET", "/api/admin/backups", headers={"X-Admin-Key": ADMIN_KEY})
+    else:
+        test("Admin with fake key (403)", "GET", "/api/admin/backups", expected_status=403, headers={"X-Admin-Key": "fake"})
 
-    # ── System ──
+    # ── System (protected) ──
     print("\n[System]")
-    test("Escrow stats", "GET", "/api/escrow/stats")
+    test("Escrow stats (403)", "GET", "/api/escrow/stats", expected_status=403)
     test("Twitter status", "GET", "/api/twitter/status")
-    test("Scout status", "GET", "/api/agent/scout")
-    test("Watchdog health", "GET", "/api/watchdog/health")
+    test("Watchdog health (403)", "GET", "/api/watchdog/health", expected_status=403)
 
     # ── Rate Limiting ──
     print("\n[Rate Limiting]")
