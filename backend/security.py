@@ -196,7 +196,7 @@ def check_content_safety(text: str, field_name: str = "content") -> None:
 # ── Rate limiting (Redis-backed with in-memory fallback) ──
 
 _rate_store: dict = defaultdict(list)
-RATE_LIMIT = 60
+RATE_LIMIT = 200
 RATE_WINDOW = 60
 _RATE_STORE_MAX_KEYS = 10000
 
@@ -361,7 +361,7 @@ def _check_rate_limit_memory(ip: str) -> None:
 # ── IP-based rate limiting (per-IP, per-minute) ──
 
 _ip_requests: dict = defaultdict(list)  # ip -> [timestamps]
-IP_RATE_LIMIT = 100   # max requests per minute per IP
+IP_RATE_LIMIT = 200   # max requests per minute per IP
 IP_RATE_WINDOW = 60   # seconds
 
 
