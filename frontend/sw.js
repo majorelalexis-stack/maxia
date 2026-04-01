@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maxia-v12.6';
+const CACHE_NAME = 'maxia-v12.7';
 const STATIC_ASSETS = ['/', '/manifest.json'];
 
 self.addEventListener('install', e => {
