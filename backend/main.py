@@ -710,18 +710,20 @@ async def rate_limit_headers_middleware(request, call_next):
         )
 
     # Redis rate limit (daily quotas) — async, uses Redis when available
-    try:
-        from security import check_rate_limit_async
-        await check_rate_limit_async(request)
-    except HTTPException as e:
-        from starlette.responses import JSONResponse as _JSONRespRedis
-        return _JSONRespRedis(
-            status_code=e.status_code,
-            content={"error": e.detail, "retry_after": 60},
-            headers={"Retry-After": "60"},
-        )
-    except Exception:
-        pass
+    # Exempt localhost (health monitor, smoke tests, internal calls)
+    if ip not in ("127.0.0.1", "::1"):
+        try:
+            from security import check_rate_limit_async
+            await check_rate_limit_async(request)
+        except HTTPException as e:
+            from starlette.responses import JSONResponse as _JSONRespRedis
+            return _JSONRespRedis(
+                status_code=e.status_code,
+                content={"error": e.detail, "retry_after": 60},
+                headers={"Retry-After": "60"},
+            )
+        except Exception:
+            pass
 
     # In-memory rate limit (smart, per-endpoint) — fallback/complement
     try:
