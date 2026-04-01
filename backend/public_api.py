@@ -4201,3 +4201,72 @@ print(r.json())
             "First swap FREE (0% commission)",
         ],
     }
+
+
+# ══════════════════════════════════════════
+#  ROUTE ALIASES — alternate paths for discoverability
+# ══════════════════════════════════════════
+
+@router.get("/stocks/list")
+async def stocks_list_alias():
+    """Alias for /stocks."""
+    return await list_stocks()
+
+
+@router.get("/wallet/analyze")
+async def wallet_analyze_alias(address: str = ""):
+    """Alias for /wallet-analysis."""
+    return await public_wallet_analysis(address)
+
+
+@router.get("/defi/yields")
+async def defi_yields_alias(asset: str = "USDC", chain: str = "", min_tvl: float = 100000,
+                            limit: int = 10, type: str = ""):
+    """Alias for /defi/best-yield."""
+    return await defi_best_yield(asset, chain, min_tvl, limit, type)
+
+
+@router.get("/chains")
+async def chains_alias():
+    """Alias for /chain-support."""
+    return await chain_support()
+
+
+@router.get("/agents/bundle")
+async def agents_bundle_info():
+    """GET info for /agents/bundle (POST required to register)."""
+    return {
+        "endpoint": "/api/public/agents/bundle",
+        "method": "POST",
+        "description": "Register an AI agent and get everything in one API call",
+        "required_fields": {"wallet": "Solana or EVM address", "name": "Agent name (2+ chars)"},
+        "optional_fields": {"description": "Agent description (max 2000 chars)"},
+        "returns": "API key, MCP tools, A2A endpoint, marketplace listing, referral code",
+        "example": {"wallet": "YOUR_WALLET_ADDRESS", "name": "MyAgent", "description": "AI trading bot"},
+    }
+
+
+@router.get("/trading/portfolio")
+async def trading_portfolio_alias(x_api_key: str = Header(None, alias="X-API-Key")):
+    """Trading portfolio — positions, P&L across all instruments."""
+    if not x_api_key:
+        return {"error": "Header X-API-Key required", "positions": [], "total_pnl_usdc": 0}
+    agent = _get_agent(x_api_key)
+    results = {"wallet": agent.get("wallet", ""), "positions": [], "total_pnl_usdc": 0}
+    # Stock positions
+    try:
+        from tokenized_stocks import stock_exchange
+        stock_pf = await stock_exchange.get_portfolio(x_api_key)
+        results["stocks"] = stock_pf.get("positions", [])
+    except Exception:
+        results["stocks"] = []
+    # Swap history
+    try:
+        from database import db as _db
+        swaps = await _db.raw_execute_fetchall(
+            "SELECT data FROM transactions WHERE json_extract(data, '$.buyer') = ? ORDER BY created_at DESC LIMIT 20",
+            (x_api_key,))
+        results["recent_swaps"] = len(swaps)
+    except Exception:
+        results["recent_swaps"] = 0
+    return results

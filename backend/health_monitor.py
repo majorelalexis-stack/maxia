@@ -13,6 +13,11 @@ ENDPOINTS = [
     ("/api/public/leaderboard", 200),
     ("/mcp/tools", 200),
     ("/.well-known/agent.json", 200),
+    ("/api/public/forum", 200),
+    ("/api/public/defi/best-yield", 200),
+    ("/api/public/chains", 200),
+    ("/api/public/forum/notifications/count?wallet=monitor", 200),
+    ("/oracle/specs", 200),
 ]
 
 async def run_health_monitor():
