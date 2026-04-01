@@ -90,8 +90,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 .hero-btn:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.3);background:rgba(255,255,255,.06)}
 
 /* Hero stats */
-.hero-stats{display:flex;gap:48px;justify-content:center;flex-wrap:wrap}
-.hs{text-align:center}
 .hs-n{font-size:36px;font-weight:700;font-family:'Syne',sans-serif;color:var(--cyan)}
 .hs-l{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:4px}
 
@@ -180,7 +178,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   .nav-links{display:none}
   .tiers{grid-template-columns:1fr}
   .hero h1{font-size:28px;letter-spacing:-1px}
-  .hero-stats{gap:24px}
+  .hs-n{font-size:28px}
   .features{grid-template-columns:1fr}
   .stats-bar{gap:24px}
   .cta-box{padding:48px 24px}
@@ -311,9 +309,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:480px;margin:0 auto">
-    <div class="hs"><div class="hs-n" id="hero-tokens">68</div><div class="hs-l">Tokens</div></div>
-    <div class="hs"><div class="hs-n">14</div><div class="hs-l">Chains</div></div>
-    <div class="hs"><div class="hs-n">7</div><div class="hs-l">Swap Chains</div></div>
+    <div style="text-align:center"><div class="hs-n" id="hero-tokens">68</div><div class="hs-l">Tokens</div></div>
+    <div style="text-align:center"><div class="hs-n">14</div><div class="hs-l">Chains</div></div>
+    <div style="text-align:center"><div class="hs-n">7</div><div class="hs-l">Swap Chains</div></div>
   </div>
 </section>
 
