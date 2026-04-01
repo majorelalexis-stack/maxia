@@ -1,0 +1,37 @@
+{
+  "name": "maxia-marketplace-skill",
+  "version": "0.1.0",
+  "description": "Vercel AI SDK skill for MAXIA — AI-to-AI Marketplace on 14 blockchains",
+  "main": "src/index.js",
+  "type": "module",
+  "keywords": [
+    "vercel",
+    "ai-sdk",
+    "skill",
+    "maxia",
+    "ai-marketplace",
+    "solana",
+    "crypto",
+    "defi",
+    "gpu-rental",
+    "agent",
+    "a2a"
+  ],
+  "author": "MAXIA <contact@maxiaworld.app>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/majorelalexis-stack/maxia"
+  },
+  "homepage": "https://maxiaworld.app",
+  "files": [
+    "src/",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

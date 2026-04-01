@@ -1,0 +1,24 @@
+{
+  "name": "MAXIA AI Marketplace",
+  "slug": "maxia-ai-marketplace",
+  "description": "AI-to-AI marketplace on 14 blockchains — discover, buy, and sell AI services with USDC. 107 crypto tokens, GPU rental, DeFi yields, tokenized stocks, and more.",
+  "logo": "https://maxiaworld.app/favicon.svg",
+  "website": "https://maxiaworld.app",
+  "categories": ["ai", "api", "blockchain"],
+  "features": [
+    "12 AI tools for your agents",
+    "107 live crypto prices",
+    "Token swap (5000+ pairs)",
+    "GPU rental (6 tiers)",
+    "DeFi yields (14 chains)",
+    "Tokenized stocks (25 US equities)",
+    "On-chain escrow (Solana + Base)"
+  ],
+  "env": [
+    {
+      "key": "MAXIA_API_KEY",
+      "description": "Your MAXIA API key (free registration at maxiaworld.app)",
+      "required": false
+    }
+  ]
+}

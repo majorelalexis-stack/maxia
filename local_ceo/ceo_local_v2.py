@@ -1,18 +1,27 @@
-"""CEO Local V2 — 8 missions, 1 modele unique, zero spam.
+"""CEO Local V3 — 14 missions, dual-model (Qwen 3.5 27B + VL 7B), zero spam.
 
 Missions:
-  1. Tweet feature du jour (15h-16h, peak US EST)
-  2. 5 opportunites Twitter + mention alert → mail (8h)
-  3. Rapport GitHub + skills + annuaires + LLM analysis → mail (9h)
-  4. Moderation forum (toutes les heures)
-  5. Analyse nouveaux agents (inclus dans rapport)
-  6. Veille concurrentielle (hebdo dimanche 10h)
-  7. Surveillance sante site (toutes les 5 min, extended checks)
-  8. Tweet engagement tracking (feedback loop)
+  1.  Tweet feature du jour (15h-16h, peak US EST)
+  2.  Scan opportunites Twitter+GitHub+Reddit (18h30)
+  2b. Mail best-of opportunites scorees + 3 variantes 280 chars (19h30)
+  3.  Rapport quotidien GitHub+agents+annuaires (mail separe, 9h)
+  4.  Moderation forum (toutes les heures)
+  5.  Analyse nouveaux agents (inclus dans rapport)
+  6.  Veille concurrentielle + memo strategique (1x/jour, 19h)
+  7.  Surveillance sante site (toutes les 5 min)
+  8.  Tweet engagement tracking (feedback loop)
+  9.  Check emails Alexis (toutes les 5 min)
+  10. Code Auditor (19h15, mail separe)
+  11. Invitations forum (inclus dans mail opportunites)
+  12. Analyse strategique profonde (inclus dans veille)
+  13. Draft changelog forum (1x/semaine dimanche)
+  14. Prospect scoring (inclus dans mail opportunites)
+  16. Health report intelligent (8h, mail separe)
 
 Usage: python ceo_local_v2.py
 """
 import asyncio
+import glob
 import json
 import time
 import os
@@ -21,6 +30,7 @@ import logging
 import subprocess
 import httpx
 from datetime import datetime
+from pathlib import Path
 
 from config_local import (
     VPS_URL, ADMIN_KEY, OLLAMA_URL, OLLAMA_MODEL,
@@ -33,8 +43,8 @@ from kaspa_miner import start_miner, stop_miner, is_mining, get_stats
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
 
-# Mining Kaspa — active par defaut, desactivable via env
-KASPA_MINING_ENABLED = os.getenv("KASPA_MINING_ENABLED", "1") == "1"
+# Mining Kaspa — DESACTIVE (non rentable mars 2026, ASICs ont tué le GPU mining)
+KASPA_MINING_ENABLED = os.getenv("KASPA_MINING_ENABLED", "0") == "1"
 
 # ══════════════════════════════════════════
 # Knowledge Base — CEO connait MAXIA
@@ -133,7 +143,7 @@ def _save_actions(actions: dict):
 _last_llm_call = 0.0  # timestamp du dernier appel LLM
 
 
-async def llm(prompt: str, system: str = "", max_tokens: int = 1000, retries: int = 2) -> str:
+async def llm(prompt: str, system: str = "", max_tokens: int = 1000, retries: int = 2, timeout: int = 180) -> str:
     """Appel Ollama local avec retry. think=False pour Qwen3 (sinon response vide).
     Auto-switch: arrete le miner Kaspa avant l'appel. La relance est geree par la boucle principale."""
     global _last_llm_call
@@ -165,7 +175,7 @@ async def llm(prompt: str, system: str = "", max_tokens: int = 1000, retries: in
     full = f"{system}\n\n{prompt}" if system else prompt
     for attempt in range(retries):
         try:
-            async with httpx.AsyncClient(timeout=180) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
                     "model": OLLAMA_MODEL,
                     "prompt": full,
@@ -314,130 +324,138 @@ async def mission_twitter_scan_hourly(mem: dict):
         log.error("Twitter scan error: %s", e)
 
 
+async def _score_opportunity(opp: dict, platform: str) -> dict:
+    """Score une opportunite de 1 a 10 et genere 3 variantes de reponse (max 280 chars)."""
+    text = opp.get("text", opp.get("title", ""))[:300]
+    author = opp.get("author", "?")
+
+    result = await llm(
+        f"Analyse cette opportunite pour MAXIA (marketplace AI-to-AI, 14 blockchains):\n\n"
+        f"Plateforme: {platform}\n"
+        f"Auteur: @{author}\n"
+        f"Contenu: {text}\n\n"
+        f"1. Score de pertinence (1-10) selon: taille audience probable, pertinence sujet, probabilite de conversion\n"
+        f"2. Ecris 3 reponses DIFFERENTES (max 280 chars CHACUNE):\n"
+        f"   - V1 TECHNIQUE: reponse de dev expert, factuelle\n"
+        f"   - V2 CASUAL: ton decontracte, amical\n"
+        f"   - V3 VALUE: apporter de la valeur concrete, un conseil\n"
+        f"3. Invitation forum (1 phrase, max 200 chars): invite cette personne a poster sur maxiaworld.app/forum\n\n"
+        f"Format STRICT (pas d'autre texte):\n"
+        f"SCORE|<nombre>\n"
+        f"V1|<reponse technique max 280 chars>\n"
+        f"V2|<reponse casual max 280 chars>\n"
+        f"V3|<reponse value max 280 chars>\n"
+        f"INVITE|<invitation forum max 200 chars>",
+        system=CEO_SYSTEM_PROMPT,
+        max_tokens=600,
+    )
+
+    score = 5
+    variants = []
+    invite = ""
+    if result:
+        for line in result.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("SCORE|"):
+                try:
+                    score = int(line.split("|")[1].strip())
+                except Exception:
+                    pass
+            elif line.startswith("V1|") or line.startswith("V2|") or line.startswith("V3|"):
+                variants.append(line.split("|", 1)[1].strip()[:280])
+            elif line.startswith("INVITE|"):
+                invite = line.split("|", 1)[1].strip()[:200]
+
+    opp["score"] = max(1, min(10, score))
+    opp["variants"] = variants if variants else [opp.get("suggested_comment", "")[:280]]
+    opp["forum_invite"] = invite
+    return opp
+
+
 async def mission_send_best_opportunities(mem: dict, actions: dict):
-    """Envoie le best-of des opportunites accumulees (1x/jour a 10h)."""
+    """Envoie le best-of des opportunites — scorees, 3 variantes 280 chars, invitations forum (19h30)."""
     if actions["counts"].get("opportunities_sent", 0) >= 1:
         return
 
     all_opps = mem.get("todays_opportunities", [])
-    if not all_opps:
+    all_gh = mem.get("todays_github_opportunities", [])
+    all_reddit = mem.get("todays_reddit_opportunities", [])
+
+    total_found = len(all_opps) + len(all_gh) + len(all_reddit)
+    if total_found == 0:
         log.info("Aucune opportunite accumulee — skip mail")
         return
 
-    # Trier par pertinence — utiliser le LLM pour choisir les 5 meilleures
-    if len(all_opps) > 5:
-        opps_text = "\n".join(f"{i+1}. @{o['author']}: {o['text'][:150]}" for i, o in enumerate(all_opps[:20]))
-        ranking = await llm(
-            f"Here are {len(all_opps[:20])} tweets found today. Pick the 5 most relevant for MAXIA "
-            f"(an AI-to-AI marketplace). Return ONLY the numbers (e.g. '3,7,1,12,5'):\n\n{opps_text}",
-            system=CEO_SYSTEM_PROMPT,
-            max_tokens=50,
-        )
-        try:
-            indices = [int(x.strip()) - 1 for x in ranking.split(",") if x.strip().isdigit()]
-            best = [all_opps[i] for i in indices if 0 <= i < len(all_opps)][:5]
-        except Exception:
-            best = all_opps[:5]
-    else:
-        best = all_opps[:5]
+    # Score et genere les variantes pour chaque opportunite
+    scored_twitter = []
+    for opp in all_opps[:10]:
+        scored_twitter.append(await _score_opportunity(opp, "Twitter"))
+    scored_twitter.sort(key=lambda x: x.get("score", 0), reverse=True)
+    best_tw = scored_twitter[:5]
 
-    # GitHub opportunities — re-generer les commentaires vides
-    all_gh = mem.get("todays_github_opportunities", [])
-    for opp in all_gh:
-        if not opp.get("suggested_comment"):
-            comment = await llm(
-                f"A developer posted this GitHub issue:\n"
-                f"Repo: {opp.get('repo', '')}\n"
-                f"Title: {opp.get('title', '')}\n"
-                f"Body: {opp.get('body_preview', '')}\n\n"
-                f"Write a helpful reply (max 500 chars) that adds value. "
-                f"Mention MAXIA only if directly relevant to their problem. "
-                f"Be a helpful developer, not a salesperson. Complete your sentence.",
-                system=CEO_SYSTEM_PROMPT,
-                max_tokens=300,
-            )
-            opp["suggested_comment"] = comment[:500] if comment else ""
-    best_gh = all_gh[:5]
+    scored_gh = []
+    for opp in all_gh[:8]:
+        scored_gh.append(await _score_opportunity(opp, "GitHub"))
+    scored_gh.sort(key=lambda x: x.get("score", 0), reverse=True)
+    best_gh = scored_gh[:5]
 
-    # Reddit opportunities — re-generer les commentaires vides
-    all_reddit = mem.get("todays_reddit_opportunities", [])
-    for opp in all_reddit:
-        if not opp.get("suggested_comment"):
-            comment = await llm(
-                f"A developer posted this on r/{opp.get('subreddit', '')}:\n"
-                f"Title: {opp.get('title', '')}\n"
-                f"Body: {opp.get('body_preview', opp.get('title', ''))[:200]}\n\n"
-                f"Write a helpful reply (max 500 chars). Be a helpful community member, not a salesperson. Complete your sentence.",
-                system=CEO_SYSTEM_PROMPT,
-                max_tokens=300,
-            )
-            opp["suggested_comment"] = comment[:500] if comment else ""
-
-    # Twitter opportunities — re-generer les commentaires vides
-    for opp in best:
-        if not opp.get("suggested_comment"):
-            comment = await llm(
-                f"A developer tweeted: {opp.get('text', '')[:200]}\n\n"
-                f"Write a helpful reply (max 500 chars). Be insightful, not promotional. Complete your sentence.",
-                system=CEO_SYSTEM_PROMPT,
-                max_tokens=300,
-            )
-            opp["suggested_comment"] = comment[:500] if comment else ""
+    scored_reddit = []
+    for opp in all_reddit[:6]:
+        scored_reddit.append(await _score_opportunity(opp, "Reddit"))
+    scored_reddit.sort(key=lambda x: x.get("score", 0), reverse=True)
+    best_reddit = scored_reddit[:3]
 
     today = datetime.now().strftime("%d/%m/%Y")
-    body = f"MAXIA CEO — Opportunites du {today}\n\n"
+    body = f"MAXIA CEO — Top Opportunites du {today}\n"
+    body += f"Triees par score de pertinence (10 = parfait)\n\n"
 
-    if best:
-        body += f"═══ TWITTER ({len(best)} / {len(all_opps)} scannes) ═══\n\n"
-        for i, opp in enumerate(best, 1):
-            body += f"--- Twitter #{i} ---\n"
-            body += f"Auteur: @{opp['author']}\n"
-            body += f"Tweet: {opp['text']}\n"
-            body += f"Lien: {opp['url']}\n"
-            body += f"Commentaire suggere: {opp['suggested_comment']}\n\n"
+    def _format_opp(opp: dict, num: int, platform: str) -> str:
+        """Formatte une opportunite avec score + variantes."""
+        s = f"--- {platform} #{num} — Score: {opp.get('score', '?')}/10 ---\n"
+        s += f"Auteur: @{opp.get('author', '?')}\n"
+        if platform == "Twitter":
+            s += f"Tweet: {opp.get('text', '')[:300]}\n"
+        elif platform == "GitHub":
+            s += f"Repo: {opp.get('repo', '')}\n"
+            s += f"Issue: {opp.get('title', '')}\n"
+        elif platform == "Reddit":
+            s += f"r/{opp.get('subreddit', '')} — {opp.get('title', '')}\n"
+        s += f"Lien: {opp.get('url', '')}\n\n"
+        for j, v in enumerate(opp.get("variants", []), 1):
+            label = ["TECHNIQUE", "CASUAL", "VALUE"][j-1] if j <= 3 else f"V{j}"
+            s += f"  Reponse {label} ({len(v)} chars):\n  {v}\n\n"
+        if opp.get("forum_invite"):
+            s += f"  Invitation forum:\n  {opp['forum_invite']}\n\n"
+        return s
+
+    if best_tw:
+        body += f"═══ TWITTER ({len(best_tw)} best / {len(all_opps)} scannes) ═══\n\n"
+        for i, opp in enumerate(best_tw, 1):
+            body += _format_opp(opp, i, "Twitter")
 
     if best_gh:
-        body += f"═══ GITHUB ({len(best_gh)} / {len(all_gh)} scannes) ═══\n\n"
+        body += f"═══ GITHUB ({len(best_gh)} best / {len(all_gh)} scannes) ═══\n\n"
         for i, opp in enumerate(best_gh, 1):
-            body += f"--- GitHub #{i} ---\n"
-            body += f"Repo: {opp.get('repo', '')}\n"
-            body += f"Issue: {opp.get('title', '')}\n"
-            body += f"Auteur: @{opp.get('author', '')}\n"
-            body += f"Lien: {opp.get('url', '')}\n"
-            body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
-
-    # Reddit opportunities (all_reddit deja charge + commentaires re-generes)
-    best_reddit = all_reddit[:3]
+            body += _format_opp(opp, i, "GitHub")
 
     if best_reddit:
-        body += f"═══ REDDIT ({len(best_reddit)} / {len(all_reddit)} scannes) ═══\n\n"
+        body += f"═══ REDDIT ({len(best_reddit)} best / {len(all_reddit)} scannes) ═══\n\n"
         for i, opp in enumerate(best_reddit, 1):
-            body += f"--- Reddit #{i} ---\n"
-            body += f"Subreddit: r/{opp.get('subreddit', '')}\n"
-            body += f"Post: {opp.get('title', '')}\n"
-            body += f"Auteur: u/{opp.get('author', '')}\n"
-            body += f"Lien: {opp.get('url', '')}\n"
-            body += f"Commentaire suggere: {opp.get('suggested_comment', '')}\n\n"
+            body += _format_opp(opp, i, "Reddit")
 
-    # Discord servers
-    all_discord = mem.get("todays_discord_opportunities", [])
-    if all_discord:
-        body += f"═══ DISCORD ({len(all_discord)} serveurs trouves) ═══\n\n"
-        for i, srv in enumerate(all_discord[:5], 1):
-            body += f"--- Serveur #{i} ---\n"
-            body += f"Nom: {srv.get('name', '')}\n"
-            body += f"Description: {srv.get('description', '')}\n"
-            body += f"Lien: {srv.get('url', '')}\n\n"
-
-    total = len(best) + len(best_gh) + len(best_reddit) + len(all_discord)
+    total = len(best_tw) + len(best_gh) + len(best_reddit)
     if total == 0:
         body += "Aucune opportunite pertinente trouvee aujourd'hui.\n"
 
-    await send_mail(f"[MAXIA CEO] {total} opportunites du jour - {today}", body)
-    mem["opportunities_sent"].extend(best)
+    body += f"\n--- INSTRUCTIONS ---\n"
+    body += f"Choisis la variante qui te plait pour chaque opportunite.\n"
+    body += f"Toutes les reponses font max 280 caracteres (pret a copier-coller).\n"
+    body += f"Les invitations forum sont optionnelles.\n"
+
+    await send_mail(f"[MAXIA CEO] {total} opportunites scorees - {today}", body)
+    mem["opportunities_sent"].extend(best_tw)
     mem.setdefault("github_opportunities", []).extend(best_gh)
     mem.setdefault("reddit_opportunities", []).extend(best_reddit)
-    mem.setdefault("discord_opportunities", []).extend(all_discord)
     mem["todays_opportunities"] = []
     mem["todays_github_opportunities"] = []
     mem["todays_reddit_opportunities"] = []
@@ -874,49 +892,35 @@ async def mission_competitive_watch(mem: dict, actions: dict) -> None:
 # Mission 7 — Surveillance sante site
 # ══════════════════════════════════════════
 
+_health_backoff_until = 0  # timestamp: skip health checks until this time (429 backoff)
+
 async def mission_health_check(mem: dict):
-    """Ping le site et verifie les endpoints critiques (GET + POST)."""
-    # GET checks
+    """Ping le site et verifie les endpoints critiques (GET uniquement, POST supprime pour economiser le rate limit)."""
+    global _health_backoff_until
+
+    # Backoff si on a recu 429 recemment
+    if time.time() < _health_backoff_until:
+        log.info("Health check skipped (backoff until %s)", datetime.fromtimestamp(_health_backoff_until).strftime("%H:%M"))
+        return
+
+    # GET checks only — les POST gaspillent 2 requetes pour rien
     get_checks = {
         "site": f"{VPS_URL}/",
         "prices": f"{VPS_URL}/api/public/crypto/prices",
-        "forum": f"{VPS_URL}/api/public/forum",
-    }
-    # crypto_quote needs params — check via POST checks instead
-    # POST checks — verify endpoints respond (don't actually create data)
-    post_checks = {
-        "register_endpoint": {
-            "url": f"{VPS_URL}/api/public/register",
-            "json": {},  # Empty body — expect 422 (validation error), not 500/timeout
-            "accept_codes": [200, 400, 422],
-        },
-        "forum_create_endpoint": {
-            "url": f"{VPS_URL}/api/public/forum/create",
-            "json": {},  # Empty body — expect 422 (validation error), not 500/timeout
-            "accept_codes": [200, 400, 401, 422],
-        },
     }
     failures = []
 
     async with httpx.AsyncClient(timeout=8) as client:
-        # GET endpoints
         for name, url in get_checks.items():
             try:
                 resp = await client.get(url)
+                if resp.status_code == 429:
+                    # Rate limited — backoff 30 min
+                    _health_backoff_until = time.time() + 1800
+                    log.warning("Health %s: 429 rate limited — backoff 30min", name)
+                    return
                 if resp.status_code != 200:
                     failures.append(f"{name}: HTTP {resp.status_code}")
-            except Exception as e:
-                failures.append(f"{name}: {str(e)[:50]}")
-
-        # POST endpoints — just verify they respond (any non-5xx = OK)
-        for name, cfg in post_checks.items():
-            try:
-                resp = await client.post(cfg["url"], json=cfg["json"])
-                if resp.status_code >= 500:
-                    failures.append(f"{name}: HTTP {resp.status_code} (server error)")
-                elif resp.status_code not in cfg["accept_codes"]:
-                    # Unexpected but not a failure — log for info
-                    log.info("Health POST %s: HTTP %d (unexpected but not 5xx)", name, resp.status_code)
             except Exception as e:
                 failures.append(f"{name}: {str(e)[:50]}")
 
@@ -932,6 +936,707 @@ async def mission_health_check(mem: dict):
             log.error("ALERTE: %s", ", ".join(failures))
     else:
         log.info("Health OK — tous les endpoints repondent")
+
+
+# ══════════════════════════════════════════
+# Mission 10 — Code Auditor (GPU idle)
+# ══════════════════════════════════════════
+
+_BACKEND_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+_AUDIT_REPORT_FILE = os.path.join(os.path.dirname(__file__), "audit_report.md")
+_AUDIT_STATE_FILE = os.path.join(os.path.dirname(__file__), "audit_state.json")
+
+CODE_AUDIT_SYSTEM_PROMPT = (
+    "You are a senior Python/FastAPI security & bug auditor. "
+    "You are auditing MAXIA, a production AI-to-AI marketplace (FastAPI, 559 routes, 14 blockchains, USDC payments).\n\n"
+    "ONLY report REAL BUGS — things that WILL break in production:\n"
+    "- Variables/functions used but never defined or imported\n"
+    "- Async functions missing await (or await on non-coroutines)\n"
+    "- Unhandled exceptions that crash the endpoint (bare raise, missing try/except on I/O)\n"
+    "- SQL injection (string formatting in queries instead of parameterized)\n"
+    "- Race conditions in async code (shared mutable state without locks)\n"
+    "- Security: secrets leaked in responses, missing auth on sensitive endpoints\n"
+    "- Logic errors: wrong comparison, off-by-one, unreachable code after return\n"
+    "- Type mismatches: str where int expected, None not handled\n"
+    "- Resource leaks: connections/files opened but never closed\n"
+    "- Dead code that shadows or conflicts with live code\n\n"
+    "DO NOT report: style issues, missing docstrings, import order, naming conventions, "
+    "suggestions for improvement, potential issues, or anything speculative.\n\n"
+    "For each bug found, output EXACTLY this format (one per bug):\n"
+    "BUG|severity|line_number|description\n"
+    "Severity: CRITICAL, HIGH, MEDIUM\n"
+    "If no bugs found, output: CLEAN\n"
+    "No other text. No explanations. Just the BUG lines or CLEAN."
+)
+
+
+def _load_audit_state() -> dict:
+    """Load audit progress (which files have been scanned today)."""
+    default = {"date": "", "files_done": [], "total_bugs": 0, "started_at": ""}
+    try:
+        if os.path.exists(_AUDIT_STATE_FILE):
+            with open(_AUDIT_STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.loads(f.read())
+            today = datetime.now().strftime("%Y-%m-%d")
+            if data.get("date") == today:
+                return data
+    except Exception:
+        pass
+    default["date"] = datetime.now().strftime("%Y-%m-%d")
+    return default
+
+
+def _save_audit_state(state: dict):
+    try:
+        with open(_AUDIT_STATE_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps(state, indent=2))
+    except Exception as e:
+        log.error("[AUDIT] State save error: %s", e)
+
+
+async def mission_code_audit(mem: dict, actions: dict) -> bool:
+    """Scan UN fichier .py du backend, append findings au rapport.
+
+    Returns True if audit complete (all files done), False if more to do.
+    Called repeatedly from main loop when GPU is idle.
+    """
+    audit = _load_audit_state()
+
+    # Lister tous les .py du backend
+    all_py = sorted(glob.glob(os.path.join(_BACKEND_DIR, "*.py")))
+    if not all_py:
+        log.warning("[AUDIT] No .py files found in %s", _BACKEND_DIR)
+        return True
+
+    # Filtrer les fichiers deja scannes
+    done_set = set(audit.get("files_done", []))
+    remaining = [f for f in all_py if os.path.basename(f) not in done_set]
+
+    if not remaining:
+        log.info("[AUDIT] Audit complet — %d fichiers scannes, %d bugs trouves",
+                 len(done_set), audit.get("total_bugs", 0))
+        return True
+
+    # Prendre le prochain fichier
+    target = remaining[0]
+    filename = os.path.basename(target)
+    log.info("[AUDIT] Scanning %s (%d/%d)...", filename, len(done_set) + 1, len(all_py))
+
+    # Lire le fichier
+    try:
+        with open(target, "r", encoding="utf-8", errors="replace") as f:
+            code = f.read()
+    except Exception as e:
+        log.error("[AUDIT] Cannot read %s: %s", filename, e)
+        audit["files_done"].append(filename)
+        _save_audit_state(audit)
+        return False
+
+    # Skip fichiers trop petits (< 10 lignes = probablement __init__.py ou vide)
+    line_count = code.count("\n") + 1
+    if line_count < 10:
+        log.info("[AUDIT] Skip %s (%d lines — too small)", filename, line_count)
+        audit["files_done"].append(filename)
+        _save_audit_state(audit)
+        return False
+
+    # Chunking: si > 400 lignes, decoupe en chunks avec overlap
+    chunks = []
+    lines = code.split("\n")
+    chunk_size = 350
+    overlap = 30
+
+    if line_count <= chunk_size + 50:
+        chunks.append(("1-%d" % line_count, code))
+    else:
+        start = 0
+        while start < len(lines):
+            end = min(start + chunk_size, len(lines))
+            chunk_lines = lines[start:end]
+            # Ajouter les numeros de ligne pour aider le LLM
+            numbered = "\n".join(f"{start + i + 1}: {l}" for i, l in enumerate(chunk_lines))
+            chunks.append(("%d-%d" % (start + 1, end), numbered))
+            start += chunk_size - overlap
+
+    # Auditer chaque chunk
+    file_bugs = []
+    for chunk_range, chunk_code in chunks:
+        # Limiter la taille envoyee au LLM (Qwen 32B context ~32K)
+        if len(chunk_code) > 15000:
+            chunk_code = chunk_code[:15000] + "\n... (truncated)"
+
+        prompt = (
+            f"File: {filename} (lines {chunk_range})\n"
+            f"```python\n{chunk_code}\n```"
+        )
+
+        result = await llm(
+            prompt,
+            system=CODE_AUDIT_SYSTEM_PROMPT,
+            max_tokens=800,
+            timeout=600,
+        )
+
+        if not result:
+            continue
+
+        # Parser les resultats — nettoyer le thinking Qwen3
+        if "<think>" in result and "</think>" in result:
+            result = result.split("</think>")[-1].strip()
+
+        for line in result.strip().split("\n"):
+            line = line.strip()
+            if line.startswith("BUG|"):
+                parts = line.split("|", 3)
+                if len(parts) == 4:
+                    file_bugs.append({
+                        "severity": parts[1].strip(),
+                        "line": parts[2].strip(),
+                        "desc": parts[3].strip(),
+                    })
+
+        # Pause entre chunks pour ne pas surcharger le GPU
+        if len(chunks) > 1:
+            await asyncio.sleep(2)
+
+    # Init le rapport si premier fichier
+    if not audit.get("started_at"):
+        audit["started_at"] = datetime.now().isoformat()
+        header = (
+            f"# MAXIA Code Audit Report\n"
+            f"**Date**: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"**Model**: {OLLAMA_MODEL}\n"
+            f"**Backend files**: {len(all_py)}\n"
+            f"**Auditor**: CEO Local (Mission 10)\n\n"
+            f"---\n\n"
+        )
+        with open(_AUDIT_REPORT_FILE, "w", encoding="utf-8") as f:
+            f.write(header)
+
+    # Append au rapport
+    with open(_AUDIT_REPORT_FILE, "a", encoding="utf-8") as f:
+        if file_bugs:
+            f.write(f"## {filename} ({line_count} lines) — {len(file_bugs)} bug(s)\n\n")
+            for bug in file_bugs:
+                icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡"}.get(bug["severity"], "⚪")
+                f.write(f"- {icon} **{bug['severity']}** L{bug['line']}: {bug['desc']}\n")
+            f.write("\n")
+        else:
+            f.write(f"## {filename} ({line_count} lines) — CLEAN\n\n")
+
+    # Update state
+    audit["files_done"].append(filename)
+    audit["total_bugs"] = audit.get("total_bugs", 0) + len(file_bugs)
+    _save_audit_state(audit)
+
+    progress = len(audit["files_done"])
+    log.info("[AUDIT] %s: %d bugs | Progress: %d/%d files",
+             filename, len(file_bugs), progress, len(all_py))
+
+    # Si c'est le dernier fichier, envoyer le rapport par mail
+    if progress >= len(all_py):
+        # Ajouter le resume en fin de rapport
+        with open(_AUDIT_REPORT_FILE, "a", encoding="utf-8") as f:
+            f.write(f"\n---\n\n## Summary\n")
+            f.write(f"- **Files scanned**: {progress}\n")
+            f.write(f"- **Total bugs found**: {audit['total_bugs']}\n")
+            f.write(f"- **Started**: {audit['started_at']}\n")
+            f.write(f"- **Completed**: {datetime.now().isoformat()}\n")
+
+        # Lire le rapport pour le mail (tronquer si trop long)
+        try:
+            with open(_AUDIT_REPORT_FILE, "r", encoding="utf-8") as f:
+                report_content = f.read()
+            # Mail: max 10K chars, sinon tronquer
+            if len(report_content) > 10000:
+                mail_body = report_content[:9500] + "\n\n... (rapport tronqué — voir audit_report.md pour le complet)"
+            else:
+                mail_body = report_content
+            await send_mail(
+                f"[MAXIA CEO] 🔍 Code Audit Complete — {audit['total_bugs']} bugs in {progress} files",
+                mail_body,
+            )
+        except Exception as e:
+            log.error("[AUDIT] Mail send error: %s", e)
+
+        log.info("[AUDIT] ✅ Audit COMPLET — %d bugs dans %d fichiers. Rapport: %s",
+                 audit["total_bugs"], progress, _AUDIT_REPORT_FILE)
+        return True
+
+    return False
+
+
+# ══════════════════════════════════════════
+# Mission 17 — Scout AI (scan registries, validation Alexis)
+# ══════════════════════════════════════════
+
+_SCOUT_FILE = os.path.join(_DIR, "scout_discoveries.json")
+_SCOUT_PENDING_FILE = os.path.join(_DIR, "scout_pending_contacts.json")
+
+# Registries HTTP — pas de RPC blockchain, juste des APIs publiques
+_AI_REGISTRIES = [
+    {"name": "Virtuals Protocol", "url": "https://api.virtuals.io/api/virtuals?filters[isLaunched]=true&pagination[limit]=20", "chain": "base"},
+    {"name": "ElizaOS Registry", "url": "https://elizaos.github.io/registry/index.json", "chain": "solana"},
+    {"name": "HuggingFace Spaces", "url": "https://huggingface.co/api/spaces?limit=20&filter=agent&sort=likes", "chain": "multi"},
+    {"name": "HuggingFace Models", "url": "https://huggingface.co/api/models?filter=agent&limit=20&sort=likes", "chain": "multi"},
+]
+
+
+def _load_scout_data() -> dict:
+    default = {"discovered": {}, "contacted": [], "last_scan": ""}
+    try:
+        if os.path.exists(_SCOUT_FILE):
+            with open(_SCOUT_FILE, "r", encoding="utf-8") as f:
+                return json.loads(f.read())
+    except Exception:
+        pass
+    return default
+
+
+def _save_scout_data(data: dict):
+    try:
+        with open(_SCOUT_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, default=str, ensure_ascii=False))
+    except Exception as e:
+        log.error("[SCOUT] Save error: %s", e)
+
+
+def _load_pending_contacts() -> list:
+    try:
+        if os.path.exists(_SCOUT_PENDING_FILE):
+            with open(_SCOUT_PENDING_FILE, "r", encoding="utf-8") as f:
+                return json.loads(f.read())
+    except Exception:
+        pass
+    return []
+
+
+def _save_pending_contacts(pending: list):
+    try:
+        with open(_SCOUT_PENDING_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps(pending, indent=2, default=str, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+async def mission_scout_scan(mem: dict, actions: dict):
+    """Scan les registries AI pour trouver des agents, propose a Alexis par mail."""
+    if actions["counts"].get("scout_done", 0) >= 1:
+        return
+
+    scout = _load_scout_data()
+    known_ids = set(scout.get("discovered", {}).keys())
+    contacted_ids = set(scout.get("contacted", []))
+    new_agents = []
+
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        for registry in _AI_REGISTRIES:
+            try:
+                resp = await client.get(registry["url"], headers={"User-Agent": "MAXIA-Scout/1.0"})
+                if resp.status_code != 200:
+                    log.warning("[SCOUT] %s HTTP %d", registry["name"], resp.status_code)
+                    continue
+
+                data = resp.json()
+
+                # Parser selon le format du registry
+                agents_list = []
+                if isinstance(data, list):
+                    agents_list = data
+                elif isinstance(data, dict):
+                    # Chercher une liste dans les valeurs communes
+                    for key in ("agents", "services", "results", "data", "items"):
+                        if key in data and isinstance(data[key], list):
+                            agents_list = data[key]
+                            break
+
+                for agent in agents_list[:20]:
+                    # Extraire un ID unique
+                    agent_id = str(
+                        agent.get("id", "") or agent.get("address", "") or
+                        agent.get("name", "") or agent.get("service_id", "")
+                    )
+                    if not agent_id or agent_id in known_ids or agent_id in contacted_ids:
+                        continue
+
+                    # Extraire les infos utiles
+                    name = agent.get("name", agent.get("title", agent_id))
+                    description = agent.get("description", agent.get("desc", ""))[:200]
+                    url = agent.get("url", agent.get("homepage", agent.get("api_url", "")))
+                    owner = agent.get("owner", agent.get("author", agent.get("creator", "")))
+
+                    new_agents.append({
+                        "id": agent_id,
+                        "name": name,
+                        "description": description,
+                        "url": url,
+                        "owner": str(owner),
+                        "registry": registry["name"],
+                        "chain": registry["chain"],
+                        "discovered_at": datetime.now().isoformat(),
+                    })
+
+                    # Sauvegarder dans les decouvertes
+                    scout["discovered"][agent_id] = {
+                        "name": name, "registry": registry["name"],
+                        "chain": registry["chain"], "ts": time.time(),
+                    }
+
+                log.info("[SCOUT] %s: %d agents scannes", registry["name"], len(agents_list[:20]))
+                await asyncio.sleep(2)  # Politesse entre registries
+
+            except Exception as e:
+                log.error("[SCOUT] %s error: %s", registry["name"], str(e)[:60])
+
+    scout["last_scan"] = datetime.now().isoformat()
+    _save_scout_data(scout)
+
+    if not new_agents:
+        log.info("[SCOUT] Aucun nouvel agent trouve")
+        actions["counts"]["scout_done"] = 1
+        return
+
+    # Scorer et generer les messages de contact via LLM
+    scored_agents = []
+    for agent in new_agents[:10]:
+        result = await llm(
+            f"Tu es le CEO de MAXIA (marketplace AI-to-AI, 14 blockchains, escrow USDC).\n\n"
+            f"Agent IA decouvert:\n"
+            f"  Nom: {agent['name']}\n"
+            f"  Description: {agent['description']}\n"
+            f"  Registry: {agent['registry']}\n"
+            f"  Chain: {agent['chain']}\n"
+            f"  URL: {agent['url']}\n\n"
+            f"1. Score de pertinence (1-10): cet agent beneficierait-il de MAXIA?\n"
+            f"2. Message d'invitation (max 500 chars): professionnel, explique ce que MAXIA apporte a CET agent specifiquement\n"
+            f"3. Methode de contact: api_post, email, ou manual\n\n"
+            f"Format STRICT:\n"
+            f"SCORE|<nombre>\n"
+            f"MSG|<message d'invitation>\n"
+            f"METHOD|<methode>",
+            system=CEO_SYSTEM_PROMPT,
+            max_tokens=300,
+        )
+
+        score = 5
+        msg = ""
+        method = "manual"
+        if result:
+            for line in result.strip().split("\n"):
+                line = line.strip()
+                if line.startswith("SCORE|"):
+                    try:
+                        score = int(line.split("|")[1].strip())
+                    except Exception:
+                        pass
+                elif line.startswith("MSG|"):
+                    msg = line.split("|", 1)[1].strip()[:500]
+                elif line.startswith("METHOD|"):
+                    method = line.split("|", 1)[1].strip().lower()
+
+        agent["score"] = max(1, min(10, score))
+        agent["contact_message"] = msg
+        agent["contact_method"] = method
+        scored_agents.append(agent)
+
+    # Trier par score descendant
+    scored_agents.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+    # Sauvegarder comme pending (en attente de validation Alexis)
+    pending = _load_pending_contacts()
+    for agent in scored_agents:
+        agent["status"] = "pending"
+        pending.append(agent)
+    _save_pending_contacts(pending)
+
+    # Envoyer le mail a Alexis pour validation
+    today = datetime.now().strftime("%d/%m/%Y")
+    body = f"MAXIA CEO — Scout AI du {today}\n"
+    body += f"{len(scored_agents)} agents IA decouverts sur {len(_AI_REGISTRIES)} registries\n\n"
+    body += "Pour contacter un agent, reponds a ce mail avec les numeros.\n"
+    body += "Exemple: GO 1, 3, 5\n\n"
+
+    for i, agent in enumerate(scored_agents, 1):
+        body += f"--- Agent #{i} — Score: {agent['score']}/10 ---\n"
+        body += f"  Nom: {agent['name']}\n"
+        body += f"  Registry: {agent['registry']} ({agent['chain']})\n"
+        body += f"  Description: {agent['description']}\n"
+        if agent.get("url"):
+            body += f"  URL: {agent['url']}\n"
+        if agent.get("owner"):
+            body += f"  Owner: {agent['owner']}\n"
+        body += f"  Message propose:\n  \"{agent['contact_message']}\"\n"
+        body += f"  Methode: {agent['contact_method']}\n\n"
+
+    body += "--- INSTRUCTIONS ---\n"
+    body += "Reponds GO <numeros> pour autoriser le contact.\n"
+    body += "Reponds SKIP pour ignorer tous.\n"
+    body += "Les agents non contactes seront reproposés demain.\n"
+
+    await send_mail(f"[MAXIA CEO] Scout: {len(scored_agents)} agents IA trouves - {today}", body)
+    actions["counts"]["scout_done"] = 1
+    log.info("[SCOUT] %d agents trouves, mail envoye pour validation", len(scored_agents))
+
+
+async def mission_scout_execute_approved(mem: dict):
+    """Verifie si Alexis a repondu GO et contacte les agents approuves."""
+    try:
+        from email_manager import read_inbox
+        emails = await read_inbox(max_emails=10)
+    except Exception:
+        return
+
+    pending = _load_pending_contacts()
+    if not pending:
+        return
+
+    scout = _load_scout_data()
+    answered_ids = set(mem.get("emails_answered", []))
+
+    for em in emails:
+        msg_id = em.get("message_id", em.get("uid", ""))
+        if msg_id in answered_ids:
+            continue
+
+        subject = em.get("subject", "").lower()
+        body_text = em.get("body", "").upper()
+        from_addr = em.get("from_addr", "").lower()
+
+        if "majorel" not in from_addr and "maxia" not in from_addr:
+            continue
+        if "scout" not in subject:
+            continue
+
+        # Chercher "GO 1, 3, 5" dans le body
+        if "GO" not in body_text and "SKIP" not in body_text:
+            continue
+
+        mem.setdefault("emails_answered", []).append(msg_id)
+
+        if "SKIP" in body_text:
+            # Marquer tous comme skipped
+            for p in pending:
+                p["status"] = "skipped"
+            _save_pending_contacts([])
+            log.info("[SCOUT] Alexis a SKIP tous les agents")
+            continue
+
+        # Parser les numeros apres GO
+        import re
+        numbers = re.findall(r'\d+', body_text.split("GO")[1] if "GO" in body_text else "")
+        approved_indices = [int(n) - 1 for n in numbers if n.isdigit()]
+
+        contacted = 0
+        for idx in approved_indices:
+            if idx < 0 or idx >= len(pending):
+                continue
+            agent = pending[idx]
+            if agent.get("status") != "pending":
+                continue
+
+            # Contacter l'agent
+            success = await _scout_contact_agent(agent)
+            if success:
+                agent["status"] = "contacted"
+                scout.setdefault("contacted", []).append(agent["id"])
+                contacted += 1
+            else:
+                agent["status"] = "failed"
+
+        # Retirer les traites de la liste pending
+        remaining = [p for p in pending if p.get("status") == "pending"]
+        _save_pending_contacts(remaining)
+        _save_scout_data(scout)
+
+        if contacted:
+            await send_mail(
+                f"[MAXIA CEO] Scout: {contacted} agents contactes",
+                f"{contacted} agents contactes avec succes suite a ton GO.\n\n"
+                + "\n".join(f"- {pending[i]['name']} ({pending[i]['registry']})" for i in approved_indices if 0 <= i < len(pending)),
+            )
+            log.info("[SCOUT] %d agents contactes apres validation Alexis", contacted)
+
+
+async def _scout_contact_agent(agent: dict) -> bool:
+    """Envoie le message d'invitation a un agent via son API."""
+    url = agent.get("url", "")
+    message = agent.get("contact_message", "")
+    if not url or not message:
+        log.warning("[SCOUT] Pas d'URL ou message pour %s", agent.get("name", "?"))
+        return False
+
+    # Construire les endpoints possibles
+    endpoints = []
+    if url.startswith("http"):
+        base = url.rstrip("/")
+        endpoints.extend([
+            f"{base}/.well-known/agent.json",
+            f"{base}/api/register",
+            f"{base}/api/v1/agents",
+            base,
+        ])
+
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "agent/discover",
+        "params": {
+            "from": "MAXIA",
+            "from_url": "https://maxiaworld.app",
+            "type": "marketplace_invitation",
+            "message": message,
+            "register_url": "https://maxiaworld.app/api/public/register",
+            "mcp_manifest": "https://maxiaworld.app/mcp/manifest",
+        },
+        "id": 1,
+    }
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        for ep in endpoints:
+            try:
+                resp = await client.post(ep, json=payload)
+                if resp.status_code in (200, 201, 202):
+                    log.info("[SCOUT] Contact OK: %s via %s", agent.get("name", "?"), ep)
+                    return True
+            except Exception:
+                continue
+
+        # Fallback: GET sur l'URL pour verifier que l'agent existe
+        try:
+            resp = await client.get(url, timeout=8)
+            if resp.status_code == 200:
+                log.info("[SCOUT] Agent %s existe (%s) mais pas d'API de contact", agent.get("name", "?"), url)
+                return True  # On considere le contact comme "tenté"
+        except Exception:
+            pass
+
+    log.warning("[SCOUT] Contact echoue: %s", agent.get("name", "?"))
+    return False
+
+
+# ══════════════════════════════════════════
+# Mission 16 — Health report intelligent (8h, mail separe)
+# ══════════════════════════════════════════
+
+async def mission_health_report(mem: dict, actions: dict):
+    """Analyse les tendances sante des dernieres 24h et envoie un rapport intelligent."""
+    if actions["counts"].get("health_report_sent", 0) >= 1:
+        return
+
+    # Collecter les alertes des dernieres 24h
+    recent_alerts = [a for a in mem.get("health_alerts", []) if time.time() - a.get("ts", 0) < 86400]
+
+    # Health check live
+    endpoints = {
+        "site": f"{VPS_URL}/",
+        "prices": f"{VPS_URL}/api/public/crypto/prices",
+        "forum": f"{VPS_URL}/api/public/forum",
+        "stats": f"{VPS_URL}/api/public/stats",
+        "mcp": f"{VPS_URL}/mcp/manifest",
+    }
+    results = {}
+    async with httpx.AsyncClient(timeout=8) as client:
+        for name, url in endpoints.items():
+            try:
+                t0 = time.time()
+                resp = await client.get(url)
+                latency = (time.time() - t0) * 1000
+                results[name] = {"status": resp.status_code, "latency_ms": round(latency)}
+            except Exception as e:
+                results[name] = {"status": "DOWN", "latency_ms": 0, "error": str(e)[:50]}
+
+    # Demander au LLM d'analyser les tendances
+    alert_summary = f"{len(recent_alerts)} alertes dans les dernieres 24h"
+    if recent_alerts:
+        alert_details = "\n".join(f"- {a.get('failures', [])}" for a in recent_alerts[-5:])
+        alert_summary += f":\n{alert_details}"
+
+    results_text = "\n".join(f"- {k}: HTTP {v['status']}, {v['latency_ms']}ms" for k, v in results.items())
+
+    analysis = await llm(
+        f"Tu es le CEO de MAXIA. Analyse ce rapport de sante du site:\n\n"
+        f"Endpoints live:\n{results_text}\n\n"
+        f"Alertes 24h: {alert_summary}\n\n"
+        f"Donne:\n"
+        f"1. Etat general (VERT/ORANGE/ROUGE)\n"
+        f"2. Tendances (amelioration, degradation, stable)\n"
+        f"3. Si probleme: cause probable et recommandation\n"
+        f"4. Impact utilisateurs estime\n"
+        f"Sois concis et factuel.",
+        system=CEO_SYSTEM_PROMPT,
+        max_tokens=400,
+    )
+
+    today = datetime.now().strftime("%d/%m/%Y %H:%M")
+    body = f"MAXIA CEO — Health Report du {today}\n\n"
+    body += "═══ ENDPOINTS ═══\n"
+    for k, v in results.items():
+        icon = "✅" if v["status"] == 200 else "❌"
+        body += f"  {icon} {k:12s} HTTP {v['status']:>4}  {v['latency_ms']:>4}ms\n"
+    body += f"\n═══ ALERTES 24H ═══\n  {alert_summary}\n"
+    body += f"\n═══ ANALYSE CEO ═══\n{analysis}\n" if analysis else ""
+
+    await send_mail(f"[MAXIA CEO] Health Report - {today}", body)
+    actions["counts"]["health_report_sent"] = 1
+    log.info("Health report intelligent envoye")
+
+
+# ══════════════════════════════════════════
+# Mission 13 — Changelog forum (1x/semaine dimanche)
+# ══════════════════════════════════════════
+
+async def mission_changelog_forum(mem: dict, actions: dict):
+    """Genere un changelog des derniers commits et le poste sur le forum Dev."""
+    if actions["counts"].get("changelog_posted", 0) >= 1:
+        return
+
+    # Recuperer les dernieres features/changes depuis la knowledge base
+    changelog = await llm(
+        f"Tu es le CEO de MAXIA. Ecris un post changelog pour le forum des developpeurs.\n\n"
+        f"Voici ce que tu sais de MAXIA:\n{MAXIA_KNOWLEDGE[:2000]}\n\n"
+        f"Ecris un post engageant pour le forum (communaute 'dev') qui:\n"
+        f"1. Liste 3-5 features/ameliorations recentes\n"
+        f"2. Invite les devs a tester et donner du feedback\n"
+        f"3. Mentionne maxiaworld.app/forum pour les discussions\n"
+        f"4. Ton professionnel mais accessible\n"
+        f"5. Max 800 chars\n\n"
+        f"Format:\n"
+        f"TITLE|<titre du post>\n"
+        f"BODY|<contenu du post>",
+        system=CEO_SYSTEM_PROMPT,
+        max_tokens=400,
+    )
+
+    title = "Weekly Changelog"
+    body_text = changelog or ""
+
+    if changelog:
+        for line in changelog.split("\n"):
+            if line.startswith("TITLE|"):
+                title = line.split("|", 1)[1].strip()
+            elif line.startswith("BODY|"):
+                body_text = line.split("|", 1)[1].strip()
+
+    # Poster sur le forum via l'API VPS
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(f"{VPS_URL}/api/public/forum/create", json={
+                "title": title,
+                "body": body_text[:2000],
+                "community": "dev",
+                "author_name": "MAXIA CEO",
+            })
+            if resp.status_code in (200, 201):
+                log.info("Changelog poste sur le forum: %s", title)
+                actions["counts"]["changelog_posted"] = 1
+                # Mail de confirmation a Alexis
+                await send_mail(
+                    f"[MAXIA CEO] Changelog poste sur le forum",
+                    f"Titre: {title}\n\nContenu:\n{body_text[:1000]}\n\nLien: {VPS_URL}/forum?community=dev",
+                )
+            else:
+                log.error("Forum post error %d: %s", resp.status_code, resp.text[:100])
+    except Exception as e:
+        log.error("Changelog forum error: %s", e)
 
 
 # ══════════════════════════════════════════
@@ -986,25 +1691,35 @@ async def run():
                 last_moderation = now
                 actions["counts"]["moderation_done"] = actions["counts"].get("moderation_done", 0) + 1
 
-            # Mission 2a: Scan ALL platforms HOURLY (accumule les opportunites)
-            if now - last_twitter_scan >= 3600:
-                await mission_twitter_scan_hourly(mem)
-                await mission_github_scan_hourly(mem)
-                await mission_reddit_scan_hourly(mem)
-                await mission_discord_scan_hourly(mem)
-                last_twitter_scan = now
+            # Mission 2a: Scan ALL platforms a 18h30 (concentre, 1x/jour)
+            if hour == 18 and dt_now.minute >= 30 and actions["counts"].get("scan_done", 0) == 0:
+                if now - last_twitter_scan >= 3600:
+                    log.info("═══ SCAN OPPORTUNITES 18h30 ═══")
+                    await mission_twitter_scan_hourly(mem)
+                    await mission_github_scan_hourly(mem)
+                    await mission_reddit_scan_hourly(mem)
+                    last_twitter_scan = now
+                    actions["counts"]["scan_done"] = 1
 
-            # Mission 2b: Envoyer le best-of par mail (10h)
-            if hour == 10 and actions["counts"].get("opportunities_sent", 0) == 0:
+            # Mission 2b: Envoyer le best-of scoré par mail (19h30)
+            if hour == 19 and dt_now.minute >= 30 and actions["counts"].get("opportunities_sent", 0) == 0:
                 if now - last_opportunities_mail >= 3600:
                     await mission_send_best_opportunities(mem, actions)
                     last_opportunities_mail = now
 
-            # Mission 3: Rapport quotidien (9h)
+            # Mission 3: Rapport quotidien GitHub+agents+annuaires (9h, mail separe)
             if hour == 9 and actions["counts"].get("report_sent", 0) == 0:
                 if now - last_report >= 3600:
                     await mission_daily_report(mem, actions)
                     last_report = now
+
+            # Mission 16: Health report intelligent (8h, mail separe)
+            if hour == 8 and actions["counts"].get("health_report_sent", 0) == 0:
+                await mission_health_report(mem, actions)
+
+            # Mission 13: Changelog forum (dimanche 11h)
+            if weekday == 6 and hour == 11 and actions["counts"].get("changelog_posted", 0) == 0:
+                await mission_changelog_forum(mem, actions)
 
             # Mission 1: Tweet feature (15h-16h — peak US EST 9:30 AM)
             if 15 <= hour <= 16 and actions["counts"].get("tweet_feature", 0) == 0:
@@ -1012,16 +1727,33 @@ async def run():
                     await mission_tweet_feature(mem, actions)
                     last_tweet = now
 
-            # Mission 6: Veille concurrentielle (dimanche 10h)
-            if weekday == 6 and hour == 10 and actions["counts"].get("competitive_watch", 0) == 0:
+            # Mission 6: Veille concurrentielle + memo strategique (19h, 1x/jour)
+            if hour == 19 and actions["counts"].get("competitive_watch", 0) == 0:
                 if now - last_competitive >= 3600:
                     await mission_competitive_watch(mem, actions)
                     last_competitive = now
+
+            # Mission 17: Scout AI — scan registries (17h, 1x/jour)
+            if hour == 17 and actions["counts"].get("scout_done", 0) == 0:
+                await mission_scout_scan(mem, actions)
+
+            # Mission 17b: Scout — execute les contacts approuves par Alexis (toutes les 5 min)
+            if now - mem.get("_last_scout_check", 0) >= 300:
+                await mission_scout_execute_approved(mem)
+                mem["_last_scout_check"] = now
 
             # Mission 9: Check emails de Alexis (toutes les 5 min)
             if now - mem.get("_last_email_check", 0) >= 300:
                 await mission_check_alexis_emails(mem)
                 mem["_last_email_check"] = now
+
+            # Mission 10: Code Audit — demarre a 19h15 (mail separe automatique)
+            audit_done_today = actions["counts"].get("audit_complete", 0) >= 1
+            if not audit_done_today and hour >= 19 and dt_now.minute >= 15:
+                is_complete = await mission_code_audit(mem, actions)
+                if is_complete:
+                    actions["counts"]["audit_complete"] = 1
+                    log.info("[AUDIT] Audit quotidien termine — mail envoye")
 
             # Mining — relancer si GPU libre depuis 60s (pas d'appel LLM recent)
             if KASPA_MINING_ENABLED and not is_mining() and _last_llm_call > 0:
@@ -1167,6 +1899,23 @@ async def terminal_mode():
             _save_memory(mem)
             continue
 
+        if cmd == "audit" or cmd == "code audit":
+            print("[CEO] Code audit en cours — scan de TOUS les fichiers backend...")
+            print(f"[CEO] Backend: {_BACKEND_DIR}")
+            actions = _load_actions_today()
+            file_count = 0
+            while True:
+                is_done = await mission_code_audit(mem, actions)
+                file_count += 1
+                if is_done:
+                    break
+                if file_count % 10 == 0:
+                    print(f"[CEO] ... {file_count} fichiers scannes")
+            _save_memory(mem)
+            _save_actions(actions)
+            print(f"[CEO] Audit complet! Rapport: {_AUDIT_REPORT_FILE}")
+            continue
+
         if cmd == "tweet":
             print("[CEO] Redaction du tweet...")
             actions = _load_actions_today()
@@ -1185,6 +1934,7 @@ async def terminal_mode():
 
         if cmd == "help":
             print("[CEO] Commandes disponibles:")
+            print("  audit            — lancer l'audit code complet (154 fichiers)")
             print("  status           — voir les stats du jour")
             print("  scan twitter     — forcer un scan Twitter maintenant")
             print("  scan github      — forcer un scan GitHub + rapport")
