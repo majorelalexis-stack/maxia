@@ -541,13 +541,13 @@ class TestRateLimitFreeEndpoints:
         assert check_rate_limit_smart("test_free_q", "/api/public/crypto/prices?token=SOL") is True
 
     def test_paid_endpoint_rate_limited(self):
-        from security import check_rate_limit_smart, _rate_store
+        from security import check_rate_limit_smart, _rate_store, RATE_LIMIT
         # Clean state for this identifier
         _rate_store.pop("test_paid_1", None)
-        # Paid endpoint — exhaust the limit (60 req/min)
-        for i in range(60):
+        # Paid endpoint — exhaust the limit
+        for i in range(RATE_LIMIT):
             assert check_rate_limit_smart("test_paid_1", "/api/marketplace/execute") is True
-        # 61st should be blocked
+        # Next should be blocked
         assert check_rate_limit_smart("test_paid_1", "/api/marketplace/execute") is False
 
     def test_mcp_is_free(self):
