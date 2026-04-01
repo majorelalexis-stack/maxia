@@ -93,6 +93,7 @@ auction_manager = AuctionManager()
 runpod          = RunPodClient(api_key=os.getenv("RUNPOD_API_KEY", ""))
 # WebSocket clients (local process) + Redis pub/sub optionnel pour multi-worker
 _ws_clients: dict = {}
+_ws_by_wallet: dict = {}  # wallet -> [ws1, ws2, ...] for per-user notifications
 _redis_pubsub = None  # Redis connection si REDIS_URL est defini
 REDIS_URL = os.getenv("REDIS_URL", "")  # redis://localhost:6379 pour multi-worker
 WS_CHANNEL = "maxia:ws:broadcast"
@@ -157,6 +158,21 @@ async def broadcast_all(msg: dict):
         except Exception:
             pass  # Fallback local si Redis echoue
     await _local_broadcast(msg)
+
+
+async def send_to_wallet(wallet: str, msg: dict):
+    """Push a message to all WebSocket connections for a specific wallet."""
+    connections = _ws_by_wallet.get(wallet, [])
+    dead = []
+    for ws in connections:
+        try:
+            await ws.send_json(msg)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        connections.remove(ws)
+    if not connections:
+        _ws_by_wallet.pop(wallet, None)
 
 
 # ── Native AI Services (registered at startup) ──
@@ -240,8 +256,46 @@ async def lifespan(app: FastAPI):
     await escrow_client._load_from_db()
     agent_worker.set_broadcast(broadcast_all)
 
+    # Inject WS per-wallet callback into forum module
+    try:
+        import forum as _forum_mod
+        _forum_mod._ws_notify_callback = send_to_wallet
+    except Exception:
+        pass
+
     # V12: Register 8 MAXIA native AI services (Groq/Ollama)
     await _register_native_services(db)
+
+    # Pre-create forum tables (idempotent) — prevents 502 race condition on first POST
+    try:
+        await db.raw_executescript(
+            "CREATE TABLE IF NOT EXISTS forum_posts("
+            "id TEXT PRIMARY KEY, data TEXT NOT NULL, community TEXT DEFAULT 'general', "
+            "hot_score NUMERIC(18,6) DEFAULT 0, created_at INTEGER, status TEXT DEFAULT 'active');"
+            "CREATE TABLE IF NOT EXISTS forum_replies("
+            "id TEXT PRIMARY KEY, post_id TEXT, data TEXT NOT NULL, "
+            "created_at INTEGER, status TEXT DEFAULT 'active');"
+            "CREATE TABLE IF NOT EXISTS forum_votes("
+            "id TEXT PRIMARY KEY, post_id TEXT, wallet TEXT, vote INTEGER, "
+            "created_at INTEGER);"
+            "CREATE TABLE IF NOT EXISTS forum_reports("
+            "id TEXT PRIMARY KEY, post_id TEXT, wallet TEXT, reason TEXT, "
+            "created_at INTEGER);"
+            "CREATE TABLE IF NOT EXISTS forum_notifications("
+            "id TEXT PRIMARY KEY, wallet TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'reply', "
+            "post_id TEXT, reply_id TEXT, payload TEXT NOT NULL DEFAULT '{}', "
+            "read INTEGER DEFAULT 0, created_at INTEGER DEFAULT (strftime('%s','now')));"
+            "CREATE INDEX IF NOT EXISTS idx_posts_community ON forum_posts(community);"
+            "CREATE INDEX IF NOT EXISTS idx_posts_hot ON forum_posts(hot_score DESC);"
+            "CREATE INDEX IF NOT EXISTS idx_replies_post ON forum_replies(post_id);"
+            "CREATE INDEX IF NOT EXISTS idx_notif_wallet_read ON forum_notifications(wallet, read);"
+            "CREATE INDEX IF NOT EXISTS idx_notif_created ON forum_notifications(created_at);")
+        # Cleanup old notifications (>30 days)
+        await db.raw_execute(
+            "DELETE FROM forum_notifications WHERE created_at < ?",
+            (int(time.time()) - 30 * 86400,))
+    except Exception as e:
+        logger.error("[Forum] Table init error: %s", e)
 
     # Seed forum with initial posts
     try:
@@ -256,6 +310,13 @@ async def lifespan(app: FastAPI):
         await ensure_marketplace_tables(db)
     except Exception as e:
         logger.error("[Marketplace] Init error: %s", e)
+
+    # Index for referral code lookup (substr(api_key, 7, 8))
+    try:
+        await db.raw_execute(
+            "CREATE INDEX IF NOT EXISTS idx_agents_referral_code ON agents(substr(api_key, 7, 8))")
+    except Exception:
+        pass
 
     # V12: Ensure referred_by column exists in agents table
     try:
@@ -599,11 +660,12 @@ async def security_headers_middleware(request: Request, call_next):
 
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' wss: ws: https:; "
+        "frame-src 'self' https://s.tradingview.com https://s3.tradingview.com; "
         "frame-ancestors 'none'"
     )
     return response
@@ -2544,6 +2606,7 @@ async def ws_endpoint(ws: WebSocket):
                             _cleanup_used_nonces()
                         authenticated_wallet = wallet
                         agent_worker.register_external_agent(wallet)
+                        _ws_by_wallet.setdefault(wallet, []).append(ws)
                         await ws.send_json({"type": "AUTH_OK", "wallet": wallet})
                     except Exception as e:
                         logger.error("[WS] Auth signature error: %s", e)
@@ -2557,6 +2620,12 @@ async def ws_endpoint(ws: WebSocket):
     finally:
         _ws_clients.pop(cid, None)
         _ws_connections[ip] = max(0, _ws_connections.get(ip, 1) - 1)
+        if authenticated_wallet:
+            wl = _ws_by_wallet.get(authenticated_wallet, [])
+            if ws in wl:
+                wl.remove(ws)
+            if not wl:
+                _ws_by_wallet.pop(authenticated_wallet, None)
 
 
 @app.websocket("/auctions")
@@ -2771,7 +2840,8 @@ async def ws_candles(websocket: WebSocket):
             return
         while True:
             try:
-                rows = await db.raw_execute_fetchall(
+                from database import db as _db_candles
+                rows = await _db_candles.raw_execute_fetchall(
                     "SELECT symbol, interval, open, high, low, close, volume, timestamp FROM price_candles "
                     "WHERE symbol=? AND interval=? ORDER BY timestamp DESC LIMIT 1", (symbol, interval))
                 if rows:

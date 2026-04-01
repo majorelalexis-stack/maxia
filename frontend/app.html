@@ -329,7 +329,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .activity-purpose.other{background:rgba(255,255,255,.06);color:var(--muted)}
 </style>
 <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" defer></script>
-<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.min.js" defer></script>
+<script src="/static/lightweight-charts.min.js" defer></script>
 <script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
 </head>
 <body>
@@ -1019,7 +1019,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <!-- Token selector + live price -->
     <div class="card" style="padding:20px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <select id="chart-token" class="form-input" onchange="loadTTLivePrice()" style="width:140px;padding:8px 12px;font-size:14px;font-weight:600">
+        <select id="chart-token" class="form-input" onchange="loadTTLivePrice();loadChart()" style="width:140px;padding:8px 12px;font-size:14px;font-weight:600">
           <optgroup label="Major Crypto">
             <option value="SOL">SOL</option><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="USDC">USDC</option><option value="USDT">USDT</option>
           </optgroup>
@@ -1057,8 +1057,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         <span id="tt-price-change" style="font-size:14px;font-weight:600">--</span>
       </div>
       <div id="chart-signal" style="font-size:12px;color:var(--muted)"></div>
-      <div id="chart-container" style="width:100%;height:420px;border-radius:8px;overflow:hidden"></div>
-      <div id="chart-legend" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+      <div id="tv-chart-wrap" style="width:100%;height:500px;border-radius:8px;overflow:hidden;margin-top:8px"></div>
     </div>
 
     <!-- Order Panel -->
@@ -1568,7 +1567,7 @@ var TOKEN_MINTS = {
   "SHIB":     { mint: "CiKu4eHsVrc1eueVQeHn7qhXTcVu95gSQoBBpX5SQzUt", decimals: 8 }
 };
 
-var SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+var SOLANA_RPC = "https://solana-mainnet.core.chainstack.com/f46c60d18ec2f294a7967c7c0155498d";
 var JUPITER_V1_API = "https://lite-api.jup.ag/swap/v1";
 
 // -- EVM chain configuration --
@@ -1948,12 +1947,12 @@ function showPage(name, btn) {
   // Lazy load data
   if (name === 'swap' && swapTokens.length === 0) loadSwapTokens();
   if (name === 'portfolio') { loadPortfolio(); loadPortfolioStats(); }
-  if (name === 'gpu') loadGPU();
+  if (name === 'gpu') { loadGPU(); _startAutoRefresh('gpu', loadGPU, 60000); }
   if (name === 'yields') { loadYields(); _startAutoRefresh('yields', loadYields, 60000); }
   if (name === 'stocks') loadStocks();
   if (name === 'nfts') loadNFTs();
   if (name === 'agentid') { loadAgentList(); loadCreditScore(); }
-  if (name === 'trading') { loadAppWhales(); loadAppCopy(); try { loadChart(); } catch(e) { console.warn('[chart]', e); } loadAppAlerts(); _startAutoRefresh('trading', function(){ loadAppWhales(); try { loadChart(); } catch(e) {} loadAppAlerts(); }, 60000); }
+  if (name === 'trading') { loadAppWhales(); loadAppCopy(); requestAnimationFrame(function(){ requestAnimationFrame(function(){ try { loadChart(); } catch(e) { console.warn('[chart]', e); } }); }); loadAppAlerts(); _startAutoRefresh('trading', function(){ loadAppWhales(); try { loadChart(); } catch(e) {} loadAppAlerts(); }, 60000); }
   if (name === 'escrow') loadEscrows();
 }
 
@@ -2191,23 +2190,28 @@ async function submitTTOrder() {
       url = '/api/stocks/' + (_ttSide === 'buy' ? 'buy' : 'sell');
       body = {symbol: token, amount_usdc: amount, payment_tx: 'pending'};
     } else {
-      url = '/api/swap/quote';
-      body = _ttSide === 'buy'
-        ? {from_token: 'USDC', to_token: token, amount: amount}
-        : {from_token: token, to_token: 'USDC', amount: amount};
+      var fromTk = _ttSide === 'buy' ? 'USDC' : token;
+      var toTk   = _ttSide === 'buy' ? token : 'USDC';
+      url = '/api/public/crypto/quote?from_token=' + fromTk + '&to_token=' + toTk + '&amount=' + amount;
+      body = null;
     }
 
-    var resp = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessionStorage.getItem('session_token')||'')},
-      body: JSON.stringify(body)
-    });
+    var resp;
+    if (body !== null) {
+      resp = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessionStorage.getItem('session_token')||'')},
+        body: JSON.stringify(body)
+      });
+    } else {
+      resp = await fetch(url);
+    }
     var data = await resp.json();
 
     resultEl.style.display = 'block';
-    if (data.success || data.shares || data.output_amount) {
+    if (data.success || data.shares || data.output_amount || data.to_amount) {
       resultEl.style.color = 'var(--green)';
-      resultEl.innerHTML = (_ttSide==='buy'?'Bought':'Sold') + ' ' + esc(token) + ' — ' + (isStock ? esc(data.shares)+' shares' : esc(data.output_amount||data.amount_out)) + ' <span style="color:var(--muted);font-size:11px">tx:' + esc((data.tx_id||data.tx_signature||'').substring(0,12)) + '...</span>';
+      resultEl.innerHTML = (_ttSide==='buy'?'Bought':'Sold') + ' ' + esc(token) + ' — ' + (isStock ? esc(data.shares)+' shares' : esc(data.output_amount||data.to_amount||data.amount_out)) + ' <span style="color:var(--muted);font-size:11px">' + esc(data.tier||'') + ' fee:$' + esc(data.commission_usd||data.commission_usdc||'0') + '</span>';
       // Add to local order history
       _ttOrders.unshift({time: new Date().toLocaleTimeString(), asset: token, side: _ttSide, amount: '$'+amount.toFixed(2), status: 'filled'});
       renderTTOrders();
@@ -2473,7 +2477,7 @@ function _connectChartWS(symbol, interval_s) {
     if (myId !== _chartWSId) return;
     try {
       var msg = JSON.parse(e.data);
-      if (msg.type === 'history' && Array.isArray(msg.candles) && _candleSeries) {
+      if (msg.type === 'history' && Array.isArray(msg.candles) && msg.candles.length > 20 && _candleSeries) {
         var candles = msg.candles;
         _candleSeries.setData(candles);
         // Volume data
@@ -2574,48 +2578,69 @@ function _updateLivePrice(price, prevPrice) {
 // -- Main load function --
 async function loadChart() {
   var token = (document.getElementById('chart-token').value || 'SOL').trim().toUpperCase();
-  var container = document.getElementById('chart-container');
+  var wrap = document.getElementById('tv-chart-wrap');
   var signalEl = document.getElementById('chart-signal');
-  var tf = _TIMEFRAMES[_chartTF] || _TIMEFRAMES['5s'];
+  if (!wrap) return;
 
-  // Clean state: destroy everything, create fresh chart
-  _createChart(container);
-  signalEl.innerHTML = '<span style="color:var(--cyan)">Loading ' + esc(token) + '...</span>';
+  // Map MAXIA token symbols to TradingView symbols
+  var tvMap = {
+    'SOL':'BINANCE:SOLUSDT','BTC':'BINANCE:BTCUSDT','ETH':'BINANCE:ETHUSDT',
+    'XRP':'BINANCE:XRPUSDT','AVAX':'BINANCE:AVAXUSDT','LINK':'BINANCE:LINKUSDT',
+    'UNI':'BINANCE:UNIUSDT','AAVE':'BINANCE:AAVEUSDT','DOGE':'BINANCE:DOGEUSDT',
+    'MATIC':'BINANCE:MATICUSDT','NEAR':'BINANCE:NEARUSDT','APT':'BINANCE:APTUSDT',
+    'SUI':'BINANCE:SUIUSDT','SEI':'BINANCE:SEIUSDT','INJ':'BINANCE:INJUSDT',
+    'ARB':'BINANCE:ARBUSDT','OP':'BINANCE:OPUSDT','TIA':'BINANCE:TIAUSDT',
+    'RENDER':'BINANCE:RENDERUSDT','FET':'BINANCE:FETUSDT','TAO':'BINANCE:TAOUSDT',
+    'AKT':'BINANCE:AKTUSDT','FIL':'BINANCE:FILUSDT','AR':'BINANCE:ARUSDT',
+    'HNT':'BINANCE:HNTUSDT','LDO':'BINANCE:LDOUSDT','JUP':'BINANCE:JUPUSDT',
+    'RAY':'BINANCE:RAYUSDT','ORCA':'BINANCE:ORCAUSDT','DRIFT':'BYBIT:DRIFTUSDT',
+    'JTO':'BINANCE:JTOUSDT','PYTH':'BINANCE:PYTHUSDT','W':'BINANCE:WUSDT',
+    'ONDO':'BINANCE:ONDOUSDT','BONK':'BINANCE:BONKUSDT','WIF':'BINANCE:WIFUSDT',
+    'POPCAT':'BYBIT:POPCATUSDT','PENGU':'BINANCE:PENGUUSDT','PEPE':'BINANCE:PEPEUSDT',
+    'SHIB':'BINANCE:SHIBUSDT','FARTCOIN':'BYBIT:FARTCOINUSDT',
+    'TRUMP':'BYBIT:TRUMPUSDT','BNB':'BINANCE:BNBUSDT','TON':'BINANCE:TONUSDT',
+    'TRX':'BINANCE:TRXUSDT','STX':'BINANCE:STXUSDT',
+    'AAPL':'NASDAQ:AAPL','TSLA':'NASDAQ:TSLA','NVDA':'NASDAQ:NVDA',
+    'MSFT':'NASDAQ:MSFT','GOOGL':'NASDAQ:GOOGL','AMZN':'NASDAQ:AMZN',
+    'META':'NASDAQ:META','AMD':'NASDAQ:AMD','NFLX':'NASDAQ:NFLX',
+    'PLTR':'NASDAQ:PLTR','COIN':'NASDAQ:COIN','MSTR':'NASDAQ:MSTR',
+    'SPY':'AMEX:SPY','QQQ':'NASDAQ:QQQ',
+  };
+  var tvSymbol = tvMap[token] || ('BINANCE:' + token + 'USDT');
 
-  // Strategy: always try WS first, fallback to REST + polling
-  var interval_s = tf.seconds;
+  wrap.innerHTML = '';
+  var widgetDiv = document.createElement('div');
+  widgetDiv.className = 'tradingview-widget-container';
+  widgetDiv.style.cssText = 'width:100%;height:100%';
+  widgetDiv.innerHTML = '<div id="tv-widget" style="width:100%;height:100%"></div>';
+  wrap.appendChild(widgetDiv);
 
-  // Load REST history first (fast initial render)
-  var restTF = _chartTF;
-  if (restTF === '1s' || restTF === '5s') restTF = '1m';  // REST API uses 1m minimum
-  try {
-    var r = await api('/api/trading/candles/' + token + '?interval=' + restTF + '&limit=' + (tf.limit || 120));
-    var candles = (r && r.candles) || [];
-    if (candles.length > 0 && _candleSeries) {
-      var mapped = candles.map(function(c) {
-        return { time: c.timestamp || c.t || c.time, open: c.open || c.o, high: c.high || c.h, low: c.low || c.l, close: c.close || c.c };
-      });
-      _candleSeries.setData(mapped);
-      if (_volumeSeries) {
-        _volumeSeries.setData(mapped.map(function(c) {
-          return { time: c.time, value: 0, color: c.close >= c.open ? 'rgba(16,185,129,.35)' : 'rgba(239,68,68,.35)' };
-        }));
-      }
-      // Adjust price format
-      var lastP = mapped[mapped.length-1].close;
-      _candleSeries.applyOptions({ priceFormat: _priceFormat(lastP) });
-      _updateLivePrice(lastP, mapped.length > 1 ? mapped[mapped.length-2].close : lastP);
-      _chart.timeScale().fitContent();
-    }
-  } catch(e) {}
+  var script = document.createElement('script');
+  script.src = 'https://s3.tradingview.com/tv.js';
+  script.onload = function() {
+    new TradingView.widget({
+      container_id: 'tv-widget',
+      symbol: tvSymbol,
+      interval: '60',
+      timezone: 'Etc/UTC',
+      theme: 'dark',
+      style: '1',
+      locale: 'en',
+      toolbar_bg: '#0a0e17',
+      enable_publishing: false,
+      allow_symbol_change: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#0a0e17',
+      gridColor: 'rgba(255,255,255,0.03)',
+    });
+  };
+  wrap.appendChild(script);
 
-  // Connect WS for live streaming (works for all tokens — backend handles fallback)
-  _connectChartWS(token, interval_s);
-
-  // Also start REST price polling as backup (for tokens without Pyth SSE)
-  _startRESTPolling(token, _chartTF);
-
-  signalEl.innerHTML = '<span style="color:#10b981;font-size:12px">LIVE ' + tf.label + ' — ' + esc(token) + '</span>';
+  signalEl.innerHTML = '';
 
   // Load trading signal
   try {
@@ -2737,14 +2762,13 @@ function toggleWalletMenu() {
 function toggleTopWalletMenu() {
   var menu = document.getElementById('wallet-menu-top');
   if (!menu) return;
-  // If both wallets connected, disconnect all
-  if (connectedWallets && connectedWallets.solana && connectedWallets.evm) {
-    connectedWallets.solana = null;
-    connectedWallets.evm = null;
+  // If any wallet connected, disconnect on click
+  if (wallet) {
+    if (connectedWallets) { connectedWallets.solana = null; connectedWallets.evm = null; }
     wallet = null; walletType = null;
     updateWalletDisplay();
     menu.style.display = 'none';
-    toast('All wallets disconnected', 'info');
+    toast('Wallet disconnected', 'info');
     return;
   }
   menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
@@ -3261,6 +3285,9 @@ function connectPriceWs() {
       }
       if (msg.type === 'error') {
         showToast('Error', msg.data && msg.data.detail ? msg.data.detail : 'An error occurred', 'error');
+      }
+      if (msg.type === 'forum_reply') {
+        showToast('Forum Reply', (msg.replier || 'Someone') + ' replied to "' + (msg.post_title || 'your post').slice(0,40) + '"', 'info');
       }
     } catch (e) { /* ignore parse errors */ }
   };
@@ -4112,6 +4139,8 @@ async function checkEvmApproval(tokenAddress, spenderAddress, amountRaw) {
 // GPU
 // ======================================
 var _gpuTiersCache = [];
+var _gpuTreasurySolana = '7RtCpikgfd6xiFQyVoxjV51HN14XXRrQJiJ3KrzUdQsW';
+var _gpuTreasuryBase = '0x8958A2c37EcABEDf62727461ba30943cE3E0Fb3c';
 
 // AWS/cloud reference prices for comparison
 var _cloudPrices = {
@@ -4126,43 +4155,60 @@ async function loadGPU() {
   try {
     var data = await api('/api/public/gpu/tiers');
     var tiers = (data && data.tiers) || (data && data.gpu_tiers) || (Array.isArray(data) ? data : []);
+    if (data && data.treasury_solana) _gpuTreasurySolana = data.treasury_solana;
+    if (data && data.treasury_base) _gpuTreasuryBase = data.treasury_base;
 
     if (Array.isArray(tiers) && tiers.length > 0) {
       _gpuTiersCache = tiers;
-      // Only show GPUs actually available on Akash Network
-      var _akashReal = ['rtx4090','rtx5090','rtx_pro6000','a100_80','h100_sxm','h200'];
-      var realTiers = tiers.filter(function(g){return !g.local && _akashReal.indexOf(g.id) >= 0;});
-      grid.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-        '<thead><tr style="background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">' +
-          '<th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">GPU</th>' +
-          '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">VRAM</th>' +
-          '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">MAXIA Price</th>' +
-          '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">vs Cloud</th>' +
-          '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Status</th>' +
-          '<th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase"></th>' +
-        '</tr></thead><tbody>' +
-        realTiers.map(function(g) {
-          var tierId = g.id || '';
-          var name = g.label || g.name || 'GPU';
-          var vram = g.vram_gb || g.vram || '—';
-          var price = g.price_per_hour_usdc || g.price_per_hour || g.price || 0;
-          var available = g.available !== false;
-          var cloudPrice = _cloudPrices[tierId] || 0;
-          var savings = cloudPrice > 0 ? Math.round((1 - price / cloudPrice) * 100) : 0;
-          var savingsStr = savings > 0 ? '<span style="color:var(--green);font-weight:600">-' + savings + '%</span>' : '—';
-          var cloudStr = cloudPrice > 0 ? '<span style="color:var(--muted2);text-decoration:line-through">$' + cloudPrice.toFixed(2) + '</span>' : '';
-          return '<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s" onmouseenter="this.style.background=\'rgba(255,255,255,.03)\'" onmouseleave="this.style.background=\'\'">' +
-            '<td style="padding:14px 16px"><div style="font-weight:700;font-size:15px">' + esc(name) + '</div></td>' +
-            '<td style="padding:14px 8px;text-align:center;color:var(--cyan);font-family:\'JetBrains Mono\',monospace;font-size:13px">' + esc(String(vram)) + ' GB</td>' +
-            '<td style="padding:14px 8px;text-align:right"><span style="font-size:18px;font-weight:700;color:var(--green);font-family:\'JetBrains Mono\',monospace">$' + price.toFixed(2) + '</span><span style="color:var(--muted);font-size:11px">/hr</span></td>' +
-            '<td style="padding:14px 8px;text-align:right">' + cloudStr + ' ' + savingsStr + '</td>' +
-            '<td style="padding:14px 8px;text-align:center"><span class="badge ' + (available ? 'badge-green' : '') + '" style="font-size:10px;padding:2px 8px">' + (available ? 'Available' : 'Offline') + '</span></td>' +
-            '<td style="padding:14px 16px;text-align:right">' +
-              '<button class="btn-outline" onclick="showRentDialog(\'' + esc(tierId) + '\',\'' + esc(name) + '\',' + price + ')" style="padding:6px 16px;font-size:12px;color:var(--green);border-color:rgba(16,185,129,.3)"' + (available ? '' : ' disabled style="opacity:.4;cursor:not-allowed;padding:6px 16px;font-size:12px"') + '>Rent</button>' +
-            '</td>' +
-          '</tr>';
-        }).join('') +
-        '</tbody></table>';
+      // Show only available GPUs on Akash (not local, available_count > 0 or available === true)
+      var realTiers = tiers.filter(function(g) {
+        if (g.local) return false;
+        var count = g.available_count || 0;
+        return g.available || count > 0;
+      });
+
+      if (realTiers.length === 0) {
+        grid.innerHTML = '<div class="card" style="text-align:center;padding:40px;grid-column:1/-1">' +
+          '<div style="font-size:36px;margin-bottom:12px">&#9889;</div>' +
+          '<div style="font-weight:600;margin-bottom:8px">No GPUs available right now</div>' +
+          '<div style="color:var(--muted);margin-bottom:12px">All providers are at capacity. Check back in a few minutes.</div>' +
+          '<button class="btn-outline" onclick="loadGPU()">Refresh</button>' +
+        '</div>';
+      } else {
+        grid.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          '<thead><tr style="background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">' +
+            '<th style="padding:12px 16px;text-align:left;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">GPU</th>' +
+            '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">VRAM</th>' +
+            '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">MAXIA Price</th>' +
+            '<th style="padding:12px 8px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase">vs Cloud</th>' +
+            '<th style="padding:12px 8px;text-align:center;font-size:11px;color:var(--muted);text-transform:uppercase">Stock</th>' +
+            '<th style="padding:12px 16px;text-align:right;font-size:11px;color:var(--muted);text-transform:uppercase"></th>' +
+          '</tr></thead><tbody>' +
+          realTiers.map(function(g) {
+            var tierId = g.id || '';
+            var name = g.label || g.name || 'GPU';
+            var vram = g.vram_gb || g.vram || '—';
+            var price = g.price_per_hour_usdc || g.price_per_hour || g.price || 0;
+            var count = g.available_count || 0;
+            var cloudPrice = _cloudPrices[tierId] || 0;
+            var savings = cloudPrice > 0 ? Math.round((1 - price / cloudPrice) * 100) : 0;
+            var savingsStr = savings > 0 ? '<span style="color:var(--green);font-weight:600">-' + savings + '%</span>' : '—';
+            var cloudStr = cloudPrice > 0 ? '<span style="color:var(--muted2);text-decoration:line-through">$' + cloudPrice.toFixed(2) + '</span>' : '';
+            var stockColor = count >= 5 ? 'var(--green)' : count >= 2 ? 'orange' : 'var(--red)';
+            var stockLabel = count > 0 ? count + (count === 1 ? ' unit' : ' units') : 'Low';
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s" onmouseenter="this.style.background=\'rgba(255,255,255,.03)\'" onmouseleave="this.style.background=\'\'">' +
+              '<td style="padding:14px 16px"><div style="font-weight:700;font-size:15px">' + esc(name) + '</div></td>' +
+              '<td style="padding:14px 8px;text-align:center;color:var(--cyan);font-family:\'JetBrains Mono\',monospace;font-size:13px">' + esc(String(vram)) + ' GB</td>' +
+              '<td style="padding:14px 8px;text-align:right"><span style="font-size:18px;font-weight:700;color:var(--green);font-family:\'JetBrains Mono\',monospace">$' + price.toFixed(2) + '</span><span style="color:var(--muted);font-size:11px">/hr</span></td>' +
+              '<td style="padding:14px 8px;text-align:right">' + cloudStr + ' ' + savingsStr + '</td>' +
+              '<td style="padding:14px 8px;text-align:center"><span style="color:' + stockColor + ';font-weight:600;font-family:\'JetBrains Mono\',monospace;font-size:12px">' + stockLabel + '</span></td>' +
+              '<td style="padding:14px 16px;text-align:right">' +
+                '<button class="btn-outline" onclick="showRentDialog(\'' + esc(tierId) + '\',\'' + esc(name) + '\',' + price + ')" style="padding:6px 16px;font-size:12px;color:var(--green);border-color:rgba(16,185,129,.3)">Rent</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('') +
+          '</tbody></table>';
+      }
     } else {
       renderFallbackGPU(grid);
     }
@@ -4182,9 +4228,11 @@ function renderFallbackGPU(grid) {
 function showRentDialog(tierId, name, pricePerHr) {
   if (!requireWalletFor('rent GPU')) return;
 
-  var isTrial = (tierId === 'rtx4090');
   var existing = document.getElementById('gpu-rent-modal');
   if (existing) existing.remove();
+
+  var total = pricePerHr.toFixed(2);
+  var walletLabel = isEvmWallet() ? 'MetaMask (Base USDC)' : 'Phantom (Solana USDC)';
 
   var modal = document.createElement('div');
   modal.id = 'gpu-rent-modal';
@@ -4196,14 +4244,12 @@ function showRentDialog(tierId, name, pricePerHr) {
       '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">Duration (hours)</label>' +
       '<input type="number" id="gpu-rent-hours" value="1" min="0.17" max="720" step="0.5" ' +
         'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:16px;margin-bottom:8px;box-sizing:border-box">' +
-      '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:4px">Total: $' + pricePerHr.toFixed(2) + ' USDC</div>' +
-      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">Decentralized GPU Cloud</div>' +
-      '<label style="display:block;margin-bottom:6px;font-size:14px;color:var(--muted)">USDC payment tx (send USDC to Treasury first)</label>' +
-      '<input type="text" id="gpu-rent-tx" placeholder="Solana USDC tx signature" ' +
-        'style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--muted2);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;margin-bottom:20px;box-sizing:border-box">' +
+      '<div id="gpu-rent-cost" style="font-size:14px;color:var(--green);margin-bottom:4px">Total: $' + total + ' USDC</div>' +
+      '<div style="font-size:12px;color:var(--cyan);margin-bottom:16px;font-family:\'JetBrains Mono\',monospace">Decentralized GPU Cloud &bull; ' + esc(walletLabel) + '</div>' +
+      '<div id="gpu-rent-status" style="display:none;margin-bottom:12px;padding:10px;border-radius:8px;font-size:13px"></div>' +
       '<div style="display:flex;gap:12px">' +
-        '<button class="btn-green" style="flex:1" onclick="executeGpuRent(\'' + esc(tierId) + '\', \'' + esc(name) + '\')" id="btn-gpu-rent">' +
-          'Rent GPU' +
+        '<button class="btn-green" style="flex:1" onclick="executeGpuRent(\'' + esc(tierId) + '\', \'' + esc(name) + '\',' + pricePerHr + ')" id="btn-gpu-rent">' +
+          'Pay $' + total + ' USDC & Rent' +
         '</button>' +
         '<button class="btn-outline" style="flex:0 0 auto" onclick="closeGpuModal()">Cancel</button>' +
       '</div>' +
@@ -4212,11 +4258,12 @@ function showRentDialog(tierId, name, pricePerHr) {
   document.body.appendChild(modal);
   modal.addEventListener('click', function(e) { if (e.target === modal) closeGpuModal(); });
 
-  // Update cost dynamically when hours change
   var hoursInput = document.getElementById('gpu-rent-hours');
   hoursInput.addEventListener('input', function() {
     var h = parseFloat(hoursInput.value) || 1;
-    document.getElementById('gpu-rent-cost').textContent = 'Total: $' + (h * pricePerHr).toFixed(2) + ' USDC';
+    var t = (h * pricePerHr).toFixed(2);
+    document.getElementById('gpu-rent-cost').textContent = 'Total: $' + t + ' USDC';
+    document.getElementById('btn-gpu-rent').textContent = 'Pay $' + t + ' USDC & Rent';
   });
 }
 
@@ -4225,31 +4272,181 @@ function closeGpuModal() {
   if (m) m.remove();
 }
 
-async function executeGpuRent(tierId, name) {
-  var hours = parseFloat(document.getElementById('gpu-rent-hours').value) || 1;
-  var paymentTx = (document.getElementById('gpu-rent-tx').value || '').trim();
-  var btn = document.getElementById('btn-gpu-rent');
+// SPL USDC transfer via Phantom (simple transfer, not swap)
+async function sendSolanaUSDC(recipientAddress, amountUsdc) {
+  // Get blockhash via backend (Helius RPC, no CORS issues)
+  var bhData = await api('/api/public/solana/blockhash');
+  if (!bhData || !bhData.blockhash) throw new Error('Cannot get Solana blockhash — try again');
+  var blockhash = bhData.blockhash;
 
-  btn.textContent = 'Provisioning...';
+  var senderPubkey = new solanaWeb3.PublicKey(wallet);
+  var recipientPubkey = new solanaWeb3.PublicKey(recipientAddress);
+  var usdcMintPubkey = new solanaWeb3.PublicKey(USDC_MINT);
+  var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+  var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+  function deriveATA(owner, mint) {
+    return solanaWeb3.PublicKey.findProgramAddressSync(
+      [owner.toBytes(), TOKEN_PROGRAM_ID.toBytes(), mint.toBytes()],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )[0];
+  }
+  var senderATA = deriveATA(senderPubkey, usdcMintPubkey);
+  var recipientATA = deriveATA(recipientPubkey, usdcMintPubkey);
+
+  var amountRaw = BigInt(Math.round(amountUsdc * 1e6));
+
+  // transfer_checked instruction (index 12)
+  var data = new Uint8Array(1 + 8 + 1);
+  data[0] = 12;
+  var view = new DataView(data.buffer);
+  view.setBigUint64(1, amountRaw, true);
+  data[9] = 6; // USDC decimals
+
+  var transferIx = new solanaWeb3.TransactionInstruction({
+    keys: [
+      { pubkey: senderATA,      isSigner: false, isWritable: true },
+      { pubkey: usdcMintPubkey, isSigner: false, isWritable: false },
+      { pubkey: recipientATA,   isSigner: false, isWritable: true },
+      { pubkey: senderPubkey,   isSigner: true,  isWritable: false },
+    ],
+    programId: TOKEN_PROGRAM_ID,
+    data: data,
+  });
+
+  // Check if recipient ATA exists, create only if missing
+  var connection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
+  var tx = new solanaWeb3.Transaction();
+  try {
+    var ataInfo = await connection.getAccountInfo(recipientATA);
+    if (!ataInfo) {
+      // ATA does not exist — add CreateIdempotent instruction
+      var createData = new Uint8Array(1);
+      createData[0] = 1; // CreateIdempotent
+      tx.add(new solanaWeb3.TransactionInstruction({
+        keys: [
+          { pubkey: senderPubkey,                      isSigner: true,  isWritable: true },
+          { pubkey: recipientATA,                      isSigner: false, isWritable: true },
+          { pubkey: recipientPubkey,                   isSigner: false, isWritable: false },
+          { pubkey: usdcMintPubkey,                    isSigner: false, isWritable: false },
+          { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: TOKEN_PROGRAM_ID,                  isSigner: false, isWritable: false },
+        ],
+        programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+        data: createData,
+      }));
+    }
+  } catch(e) { /* RPC check failed — skip create, treasury ATA almost certainly exists */ }
+  tx.add(transferIx);
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = senderPubkey;
+
+  var provider = null;
+  if (walletType === 'phantom') provider = window.solana;
+  else if (walletType === 'backpack') provider = window.backpack;
+  else if (walletType === 'solflare') provider = window.solflare;
+  if (!provider) throw new Error('Wallet provider not found');
+
+  var result = await provider.signAndSendTransaction(tx, { skipPreflight: false, maxRetries: 3, preflightCommitment: 'confirmed' });
+  return result.signature || result;
+}
+
+// EVM USDC transfer via MetaMask (Base chain)
+async function sendEvmUSDC(recipientAddress, amountUsdc) {
+  var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  var sender = accounts[0];
+
+  // Ensure Base chain
+  try {
+    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] });
+  } catch (switchErr) {
+    if (switchErr.code === 4902) {
+      await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId: '0x2105', chainName: 'Base', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: ['https://mainnet.base.org'], blockExplorerUrls: ['https://basescan.org'] }] });
+    } else { throw switchErr; }
+  }
+
+  var amountRaw = '0x' + BigInt(Math.round(amountUsdc * 1e6)).toString(16);
+  // ERC-20 transfer(address,uint256)
+  var transferData = '0xa9059cbb' +
+    recipientAddress.toLowerCase().replace('0x', '').padStart(64, '0') +
+    BigInt(Math.round(amountUsdc * 1e6)).toString(16).padStart(64, '0');
+
+  var txHash = await window.ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [{ from: sender, to: _BASE_USDC, data: transferData, chainId: '0x2105' }]
+  });
+
+  // Wait for confirmation
+  await _waitTx(txHash);
+  return txHash;
+}
+
+async function executeGpuRent(tierId, name, pricePerHr) {
+  var hours = parseFloat(document.getElementById('gpu-rent-hours').value) || 1;
+  var totalCost = hours * pricePerHr;
+  var btn = document.getElementById('btn-gpu-rent');
+  var statusEl = document.getElementById('gpu-rent-status');
+
+  function setStatus(msg, color) {
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(' + (color === 'green' ? '16,185,129' : color === 'blue' ? '59,130,246' : '239,68,68') + ',.1)';
+    statusEl.style.color = 'var(--' + color + ')';
+    statusEl.innerHTML = msg;
+  }
+
   btn.disabled = true;
 
   try {
-    var body = { gpu: tierId, wallet: wallet, hours: hours };
-    if (paymentTx) body.payment_tx = paymentTx;
+    // Step 1: Get treasury address from cached tiers
+    var treasuryAddress = '';
+    if (isEvmWallet()) {
+      treasuryAddress = _gpuTreasuryBase || '';
+      if (!treasuryAddress) { throw new Error('Base treasury address not configured'); }
+    } else {
+      treasuryAddress = _gpuTreasurySolana || '';
+      if (!treasuryAddress) { throw new Error('Solana treasury address not configured'); }
+    }
+
+    // Step 2: Send USDC payment via wallet
+    btn.textContent = 'Confirm in wallet...';
+    setStatus('<span class="swap-spinner"></span> Approve the $' + totalCost.toFixed(2) + ' USDC transfer in your wallet...', 'blue');
+
+    var txSignature;
+    if (isEvmWallet()) {
+      txSignature = await sendEvmUSDC(treasuryAddress, totalCost);
+    } else {
+      txSignature = await sendSolanaUSDC(treasuryAddress, totalCost);
+    }
+
+    // Step 3: Send to backend for verification + provisioning
+    btn.textContent = 'Verifying payment...';
+    setStatus('<span class="swap-spinner"></span> Payment sent! Verifying on-chain and provisioning GPU...', 'blue');
 
     var result = await api('/api/gpu/rent', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify({ gpu: tierId, wallet: wallet, hours: hours, payment_tx: txSignature })
     });
 
-    if (!result) throw new Error('Server error — check payment tx and try again');
+    if (!result) throw new Error('Server error — payment was sent, contact support with tx: ' + txSignature);
+
     closeGpuModal();
     showGpuCredentials(result, name);
     toast('GPU ' + name + ' provisioned!', 'success');
+
   } catch (e) {
-    btn.textContent = 'Retry';
+    var errMsg = e.message || String(e);
+    if (errMsg.indexOf('User rejected') !== -1 || errMsg.indexOf('user rejected') !== -1 || errMsg.indexOf('cancelled') !== -1) {
+      setStatus('Transaction cancelled.', 'red');
+      toast('Payment cancelled', 'info');
+    } else if (errMsg.indexOf('insufficient') !== -1 || errMsg.indexOf('Insufficient') !== -1) {
+      setStatus('Insufficient USDC balance.', 'red');
+      toast('Insufficient USDC balance', 'error');
+    } else {
+      setStatus('Error: ' + esc(errMsg), 'red');
+      toast('GPU rental failed: ' + errMsg, 'error');
+    }
+    btn.textContent = 'Retry — Pay $' + totalCost.toFixed(2) + ' USDC';
     btn.disabled = false;
-    toast('GPU rental failed: ' + e.message, 'error');
   }
 }
 
@@ -6787,7 +6984,7 @@ async function loadEscrows() {
   }
 
   body.innerHTML = escrows.map(function(e) {
-    var id = e.escrow_id || e.id || '—';
+    var id = e.escrowId || e.escrow_id || e.id || '—';
     var shortId = String(id).length > 12 ? String(id).slice(0, 8) + '...' : id;
     var seller = e.seller_wallet || e.seller || '—';
     var shortSeller = seller.length > 12 ? seller.slice(0, 6) + '..' + seller.slice(-4) : seller;
@@ -6835,38 +7032,61 @@ async function createEscrow() {
   var btn = document.getElementById('btn-create-escrow');
   var result = document.getElementById('esc-create-result');
   btn.disabled = true;
-  btn.textContent = 'Creating...';
-  result.innerHTML = '<div class="swap-status pending"><span class="swap-spinner"></span> Creating escrow on Solana...</div>';
 
-  var data = await api('/api/escrow/create', {
-    method: 'POST',
-    body: JSON.stringify({
-      seller_wallet: seller,
-      amount_usdc: amount,
-      service_id: service,
-      timeout_hours: timeout
-    })
-  });
+  try {
+    // Step 1: Get escrow wallet address from backend
+    btn.textContent = 'Step 1/2: Getting escrow address...';
+    result.innerHTML = '<div class="swap-status pending"><span class="swap-spinner"></span> Fetching escrow wallet...</div>';
+    var info = await api('/api/escrow/info');
+    if (!info || !info.solana) throw new Error('Cannot fetch escrow info');
+    // Escrow wallet = the program authority wallet that holds USDC
+    var escrowWallet = info.solana.escrow_wallet;
+    if (!escrowWallet) throw new Error('Escrow wallet not configured on server');
 
-  btn.disabled = false;
-  btn.textContent = 'Create Escrow';
+    // Step 2: Send USDC to escrow wallet via Phantom
+    btn.textContent = 'Step 2/2: Sign in wallet...';
+    result.innerHTML = '<div class="swap-status pending"><span class="swap-spinner"></span> Sign the USDC transfer in your wallet ($' + amount.toFixed(2) + ' to escrow)...</div>';
+    var txSignature = await sendSolanaUSDC(escrowWallet, amount);
+    if (!txSignature) throw new Error('Transaction cancelled or failed');
 
-  if (data && (data.escrow_id || data.id)) {
-    var eid = data.escrow_id || data.id;
-    result.innerHTML = '<div class="swap-status success">Escrow created! ID: <span style="font-family:\'JetBrains Mono\',monospace">' + esc(eid) + '</span></div>';
-    toast('Escrow created: $' + amount.toFixed(2) + ' USDC locked', 'success');
-    // Clear form
-    document.getElementById('esc-seller').value = '';
-    document.getElementById('esc-amount').value = '';
-    document.getElementById('esc-service').value = '';
-    document.getElementById('esc-timeout').value = '24';
-    // Refresh table
-    loadEscrows();
-  } else {
-    var errMsg = (data && data.detail) || (data && data.error) || 'Failed to create escrow';
-    result.innerHTML = '<div class="swap-status error">' + esc(errMsg) + '</div>';
-    toast(errMsg, 'error');
+    result.innerHTML = '<div class="swap-status pending"><span class="swap-spinner"></span> USDC sent! Waiting for on-chain confirmation (~10s)...</div>';
+    btn.textContent = 'Verifying...';
+
+    // Wait for Solana finalization (~6-12s for finalized commitment)
+    await new Promise(function(r) { setTimeout(r, 10000); });
+
+    // Step 3: Register escrow on backend (backend verifies tx on-chain)
+    var data = await api('/api/escrow/create', {
+      method: 'POST',
+      body: JSON.stringify({
+        seller_wallet: seller,
+        amount_usdc: amount,
+        service_id: service,
+        timeout_hours: timeout,
+        tx_signature: txSignature
+      })
+    });
+
+    if (data && (data.escrowId || data.escrow_id || data.id)) {
+      var eid = data.escrowId || data.escrow_id || data.id;
+      result.innerHTML = '<div class="swap-status success">Escrow created! $' + amount.toFixed(2) + ' USDC locked.<br><span style="font-family:\'JetBrains Mono\',monospace;font-size:11px">ID: ' + esc(eid) + '</span><br><a href="https://solscan.io/tx/' + esc(txSignature) + '" target="_blank" style="color:var(--cyan);font-size:11px">View on Solscan</a></div>';
+      toast('Escrow created: $' + amount.toFixed(2) + ' USDC locked', 'success');
+      document.getElementById('esc-seller').value = '';
+      document.getElementById('esc-amount').value = '';
+      document.getElementById('esc-service').value = '';
+      document.getElementById('esc-timeout').value = '24';
+      loadEscrows();
+    } else {
+      var errMsg = (data && data.detail) || (data && data.error) || 'Failed to create escrow';
+      result.innerHTML = '<div class="swap-status error">' + esc(errMsg) + '<br><span style="font-size:11px;color:var(--muted)">TX was sent: <a href="https://solscan.io/tx/' + esc(txSignature) + '" target="_blank" style="color:var(--cyan)">' + esc(txSignature.substring(0,20)) + '...</a></span></div>';
+      toast(errMsg, 'error');
+    }
+  } catch(e) {
+    result.innerHTML = '<div class="swap-status error">' + esc(e.message || 'Transaction failed') + '</div>';
+    toast(e.message || 'Escrow creation failed', 'error');
   }
+  btn.disabled = false;
+  btn.textContent = 'Lock USDC in Escrow';
 }
 
 async function confirmDelivery(escrowId) {
@@ -6910,6 +7130,23 @@ async function reclaimTimeout(escrowId) {
 // Init
 initFromHash();
 loadSwapTokens();
+// Auto-reconnect Phantom si deja autorise
+(async function() {
+  try {
+    if (window.solana && window.solana.isPhantom) {
+      var resp = await window.solana.connect({ onlyIfTrusted: true });
+      if (resp && resp.publicKey) {
+        wallet = resp.publicKey.toString();
+        walletType = 'phantom';
+        if (typeof connectedWallets !== 'undefined') connectedWallets.solana = wallet;
+        updateWalletDisplay();
+        // Refresh current page data with wallet context
+        if (typeof loadEscrows === 'function') loadEscrows();
+        if (typeof getSwapQuoteDebounced === 'function') getSwapQuoteDebounced();
+      }
+    }
+  } catch(e) { /* user hasn't approved yet — ignore */ }
+})();
 (function() {
   var btn = document.getElementById('notif-sound-btn');
   if (btn) btn.textContent = _notifSoundEnabled ? 'ON' : 'OFF';

@@ -40,6 +40,8 @@ async def forum_home(sort: str = "hot", page: int = 0, limit: int = 20):
     """AI Forum — communities, hot posts, and stats."""
     from forum import COMMUNITIES, get_posts, get_forum_stats
 
+    limit = min(max(limit, 1), 100)
+    page = max(page, 0)
     offset = page * limit
     posts = await get_posts(_get_db(), sort=sort, limit=limit, offset=offset)
     stats = await get_forum_stats(_get_db())
@@ -58,6 +60,8 @@ async def forum_community(
     """AI Forum — posts by community."""
     from forum import get_posts, get_forum_stats
 
+    limit = min(max(limit, 1), 100)
+    page = max(page, 0)
     offset = page * limit
     posts = await get_posts(
         _get_db(), community=community, sort=sort, limit=limit, offset=offset
@@ -92,6 +96,7 @@ async def forum_reply(post_id: str, request: Request):
     else:
         _validate_wallet_format(body["wallet"])
     check_content_safety(body.get("body", ""))
+    check_content_safety(body.get("agent_name", ""))
     return await create_reply(_get_db(), post_id, body)
 
 
@@ -115,6 +120,8 @@ async def forum_search(q: str = "", limit: int = 20):
     """AI Forum — search posts."""
     from forum import search_posts
 
+    q = q[:100]  # Cap search query length
+    limit = min(max(limit, 1), 100)
     posts = await search_posts(_get_db(), q, limit)
     return {"posts": posts, "total": len(posts)}
 
@@ -172,28 +179,128 @@ async def forum_my_posts(request: Request, wallet: str = "", limit: int = 50):
         return {"posts": [], "replies": []}
 
     # Search posts by author_wallet (stored in JSON data column)
+    limit = min(max(limit, 1), 100)
     try:
-        all_posts = await db.raw_execute_fetchall(
-            "SELECT data FROM forum_posts WHERE status='active' ORDER BY created_at DESC LIMIT 500", ())
-        my_posts = []
+        # Query posts where author_wallet matches
+        post_rows = await db.raw_execute_fetchall(
+            "SELECT data FROM forum_posts WHERE status='active' AND json_extract(data, '$.author_wallet')=? "
+            "ORDER BY created_at DESC LIMIT ?", (identity, limit))
+        my_posts = [json.loads(r["data"]) for r in post_rows]
+
+        # Query replies separately from forum_replies table
+        reply_rows = await db.raw_execute_fetchall(
+            "SELECT r.data as rdata, r.post_id FROM forum_replies r "
+            "WHERE r.status='active' AND json_extract(r.data, '$.author_wallet')=? "
+            "ORDER BY r.created_at DESC LIMIT ?", (identity, limit))
         my_replies = []
-        for row in all_posts:
-            post = json.loads(row["data"])
-            if post.get("author_wallet") == identity:
-                my_posts.append(post)
-            # Check replies
-            for reply in post.get("replies", []):
-                if reply.get("author_wallet") == identity:
-                    my_replies.append({
-                        "post_id": post.get("id"),
-                        "post_title": post.get("title", ""),
-                        "reply": reply,
-                    })
+        for rr in reply_rows:
+            reply_data = json.loads(rr["rdata"])
+            # Get parent post title
+            title_rows = await db.raw_execute_fetchall(
+                "SELECT json_extract(data, '$.title') as title FROM forum_posts WHERE id=?", (rr["post_id"],))
+            title = title_rows[0]["title"] if title_rows else ""
+            my_replies.append({
+                "post_id": rr["post_id"],
+                "post_title": title or "",
+                "reply": reply_data,
+            })
         return {
-            "posts": my_posts[:limit],
-            "replies": my_replies[:limit],
+            "posts": my_posts,
+            "replies": my_replies,
             "total_posts": len(my_posts),
             "total_replies": len(my_replies),
         }
     except Exception as e:
         return safe_error(e, "forum_my_posts")
+
+
+# ── Forum Notifications ──
+
+
+def _get_auth_wallet(request: Request, fallback_wallet: str = "") -> str:
+    """Extract wallet from Bearer session token if present, else use fallback.
+    This prevents IDOR — write operations REQUIRE a valid token."""
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from auth import verify_session_token
+            return verify_session_token(auth_header[7:])
+        except HTTPException:
+            raise  # Re-raise 401 for invalid/expired tokens
+        except Exception:
+            pass  # Import or unexpected error — fallback
+    return fallback_wallet
+
+
+@router.get("/api/public/forum/notifications/count")
+async def forum_notifications_count(request: Request, wallet: str = ""):
+    """Get unread notification count. Token-derived wallet takes priority."""
+    wallet = _get_auth_wallet(request, wallet)
+    # Visitors with IP-based wallet can still check their own notifications
+    if not wallet:
+        return {"unread": 0}
+    try:
+        db = _get_db()
+        rows = await db.raw_execute_fetchall(
+            "SELECT COUNT(*) as cnt FROM forum_notifications WHERE wallet=? AND read=0",
+            (wallet,))
+        return {"unread": rows[0]["cnt"] if rows else 0}
+    except Exception:
+        return {"unread": 0}
+
+
+@router.get("/api/public/forum/notifications")
+async def forum_notifications_list(request: Request, wallet: str = "", limit: int = 50):
+    """Get unread notifications. Token-derived wallet takes priority."""
+    wallet = _get_auth_wallet(request, wallet)
+    if not wallet:
+        return {"notifications": [], "unread": 0}
+    try:
+        db = _get_db()
+        rows = await db.raw_execute_fetchall(
+            "SELECT id, type, post_id, reply_id, payload, created_at "
+            "FROM forum_notifications WHERE wallet=? AND read=0 "
+            "ORDER BY created_at DESC LIMIT ?",
+            (wallet, min(limit, 100)))
+        notifs = []
+        for r in rows:
+            n = dict(r)
+            try:
+                n["payload"] = json.loads(n.get("payload", "{}"))
+            except Exception:
+                n["payload"] = {}
+            notifs.append(n)
+        return {"notifications": notifs, "unread": len(notifs)}
+    except Exception as e:
+        return safe_error(e, "forum_notifications")
+
+
+@router.post("/api/public/forum/notifications/read")
+async def forum_notifications_read(request: Request):
+    """Mark notifications as read. REQUIRES Bearer token — wallet derived from token."""
+    # Write operation = must verify identity (prevents IDOR)
+    auth_wallet = _get_auth_wallet(request)
+    body = await _read_body(request)
+    wallet = auth_wallet or body.get("wallet", "")
+    if not wallet:
+        raise HTTPException(400, "wallet required")
+    # If auth token present, ONLY allow marking own notifications
+    if auth_wallet and body.get("wallet") and body["wallet"] != auth_wallet:
+        raise HTTPException(403, "Cannot modify another wallet's notifications")
+    try:
+        db = _get_db()
+        if body.get("read_all"):
+            await db.raw_execute(
+                "UPDATE forum_notifications SET read=1 WHERE wallet=? AND read=0",
+                (wallet,))
+        else:
+            ids = body.get("notification_ids", [])
+            if ids and isinstance(ids, list):
+                ids = ids[:500]  # Cap to prevent huge SQL
+                placeholders = ",".join("?" for _ in ids)
+                await db.raw_execute(
+                    f"UPDATE forum_notifications SET read=1 WHERE wallet=? AND id IN ({placeholders})",
+                    (wallet, *ids))
+        return {"success": True}
+    except Exception as e:
+        return safe_error(e, "forum_notifications_read")

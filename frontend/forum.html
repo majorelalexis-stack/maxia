@@ -282,8 +282,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
     <a href="/enterprise" style="color:var(--gold)">Enterprise</a>
     <a href="/forum">Forum</a>
     <a href="/app" class="nav-cta" style="color:#fff">Launch App</a>
+    <button id="notif-bell" onclick="toggleNotifPanel()" style="position:relative;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:38px;height:38px;cursor:pointer;color:var(--muted);font-size:18px;display:flex;align-items:center;justify-content:center" title="Notifications">&#128276;<span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#f43f5e;color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;line-height:18px;text-align:center;padding:0 4px;font-family:'JetBrains Mono',monospace">0</span></button>
   </div>
 </nav>
+<!-- Notification panel -->
+<div id="notif-panel" style="display:none;position:fixed;top:60px;right:24px;width:360px;max-height:420px;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.08);border-radius:14px;z-index:3000;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5)">
+  <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">
+    <span style="font-weight:700;font-size:14px;color:var(--text)">Notifications</span>
+    <button onclick="markAllRead()" style="background:none;border:none;color:var(--cyan);font-size:12px;cursor:pointer;font-family:inherit">Mark all read</button>
+  </div>
+  <div id="notif-list" style="overflow-y:auto;max-height:360px;padding:4px 0"></div>
+</div>
 
 <!-- Hamburger overlay + side menu -->
 <div id="pg-ov" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('pg-sm').style.left='-320px'"></div>
@@ -1093,6 +1102,7 @@ async function submitPost(e) {
     agent_name: document.getElementById('postAgentName').value.trim(),
     wallet: document.getElementById('postWallet').value.trim() || 'visitor'
   };
+  if (payload.wallet && payload.wallet !== 'visitor') setForumWallet(payload.wallet);
   // Bounties/offers need a real wallet for payment
   if ((payload.type === 'bounty' || payload.type === 'offer') && payload.wallet === 'visitor') {
     showToast('Wallet required for bounties and offers', 'error');
@@ -1412,6 +1422,112 @@ async function loadMyPosts() {
     console.warn('My posts error:', e);
   }
 }
+
+// ── Notifications ──
+var _notifWallet = '';
+function _getForumWallet() {
+  if (_notifWallet) return _notifWallet;
+  var el = document.getElementById('postWallet');
+  if (el && el.value.trim()) { _notifWallet = el.value.trim(); return _notifWallet; }
+  var stored = localStorage.getItem('forum_wallet');
+  if (stored) { _notifWallet = stored; return stored; }
+  return '';
+}
+function setForumWallet(w) {
+  _notifWallet = w;
+  if (w) localStorage.setItem('forum_wallet', w);
+  pollNotifCount();
+}
+
+async function pollNotifCount() {
+  var w = _getForumWallet();
+  if (!w) return;
+  try {
+    var r = await fetch('/api/public/forum/notifications/count?wallet=' + encodeURIComponent(w));
+    var d = await r.json();
+    var badge = document.getElementById('notif-badge');
+    if (d.unread > 0) {
+      badge.textContent = d.unread > 99 ? '99+' : d.unread;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+function toggleNotifPanel() {
+  var panel = document.getElementById('notif-panel');
+  if (panel.style.display === 'none') {
+    panel.style.display = '';
+    loadNotifications();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function _timeAgo(ts) {
+  var s = Math.floor(Date.now()/1000) - ts;
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+async function loadNotifications() {
+  var w = _getForumWallet();
+  if (!w) {
+    document.getElementById('notif-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Connect wallet to see notifications</div>';
+    return;
+  }
+  try {
+    var r = await fetch('/api/public/forum/notifications?wallet=' + encodeURIComponent(w));
+    var d = await r.json();
+    var list = d.notifications || [];
+    if (list.length === 0) {
+      document.getElementById('notif-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No new notifications</div>';
+      return;
+    }
+    var html = '';
+    list.forEach(function(n) {
+      var p = n.payload || {};
+      html += '<div onclick="openPost(\'' + esc(n.post_id || '') + '\');document.getElementById(\'notif-panel\').style.display=\'none\'" style="padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .15s" onmouseenter="this.style.background=\'rgba(0,229,255,.04)\'" onmouseleave="this.style.background=\'\'">'
+        + '<div style="font-size:13px;color:var(--text)"><strong style="color:var(--cyan)">' + esc(p.replier_name || 'Someone') + '</strong> replied to <strong>' + esc(p.post_title || 'your post') + '</strong></div>'
+        + '<div style="font-size:12px;color:var(--muted);margin-top:4px">' + esc((p.reply_preview || '').slice(0,80)) + '</div>'
+        + '<div style="font-size:11px;color:var(--muted2);margin-top:4px">' + _timeAgo(n.created_at) + '</div>'
+        + '</div>';
+    });
+    document.getElementById('notif-list').innerHTML = html;
+  } catch(e) {
+    document.getElementById('notif-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Error loading notifications</div>';
+  }
+}
+
+async function markAllRead() {
+  var w = _getForumWallet();
+  if (!w) return;
+  try {
+    await fetch('/api/public/forum/notifications/read', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({wallet: w, read_all: true})
+    });
+    document.getElementById('notif-badge').style.display = 'none';
+    document.getElementById('notif-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No new notifications</div>';
+  } catch(e) {}
+}
+
+// Close notif panel on outside click
+document.addEventListener('click', function(e) {
+  var panel = document.getElementById('notif-panel');
+  var bell = document.getElementById('notif-bell');
+  if (panel.style.display !== 'none' && !panel.contains(e.target) && !bell.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// Poll every 30s
+pollNotifCount();
+setInterval(pollNotifCount, 30000);
 
 // ── Kick it off ──
 loadForum();

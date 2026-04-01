@@ -461,12 +461,10 @@ async def register_agent(req: dict, request: Request):
     if referral_code:
         try:
             from database import db as _db
-            # Find the referrer agent by matching referral code to api_key prefix
-            all_agents = await _db.get_all_agents()
-            for a in all_agents:
-                if a["api_key"][6:14] == referral_code:
-                    referrer_api_key = a["api_key"]
-                    break
+            # Find the referrer agent by targeted query (not full table scan)
+            row = await _db.get_agent_by_referral_code(referral_code)
+            if row:
+                referrer_api_key = row["api_key"]
             if referrer_api_key:
                 # Store referred_by in agents table
                 await _db.raw_execute(
@@ -495,17 +493,22 @@ async def register_agent(req: dict, request: Request):
 
     logger.info("Nouvel agent inscrit: %s (%s...)", name, wallet[:8])
 
-    # Alerte Telegram
+    # Alerte Telegram (fire-and-forget — ne bloque pas la reponse register)
     try:
         import os, httpx as _httpx
         tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         tg_chat = os.getenv("TELEGRAM_CHANNEL", "")
         if tg_token and tg_chat:
-            async with _httpx.AsyncClient(timeout=5) as client:
-                await client.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": f"NEW AGENT REGISTERED!\n\nName: {name}\nWallet: {wallet[:16]}...\n\nTotal agents: {len(_registered_agents)}"},
-                )
+            _tg_name, _tg_wallet, _tg_count = name, wallet[:16], len(_registered_agents)
+            async def _tg_notify():
+                try:
+                    async with _httpx.AsyncClient(timeout=5) as c:
+                        await c.post(
+                            f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                            json={"chat_id": tg_chat, "text": f"NEW AGENT REGISTERED!\n\nName: {_tg_name}\nWallet: {_tg_wallet}...\n\nTotal agents: {_tg_count}"})
+                except Exception:
+                    pass
+            asyncio.create_task(_tg_notify())
     except Exception:
         pass
 
@@ -2940,13 +2943,16 @@ async def public_gpu_tiers():
         else:
             sell_price = base_price
 
-        # Check real availability on Akash
+        # Check real availability + count on Akash
         is_avail = True
+        avail_count = 0
         if akash_ok and _akash and tier_id in akash_map:
             try:
-                is_avail = await _akash.check_tier_available(tier_id)
+                await _akash.get_gpu_availability()
+                avail_count = _akash.get_tier_count(tier_id)
+                is_avail = avail_count > 0
             except Exception:
-                is_avail = True  # Assume available if check fails
+                is_avail = True
 
         tier = {
             "id": tier_id,
@@ -2954,6 +2960,7 @@ async def public_gpu_tiers():
             "vram_gb": gpu["vram_gb"],
             "price_per_hour_usdc": sell_price,
             "available": is_avail,
+            "available_count": avail_count,
             "source": "live" if akash_ok else "fallback",
             "maxia_markup": f"{int(_MARKUP*100)}%",
             "provider": "akash",
@@ -2961,11 +2968,15 @@ async def public_gpu_tiers():
         if gpu.get("local"):
             tier["local"] = True
             tier["available"] = False
+            tier["available_count"] = 0
         tiers.append(tier)
 
+    from config import TREASURY_ADDRESS, TREASURY_ADDRESS_BASE
     return {
         "gpu_count": len(tiers),
         "tiers": tiers,
+        "treasury_solana": TREASURY_ADDRESS,
+        "treasury_base": TREASURY_ADDRESS_BASE,
         "provider": "akash",
         "network": "Akash Network (decentralized)",
         "markup": f"{int(_MARKUP*100)}%",

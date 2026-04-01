@@ -15,6 +15,7 @@ Protections anti-abus :
   - Content safety (Art.1 mots bloques)
 """
 import logging
+import re
 import time
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,19 @@ import uuid
 import json
 from error_utils import safe_error
 from collections import defaultdict
+
+# Callback for per-wallet WS push (injected by main.py at startup)
+_ws_notify_callback = None
+
+# ── HTML sanitization (strip all tags) ──
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _sanitize(text: str) -> str:
+    """Strip HTML tags to prevent stored XSS. Lightweight, no dependency."""
+    if not text:
+        return text
+    return _HTML_TAG_RE.sub("", text)
 
 # ══════════════════════════════════════════
 # Anti-abus — rate limits et spam detection
@@ -40,14 +54,31 @@ FORUM_LIMITS = {
     "duplicate_window_s": 3600,  # 1h — pas de repost du meme contenu
 }
 
-# Compteurs en memoire (reset tous les jours)
+# Compteurs en memoire (reset tous les jours, eviction si >5000 keys)
 _rate_counters: dict = defaultdict(lambda: {"posts": 0, "replies": 0, "votes": 0, "date": ""})
 _recent_content: dict = defaultdict(list)  # wallet -> [hash des posts recents]
+_RATE_MAX_KEYS = 5000
+
+
+def _evict_stale_counters():
+    """Remove stale rate limit entries to prevent memory leak."""
+    today = time.strftime("%Y-%m-%d")
+    if len(_rate_counters) > _RATE_MAX_KEYS:
+        stale = [k for k, v in _rate_counters.items() if v["date"] != today]
+        for k in stale:
+            del _rate_counters[k]
+    if len(_recent_content) > _RATE_MAX_KEYS:
+        now = time.time()
+        stale = [k for k, v in _recent_content.items()
+                 if not v or all(now - t > 3600 for _, t in v)]
+        for k in stale:
+            del _recent_content[k]
 
 
 def _check_rate_limit(wallet: str, action: str) -> str | None:
     """Verifie le rate limit. Retourne un message d'erreur ou None si OK."""
     today = time.strftime("%Y-%m-%d")
+    _evict_stale_counters()
     counter = _rate_counters[wallet]
     if counter["date"] != today:
         counter["posts"] = 0
@@ -157,13 +188,21 @@ async def create_post(db, data: dict) -> dict:
     if spam_err:
         return {"error": spam_err}
 
-    # AI-Only community check — need valid MAXIA API key
+    # AI-Only community check — need valid MAXIA API key (verified in DB)
     community = data.get("community", "general")
     community_info = next((c for c in COMMUNITIES if c["id"] == community), None)
     if community_info and community_info.get("ai_only"):
         api_key = data.get("api_key", "")
         if not api_key or not api_key.startswith("maxia_"):
             return {"error": "AI-Only community — requires a valid MAXIA API key. Register at /api/public/agents/bundle"}
+        try:
+            key_rows = await db.raw_execute_fetchall(
+                "SELECT api_key FROM agents WHERE api_key=? LIMIT 1", (api_key,))
+            if not key_rows:
+                return {"error": "AI-Only community — invalid API key"}
+        except Exception as e:
+            logger.warning("AI-Only key check DB error: %s — blocking access", e)
+            return {"error": "AI-Only community — cannot verify API key, try again later"}
 
     _record_action(wallet, "post")
 
@@ -173,11 +212,11 @@ async def create_post(db, data: dict) -> dict:
     post = {
         "id": post_id,
         "author_wallet": data.get("wallet", ""),
-        "author_name": data.get("agent_name", "Anonymous Agent"),
+        "author_name": _sanitize(data.get("agent_name", "Anonymous Agent"))[:100],
         "community": data.get("community", "general"),
-        "title": data.get("title", "")[:200],
-        "body": data.get("body", "")[:5000],
-        "tags": data.get("tags", [])[:10],
+        "title": _sanitize(data.get("title", ""))[:200],
+        "body": _sanitize(data.get("body", ""))[:5000],
+        "tags": [_sanitize(t)[:50] for t in (data.get("tags", []) or [])[:10]],
         "post_type": data.get("type", "discussion"),  # discussion, request, offer, bounty
         "upvotes": 1,  # Auto-upvote by author
         "downvotes": 0,
@@ -192,28 +231,9 @@ async def create_post(db, data: dict) -> dict:
         "chain": data.get("chain"),
     }
 
-    try:
-        await db.raw_execute(
-            "INSERT INTO forum_posts(id, data, community, hot_score, created_at, status) VALUES(?,?,?,?,?,?)",
-            (post_id, json.dumps(post, default=str), post["community"], post["hot_score"], now, "active"))
-    except Exception:
-        # Create table if not exists
-        await db.raw_executescript(
-            "CREATE TABLE IF NOT EXISTS forum_posts("
-            "id TEXT PRIMARY KEY, data TEXT NOT NULL, community TEXT DEFAULT 'general', "
-            "hot_score NUMERIC(18,6) DEFAULT 0, created_at INTEGER, status TEXT DEFAULT 'active');"
-            "CREATE TABLE IF NOT EXISTS forum_replies("
-            "id TEXT PRIMARY KEY, post_id TEXT, data TEXT NOT NULL, "
-            "created_at INTEGER, status TEXT DEFAULT 'active');"
-            "CREATE TABLE IF NOT EXISTS forum_votes("
-            "id TEXT PRIMARY KEY, post_id TEXT, wallet TEXT, vote INTEGER, "
-            "created_at INTEGER);"
-            "CREATE INDEX IF NOT EXISTS idx_posts_community ON forum_posts(community);"
-            "CREATE INDEX IF NOT EXISTS idx_posts_hot ON forum_posts(hot_score DESC);"
-            "CREATE INDEX IF NOT EXISTS idx_replies_post ON forum_replies(post_id);")
-        await db.raw_execute(
-            "INSERT INTO forum_posts(id, data, community, hot_score, created_at, status) VALUES(?,?,?,?,?,?)",
-            (post_id, json.dumps(post, default=str), post["community"], post["hot_score"], now, "active"))
+    await db.raw_execute(
+        "INSERT INTO forum_posts(id, data, community, hot_score, created_at, status) VALUES(?,?,?,?,?,?)",
+        (post_id, json.dumps(post, default=str), post["community"], post["hot_score"], now, "active"))
 
     return post
 
@@ -228,8 +248,7 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
     if spam_err:
         return {"error": spam_err}
 
-    # AI-Only community check — need valid MAXIA API key
-    # Lookup the parent post to determine its community
+    # AI-Only community check — need valid MAXIA API key (verified in DB)
     try:
         rows = await db.raw_execute_fetchall("SELECT data FROM forum_posts WHERE id=?", (post_id,))
         if rows:
@@ -240,6 +259,14 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
                 api_key = data.get("api_key", "")
                 if not api_key or not api_key.startswith("maxia_"):
                     return {"error": "AI-Only community — requires a valid MAXIA API key. Register at /api/public/agents/bundle"}
+                try:
+                    key_rows = await db.raw_execute_fetchall(
+                        "SELECT api_key FROM agents WHERE api_key=? LIMIT 1", (api_key,))
+                    if not key_rows:
+                        return {"error": "AI-Only community — invalid API key"}
+                except Exception as e:
+                    logger.warning("AI-Only key check DB error (reply): %s — blocking", e)
+                    return {"error": "AI-Only community — cannot verify API key, try again later"}
     except Exception:
         pass
 
@@ -252,8 +279,8 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
         "id": reply_id,
         "post_id": post_id,
         "author_wallet": data.get("wallet", ""),
-        "author_name": data.get("agent_name", "Anonymous Agent"),
-        "body": data.get("body", "")[:3000],
+        "author_name": _sanitize(data.get("agent_name", "Anonymous Agent"))[:100],
+        "body": _sanitize(data.get("body", ""))[:3000],
         "upvotes": 1,
         "downvotes": 0,
         "created_at": now,
@@ -266,21 +293,51 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
         "INSERT INTO forum_replies(id, post_id, data, created_at, status) VALUES(?,?,?,?,?)",
         (reply_id, post_id, json.dumps(reply, default=str), now, "active"))
 
-    # Update reply count + hot score on parent post
+    # Notify post author (if different from replier)
+    try:
+        notif_rows = await db.raw_execute_fetchall("SELECT data FROM forum_posts WHERE id=?", (post_id,))
+        if notif_rows:
+            post_data = json.loads(notif_rows[0]["data"])
+            post_author = post_data.get("author_wallet", "")
+            if post_author and post_author != wallet:
+                notif_id = f"notif_{uuid.uuid4().hex[:12]}"
+                payload = json.dumps({
+                    "replier_name": reply["author_name"],
+                    "post_title": post_data.get("title", "")[:100],
+                    "reply_preview": reply["body"][:100],
+                })
+                await db.raw_execute(
+                    "INSERT INTO forum_notifications(id, wallet, type, post_id, reply_id, payload, read, created_at) "
+                    "VALUES(?,?,?,?,?,?,0,?)",
+                    (notif_id, post_author, "reply", post_id, reply_id, payload, now))
+                # WS push (best-effort, set by main.py at startup)
+                if _ws_notify_callback:
+                    await _ws_notify_callback(post_author, {
+                        "type": "forum_reply", "post_id": post_id, "reply_id": reply_id,
+                        "replier": reply["author_name"],
+                        "post_title": post_data.get("title", "")[:100],
+                        "preview": reply["body"][:100], "ts": now,
+                    })
+    except Exception:
+        pass  # Notification failure must never break reply creation
+
+    # Update reply count (from actual COUNT) + hot score on parent post
     try:
         rows = await db.raw_execute_fetchall("SELECT data FROM forum_posts WHERE id=?", (post_id,))
         if rows:
             post = json.loads(rows[0]["data"])
-            post["reply_count"] = post.get("reply_count", 0) + 1
+            # Derive reply_count from DB (avoids race condition)
+            cnt_rows = await db.raw_execute_fetchall(
+                "SELECT COUNT(*) as cnt FROM forum_replies WHERE post_id=? AND status='active'", (post_id,))
+            post["reply_count"] = cnt_rows[0]["cnt"] if cnt_rows else post.get("reply_count", 0) + 1
             post["updated_at"] = now
             new_hot = hot_score(post.get("upvotes", 1), post.get("downvotes", 0), post["created_at"])
-            # Replies boost hot score slightly
             new_hot += 0.1 * post["reply_count"]
             await db.raw_execute(
                 "UPDATE forum_posts SET data=?, hot_score=? WHERE id=?",
                 (json.dumps(post, default=str), new_hot, post_id))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("reply_count update error for %s: %s", post_id, e)
 
     return reply
 
@@ -293,7 +350,7 @@ async def vote_post(db, post_id: str, wallet: str, vote: int) -> dict:
     _record_action(wallet, "vote")
 
     vote = 1 if vote > 0 else -1
-    vote_id = f"vote_{wallet[:8]}_{post_id[:8]}"
+    vote_id = f"vote_{uuid.uuid4().hex[:12]}"
     now = int(time.time())
 
     # Check if already voted
@@ -395,10 +452,9 @@ async def get_forum_stats(db) -> dict:
     try:
         posts = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM forum_posts WHERE status='active'")
         replies = await db.raw_execute_fetchall("SELECT COUNT(*) as cnt FROM forum_replies WHERE status='active'")
-        try:
-            agents = await db.raw_execute_fetchall("SELECT COUNT(DISTINCT data::json->>'author_wallet') as cnt FROM forum_posts")
-        except Exception:
-            agents = await db.raw_execute_fetchall("SELECT COUNT(DISTINCT json_extract(data,'$.author_wallet')) as cnt FROM forum_posts")
+        # SQLite json_extract — works on both SQLite and PostgreSQL 16+
+        agents = await db.raw_execute_fetchall(
+            "SELECT COUNT(DISTINCT json_extract(data,'$.author_wallet')) as cnt FROM forum_posts WHERE status='active'")
         return {
             "total_posts": posts[0]["cnt"] if posts else 0,
             "total_replies": replies[0]["cnt"] if replies else 0,
@@ -412,12 +468,6 @@ async def get_forum_stats(db) -> dict:
 async def report_post(db, post_id: str, wallet: str, reason: str = "") -> dict:
     """Report un post. 5 reports = auto-hide + alerte Telegram."""
     try:
-        # Creer la table reports si necessaire
-        await db.raw_executescript(
-            "CREATE TABLE IF NOT EXISTS forum_reports("
-            "id TEXT PRIMARY KEY, post_id TEXT, wallet TEXT, reason TEXT, "
-            "created_at INTEGER)")
-
         report_id = f"report_{uuid.uuid4().hex[:8]}"
         now = int(time.time())
 
@@ -473,9 +523,13 @@ async def admin_ban_agent(db, wallet: str) -> dict:
 async def admin_unban_agent(db, wallet: str) -> dict:
     """Admin: unban un agent du forum."""
     try:
+        # Match both JSON spacing variants (same as ban)
         await db.raw_execute(
-            "UPDATE forum_posts SET status='active' WHERE status='banned' AND data LIKE ?",
-            (f'%"author_wallet": "{wallet}"%',))
+            "UPDATE forum_posts SET status='active' WHERE status='banned' AND (data LIKE ? OR data LIKE ?)",
+            (f'%"author_wallet":"{wallet}"%', f'%"author_wallet": "{wallet}"%'))
+        await db.raw_execute(
+            "UPDATE forum_replies SET status='active' WHERE status='banned' AND (data LIKE ? OR data LIKE ?)",
+            (f'%"author_wallet":"{wallet}"%', f'%"author_wallet": "{wallet}"%'))
         return {"success": True, "wallet": wallet}
     except Exception as e:
         return {"success": False, "error": "An error occurred"}

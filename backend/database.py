@@ -228,6 +228,10 @@ class Database:
         sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
         sql = sql.replace("INSERT OR REPLACE", "INSERT")
         sql = sql.replace("INSERT OR IGNORE", "INSERT")
+        # SQLite json_extract → PostgreSQL ->> operator
+        sql = re.sub(r"json_extract\(([\w.]+),\s*'\$\.(\w+)'\)", r"\1::json->>'\2'", sql)
+        # SQLite substr → PostgreSQL substring
+        sql = re.sub(r"substr\((\w+),\s*(\d+),\s*(\d+)\)", r"substring(\1 from \2 for \3)", sql)
         return sql
 
     async def raw_executescript(self, sql):
@@ -650,6 +654,13 @@ class Database:
             "SELECT api_key, name, wallet, description, tier, volume_30d, "
             "total_spent, total_earned, services_listed, created_at "
             "FROM agents ORDER BY created_at DESC")
+
+    async def get_agent_by_referral_code(self, code: str):
+        """Find agent whose api_key[6:14] matches the referral code — O(1) with index."""
+        rows = await self.raw_execute_fetchall(
+            "SELECT api_key, name, wallet FROM agents WHERE substr(api_key, 7, 8) = ? LIMIT 1",
+            (code,))
+        return dict(rows[0]) if rows else None
 
     async def update_agent(self, api_key: str, updates: dict):
         safe = {k: v for k, v in updates.items()
