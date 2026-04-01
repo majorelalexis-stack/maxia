@@ -24,9 +24,9 @@ REDIS_URL = os.getenv("REDIS_URL", "")
 
 # Limites par tier (requetes par jour)
 TIER_LIMITS = {
-    "free": 100,
-    "pro": 10000,
-    "enterprise": 100000,
+    "free": 2000,       # ~200 page views/day (each page = ~10 API calls)
+    "pro": 20000,
+    "enterprise": 200000,
 }
 
 DEFAULT_TIER = "free"
