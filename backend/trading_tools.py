@@ -1,5 +1,6 @@
 """MAXIA Trading Tools — Whale tracker, candles OHLCV, copy trading, alertes, portfolio, signaux techniques."""
 
+import json
 import logging
 import asyncio
 import hashlib
@@ -18,6 +19,79 @@ from pydantic import BaseModel
 from price_oracle import get_prices, FALLBACK_PRICES
 
 logger = logging.getLogger(__name__)
+
+
+# ── DB helpers (alerts + follows persistence) ──
+
+def _get_db():
+    from database import db
+    return db
+
+
+async def _load_alerts_from_db():
+    """Load persisted alerts into memory on startup."""
+    try:
+        db = _get_db()
+        rows = await db.raw_execute_fetchall("SELECT alert_id, data FROM price_alerts")
+        for row in rows:
+            r = dict(row) if hasattr(row, "keys") else {"alert_id": row[0], "data": row[1]}
+            alert = json.loads(r["data"])
+            _alerts[r["alert_id"]] = alert
+        logger.info("[TradingTools] Loaded %d alerts from DB", len(rows))
+    except Exception as e:
+        logger.warning("[TradingTools] Could not load alerts from DB: %s", e)
+
+
+async def _save_alert_to_db(alert: dict):
+    """Persist a single alert to DB."""
+    try:
+        db = _get_db()
+        await db.raw_execute(
+            "INSERT OR REPLACE INTO price_alerts(alert_id, wallet, data) VALUES(?,?,?)",
+            (alert["alert_id"], alert["wallet"], json.dumps(alert)),
+        )
+    except Exception as e:
+        logger.warning("[TradingTools] Could not save alert %s: %s", alert["alert_id"], e)
+
+
+async def _delete_alert_from_db(alert_id: str):
+    """Remove an alert from DB."""
+    try:
+        db = _get_db()
+        await db.raw_execute("DELETE FROM price_alerts WHERE alert_id=?", (alert_id,))
+    except Exception as e:
+        logger.warning("[TradingTools] Could not delete alert %s: %s", alert_id, e)
+
+
+async def _load_follows_from_db():
+    """Load persisted wallet follows into memory on startup."""
+    try:
+        db = _get_db()
+        rows = await db.raw_execute_fetchall("SELECT user_wallet, target_wallet FROM wallet_follows")
+        for row in rows:
+            r = dict(row) if hasattr(row, "keys") else {"user_wallet": row[0], "target_wallet": row[1]}
+            _followed_wallets[r["user_wallet"]].append(r["target_wallet"])
+        logger.info("[TradingTools] Loaded %d wallet follows from DB", len(rows))
+    except Exception as e:
+        logger.warning("[TradingTools] Could not load follows from DB: %s", e)
+
+
+async def _save_follow_to_db(user_wallet: str, target_wallet: str):
+    """Persist a wallet follow to DB."""
+    try:
+        db = _get_db()
+        await db.raw_execute(
+            "INSERT OR IGNORE INTO wallet_follows(user_wallet, target_wallet) VALUES(?,?)",
+            (user_wallet, target_wallet),
+        )
+    except Exception as e:
+        logger.warning("[TradingTools] Could not save follow: %s", e)
+
+
+async def load_trading_data():
+    """Called at startup to hydrate in-memory structures from DB."""
+    await _load_alerts_from_db()
+    await _load_follows_from_db()
 
 # ── Router ──
 
@@ -49,9 +123,26 @@ _followed_wallets: dict[str, list[str]] = defaultdict(list)  # user -> [wallet_a
 # Price alerts
 _alerts: dict[str, dict] = {}  # alert_id -> alert_data
 
-# ── CoinGecko historical price cache (for real technical analysis) ──
+# ── Historical price cache (CoinPaprika primary, CoinGecko fallback) ──
 _cg_history_cache: dict[str, dict] = {}  # token -> {"prices": [...], "ts": float}
 _CG_HISTORY_TTL = 300  # 5 minutes cache
+
+# Symbol -> CoinPaprika ID mapping (format: symbol-name)
+_SYM_TO_COINPAPRIKA_ID: dict[str, str] = {
+    "SOL": "sol-solana", "ETH": "eth-ethereum", "BTC": "btc-bitcoin",
+    "USDC": "usdc-usd-coin", "USDT": "usdt-tether",
+    "BONK": "bonk-bonk", "JUP": "jup-jupiter", "RAY": "ray-raydium",
+    "WIF": "wif-dogwifhat", "RENDER": "rndr-render-token", "HNT": "hnt-helium",
+    "PYTH": "pyth-pyth-network", "W": "w-wormhole",
+    "LINK": "link-chainlink", "UNI": "uni-uniswap", "AAVE": "aave-aave",
+    "DOGE": "doge-dogecoin", "SHIB": "shib-shiba-inu", "PEPE": "pepe-pepe",
+    "XRP": "xrp-xrp", "AVAX": "avax-avalanche", "MATIC": "matic-polygon",
+    "BNB": "bnb-binance-coin", "TON": "ton-toncoin", "SUI": "sui-sui",
+    "TRX": "trx-tron", "NEAR": "near-near-protocol", "APT": "apt-aptos",
+    "SEI": "sei-sei", "ARB": "arb-arbitrum", "FET": "fet-fetch-ai",
+    "FIL": "fil-filecoin", "AR": "ar-arweave", "INJ": "inj-injective",
+    "OP": "op-optimism", "TAO": "tao-bittensor", "AKT": "akt-akash-network",
+}
 
 # Symbol -> CoinGecko ID mapping for market_chart API
 _SYM_TO_COINGECKO_ID: dict[str, str] = {
@@ -82,7 +173,7 @@ _SYM_TO_COINGECKO_ID: dict[str, str] = {
 
 
 async def _fetch_coingecko_history(token: str) -> list[float]:
-    """Fetch 30-day price history from CoinGecko. Returns list of daily close prices.
+    """Fetch 30-day price history. CoinPaprika primary, CoinGecko fallback.
 
     Uses a 5-minute cache to avoid rate-limiting.
     """
@@ -94,29 +185,47 @@ async def _fetch_coingecko_history(token: str) -> list[float]:
     if cached and now - cached["ts"] < _CG_HISTORY_TTL:
         return cached["prices"]
 
-    cg_id = _SYM_TO_COINGECKO_ID.get(token)
-    if not cg_id:
-        return []
+    client = get_http_client()
 
-    url = f"https://api.coingecko.com/api/v3/coins/{cg_id}/market_chart?vs_currency=usd&days=30"
-    try:
-        client = get_http_client()
-        resp = await client.get(url, timeout=15)
-        if resp.status_code == 200:
-            data = resp.json()
-            # data["prices"] = [[timestamp_ms, price], ...]
-            raw_prices = data.get("prices", [])
-            if raw_prices:
-                prices = [p[1] for p in raw_prices]
-                _cg_history_cache[token] = {"prices": prices, "ts": now}
-                logger.info("CoinGecko history: %d data points for %s", len(prices), token)
-                return prices
-        elif resp.status_code == 429:
-            logger.warning("CoinGecko rate-limited for %s", token)
-        else:
-            logger.warning("CoinGecko history HTTP %d for %s", resp.status_code, token)
-    except Exception as e:
-        logger.error("CoinGecko history error for %s: %s", token, e)
+    # Source 1: CoinPaprika OHLCV (no rate limit issues)
+    cp_id = _SYM_TO_COINPAPRIKA_ID.get(token)
+    if cp_id:
+        try:
+            import datetime
+            start = (datetime.datetime.utcnow() - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+            url = f"https://api.coinpaprika.com/v1/coins/{cp_id}/ohlcv/historical?start={start}&limit=30"
+            resp = await client.get(url, timeout=12)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and data:
+                    prices = [float(d["close"]) for d in data if d.get("close")]
+                    if prices:
+                        _cg_history_cache[token] = {"prices": prices, "ts": now}
+                        logger.info("CoinPaprika OHLCV: %d data points for %s", len(prices), token)
+                        return prices
+        except Exception as e:
+            logger.warning("CoinPaprika OHLCV error for %s: %s", token, e)
+
+    # Source 2: CoinGecko fallback
+    cg_id = _SYM_TO_COINGECKO_ID.get(token)
+    if cg_id:
+        url = f"https://api.coingecko.com/api/v3/coins/{cg_id}/market_chart?vs_currency=usd&days=30"
+        try:
+            resp = await client.get(url, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_prices = data.get("prices", [])
+                if raw_prices:
+                    prices = [p[1] for p in raw_prices]
+                    _cg_history_cache[token] = {"prices": prices, "ts": now}
+                    logger.info("CoinGecko history: %d data points for %s", len(prices), token)
+                    return prices
+            elif resp.status_code == 429:
+                logger.warning("CoinGecko rate-limited for %s", token)
+            else:
+                logger.warning("CoinGecko history HTTP %d for %s", resp.status_code, token)
+        except Exception as e:
+            logger.error("CoinGecko history error for %s: %s", token, e)
 
     # Return cached data even if stale, rather than nothing
     if cached:
@@ -739,10 +848,10 @@ async def _resolve_pool(token: str, network: str = "solana") -> str:
         # Try loading from crypto_swap
         try:
             from crypto_swap import SUPPORTED_TOKENS
-            for t in SUPPORTED_TOKENS:
-                if t.get("symbol", "").upper() == token.upper():
-                    mint = t.get("mint", "")
-                    break
+            # BUG 20 fix: SUPPORTED_TOKENS is a dict {symbol: {mint, ...}}, not a list
+            info = SUPPORTED_TOKENS.get(token.upper())
+            if info:
+                mint = info.get("mint", "")
         except Exception:
             pass
     if not mint:
@@ -923,6 +1032,7 @@ async def follow_wallet(req: FollowWallet):
         return {"status": "already_following", "target": req.target_wallet}
 
     _followed_wallets[req.user_wallet].append(req.target_wallet)
+    await _save_follow_to_db(req.user_wallet, req.target_wallet)
     return {
         "status": "following",
         "user_wallet": req.user_wallet,
@@ -975,6 +1085,7 @@ async def create_alert(req: AlertCreate):
         "updated_at": int(now),
     }
     _alerts[alert_id] = alert
+    await _save_alert_to_db(alert)
 
     # If already triggered at creation, notify immediately
     if triggered:
@@ -1002,12 +1113,12 @@ async def list_alerts(
         for alert in wallet_alerts:
             price_data = prices.get(alert["token"], {})
             current = price_data.get("price", alert["current_price"])
+            # BUG 21 fix: GET is read-only, return copy with live status without mutating
             alert["current_price"] = current
-            alert["triggered"] = (
+            alert["_live_triggered"] = (
                 (alert["condition"] == "above" and current >= alert["target_price"]) or
                 (alert["condition"] == "below" and current <= alert["target_price"])
             )
-            alert["updated_at"] = int(now)
 
     return {
         "wallet": wallet,
@@ -1023,6 +1134,7 @@ async def delete_alert(alert_id: str):
         raise HTTPException(404, f"Alerte non trouvee: {alert_id}")
 
     alert = _alerts.pop(alert_id)
+    await _delete_alert_from_db(alert_id)
     return {"status": "deleted", "alert_id": alert_id, "token": alert["token"]}
 
 
@@ -1107,7 +1219,7 @@ async def get_token_risk(mint: str):
                 flags.append("No token holders found")
 
     except Exception as e:
-        flags.append(f"Analysis error: {str(e)[:100]}")
+        flags.append("Analysis error: unable to complete token risk check")
         risk_score = 50  # Unknown = moderate risk
 
     risk_score = min(100, risk_score)

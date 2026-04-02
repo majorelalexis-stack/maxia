@@ -79,3 +79,49 @@ async def my_datasets(wallet: str = Depends(require_auth)):
     db = _get_db()
     rows = await db.raw_execute_fetchall("SELECT data FROM datasets WHERE seller=?", (wallet,))
     return [json.loads(r["data"] if isinstance(r, dict) else r[0]) for r in rows]
+
+
+@router.get("/my-purchases")
+async def my_purchases(wallet: str = Depends(require_auth)):
+    """List all datasets purchased by the authenticated wallet."""
+    db = _get_db()
+    rows = await db.raw_execute_fetchall("SELECT data FROM data_purchases WHERE data LIKE ?", (f'%"buyer": "{wallet}"%',))
+    return [json.loads(r["data"] if isinstance(r, dict) else r[0]) for r in rows]
+
+
+@router.get("/download/{purchase_id}")
+async def download_dataset(purchase_id: str, wallet: str = Depends(require_auth)):
+    """Download a purchased dataset. Verifies buyer owns the purchase."""
+    db = _get_db()
+
+    # Verify purchase exists and belongs to buyer
+    rows = await db.raw_execute_fetchall(
+        "SELECT data FROM data_purchases WHERE purchase_id=?", (purchase_id,)
+    )
+    if not rows:
+        raise HTTPException(404, "Purchase not found.")
+    purchase = json.loads(rows[0]["data"] if isinstance(rows[0], dict) else rows[0][0])
+    if purchase.get("buyer") != wallet:
+        raise HTTPException(403, "Not your purchase.")
+
+    # Fetch dataset metadata
+    ds_rows = await db.raw_execute_fetchall(
+        "SELECT data FROM datasets WHERE dataset_id=?", (purchase.get("datasetId"),)
+    )
+    if not ds_rows:
+        raise HTTPException(404, "Dataset no longer available.")
+    dataset = json.loads(ds_rows[0]["data"] if isinstance(ds_rows[0], dict) else ds_rows[0][0])
+
+    # Return dataset with download_url if seller provided one, or metadata for retrieval
+    download_url = dataset.get("downloadUrl") or dataset.get("sampleHash")
+    return {
+        "purchaseId": purchase_id,
+        "datasetId": dataset.get("datasetId"),
+        "name": dataset.get("name"),
+        "format": dataset.get("format"),
+        "sizeMb": dataset.get("sizeMb"),
+        "downloadUrl": download_url,
+        "message": "Contact seller for file delivery" if not download_url else "Use downloadUrl to retrieve data",
+        "seller": dataset.get("seller"),
+        "purchasedAt": purchase.get("purchasedAt"),
+    }

@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://maxiaworld.app/">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAXIA — Trade Crypto 24/7 with AI</title>
 <meta name="description" content="MAXIA — AI-powered trading across 14 blockchains. Swap on 7 chains, escrow on 2. 68 tokens, leverage 100x, AI chat. No signup to explore.">
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" as="style">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -184,7 +186,40 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   .cta-box{padding:48px 24px}
 }
 </style>
-<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
+<script src="/static/js/track.js"></script>
+<meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta property="og:description" content="Swap 65+ tokens, rent GPUs, trade stocks 24/7, on-chain escrow. Powered by AI agents.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta name="twitter:description" content="Swap 65+ tokens, rent GPUs, trade stocks 24/7, on-chain escrow. Powered by AI agents.">
+<meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
+<meta name="theme-color" content="#080A0F">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "MAXIA",
+  "url": "https://maxiaworld.app",
+  "description": "AI-to-AI marketplace on 14 blockchains. Swap tokens, rent GPUs, trade stocks, on-chain escrow.",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "creator": {
+    "@type": "Organization",
+    "name": "MAXIA",
+    "url": "https://maxiaworld.app",
+    "sameAs": ["https://x.com/MAXIA_WORLD"]
+  }
+}
+</script>
 </head>
 <body>
 
@@ -249,6 +284,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/marketplace">Marketplace</a>
     <a href="/enterprise" style="color:var(--gold)">Enterprise</a>
     <a href="/forum">Forum</a>
+    <a href="/blog">Blog</a>
     <a href="/app" class="nav-cta" style="color:#fff">Launch App</a>
   </div>
 </nav>
@@ -271,6 +307,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/app#yields" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127793; DeFi Yields</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Community</div>
     <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>
+    <a href="/blog" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128218; Blog</a>
     <a href="/app#agentid" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#129302; Agent ID</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Business</div>
     <a href="/enterprise" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(244,63,94,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127970; Enterprise</a>
@@ -538,6 +575,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
     <a href="/marketplace">Marketplace</a>
     <a href="/enterprise">Enterprise</a>
     <a href="https://x.com/MAXIA_WORLD" target="_blank">Twitter</a>
+    <a href="https://t.me/MAXIA_AI_bot" target="_blank">Telegram</a>
+    <a href="https://github.com/MAXIAWORLD" target="_blank">GitHub</a>
     <a href="mailto:ceo@maxiaworld.app">Contact</a>
     <a href="/legal">Legal</a>
     <a href="/forum?community=bugs" style="color:var(--orange)">Report a Bug</a>

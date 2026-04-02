@@ -197,6 +197,125 @@ CANDLE_INTERVALS = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1
 CANDLE_RETENTION = {"1m": 7, "5m": 14, "15m": 30, "1h": 90, "4h": 180, "1d": 365}  # days
 
 
+_SYM_TO_CP = {
+    "SOL": "sol-solana", "ETH": "eth-ethereum", "BTC": "btc-bitcoin",
+    "USDC": "usdc-usd-coin", "USDT": "usdt-tether",
+    "BONK": "bonk-bonk", "JUP": "jup-jupiter", "RAY": "ray-raydium",
+    "WIF": "wif-dogwifhat", "RENDER": "rndr-render-token", "HNT": "hnt-helium",
+    "PYTH": "pyth-pyth-network", "W": "w-wormhole",
+    "LINK": "link-chainlink", "UNI": "uni-uniswap", "AAVE": "aave-aave",
+    "DOGE": "doge-dogecoin", "SHIB": "shib-shiba-inu", "PEPE": "pepe-pepe",
+    "XRP": "xrp-xrp", "AVAX": "avax-avalanche", "MATIC": "matic-polygon",
+    "BNB": "bnb-binance-coin", "TON": "ton-toncoin", "SUI": "sui-sui",
+    "TRX": "trx-tron", "NEAR": "near-near-protocol", "APT": "apt-aptos",
+    "SEI": "sei-sei", "ARB": "arb-arbitrum", "FET": "fet-fetch-ai",
+    "FIL": "fil-filecoin", "AR": "ar-arweave", "INJ": "inj-injective",
+    "OP": "op-optimism", "TAO": "tao-bittensor", "AKT": "akt-akash-network",
+    "ORCA": "orca-orca", "DRIFT": "drift-drift-protocol",
+    "ONDO": "ondo-ondo-finance", "TRUMP": "trump-official-trump",
+}
+_cp_cache: dict = {}  # symbol -> {"candles": [...], "ts": float}
+_CP_CACHE_TTL = 1800  # 30 min
+
+
+_SYM_TO_CG = {
+    "SOL": "solana", "ETH": "ethereum", "BTC": "bitcoin",
+    "USDC": "usd-coin", "USDT": "tether", "BONK": "bonk",
+    "JUP": "jupiter-exchange-solana", "RAY": "raydium", "WIF": "dogwifcoin",
+    "RENDER": "render-token", "HNT": "helium", "TRUMP": "official-trump",
+    "PYTH": "pyth-network", "W": "wormhole", "ORCA": "orca",
+    "JTO": "jito-governance-token", "DRIFT": "drift-protocol",
+    "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
+    "DOGE": "dogecoin", "SHIB": "shiba-inu", "PEPE": "pepe",
+    "XRP": "ripple", "AVAX": "avalanche-2", "MATIC": "matic-network",
+    "BNB": "binancecoin", "TON": "the-open-network", "SUI": "sui",
+    "NEAR": "near", "APT": "aptos", "SEI": "sei-network",
+    "ARB": "arbitrum", "OP": "optimism", "FET": "artificial-superintelligence-alliance",
+    "FIL": "filecoin", "AR": "arweave", "INJ": "injective-protocol",
+    "TAO": "bittensor", "AKT": "akash-network", "ONDO": "ondo-finance",
+    "LDO": "lido-dao", "TIA": "celestia", "STX": "blockstack",
+    "AIOZ": "aioz-network", "KMNO": "kamino", "PENGU": "pudgy-penguins",
+}
+
+
+async def _fetch_coinpaprika_ohlcv(symbol: str, interval: str, limit: int) -> list:
+    """Fetch real OHLCV candles. CoinGecko market_chart (30d free) primary, CoinPaprika today."""
+    cache_key = f"{symbol}_{interval}"
+    now = time.time()
+    cached = _cp_cache.get(cache_key)
+    if cached and now - cached["ts"] < _CP_CACHE_TTL:
+        return cached["candles"][:limit]
+
+    import httpx
+    candles = []
+
+    # Source 1: CoinGecko OHLC (30 days, free, real candles)
+    cg_id = _SYM_TO_CG.get(symbol)
+    if cg_id:
+        try:
+            async with httpx.AsyncClient(timeout=12) as client:
+                resp = await client.get(
+                    f"https://api.coingecko.com/api/v3/coins/{cg_id}/ohlc?vs_currency=usd&days=30"
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and data:
+                        for row in data:
+                            if len(row) >= 5:
+                                candles.append({
+                                    "o": float(row[1]),
+                                    "h": float(row[2]),
+                                    "l": float(row[3]),
+                                    "c": float(row[4]),
+                                    "v": 0,
+                                    "t": int(row[0] / 1000),
+                                })
+                        logger.info(f"CoinGecko OHLC: {len(candles)} candles for {symbol}")
+        except Exception as e:
+            logger.warning(f"CoinGecko OHLC error for {symbol}: {e}")
+
+    # Source 2: CoinPaprika today (has volume)
+    cp_id = _SYM_TO_CP.get(symbol)
+    if cp_id:
+        try:
+            import datetime
+            today = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.get(
+                    f"https://api.coinpaprika.com/v1/coins/{cp_id}/ohlcv/historical?start={today}&limit=1"
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and data:
+                        d = data[0]
+                        ts_str = d.get("time_open", "")
+                        if ts_str:
+                            try:
+                                dt = datetime.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                                epoch = int(dt.timestamp())
+                                cp_candle = {
+                                    "o": float(d.get("open", 0)),
+                                    "h": float(d.get("high", 0)),
+                                    "l": float(d.get("low", 0)),
+                                    "c": float(d.get("close", 0)),
+                                    "v": float(d.get("volume", 0)),
+                                    "t": epoch,
+                                }
+                                # Replace or append today's candle with volume
+                                if candles and candles[-1]["t"] >= epoch:
+                                    candles[-1] = cp_candle
+                                else:
+                                    candles.append(cp_candle)
+                            except Exception:
+                                pass
+        except Exception as e:
+            logger.warning(f"CoinPaprika today OHLCV error for {symbol}: {e}")
+
+    if candles:
+        _cp_cache[cache_key] = {"candles": candles, "ts": now}
+    return candles[:limit]
+
+
 @router.get("/crypto/candles")
 async def get_candles(symbol: str = "SOL", interval: str = "1h", limit: int = 100):
     """Get OHLCV candles. Free, no auth. Intervals: 1m, 5m, 15m, 1h, 4h, 1d."""
@@ -204,9 +323,27 @@ async def get_candles(symbol: str = "SOL", interval: str = "1h", limit: int = 10
     if interval not in CANDLE_INTERVALS:
         raise HTTPException(400, f"Invalid interval. Use: {list(CANDLE_INTERVALS.keys())}")
     limit = min(limit, 1000)
+
+    # For hourly+ intervals: CoinPaprika has real OHLCV with volume
+    if interval in ("1h", "4h", "1d"):
+        cp_candles = await _fetch_coinpaprika_ohlcv(symbol, interval, limit)
+        if cp_candles:
+            # Append any fresh DB candles newer than last CoinPaprika candle
+            last_cp_ts = cp_candles[-1]["t"]
+            db = await _get_db()
+            rows = await db.raw_execute_fetchall(
+                "SELECT open, high, low, close, volume, timestamp FROM price_candles "
+                "WHERE symbol=? AND interval=? AND timestamp>? ORDER BY timestamp ASC LIMIT ?",
+                (symbol, interval, last_cp_ts, 100))
+            for r in rows:
+                cp_candles.append({"o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"],
+                                   "v": r["volume"], "t": r["timestamp"]})
+            return {"symbol": symbol, "interval": interval, "candles": cp_candles[-limit:], "count": len(cp_candles[-limit:])}
+
+    # For sub-hourly or CoinPaprika failure: use DB
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT symbol, interval, open, high, low, close, volume, timestamp FROM price_candles "
+        "SELECT open, high, low, close, volume, timestamp FROM price_candles "
         "WHERE symbol=? AND interval=? ORDER BY timestamp DESC LIMIT ?",
         (symbol, interval, limit))
     candles = [{"o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"],
@@ -375,6 +512,148 @@ async def copy_trade_history(x_api_key: str = Header(None, alias="X-API-Key"), l
         WHERE c.api_key=? ORDER BY h.created_at DESC LIMIT ?
     """, (x_api_key, min(limit, 200)))
     return {"trades": [dict(r) for r in rows], "total": len(rows)}
+
+
+# ══════════════════════════════════════════
+# ── COPY TRADE EXECUTION ENGINE ──
+# ══════════════════════════════════════════
+
+_COPY_DAILY_CAP_USDC = 500  # Max total copied per follow per day
+_COPY_CHECK_INTERVAL = 120  # Check target wallets every 2 min
+_last_seen_sigs: dict[str, str] = {}  # target_wallet -> last_seen_tx_signature
+
+
+async def _fetch_recent_swaps(target_wallet: str) -> list[dict]:
+    """Fetch recent swap transactions from a target wallet via Helius."""
+    try:
+        from config import HELIUS_API_KEY
+        if not HELIUS_API_KEY:
+            return []
+        client_mod = __import__("http_client", fromlist=["get_http_client"])
+        client = client_mod.get_http_client()
+        resp = await client.post(
+            f"https://api.helius.xyz/v0/addresses/{target_wallet}/transactions?api-key={HELIUS_API_KEY}",
+            json={"limit": 10, "type": "SWAP"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return []
+        txs = resp.json()
+        return txs if isinstance(txs, list) else []
+    except Exception as e:
+        logger.debug("[CopyTrade] Fetch swaps error for %s: %s", target_wallet[:8], e)
+        return []
+
+
+async def _execute_copy_trade(follow: dict, swap_tx: dict) -> dict | None:
+    """Execute a copy trade based on detected target swap. Returns trade record or None."""
+    try:
+        # Parse swap info from Helius enhanced tx
+        token_transfers = swap_tx.get("tokenTransfers", [])
+        if not token_transfers:
+            return None
+
+        # Identify the token being bought (not USDC/SOL)
+        bought_token = None
+        for t in token_transfers:
+            mint = t.get("mint", "")
+            if mint and t.get("toUserAccount") == follow["target_wallet"]:
+                bought_token = mint
+                break
+        if not bought_token:
+            return None
+
+        amount_usdc = min(
+            float(follow.get("max_per_trade_usdc", 100)),
+            _COPY_DAILY_CAP_USDC,
+        )
+        commission = round(amount_usdc * 0.01, 6)  # 1% commission
+
+        # Record the trade intent (actual execution via jupiter deferred to user confirmation)
+        trade_id = str(uuid.uuid4())
+        db = await _get_db()
+        await db.raw_execute(
+            "INSERT INTO copy_trade_history(id, follow_id, target_wallet, token, side, "
+            "amount_usdc, commission_usdc, tx_signature) VALUES(?,?,?,?,?,?,?,?)",
+            (trade_id, follow["id"], follow["target_wallet"], bought_token, "buy",
+             amount_usdc, commission, swap_tx.get("signature", "")),
+        )
+        # Update follow stats
+        await db.raw_execute(
+            "UPDATE copy_trades SET total_copied = total_copied + 1, "
+            "total_volume_usdc = total_volume_usdc + ? WHERE id=?",
+            (amount_usdc, follow["id"]),
+        )
+
+        logger.info(
+            "[CopyTrade] Recorded: %s copied %s buy %.2f USDC (follow %s)",
+            follow.get("api_key", "?")[:8], bought_token[:8], amount_usdc, follow["id"][:8],
+        )
+        return {
+            "trade_id": trade_id, "follow_id": follow["id"],
+            "token": bought_token, "amount_usdc": amount_usdc,
+            "commission": commission, "status": "recorded",
+        }
+
+    except Exception as e:
+        logger.error("[CopyTrade] Execute error: %s", e)
+        return None
+
+
+async def copy_trade_worker():
+    """Background worker: monitors target wallets and records copy trades.
+
+    NOTE: This worker RECORDS trades for later execution.
+    Actual on-chain execution requires user confirmation via /copy-trade/execute endpoint
+    to prevent unattended fund movement.
+    """
+    logger.info("[CopyTrade] Worker started — checking every %ds", _COPY_CHECK_INTERVAL)
+
+    while True:
+        try:
+            await asyncio.sleep(_COPY_CHECK_INTERVAL)
+            db = await _get_db()
+
+            # Get all active follows
+            follows = await db.raw_execute_fetchall(
+                "SELECT id, api_key, target_wallet, chain, max_per_trade_usdc "
+                "FROM copy_trades WHERE active=1"
+            )
+            if not follows:
+                continue
+
+            for row in follows:
+                follow = dict(row) if hasattr(row, "keys") else {
+                    "id": row[0], "api_key": row[1], "target_wallet": row[2],
+                    "chain": row[3], "max_per_trade_usdc": row[4],
+                }
+                target = follow["target_wallet"]
+
+                # Only Solana for now
+                if follow.get("chain", "solana") != "solana":
+                    continue
+
+                swaps = await _fetch_recent_swaps(target)
+                if not swaps:
+                    continue
+
+                last_seen = _last_seen_sigs.get(target)
+                new_swaps = []
+                for s in swaps:
+                    sig = s.get("signature", "")
+                    if sig == last_seen:
+                        break
+                    new_swaps.append(s)
+
+                if new_swaps:
+                    _last_seen_sigs[target] = new_swaps[0].get("signature", "")
+
+                for swap in new_swaps[:3]:  # Max 3 copies per cycle per target
+                    await _execute_copy_trade(follow, swap)
+                    await asyncio.sleep(2)
+
+        except Exception as e:
+            logger.error("[CopyTrade] Worker error: %s", e)
 
 
 def get_router():

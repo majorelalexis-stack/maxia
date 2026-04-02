@@ -30,6 +30,18 @@ def _validate_solana_address(addr: str, field: str = "wallet"):
 
 router = APIRouter(prefix="/api/public", tags=["public-api"])
 
+
+def _safe_float(val, field: str = "value", default: float = 0.0) -> float:
+    """Safe float conversion — rejects NaN, Infinity, None."""
+    import math
+    try:
+        f = float(val) if val is not None else default
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{field} must be a number")
+    if math.isnan(f) or math.isinf(f):
+        raise HTTPException(400, f"{field} must be a finite number")
+    return f
+
 # ── Sandbox mode (test without real USDC) ──
 import os
 SANDBOX_MODE = os.getenv("SANDBOX_MODE", "false").lower() == "true"
@@ -379,7 +391,7 @@ async def api_docs():
 async def register_agent(req: dict, request: Request):
     """Inscription gratuite pour les IA. Retourne une API key. Persiste dans SQLite."""
     # Rate limit registration to prevent abuse (IP-based)
-    check_rate_limit(request)
+    await check_rate_limit(request)
     await _load_from_db()
 
     # Fix #2: Validate required fields exist and have correct types
@@ -767,7 +779,7 @@ async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key
 
     from_token = req.get("from_token", "USDC").upper()
     to_token = req.get("to_token", "SOL").upper()
-    amount = float(req.get("amount", 0))
+    amount = _safe_float(req.get("amount", 0), "amount")
     if amount <= 0:
         raise HTTPException(400, "amount must be > 0")
 
@@ -834,8 +846,8 @@ async def sandbox_buy_stock(req: dict, x_api_key: str = Header(None, alias="X-AP
     await _load_from_db()
     agent = _get_agent(x_api_key)
 
-    symbol = req.get("symbol", "").upper()
-    amount_usdc = float(req.get("amount_usdc", 0))
+    symbol = str(req.get("symbol", "")).upper()[:20]
+    amount_usdc = _safe_float(req.get("amount_usdc", 0), "amount_usdc")
     if amount_usdc <= 0:
         raise HTTPException(400, "amount_usdc must be > 0")
     if not symbol:
@@ -925,8 +937,8 @@ async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-K
             raise HTTPException(429, "Max 3 disputes per day")
     except HTTPException:
         raise
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[Dispute] Rate limit check failed: %s", e)
 
     # Find transaction
     tx = next((t for t in _transactions if t.get("tx_id") == tx_id), None)
@@ -959,8 +971,8 @@ async def create_dispute(req: dict, x_api_key: str = Header(None, alias="X-API-K
         await _db.raw_execute(
             "INSERT OR IGNORE INTO disputes(id, data) VALUES(?, ?)",
             (dispute_id, json.dumps(dispute)))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[Dispute] DB save failed for %s: %s", dispute_id, e)
 
     return {"success": True, "dispute": dispute}
 
@@ -975,8 +987,8 @@ async def get_dispute(dispute_id: str, x_api_key: str = Header(None, alias="X-AP
         rows = await _db.raw_execute_fetchall("SELECT data FROM disputes WHERE id=?", (dispute_id,))
         if rows:
             return json.loads(rows[0]["data"])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[Dispute] DB read failed for %s: %s", dispute_id, e)
     raise HTTPException(404, "Dispute not found")
 
 
@@ -1148,17 +1160,19 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     if await _buy_db.tx_already_processed(payment_tx):
         raise HTTPException(400, "Payment already used for a previous purchase")
 
-    # On-chain verification via solana_verifier
+    # On-chain verification via solana_verifier (BUG 26 fix: 20s timeout)
     try:
         from solana_verifier import verify_transaction
-        tx_result = await verify_transaction(
+        tx_result = await asyncio.wait_for(verify_transaction(
             tx_signature=payment_tx,
             expected_amount_usdc=price,
             expected_recipient=TREASURY_ADDRESS,
-        )
+        ), timeout=20)
         if not tx_result.get("valid"):
             raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}. "
                                 f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+    except asyncio.TimeoutError:
+        raise HTTPException(504, "Payment verification timed out. Please retry.")
     except HTTPException:
         raise
     except Exception as e:
@@ -1228,8 +1242,8 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     # Record tx for idempotency
     try:
         await _buy_db.record_transaction(agent["wallet"], payment_tx, price, "buy_native")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("[Execute] CRITICAL — tx record failed (idempotency risk): %s", e)
 
     # Mettre a jour les stats de l'agent (with lock)
     async with _agent_update_lock:
@@ -1244,15 +1258,15 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     try:
         from alerts import alert_revenue
         await alert_revenue(commission, f"API publique — {agent['name']} (verified on-chain)")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[Execute] Alert revenue failed: %s", e)
 
     # Referral commission (50% of MAXIA's commission to referrer)
     try:
         from referral_manager import add_commission
         await add_commission(agent["wallet"], commission)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("[Execute] Referral commission failed: %s", e)
 
     result_hash = hashlib.sha256(result.encode()).hexdigest()
 
@@ -1750,7 +1764,7 @@ async def buy_external_service(request: Request, req: dict, x_api_key: str = Hea
         except Exception as e:
             logger.error("Seller payment error: %s", e)
             seller_payment_info["seller_paid"] = False
-            seller_payment_info["seller_error"] = str(e)
+            seller_payment_info["seller_error"] = "Payment processing error"
     # Commission stays at TREASURY_ADDRESS (buyer paid full price to treasury,
     # seller receives price - commission via send_usdc_transfer)
 
@@ -1924,10 +1938,10 @@ async def request_service(req: dict, x_api_key: str = Header(None, alias="X-API-
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
 
-    capability = req.get("capability", "").strip()
-    max_price = float(req.get("max_price", 10))
-    description = req.get("description", "").strip()
-    deadline_hours = int(req.get("deadline_hours", 24))
+    capability = str(req.get("capability", "")).strip()[:200]
+    max_price = _safe_float(req.get("max_price", 10), "max_price")
+    description = str(req.get("description", "")).strip()[:2000]
+    deadline_hours = min(168, max(1, int(_safe_float(req.get("deadline_hours", 24), "deadline_hours"))))
 
     if not capability:
         raise HTTPException(400, "capability required")
@@ -1976,7 +1990,7 @@ async def bid_on_auction(auction_id: str, req: dict, x_api_key: str = Header(Non
     if not auction:
         raise HTTPException(404, "Auction not found or closed")
 
-    price = float(req.get("price", 0))
+    price = _safe_float(req.get("price", 0), "price")
     if price <= 0 or price > auction["max_price"]:
         raise HTTPException(400, f"Price must be between 0 and {auction['max_price']}")
 
@@ -2216,7 +2230,9 @@ async def discover_services(
 
 
 @router.post("/discover")
-async def discover_services_post(req: dict = {}):
+async def discover_services_post(req: dict = None):
+    if req is None:
+        req = {}
     """POST version of discover for agent-to-agent compatibility."""
     # Fix #4: Float validation with try/except
     try:
@@ -2296,12 +2312,15 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             "maxia-audit": 4.99, "maxia-code": 2.99, "maxia-data": 2.99,
             "maxia-scraper": 0.02, "maxia-image": 0.10, "maxia-translate": 0.05,
             "maxia-summary": 0.49, "maxia-wallet": 1.99, "maxia-marketing": 0.99,
-            "maxia-finetune": 2.99, "maxia-awp-stake": 0,
+            "maxia-finetune": 2.99, "maxia-awp-stake": 0.99,
             "maxia-transcription": 0.01, "maxia-embedding": 0.001,
             "maxia-sentiment": 0.005, "maxia-wallet-score": 0.10,
             "maxia-airdrop-scan": 0.50, "maxia-smart-money": 0.25,
             "maxia-nft-rarity": 0.05,
         }.get(service_id, 1.99)
+        # BUG 12 fix: reject services with zero price
+        if price <= 0:
+            raise HTTPException(400, "Service temporarily unavailable (invalid pricing)")
     elif service:
         price = service["price_usdc"]
     else:
@@ -2309,15 +2328,21 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
     # ═══ VERIFY REAL USDC PAYMENT ON-CHAIN ═══
 
-    # Idempotency: reject reused payment signatures
+    # P-1 fix: Mark tx as "pending" BEFORE verification to close TOCTOU gap
     from database import db as _exec_db
     try:
         if await asyncio.wait_for(_exec_db.tx_already_processed(payment_tx), timeout=5):
             raise HTTPException(400, "Payment already used for a previous purchase")
+        # Reserve this tx immediately (atomic idempotency)
+        await _exec_db.record_transaction(
+            buyer.get("wallet", ""), payment_tx, 0, "execute_pending")
     except asyncio.TimeoutError:
-        logger.warning("/execute tx_already_processed timed out — proceeding")
+        raise HTTPException(503, "Payment verification temporarily unavailable, please retry")
     except HTTPException:
         raise
+    except Exception as e:
+        logger.error("[Execute] Idempotency reserve failed: %s", e)
+        raise HTTPException(503, "Service temporarily unavailable")
 
     # On-chain verification via solana_verifier (max 20s built-in)
     try:
@@ -2364,8 +2389,26 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             result_text = "Service execution timed out (30s). LLM providers may be rate-limited. Your payment is recorded — contact support for a retry."
         _exec_ms = int((time.time() - _exec_start) * 1000)
 
-        # #6 Refund auto if service failed
-        _service_failed = not result_text or "unavailable" in result_text.lower() or "error" in result_text.lower()
+        # P-2 fix: auto-refund if native service failed
+        _service_failed = (
+            not result_text
+            or result_text.startswith("Service execution timed out")
+            or ("unavailable" in result_text.lower() and len(result_text) < 200)
+        )
+        if _service_failed and price > 0:
+            try:
+                from alerts import _send_private
+                await _send_private(
+                    f"\U0001f534 <b>Service Failed — Refund Due</b>\n"
+                    f"Service: <code>{service_id}</code>\n"
+                    f"Amount: <code>{price} USDC</code>\n"
+                    f"Buyer: <code>{buyer.get('wallet', '')[:12]}...</code>\n"
+                    f"TX: <code>{payment_tx[:16]}...</code>\n"
+                    f"Action: Manual refund required"
+                )
+            except Exception:
+                pass
+            logger.warning("[Execute] Service %s failed — refund needed for %s USDC (tx: %s)", service_id, price, payment_tx[:16])
 
         # #1 Track execution metrics
         try:
@@ -2404,10 +2447,13 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
         # Persist to DB
         await _save_tx_to_db(tx, buyer)
+        # P-1: Update pending → confirmed (tx already reserved above)
         try:
-            await _exec_db.record_transaction(buyer["wallet"], payment_tx, price, "execute_native")
-        except Exception:
-            pass
+            await _exec_db.raw_execute(
+                "UPDATE transactions SET amount_usdc=?, purpose=? WHERE tx_signature=?",
+                (price, "execute_native", payment_tx))
+        except Exception as e:
+            logger.error("[Execute] tx confirm update failed: %s", e)
 
         # Referral commission (50% of MAXIA's commission to referrer)
         try:
@@ -2552,10 +2598,23 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         execution_method = "manual"
         result_text = "Service purchased and payment verified. Seller will deliver manually (no webhook configured)."
 
-    # Webhook failure handling — notify buyer but don't rollback (on-chain payment is final)
+    # P-3 fix: Webhook failure → alert founder for manual refund/resolution
     if execution_method == "webhook_error":
         tx["webhook_failed"] = True
-        payment_info["webhook_warning"] = "Webhook call failed. Payment is on-chain and cannot be reversed. Contact the seller for delivery."
+        payment_info["webhook_warning"] = "Webhook call failed. Payment is on-chain. MAXIA support has been notified for resolution."
+        try:
+            from alerts import _send_private
+            await _send_private(
+                f"\U0001f7e0 <b>Webhook Failed — Buyer Needs Resolution</b>\n"
+                f"Seller: <code>{service.get('agent_name', '?')}</code>\n"
+                f"Buyer: <code>{buyer.get('name', '?')}</code>\n"
+                f"Amount: <code>{price} USDC</code>\n"
+                f"TX: <code>{payment_tx[:16]}...</code>\n"
+                f"Endpoint: <code>{service.get('endpoint', '?')[:50]}</code>"
+            )
+        except Exception:
+            pass
+        logger.warning("[Execute] Webhook failed for seller %s — buyer %s paid %s USDC", service.get('agent_name'), buyer.get('name'), price)
 
     # Alert
     try:

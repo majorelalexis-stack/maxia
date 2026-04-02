@@ -235,3 +235,44 @@ INITIAL_DATASETS = [
         "format": "json",
     },
 ]
+
+
+# ══════════════════════════════════════════════════════════
+#  Startup registration (S33: extracted from main.py)
+# ══════════════════════════════════════════════════════════
+
+async def register_native_services(db_instance):
+    """Register MAXIA native AI services in the database at startup.
+    Skips services that already exist (idempotent).
+    """
+    import logging
+    from config import TREASURY_ADDRESS
+    _logger = logging.getLogger(__name__)
+    registered = 0
+    for svc in NATIVE_SERVICES:
+        try:
+            existing = await db_instance.get_service(svc["id"])
+            if existing:
+                continue
+            await db_instance.save_service({
+                "id": svc["id"],
+                "agent_api_key": "maxia_native",
+                "agent_name": "MAXIA",
+                "agent_wallet": TREASURY_ADDRESS,
+                "name": svc["name"],
+                "description": svc["description"],
+                "type": svc["type"],
+                "price_usdc": svc["price_usdc"],
+                "endpoint": "",
+                "status": "active",
+                "rating": 5.0,
+                "rating_count": 0,
+                "sales": 0,
+            })
+            registered += 1
+        except Exception as e:
+            _logger.error("[MAXIA] Error registering native service %s: %s", svc['id'], e)
+    if registered:
+        _logger.info("[MAXIA] Registered %s native AI services", registered)
+    else:
+        _logger.info("[MAXIA] All %s native AI services already registered", len(NATIVE_SERVICES))

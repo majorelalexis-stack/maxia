@@ -272,7 +272,7 @@ def sign_intent_legacy(action: str, params: dict, private_key_hex: str,
             "nonce": nonce, "expires": expires, "sig": sig_b58}
 
 
-def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
+async def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
     """Legacy verification (fallback)."""
     try:
         from nacl.signing import VerifyKey
@@ -288,6 +288,17 @@ def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
         if datetime.now(timezone.utc) > expires_dt:
             return {"valid": False, "error": "Expired"}
 
+        # BUG 25 fix + S3 audit fix: anti-replay FAIL-CLOSE (never skip)
+        nonce_key = f"intent:{intent['nonce']}"
+        try:
+            from auth import _nonce_is_used, _nonce_mark_used
+            if await _nonce_is_used(nonce_key):
+                return {"valid": False, "error": "Nonce already used (replay detected)"}
+        except Exception as e:
+            # S3 fix: Redis down → DENY, never silently proceed
+            logger.error("[Intent] Anti-replay store unavailable: %s", e)
+            return {"valid": False, "error": "Anti-replay verification unavailable"}
+
         payload = json.dumps({
             "action": intent["action"], "did": intent["did"],
             "expires": intent["expires"], "nonce": intent["nonce"],
@@ -297,6 +308,12 @@ def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
         sig_bytes = b58.b58decode(intent["sig"])
         pk_bytes = b58.b58decode(public_key_b58)
         VerifyKey(pk_bytes).verify(payload.encode(), sig_bytes)
+        # Mark nonce as used (anti-replay) — if this fails, the verification
+        # already passed so we log but don't reject (nonce was already checked above)
+        try:
+            await _nonce_mark_used(nonce_key)
+        except Exception as e:
+            logger.warning("[Intent] Failed to mark nonce used: %s", e)
         return {"valid": True, "did": intent["did"], "action": intent["action"]}
 
     except BadSignatureError:

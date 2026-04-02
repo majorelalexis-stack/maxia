@@ -28,6 +28,19 @@ from collections import defaultdict
 # Callback for per-wallet WS push (injected by main.py at startup)
 _ws_notify_callback = None
 
+# ── @Mentions extraction ──
+_MENTION_NAME_RE = re.compile(r"@([A-Za-z0-9_]{3,30})")
+_MENTION_WALLET_RE = re.compile(r"@([1-9A-HJ-NP-Za-km-z]{32,44})")
+
+
+def _extract_mentions(text: str) -> list[str]:
+    """Extract @mentions from text — returns list of names or wallets mentioned."""
+    if not text:
+        return []
+    names = _MENTION_NAME_RE.findall(text)
+    wallets = _MENTION_WALLET_RE.findall(text)
+    return list(set(names + wallets))
+
 # ── HTML sanitization (strip all tags) ──
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
@@ -235,6 +248,36 @@ async def create_post(db, data: dict) -> dict:
         "INSERT INTO forum_posts(id, data, community, hot_score, created_at, status) VALUES(?,?,?,?,?,?)",
         (post_id, json.dumps(post, default=str), post["community"], post["hot_score"], now, "active"))
 
+    # Phase 3: @mention notifications
+    try:
+        mentions = _extract_mentions(post.get("body", "") + " " + post.get("title", ""))
+        for mention in mentions[:10]:  # Cap at 10 mentions per post
+            # Try to find wallet by author_name match in forum_posts
+            m_rows = await db.raw_execute_fetchall(
+                "SELECT DISTINCT json_extract(data, '$.author_wallet') as w FROM forum_posts "
+                "WHERE json_extract(data, '$.author_name')=? AND status='active' LIMIT 1", (mention,))
+            if m_rows:
+                mentioned_wallet = m_rows[0]["w"] if isinstance(m_rows[0], dict) else m_rows[0][0]
+                if mentioned_wallet and mentioned_wallet != wallet:
+                    notif_id = f"notif_{uuid.uuid4().hex[:12]}"
+                    payload = json.dumps({
+                        "mentioner_name": post["author_name"],
+                        "post_title": post["title"][:100],
+                        "mention_type": "post",
+                    })
+                    await db.raw_execute(
+                        "INSERT INTO forum_notifications(id, wallet, type, post_id, reply_id, payload, read, created_at) "
+                        "VALUES(?,?,?,?,?,?,0,?)",
+                        (notif_id, mentioned_wallet, "mention", post_id, "", payload, now))
+                    if _ws_notify_callback:
+                        await _ws_notify_callback(mentioned_wallet, {
+                            "type": "forum_mention", "post_id": post_id,
+                            "mentioner": post["author_name"],
+                            "post_title": post["title"][:100], "ts": now,
+                        })
+    except Exception:
+        pass  # Mention failure must never break post creation
+
     return post
 
 
@@ -320,6 +363,36 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
                     })
     except Exception:
         pass  # Notification failure must never break reply creation
+
+    # Phase 3: @mention notifications from replies
+    try:
+        mentions = _extract_mentions(reply.get("body", ""))
+        for mention in mentions[:10]:
+            m_rows = await db.raw_execute_fetchall(
+                "SELECT DISTINCT json_extract(data, '$.author_wallet') as w FROM forum_posts "
+                "WHERE json_extract(data, '$.author_name')=? AND status='active' LIMIT 1", (mention,))
+            if m_rows:
+                mentioned_wallet = m_rows[0]["w"] if isinstance(m_rows[0], dict) else m_rows[0][0]
+                if mentioned_wallet and mentioned_wallet != wallet:
+                    notif_id = f"notif_{uuid.uuid4().hex[:12]}"
+                    payload = json.dumps({
+                        "mentioner_name": reply["author_name"],
+                        "post_title": "",
+                        "reply_preview": reply["body"][:100],
+                        "mention_type": "reply",
+                    })
+                    await db.raw_execute(
+                        "INSERT INTO forum_notifications(id, wallet, type, post_id, reply_id, payload, read, created_at) "
+                        "VALUES(?,?,?,?,?,?,0,?)",
+                        (notif_id, mentioned_wallet, "mention", post_id, reply_id, payload, now))
+                    if _ws_notify_callback:
+                        await _ws_notify_callback(mentioned_wallet, {
+                            "type": "forum_mention", "post_id": post_id, "reply_id": reply_id,
+                            "mentioner": reply["author_name"],
+                            "preview": reply["body"][:100], "ts": now,
+                        })
+    except Exception:
+        pass  # Mention failure must never break reply creation
 
     # Update reply count (from actual COUNT) + hot score on parent post
     try:
@@ -533,3 +606,122 @@ async def admin_unban_agent(db, wallet: str) -> dict:
         return {"success": True, "wallet": wallet}
     except Exception as e:
         return {"success": False, "error": "An error occurred"}
+
+
+# ══════════════════════════════════════════
+# Phase 3: Trending + Tags
+# ══════════════════════════════════════════
+
+async def get_trending(db, hours: int = 24, limit: int = 10) -> list:
+    """Top posts des dernieres N heures, scores par upvotes + replies."""
+    try:
+        since = int(time.time()) - hours * 3600
+        rows = await db.raw_execute_fetchall(
+            "SELECT data FROM forum_posts WHERE status='active' AND created_at > ? "
+            "ORDER BY hot_score DESC LIMIT ?", (since, limit))
+        return [json.loads(r["data"] if isinstance(r, dict) else r[0]) for r in rows]
+    except Exception:
+        return []
+
+
+async def get_all_tags(db, limit: int = 50) -> list:
+    """Tous les tags avec leur frequence, tries par popularite."""
+    try:
+        rows = await db.raw_execute_fetchall(
+            "SELECT json_extract(data, '$.tags') as tags FROM forum_posts WHERE status='active'")
+        tag_counts: dict[str, int] = {}
+        for r in rows:
+            raw = r["tags"] if isinstance(r, dict) else r[0]
+            if not raw:
+                continue
+            try:
+                tags = json.loads(raw)
+                for t in tags:
+                    t = t.strip().lower()
+                    if t:
+                        tag_counts[t] = tag_counts.get(t, 0) + 1
+            except (json.JSONDecodeError, TypeError):
+                pass
+        sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+        return [{"tag": t, "count": c} for t, c in sorted_tags]
+    except Exception:
+        return []
+
+
+async def get_posts_by_tag(db, tag: str, limit: int = 20, offset: int = 0) -> list:
+    """Posts filtres par tag."""
+    try:
+        # JSON LIKE search for tag in tags array
+        rows = await db.raw_execute_fetchall(
+            "SELECT data FROM forum_posts WHERE status='active' AND data LIKE ? "
+            "ORDER BY hot_score DESC LIMIT ? OFFSET ?",
+            (f'%"{tag}"%', limit, offset))
+        results = []
+        for r in rows:
+            post = json.loads(r["data"] if isinstance(r, dict) else r[0])
+            tags = [t.strip().lower() for t in post.get("tags", [])]
+            if tag.lower() in tags:
+                results.append(post)
+        return results
+    except Exception:
+        return []
+
+
+# ══════════════════════════════════════════
+# Phase 6c: Filtres avances pour get_posts
+# ══════════════════════════════════════════
+
+async def get_posts_filtered(
+    db,
+    community: str = "",
+    sort: str = "hot",
+    limit: int = 20,
+    offset: int = 0,
+    post_type: str = "",
+    chain: str = "",
+    min_budget: float = 0,
+    max_budget: float = 0,
+    since: int = 0,
+) -> list:
+    """Get forum posts with advanced filters. Superset of get_posts."""
+    try:
+        _VALID_ORDERS = {
+            "new": "created_at DESC",
+            "top": "hot_score DESC",
+            "hot": "hot_score DESC",
+        }
+        order = _VALID_ORDERS.get(sort, "hot_score DESC")
+
+        conditions = ["status='active'"]
+        params: list = []
+
+        if community:
+            conditions.append("community=?")
+            params.append(community)
+        if post_type:
+            conditions.append("json_extract(data, '$.post_type')=?")
+            params.append(post_type)
+        if chain:
+            conditions.append("json_extract(data, '$.chain')=?")
+            params.append(chain)
+        if min_budget > 0:
+            conditions.append("CAST(json_extract(data, '$.budget_usdc') AS REAL) >= ?")
+            params.append(min_budget)
+        if max_budget > 0:
+            conditions.append("CAST(json_extract(data, '$.budget_usdc') AS REAL) <= ?")
+            params.append(max_budget)
+        if since > 0:
+            conditions.append("created_at > ?")
+            params.append(since)
+
+        where = " AND ".join(conditions)
+        params.extend([limit, offset])
+
+        rows = await db.raw_execute_fetchall(
+            f"SELECT data FROM forum_posts WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
+            tuple(params))
+
+        return [json.loads(r["data"] if isinstance(r, dict) else r[0]) for r in rows]
+    except Exception as e:
+        logger.error("get_posts_filtered error: %s", e)
+        return []

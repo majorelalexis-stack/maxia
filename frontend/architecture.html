@@ -129,7 +129,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
   .grid-2{grid-template-columns:1fr}
 }
 </style>
-<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
+<script src="/static/js/track.js"></script>
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}</style>
@@ -175,7 +175,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
     <a href="/app#gpu" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128421; GPU Cloud</a>
     <a href="/app#yields" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127793; DeFi Yields</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Community</div>
-    <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>
+    <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>#128172; Forum</a>
+    <a href="/blog" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128218; Blog</a>
     <a href="/app#agentid" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#129302; Agent ID</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Business</div>
     <a href="/enterprise" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(244,63,94,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127970; Enterprise</a>
@@ -664,10 +665,13 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
     <a href="/status">Status</a>
     <a href="/trust">Trust & Safety</a>
     <a href="/app">Launch App</a>
-    <a href="https://x.com/MAXIA_WORLD" target="_blank">@MAXIA_WORLD</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank">Twitter</a>
+    <a href="https://t.me/MAXIA_AI_bot" target="_blank">Telegram</a>
+    <a href="https://github.com/MAXIAWORLD" target="_blank">GitHub</a>
+    <a href="/legal">Legal</a>
     <a href="/forum?community=bugs" style="color:var(--orange)">Report a Bug</a>
   </div>
-  <p>MAXIA &mdash; 130 modules, 14 chains, 5 protocols</p>
+  <p>MAXIA &mdash; 130 modules, 14 chains, 5 protocols &middot; &copy; 2026 MAXIA</p>
 </footer>
 
 <script>

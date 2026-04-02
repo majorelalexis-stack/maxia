@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="canonical" href="https://maxiaworld.app/governance">
+<title>Governance — MAXIA AI Marketplace</title>
+<meta name="description" content="MAXIA Governance — Vote on platform decisions, features, and policies">
+<link rel="icon" href="/static/favicon.ico">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e4e4e7;min-height:100vh}
+a{color:#818cf8;text-decoration:none}a:hover{text-decoration:underline}
+
+.topbar{background:#111118;border-bottom:1px solid #27272a;padding:12px 24px;display:flex;align-items:center;gap:16px}
+.topbar a.logo{font-weight:700;font-size:18px;color:#fff;letter-spacing:-0.5px}
+.topbar a.logo span{color:#818cf8}
+.topbar nav{display:flex;gap:12px;margin-left:auto}
+.topbar nav a{color:#a1a1aa;font-size:13px;padding:6px 12px;border-radius:6px;transition:all .15s}
+.topbar nav a:hover{color:#fff;background:#27272a;text-decoration:none}
+
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.page-title{font-size:28px;font-weight:700;color:#fff;margin-bottom:4px}
+.page-subtitle{color:#71717a;font-size:14px;margin-bottom:24px}
+
+/* Status tabs */
+.tabs{display:flex;gap:8px;margin-bottom:24px}
+.tab{padding:8px 16px;border-radius:8px;background:#1e1e2e;border:1px solid #27272a;color:#a1a1aa;font-size:13px;cursor:pointer;transition:all .15s}
+.tab:hover,.tab.active{background:#818cf8;color:#fff;border-color:#818cf8}
+
+/* Proposal card */
+.proposals{display:flex;flex-direction:column;gap:16px}
+.proposal-card{padding:24px;background:#111118;border:1px solid #27272a;border-radius:12px}
+.proposal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.proposal-title{font-size:18px;font-weight:600;color:#fff;flex:1}
+.proposal-status{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;flex-shrink:0}
+.status-active{background:#166534;color:#4ade80}
+.status-passed{background:#1e3a5f;color:#60a5fa}
+.status-rejected{background:#7f1d1d;color:#f87171}
+.status-executed{background:#4c1d95;color:#c4b5fd}
+.proposal-desc{font-size:14px;color:#a1a1aa;line-height:1.5;margin-bottom:16px}
+.proposal-meta{display:flex;gap:16px;font-size:12px;color:#52525b;margin-bottom:16px}
+.cat-tag{padding:2px 8px;border-radius:4px;background:#1a1a2e;color:#818cf8;font-size:11px}
+
+/* Vote options & bars */
+.options{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.option{position:relative;padding:12px 16px;border-radius:8px;border:1px solid #27272a;cursor:pointer;overflow:hidden;transition:all .15s}
+.option:hover{border-color:#3f3f46}
+.option.voted{border-color:#818cf8}
+.option-bar{position:absolute;left:0;top:0;bottom:0;background:rgba(129,140,248,0.1);transition:width .3s ease}
+.option-content{position:relative;display:flex;justify-content:space-between;align-items:center}
+.option-label{font-size:14px;font-weight:500;color:#e4e4e7}
+.option-pct{font-size:14px;font-weight:700;color:#818cf8;font-family:'JetBrains Mono',monospace}
+
+/* Results summary */
+.results-summary{display:flex;gap:16px;font-size:13px;color:#71717a;padding-top:8px;border-top:1px solid #1e1e2e}
+.results-summary span{display:flex;align-items:center;gap:4px}
+
+/* Vote input */
+.vote-section{margin-top:12px;padding-top:12px;border-top:1px solid #27272a}
+.wallet-input{display:flex;gap:8px;margin-top:8px}
+.wallet-input input{flex:1;padding:8px 12px;border-radius:6px;border:1px solid #27272a;background:#0a0a0f;color:#e4e4e7;font-size:13px;font-family:monospace}
+.wallet-input button{padding:8px 20px;border-radius:6px;background:#818cf8;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer}
+.wallet-input button:hover{background:#6366f1}
+.wallet-input button:disabled{opacity:0.5;cursor:not-allowed}
+.vote-msg{font-size:12px;margin-top:6px;padding:4px 0}
+.vote-msg.ok{color:#4ade80}.vote-msg.err{color:#f87171}
+
+/* Recent voters */
+.voters{margin-top:12px;font-size:12px;color:#52525b}
+.voters span{margin-right:12px}
+
+.loading{text-align:center;padding:60px;color:#71717a}
+.empty{text-align:center;padding:40px;color:#52525b}
+
+@media(max-width:640px){
+  .proposal-header{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a class="logo" href="/">MAXIA<span>.ai</span></a>
+  <nav>
+    <a href="/forum">Forum</a>
+    <a href="/blog">Blog</a>
+    <a href="/governance" style="color:#fff;background:#27272a;border-radius:6px">Governance</a>
+    <a href="/store">App Store</a>
+    <a href="/app">Dashboard</a>
+  </nav>
+</div>
+
+<div class="container">
+  <div class="page-title">Governance</div>
+  <div class="page-subtitle">Vote on platform decisions. Your voting weight is proportional to your trading volume.</div>
+
+  <div class="tabs" id="tabs">
+    <div class="tab active" onclick="filterStatus('active')">Active</div>
+    <div class="tab" onclick="filterStatus('passed')">Passed</div>
+    <div class="tab" onclick="filterStatus('rejected')">Rejected</div>
+    <div class="tab" onclick="filterStatus('all')">All</div>
+  </div>
+
+  <div id="loading" class="loading">Loading proposals...</div>
+  <div class="proposals" id="proposals"></div>
+  <div id="empty" class="empty" style="display:none">No proposals found.</div>
+</div>
+
+<script>
+const API = '';
+let currentStatus = 'active';
+let selectedOptions = {}; // proposal_id -> option
+let votedProposals = new Set(); // track what we voted on this session
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  return new Date(ts * 1000).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
+}
+
+function timeLeft(ts) {
+  if (!ts) return '';
+  const diff = ts - Math.floor(Date.now()/1000);
+  if (diff <= 0) return 'Ended';
+  const d = Math.floor(diff/86400);
+  const h = Math.floor((diff%86400)/3600);
+  if (d > 0) return d + 'd ' + h + 'h left';
+  return h + 'h left';
+}
+
+function selectOption(proposalId, option) {
+  if (votedProposals.has(proposalId)) return;
+  selectedOptions[proposalId] = option;
+  renderProposals(window._lastProposals || []);
+}
+
+async function vote(proposalId) {
+  const option = selectedOptions[proposalId];
+  if (!option) return;
+
+  const walletInput = document.getElementById('wallet-' + proposalId);
+  const wallet = walletInput ? walletInput.value.trim() : '';
+  if (!wallet) {
+    showVoteMsg(proposalId, 'Enter your wallet address', true);
+    return;
+  }
+
+  const btn = document.getElementById('vbtn-' + proposalId);
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(API + '/api/governance/vote', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({proposal_id: proposalId, wallet: wallet, option: option}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      votedProposals.add(proposalId);
+      showVoteMsg(proposalId, 'Vote recorded! Weight: ' + data.vote_weight + 'x', false);
+      loadProposals(); // Refresh results
+    } else {
+      showVoteMsg(proposalId, data.detail || data.error || 'Vote failed', true);
+      if (btn) btn.disabled = false;
+    }
+  } catch (err) {
+    showVoteMsg(proposalId, 'Network error', true);
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showVoteMsg(id, msg, isError) {
+  const el = document.getElementById('vmsg-' + id);
+  if (el) {
+    el.textContent = msg;
+    el.className = 'vote-msg ' + (isError ? 'err' : 'ok');
+  }
+}
+
+function renderProposals(proposals) {
+  window._lastProposals = proposals;
+  if (!proposals.length) {
+    document.getElementById('empty').style.display = 'block';
+    document.getElementById('proposals').innerHTML = '';
+    return;
+  }
+  document.getElementById('empty').style.display = 'none';
+
+  document.getElementById('proposals').innerHTML = proposals.map(p => {
+    const live = p.live_results || {};
+    const pcts = live.percentages || {};
+    const statusCls = 'status-' + (p.status||'active');
+    const isActive = p.status === 'active';
+    const hasVoted = votedProposals.has(p.id);
+
+    let optionsHtml = (p.options||[]).map(opt => {
+      const pct = pcts[opt] || 0;
+      const sel = selectedOptions[p.id] === opt;
+      return '<div class="option' + (sel?' voted':'') + '" onclick="selectOption(\'' + p.id + '\',\'' + opt.replace(/'/g,"\\'") + '\')">' +
+        '<div class="option-bar" style="width:' + pct + '%"></div>' +
+        '<div class="option-content"><span class="option-label">' + (sel?'\u2713 ':'') + opt + '</span>' +
+        '<span class="option-pct">' + pct + '%</span></div></div>';
+    }).join('');
+
+    let voteHtml = '';
+    if (isActive && !hasVoted) {
+      voteHtml = '<div class="vote-section">' +
+        '<div style="font-size:12px;color:#71717a">Select an option above, then enter your wallet to vote:</div>' +
+        '<div class="wallet-input">' +
+        '<input id="wallet-' + p.id + '" placeholder="Your wallet address (Solana or EVM)">' +
+        '<button id="vbtn-' + p.id + '" onclick="vote(\'' + p.id + '\')">Vote</button></div>' +
+        '<div id="vmsg-' + p.id + '" class="vote-msg"></div></div>';
+    } else if (hasVoted) {
+      voteHtml = '<div class="vote-msg ok" style="margin-top:12px">\u2713 Your vote has been recorded</div>';
+    }
+
+    // Recent voters
+    let votersHtml = '';
+    if (p.live_results && p.live_results.total_voters > 0) {
+      votersHtml = '<div class="voters">' + (live.total_voters||0) + ' voters, total weight: ' + (live.total_weight||0) + '</div>';
+    }
+
+    return '<div class="proposal-card">' +
+      '<div class="proposal-header"><div class="proposal-title">' + (p.title||'Untitled') + '</div>' +
+      '<div class="proposal-status ' + statusCls + '">' + (p.status||'').toUpperCase() + '</div></div>' +
+      '<div class="proposal-desc">' + (p.description||'').slice(0,500) + '</div>' +
+      '<div class="proposal-meta"><span class="cat-tag">' + (p.category||'feature') + '</span>' +
+      '<span>by ' + (p.author||'MAXIA') + '</span>' +
+      '<span>Created ' + fmtDate(p.created_at) + '</span>' +
+      (isActive ? '<span>' + timeLeft(p.closes_at) + '</span>' : '') + '</div>' +
+      '<div class="options">' + optionsHtml + '</div>' +
+      '<div class="results-summary">' +
+      '<span>\u{1F5F3} ' + (live.total_voters||0) + ' voters</span>' +
+      '<span>\u2696 Total weight: ' + (live.total_weight||0) + '</span></div>' +
+      voteHtml + votersHtml + '</div>';
+  }).join('');
+}
+
+async function loadProposals() {
+  try {
+    const res = await fetch(API + '/api/public/governance?status=' + currentStatus + '&limit=50');
+    const data = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    renderProposals(data.proposals || []);
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Failed to load proposals';
+  }
+}
+
+function filterStatus(status) {
+  currentStatus = status;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  loadProposals();
+}
+
+loadProposals();
+</script>
+</body>
+</html>

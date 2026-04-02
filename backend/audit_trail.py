@@ -424,8 +424,8 @@ async def route_export_csv(
 
     try:
         csv_content = await export_audit_csv(db, tenant_id=tenant_id, month=month)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+    except ValueError:
+        raise HTTPException(400, "Invalid export parameters")
 
     # CSV vide = juste les headers, pas de donnees fictives
     filename = f"maxia_audit_{tenant_id or 'all'}_{month}.csv"

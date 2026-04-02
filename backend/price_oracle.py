@@ -62,6 +62,7 @@ class CircuitBreaker:
 
 
 _cb_helius = CircuitBreaker("helius", max_failures=3, cooldown_s=60)
+_cb_coinpaprika = CircuitBreaker("coinpaprika", max_failures=3, cooldown_s=120)
 _cb_coingecko = CircuitBreaker("coingecko", max_failures=3, cooldown_s=120)
 _cb_yahoo = CircuitBreaker("yahoo", max_failures=3, cooldown_s=120)
 
@@ -243,8 +244,8 @@ async def _fetch_yahoo_stock_prices() -> dict:
                             if price and price > 0:
                                 change_pct = ((price - prev) / prev * 100) if prev else 0
                                 prices[sym] = {"price": round(price, 2), "change": round(change_pct, 2), "source": "yahoo"}
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("Yahoo stock parse error for %s: %s", sym, e)
     except Exception as e:
         logger.error(f"Yahoo Finance error: {e}", exc_info=True)
 
@@ -287,8 +288,8 @@ async def _fetch_one_helius(client: httpx.AsyncClient, rpc: str, sym: str, mint:
             price = price_info.get("price_per_token", 0)
             if price and price > 0:
                 return (sym, {"price": round(float(price), 6), "source": "helius_das"})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Helius DAS fetch error for %s: %s", sym, e)
     return (sym, None)
 
 
@@ -345,40 +346,98 @@ async def get_prices(symbols: list = None) -> dict:
     helius_prices = await _fetch_helius_prices()
     prices.update(helius_prices)
 
-    # Source 2: CoinGecko pour les tokens manquants
+    # Source 2: CoinPaprika (gratuit, pas de cle API, rate limit genereux)
+    # Mapping par ID CoinPaprika (pas par symbol — evite les doublons BTC/BONK etc)
+    SYM_TO_COINPAPRIKA = {
+        "SOL": "sol-solana", "USDC": "usdc-usd-coin", "USDT": "usdt-tether",
+        "BONK": "bonk-bonk", "JUP": "jup-jupiter", "RAY": "ray-raydium",
+        "WIF": "wif-dogwifhat", "RENDER": "rndr-render-token", "HNT": "hnt-helium",
+        "TRUMP": "trump-official-trump", "PYTH": "pyth-pyth-network", "W": "w-wormhole",
+        "ETH": "eth-ethereum", "BTC": "btc-bitcoin",
+        "ORCA": "orca-orca", "JTO": "jto-jito", "TNSR": "tnsr-tensor",
+        "MEW": "mew-cat-in-a-dogs-world", "POPCAT": "popcat-popcat",
+        "MOBILE": "mobile-helium-mobile", "MNDE": "mnde-marinade",
+        "MSOL": "msol-marinade-staked-sol", "DRIFT": "drift-drift-protocol",
+        "KMNO": "kmno-kamino", "PENGU": "pengu-pudgy-penguins", "AI16Z": "ai16z-ai16z",
+        "FARTCOIN": "fartcoin-fartcoin", "GRASS": "grass-grass",
+        "SAMO": "samo-samoyedcoin",
+        "LINK": "link-chainlink", "UNI": "uni-uniswap", "AAVE": "aave-aave",
+        "LDO": "ldo-lido-dao", "FET": "fet-fetch-ai",
+        "PEPE": "pepe-pepe", "DOGE": "doge-dogecoin", "SHIB": "shib-shiba-inu",
+        "XRP": "xrp-xrp", "AVAX": "avax-avalanche", "MATIC": "matic-polygon",
+        "TAO": "tao-bittensor", "AKT": "akt-akash-network", "AIOZ": "aioz-aioz-network",
+        "ARB": "arb-arbitrum", "OP": "op-optimism", "TIA": "tia-celestia",
+        "INJ": "inj-injective", "STX": "stx-stacks", "SUI": "sui-sui",
+        "APT": "apt-aptos", "SEI": "sei-sei", "NEAR": "near-near-protocol",
+        "FIL": "fil-filecoin", "AR": "ar-arweave", "ONDO": "ondo-ondo-finance",
+    }
     stock_syms = {"AAPL","TSLA","NVDA","GOOGL","MSFT","AMZN","META","MSTR","SPY","QQQ",
                   "NFLX","AMD","PLTR","COIN","CRM","INTC","UBER","MARA","AVGO","DIA",
                   "IWM","GLD","ARKK","RIOT","SHOP","SQ","PYPL","ORCL"}
     missing_crypto = [s for s in TOKEN_MINTS if s not in prices and s not in stock_syms]
+    if missing_crypto and not _cb_coinpaprika.is_open:
+        try:
+            client = await _get_http()
+            resp = await client.get("https://api.coinpaprika.com/v1/tickers", timeout=12)
+            if resp.status_code == 200:
+                cp_data = resp.json()
+                # Build lookup by CoinPaprika ID
+                cp_by_id = {}
+                for coin in cp_data:
+                    cp_id = (coin.get("id") or "").lower()
+                    usd = (coin.get("quotes") or {}).get("USD", {}).get("price")
+                    if cp_id and usd is not None:
+                        cp_by_id[cp_id] = float(usd)
+                # Reverse map: MAXIA symbol -> CoinPaprika ID -> price
+                cp_id_to_sym = {v: k for k, v in SYM_TO_COINPAPRIKA.items()}
+                cp_count = 0
+                for sym in missing_crypto:
+                    cp_id = SYM_TO_COINPAPRIKA.get(sym)
+                    if cp_id and cp_id in cp_by_id and cp_by_id[cp_id] > 0:
+                        prices[sym] = {
+                            "price": cp_by_id[cp_id],
+                            "source": "coinpaprika",
+                            "mint": TOKEN_MINTS.get(sym, ""),
+                        }
+                        cp_count += 1
+                if cp_count:
+                    _cb_coinpaprika.record_success()
+                    logger.info(f"CoinPaprika: {cp_count} prices fetched")
+                missing_crypto = [s for s in TOKEN_MINTS if s not in prices and s not in stock_syms]
+            else:
+                _cb_coinpaprika.record_failure()
+        except Exception as e:
+            _cb_coinpaprika.record_failure()
+            logger.error(f"CoinPaprika error: {e}")
+
+    # Source 3: CoinGecko (fallback si CoinPaprika n'a pas tout)
+    SYM_TO_COINGECKO = {
+        "SOL": "solana", "USDC": "usd-coin", "USDT": "tether", "BONK": "bonk",
+        "JUP": "jupiter-exchange-solana", "RAY": "raydium", "WIF": "dogwifcoin",
+        "RENDER": "render-token", "HNT": "helium", "TRUMP": "official-trump",
+        "PYTH": "pyth-network", "W": "wormhole", "ETH": "ethereum", "BTC": "bitcoin",
+        "ORCA": "orca", "JTO": "jito-governance-token", "TNSR": "tensor",
+        "MEW": "cat-in-a-dogs-world", "POPCAT": "popcat", "MOBILE": "helium-mobile",
+        "MNDE": "marinade", "MSOL": "msol", "JITOSOL": "jito-staked-sol",
+        "BSOL": "blazestake-staked-sol", "DRIFT": "drift-protocol",
+        "KMNO": "kamino", "PENGU": "pudgy-penguins", "AI16Z": "ai16z",
+        "FARTCOIN": "fartcoin", "GRASS": "grass", "ZEUS": "zeus-network",
+        "NOSOL": "nosana", "SAMO": "samoyedcoin", "STEP": "step-finance",
+        "BOME": "book-of-meme", "SLERF": "slerf", "MPLX": "metaplex",
+        "INF": "infinity-by-sanctum", "PNUT": "peanut-the-squirrel",
+        "GOAT": "goatseus-maximus",
+        "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
+        "LDO": "lido-dao", "VIRTUAL": "virtual-protocol", "OLAS": "autonolas",
+        "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
+        "DOGE": "dogecoin", "SHIB": "shiba-inu",
+        "XRP": "ripple", "AVAX": "avalanche-2", "MATIC": "matic-network",
+        "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
+        "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
+        "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
+        "APT": "aptos", "SEI": "sei-network", "NEAR": "near",
+        "FIL": "filecoin", "AR": "arweave", "ONDO": "ondo-finance",
+    }
     if missing_crypto:
-        # Map symbols to CoinGecko IDs
-        SYM_TO_COINGECKO = {
-            "SOL": "solana", "USDC": "usd-coin", "USDT": "tether", "BONK": "bonk",
-            "JUP": "jupiter-exchange-solana", "RAY": "raydium", "WIF": "dogwifcoin",
-            "RENDER": "render-token", "HNT": "helium", "TRUMP": "official-trump",
-            "PYTH": "pyth-network", "W": "wormhole", "ETH": "ethereum", "BTC": "bitcoin",
-            "ORCA": "orca", "JTO": "jito-governance-token", "TNSR": "tensor",
-            "MEW": "cat-in-a-dogs-world", "POPCAT": "popcat", "MOBILE": "helium-mobile",
-            "MNDE": "marinade", "MSOL": "msol", "JITOSOL": "jito-staked-sol",
-            "BSOL": "blazestake-staked-sol", "DRIFT": "drift-protocol",
-            "KMNO": "kamino", "PENGU": "pudgy-penguins", "AI16Z": "ai16z",
-            "FARTCOIN": "fartcoin", "GRASS": "grass", "ZEUS": "zeus-network",
-            "NOSOL": "nosana", "SAMO": "samoyedcoin", "STEP": "step-finance",
-            "BOME": "book-of-meme", "SLERF": "slerf", "MPLX": "metaplex",
-            "INF": "infinity-by-sanctum", "PNUT": "peanut-the-squirrel",
-            "GOAT": "goatseus-maximus",
-            "LINK": "chainlink", "UNI": "uniswap", "AAVE": "aave",
-            "LDO": "lido-dao", "VIRTUAL": "virtual-protocol", "OLAS": "autonolas",
-            "FET": "artificial-superintelligence-alliance", "PEPE": "pepe",
-            "DOGE": "dogecoin", "SHIB": "shiba-inu",
-            # Tokens multi-chain ajoutes V12.1 (etaient sans prix)
-            "XRP": "ripple", "AVAX": "avalanche-2", "MATIC": "matic-network",
-            "TAO": "bittensor", "AKT": "akash-network", "AIOZ": "aioz-network",
-            "ARB": "arbitrum", "OP": "optimism", "TIA": "celestia",
-            "INJ": "injective-protocol", "STX": "blockstack", "SUI": "sui",
-            "APT": "aptos", "SEI": "sei-network", "NEAR": "near",
-            "FIL": "filecoin", "AR": "arweave", "ONDO": "ondo-finance",
-        }
         cg_ids = [SYM_TO_COINGECKO[s] for s in missing_crypto if s in SYM_TO_COINGECKO]
         if cg_ids and not _cb_coingecko.is_open:
             try:
@@ -408,7 +467,7 @@ async def get_prices(symbols: list = None) -> dict:
                 _cb_coingecko.record_failure()
                 logger.error(f"CoinGecko error: {e}")
 
-    # Source 3: Fallback pour tout ce qui manque encore
+    # Source 4: Fallback pour tout ce qui manque encore
     for sym, fb_price in FALLBACK_PRICES.items():
         if sym not in prices:
             prices[sym] = {"price": fb_price, "source": "fallback"}
@@ -416,13 +475,28 @@ async def get_prices(symbols: list = None) -> dict:
     _price_cache = prices
     _cache_ts = time.time()
 
+    # Auto-refresh fallback prices from live data (keeps them current)
+    for sym, data in prices.items():
+        if data.get("source") != "fallback" and data.get("price", 0) > 0:
+            FALLBACK_PRICES[sym] = round(data["price"], 6)
+
     live = sum(1 for p in prices.values() if p.get("source") == "helius_das")
+    cp = sum(1 for p in prices.values() if p.get("source") == "coinpaprika")
+    cg = sum(1 for p in prices.values() if p.get("source") == "coingecko")
     fb = sum(1 for p in prices.values() if p.get("source") == "fallback")
-    logger.info(f"{live} live (Helius DAS), {fb} fallback (total {len(prices)})")
+    logger.info(f"{live} Helius, {cp} CoinPaprika, {cg} CoinGecko, {fb} fallback (total {len(prices)})")
 
     if symbols:
         return {s: prices.get(s, {"price": FALLBACK_PRICES.get(s, 0), "source": "fallback"}) for s in symbols}
     return prices
+
+
+async def refresh_fallback_prices() -> int:
+    """Force-refresh FALLBACK_PRICES from live sources. Called by scheduler 1x/day."""
+    prices = await get_prices()
+    updated = sum(1 for v in prices.values() if v.get("source") != "fallback")
+    logger.info("[FallbackRefresh] %d/%d prices updated from live sources", updated, len(prices))
+    return updated
 
 
 async def get_price(symbol: str) -> float:

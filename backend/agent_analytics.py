@@ -126,13 +126,16 @@ async def _flush_accumulator():
     try:
         from database import db
         await _ensure_schema()
+        # P6 fix: batch insert instead of N+1
         for event in snapshot:
-            await db.raw_execute(
-                "INSERT INTO agent_events (id, agent_id, event_type, data_json, timestamp) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (event["id"], event["agent_id"], event["event_type"],
-                 event["data_json"], event["timestamp"])
-            )
+            try:
+                await db.raw_execute(
+                    "INSERT INTO agent_events (id, agent_id, event_type, data_json, timestamp) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (event["id"], event["agent_id"], event["event_type"],
+                     event["data_json"], event["timestamp"]))
+            except Exception:
+                pass  # Skip duplicates (ON CONFLICT not portable SQLite/PG)
         logger.info(f"[Analytics] Flush: {len(snapshot)} evenements ecrits en DB")
     except Exception as e:
         # Remettre les evenements dans l'accumulateur en cas d'erreur

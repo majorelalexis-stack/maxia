@@ -191,6 +191,18 @@ async def oracle_health():
     }
 
 
+@router.get("/fear-greed")
+async def oracle_fear_greed():
+    """Real-time Crypto Fear & Greed Index from alternative.me (free API)."""
+    value, label = await _fetch_real_fear_greed()
+    return {
+        "value": value,
+        "label": label,
+        "source": "alternative.me" if _fear_greed_cache else "fallback",
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 def _format_uptime(seconds: float) -> str:
     """Formate l'uptime en texte lisible."""
     days = int(seconds // 86400)
@@ -386,43 +398,53 @@ async def _build_defi_yields_dataset() -> dict:
     }
 
 
-def _build_fear_greed_dataset() -> dict:
-    """Dataset 5: Crypto Fear & Greed Index (calcul interne)."""
-    # Calcul simplifie base sur les donnees disponibles
-    now = int(time.time())
-    # Generer un index base sur l'heure (deterministe pour stabilite)
-    hour_seed = now // 3600
-    index_value = 45 + (hour_seed % 30)  # 45-74 range (neutre a legere cupidite)
+_fear_greed_cache: dict = {}
+_fear_greed_cache_ts: float = 0
+_FEAR_GREED_CACHE_TTL = 600  # 10 min
 
-    if index_value <= 25:
-        label = "Extreme Fear"
-    elif index_value <= 40:
-        label = "Fear"
-    elif index_value <= 60:
-        label = "Neutral"
-    elif index_value <= 75:
-        label = "Greed"
-    else:
-        label = "Extreme Greed"
+
+async def _fetch_real_fear_greed() -> tuple[int, str]:
+    """Fetch real Fear & Greed Index from alternative.me API (free, no key)."""
+    global _fear_greed_cache, _fear_greed_cache_ts
+    now = time.time()
+    if _fear_greed_cache and now - _fear_greed_cache_ts < _FEAR_GREED_CACHE_TTL:
+        return _fear_greed_cache["value"], _fear_greed_cache["label"]
+    try:
+        client = get_http_client()
+        resp = await client.get("https://api.alternative.me/fcp/v2/", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            entry = data.get("data", {})
+            if entry:
+                first_key = next(iter(entry))
+                val = int(entry[first_key].get("value", 50))
+                label = entry[first_key].get("value_classification", "Neutral")
+                _fear_greed_cache = {"value": val, "label": label}
+                _fear_greed_cache_ts = now
+                return val, label
+    except Exception as e:
+        logger.warning("Fear & Greed API error: %s — using fallback", e)
+    return 50, "Neutral"
+
+
+def _build_fear_greed_dataset() -> dict:
+    """Dataset 5: Crypto Fear & Greed Index (real API: alternative.me)."""
+    # Use cached value synchronously — async fetch happens via /oracle/fear-greed endpoint
+    index_value = _fear_greed_cache.get("value", 50)
+    label = _fear_greed_cache.get("label", "Neutral")
 
     entries = [
         {
             "date": time.strftime("%Y-%m-%d", time.gmtime()),
             "value": index_value,
             "label": label,
-            "components": {
-                "volatility": max(10, min(90, index_value - 5 + (hour_seed % 10))),
-                "momentum": max(10, min(90, index_value + 3 - (hour_seed % 8))),
-                "social_media": max(10, min(90, index_value + (hour_seed % 12) - 6)),
-                "dominance": max(10, min(90, index_value - (hour_seed % 7))),
-                "trends": max(10, min(90, index_value + (hour_seed % 5))),
-            },
+            "source": "alternative.me" if _fear_greed_cache else "fallback",
         }
     ]
     return {
         "id": "fear-greed-index",
         "name": "Crypto Fear & Greed Index",
-        "description": "Index de peur et cupidite crypto. Combine volatilite, momentum, medias sociaux, dominance BTC et tendances Google. Echelle 0 (peur extreme) a 100 (cupidite extreme).",
+        "description": "Real-time Crypto Fear & Greed Index from alternative.me. Scale 0 (extreme fear) to 100 (extreme greed).",
         "format": "json",
         "records": 1,
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

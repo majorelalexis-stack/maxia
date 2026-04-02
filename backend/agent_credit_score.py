@@ -45,6 +45,21 @@ GRADE_THRESHOLDS = {
 }
 
 
+def _wallet_in_data(wallet: str, data) -> bool:
+    """Check if wallet appears as an exact value in a JSON data structure.
+
+    Avoids substring false-positives (e.g. '0x123' matching '0x123456')
+    by comparing only complete string values.
+    """
+    if isinstance(data, str):
+        return data == wallet
+    if isinstance(data, dict):
+        return any(_wallet_in_data(wallet, v) for v in data.values())
+    if isinstance(data, (list, tuple)):
+        return any(_wallet_in_data(wallet, item) for item in data)
+    return False
+
+
 async def compute_credit_score(wallet: str, db) -> dict:
     """Compute a comprehensive credit score for an agent wallet."""
 
@@ -73,7 +88,7 @@ async def compute_credit_score(wallet: str, db) -> dict:
             for r in rows:
                 try:
                     data = json.loads(r["data"]) if isinstance(r["data"], str) else r["data"]
-                    if wallet in json.dumps(data):
+                    if _wallet_in_data(wallet, data):
                         resolution = data.get("resolution", "")
                         if resolution == "release":
                             disputes_won += 1

@@ -66,6 +66,7 @@ CHAIN_RPC_PROVIDERS: dict[str, list[str]] = {
         SOLANA_RPC,
         "https://api.mainnet-beta.solana.com",
         "https://rpc.ankr.com/solana",
+        # Chainstack + Alchemy ajoutés dynamiquement dans _inject_premium_rpcs()
     ],
     "base": [
         BASE_RPC,
@@ -130,6 +131,21 @@ CHAIN_RPC_PROVIDERS: dict[str, list[str]] = {
         "https://rpc.ankr.com/sei",
     ],
 }
+# Inject free-tier Solana RPCs (Chainstack + Alchemy + Helius) en tete de liste
+def _inject_free_tier_rpcs():
+    from config import CHAINSTACK_RPC, ALCHEMY_SOLANA_KEY, HELIUS_API_KEY
+    free_rpcs = []
+    if CHAINSTACK_RPC:
+        free_rpcs.append(CHAINSTACK_RPC)
+    if ALCHEMY_SOLANA_KEY:
+        free_rpcs.append(f"https://solana-mainnet.g.alchemy.com/v2/{ALCHEMY_SOLANA_KEY}")
+    if HELIUS_API_KEY:
+        free_rpcs.append(f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}")
+    if free_rpcs:
+        CHAIN_RPC_PROVIDERS["solana"] = free_rpcs + CHAIN_RPC_PROVIDERS["solana"]
+
+_inject_free_tier_rpcs()
+
 # Deduplicate providers per chain
 for _chain, _urls in CHAIN_RPC_PROVIDERS.items():
     seen: set[str] = set()

@@ -118,59 +118,21 @@ def _get_discovery_url() -> str:
 # ── HTTP helpers (sans dependance externe autre que httpx/aiohttp) ──
 
 async def _http_get(url: str) -> dict:
-    """GET HTTP asynchrone. Utilise httpx si dispo, sinon aiohttp, sinon urllib."""
-    try:
-        from http_client import get_http_client
-        client = get_http_client()
-        resp = await client.get(url, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
-    except ImportError:
-        pass
-
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                resp.raise_for_status()
-                return await resp.json()
-    except ImportError:
-        pass
-
-    # Fallback synchrone via urllib (dernier recours)
-    import urllib.request
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read().decode())
+    """GET HTTP asynchrone via httpx (no sync fallback — blocks event loop)."""
+    from http_client import get_http_client
+    client = get_http_client()
+    resp = await client.get(url, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
 
 
 async def _http_post(url: str, data: dict) -> dict:
-    """POST HTTP asynchrone pour l'echange de code."""
-    try:
-        from http_client import get_http_client
-        client = get_http_client()
-        resp = await client.post(url, data=data, timeout=10)
-        resp.raise_for_status()
-        return resp.json()
-    except ImportError:
-        pass
-
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                resp.raise_for_status()
-                return await resp.json()
-    except ImportError:
-        pass
-
-    # Fallback urllib
-    import urllib.request, urllib.parse
-    encoded = urllib.parse.urlencode(data).encode()
-    req = urllib.request.Request(url, data=encoded, method="POST")
-    req.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read().decode())
+    """POST HTTP asynchrone via httpx (no sync fallback — blocks event loop)."""
+    from http_client import get_http_client
+    client = get_http_client()
+    resp = await client.post(url, data=data, timeout=10)
+    resp.raise_for_status()
+    return resp.json()
 
 
 # ── OIDC Discovery ──

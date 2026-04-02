@@ -39,6 +39,7 @@ MAX_STALENESS_CRYPTO_NORMAL_S = 120
 MAX_STALENESS_CRYPTO_HFT_S = 3
 STALE_CIRCUIT_THRESHOLD = 5
 _consecutive_stale: dict[str, int] = {}
+_STALE_MAX_TRACKED = 500  # P3 fix: cap to prevent unbounded growth
 
 # ── P2: Confidence tieree par asset class (comme Drift) ──
 # Majors: seuil strict (haute liquidite, confidence basse attendue)
@@ -160,10 +161,19 @@ _candle_subscribers: list[asyncio.Queue] = []
 _CANDLE_MAX_SUBSCRIBERS = 100  # Max WebSocket subscribers
 
 
+_last_candle_price: dict[str, float] = {}  # anti-spike: dernier prix par symbol
+
 def _process_candle_tick(symbol: str, price: float, ts: float):
     """Appele a chaque tick SSE — met a jour les CandleBuilders et notifie les subscribers."""
     if not symbol or price <= 0:
         return
+    # Anti-spike: rejeter si le prix devie >3% du dernier tick (changement de source)
+    last = _last_candle_price.get(symbol)
+    if last and last > 0:
+        deviation = abs(price - last) / last
+        if deviation > 0.03:
+            return  # Skip ce tick — probablement un switch de source
+    _last_candle_price[symbol] = price
     if symbol not in _candle_builders:
         # Cap total symbols to prevent unbounded memory growth
         if len(_candle_builders) >= _CANDLE_MAX_SYMBOLS:
@@ -232,8 +242,11 @@ async def _universal_candle_feeder():
             now = time.time()
             fed = 0
             for symbol, data in prices.items():
-                price = data.get("price", 0) if isinstance(data, dict) else 0
-                if price > 0:
+                if not isinstance(data, dict):
+                    continue
+                price = data.get("price", 0)
+                source = data.get("source", "")
+                if price > 0 and source != "fallback":
                     update_twap(symbol, price)
                     _process_candle_tick(symbol, price, now)
                     fed += 1
@@ -434,6 +447,9 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
         # ── Circuit breaker sur lectures stale consecutives ──
         if is_stale:
             _oracle_metrics["stale_rejected"] += 1
+            # P3 fix: cap dict size
+            if len(_consecutive_stale) > _STALE_MAX_TRACKED:
+                _consecutive_stale.clear()
             _consecutive_stale[feed_id] = _consecutive_stale.get(feed_id, 0) + 1
             if _consecutive_stale[feed_id] >= STALE_CIRCUIT_THRESHOLD:
                 _oracle_metrics["circuit_opens"] += 1
@@ -716,7 +732,7 @@ async def get_batch_prices(symbols: list[str]) -> dict:
         if feed_id:
             # Verifier si en cache
             cached = _price_cache.get(feed_id)
-            if cached and now - cached["ts"] < _CACHE_TTL:
+            if cached and now - cached["ts"] < _CACHE_TTL_NORMAL:
                 results[s] = cached["data"].copy()
                 results[s]["symbol"] = s
             else:
@@ -1102,7 +1118,7 @@ async def api_oracle_health():
                 "max_stock_hft_s": MAX_STALENESS_STOCK_HFT_S,
                 "max_crypto_normal_s": MAX_STALENESS_CRYPTO_NORMAL_S,
                 "max_crypto_hft_s": MAX_STALENESS_CRYPTO_HFT_S,
-                "confidence_warn_pct": CONFIDENCE_WARN_PCT,
+                "confidence_warn_pct": _CONFIDENCE_TIERS["major"],
                 "circuit_threshold": STALE_CIRCUIT_THRESHOLD,
             },
             "stale_feeds_count": len(stale_feeds),

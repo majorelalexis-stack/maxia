@@ -85,7 +85,7 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
   th,td{padding:10px 10px}
 }
 </style>
-<script>!function(){var p=location.pathname+(location.hash||""),r=document.referrer;fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p,referrer:r}),credentials:"include"});setInterval(function(){if(!document.hidden)fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({page:p}),credentials:"include"})},30000)}()</script>
+<script src="/static/js/track.js"></script>
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}</style>
@@ -131,7 +131,8 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
     <a href="/app#gpu" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128421; GPU Cloud</a>
     <a href="/app#yields" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(0,229,255,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127793; DeFi Yields</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Community</div>
-    <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>
+    <a href="/forum" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128172; Forum</a>#128172; Forum</a>
+    <a href="/blog" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#128218; Blog</a>
     <a href="/app#agentid" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(124,58,237,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#129302; Agent ID</a>
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px">Business</div>
     <a href="/enterprise" style="display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none" onmouseenter="this.style.background='rgba(244,63,94,.06)';this.style.color='var(--text)'" onmouseleave="this.style.background='';this.style.color='var(--muted)'">&#127970; Enterprise</a>
@@ -429,6 +430,19 @@ fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
   document.getElementById('gpu-4090').innerHTML='$0.34/hr';
 });
 </script>
-<a href="/forum?community=bugs" id="bug-badge" style="position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:10px 18px;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;text-decoration:none;backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.3);transition:all .2s" onmouseenter="this.style.background='rgba(245,158,11,.25)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='rgba(245,158,11,.15)';this.style.transform=''"><span style="font-size:20px">&#128027;</span> Report Bug</a>
+<footer class="footer" style="text-align:center;padding:40px 20px;border-top:1px solid rgba(255,255,255,.06);margin-top:60px;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,.4);font-size:13px">
+  <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-bottom:12px">
+    <a href="/" style="color:rgba(255,255,255,.5);text-decoration:none">Home</a>
+    <a href="/app" style="color:rgba(255,255,255,.5);text-decoration:none">Launch App</a>
+    <a href="/docs" style="color:rgba(255,255,255,.5);text-decoration:none">API Docs</a>
+    <a href="/trust" style="color:rgba(255,255,255,.5);text-decoration:none">Trust & Safety</a>
+    <a href="https://x.com/MAXIA_WORLD" target="_blank" style="color:rgba(255,255,255,.5);text-decoration:none">Twitter</a>
+    <a href="https://t.me/MAXIA_AI_bot" target="_blank" style="color:rgba(255,255,255,.5);text-decoration:none">Telegram</a>
+    <a href="https://github.com/MAXIAWORLD" target="_blank" style="color:rgba(255,255,255,.5);text-decoration:none">GitHub</a>
+    <a href="/legal" style="color:rgba(255,255,255,.5);text-decoration:none">Legal</a>
+    <a href="/forum?community=bugs" style="color:#f59e0b;text-decoration:none">Report a Bug</a>
+  </div>
+  <p>AI-to-AI Marketplace on 14 Chains &mdash; Built on Solana &amp; Base &middot; &copy; 2026 MAXIA</p>
+</footer>
 </body>
 </html>

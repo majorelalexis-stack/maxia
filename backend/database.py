@@ -3,7 +3,9 @@
 SQLite pour dev/low-traffic. PostgreSQL pour prod >10 concurrent writers.
 Usage : DATABASE_URL=postgresql://user:pass@host:5432/maxia dans .env
 """
+from __future__ import annotations
 import json, logging, time, os, re, aiosqlite
+from typing import Any
 
 logger = logging.getLogger(__name__)
 from pathlib import Path
@@ -162,6 +164,19 @@ DB_SCHEMA = (
     "status TEXT DEFAULT 'completed',"
     "created_at INTEGER DEFAULT (strftime('%s','now')));"
 
+    "CREATE TABLE IF NOT EXISTS price_alerts ("
+    "alert_id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL,"
+    "created_at INTEGER DEFAULT (strftime('%s','now')));"
+
+    "CREATE INDEX IF NOT EXISTS idx_price_alerts_wallet ON price_alerts(wallet);"
+
+    "CREATE TABLE IF NOT EXISTS wallet_follows ("
+    "id INTEGER PRIMARY KEY AUTOINCREMENT, user_wallet TEXT NOT NULL,"
+    "target_wallet TEXT NOT NULL, created_at INTEGER DEFAULT (strftime('%s','now')),"
+    "UNIQUE(user_wallet, target_wallet));"
+
+    "CREATE INDEX IF NOT EXISTS idx_wallet_follows_user ON wallet_follows(user_wallet);"
+
     "CREATE INDEX IF NOT EXISTS idx_tx_purpose ON transactions(purpose, created_at);"
     "CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at);"
     "CREATE INDEX IF NOT EXISTS idx_svc_agent ON agent_services(agent_api_key, status);"
@@ -196,7 +211,7 @@ class Database:
                 out.append(ch)
         return ''.join(out), params
 
-    async def raw_execute(self, sql, params=()):
+    async def raw_execute(self, sql: str, params: tuple[Any, ...] = ()) -> None:
         """Execute a raw SQL statement. Compatible SQLite + PostgreSQL."""
         if getattr(self, '_pg', None):
             sql, params = self._pg_params(sql, params)
@@ -206,7 +221,7 @@ class Database:
         await self._db.execute(sql, params)
         await self._db.commit()
 
-    async def raw_execute_fetchall(self, sql, params=()):
+    async def raw_execute_fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         """Execute a raw SELECT and return all rows. Compatible SQLite + PostgreSQL."""
         if getattr(self, '_pg', None):
             sql, params = self._pg_params(sql, params)
@@ -234,7 +249,7 @@ class Database:
         sql = re.sub(r"substr\((\w+),\s*(\d+),\s*(\d+)\)", r"substring(\1 from \2 for \3)", sql)
         return sql
 
-    async def raw_executescript(self, sql):
+    async def raw_executescript(self, sql: str) -> None:
         """Execute a raw SQL script (multiple statements). Compatible SQLite + PostgreSQL."""
         if getattr(self, '_pg', None):
             sql = self._pg_convert(sql)
@@ -250,7 +265,7 @@ class Database:
             return
         await self._db.executescript(sql)
 
-    async def connect(self):
+    async def connect(self) -> None:
         if DATABASE_URL and DATABASE_URL.startswith("postgres"):
             # ── PostgreSQL (prod scale, >10 concurrent writers) ──
             try:
@@ -273,8 +288,9 @@ class Database:
                             continue
                         try:
                             await conn.execute(stmt)
-                        except Exception:
-                            pass  # Table/index existe deja
+                        except Exception as e:
+                            if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+                                logger.warning("PG schema init warning: %s", e)
                 self._db = None  # Pas de SQLite
                 await self._run_migrations()
                 logger.info("PostgreSQL connectee: %s", DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else '***')
@@ -403,6 +419,9 @@ class Database:
             "ALTER TABLE agent_permissions ALTER COLUMN max_single_tx_usd TYPE NUMERIC(18,6);"
             "ALTER TABLE agent_permissions ALTER COLUMN daily_spent_usd TYPE NUMERIC(18,6);"
         )),
+        6: ("Performance indexes for common queries", (
+            "CREATE INDEX IF NOT EXISTS idx_tx_wallet_purpose ON transactions(wallet, purpose);"
+        )),
     }
 
     async def _run_migrations(self):
@@ -450,40 +469,40 @@ class Database:
                 await self.raw_execute(
                     "INSERT INTO schema_version(version, applied_at, description) VALUES(?,?,?)",
                     (1, datetime.now(timezone.utc).isoformat(), "Initial schema — baseline V12"))
-            except Exception:
-                pass  # Deja insere
+            except Exception as e:
+                logger.debug("Initial schema_version insert skipped (already exists): %s", e)
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         if self._db:
             await self._db.close()
 
-    async def save_token(self, t: dict):
+    async def save_token(self, t: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT OR REPLACE INTO exchange_tokens(mint,symbol,name,decimals,price,creator_wallet) VALUES(?,?,?,?,?,?)",
             (t["mint"], t["symbol"], t["name"], t.get("decimals", 9), t["price"], t.get("creator", "")))
 
-    async def get_tokens(self):
-        rows = await self.raw_execute_fetchall("SELECT mint, symbol, name, decimals, price, change24h, volume24h, creator_wallet, listed_at FROM exchange_tokens ORDER BY volume24h DESC")
+    async def get_tokens(self) -> list[dict[str, Any]]:
+        rows = await self.raw_execute_fetchall("SELECT mint, symbol, name, decimals, price, change24h, volume24h, creator_wallet, listed_at FROM exchange_tokens ORDER BY volume24h DESC LIMIT 1000")
         return [dict(r) for r in rows]
 
-    async def save_order(self, o):
+    async def save_order(self, o: Any) -> None:
         await self.raw_execute(
             "INSERT OR REPLACE INTO exchange_orders(order_id,side,mint,qty,qty_filled,price_usdc,order_type,wallet,escrow_tx,currency,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             (o.order_id, o.side, o.mint, o.qty, o.qty_filled, o.price_usdc, o.order_type,
              o.wallet, o.escrow_tx, getattr(o, "currency", "USDC"), o.status, o.created_at))
 
-    async def get_open_orders(self, mint):
+    async def get_open_orders(self, mint: str) -> list[dict[str, Any]]:
         rows = await self.raw_execute_fetchall(
             "SELECT order_id, side, mint, qty, qty_filled, price_usdc, order_type, wallet, escrow_tx, currency, status, created_at FROM exchange_orders WHERE mint=? AND status IN ('open','partial') ORDER BY created_at ASC", (mint,))
         return [dict(r) for r in rows]
 
-    async def update_order_status(self, order_id, status, qty_filled=None):
+    async def update_order_status(self, order_id: str, status: str, qty_filled: float | None = None) -> None:
         if qty_filled is not None:
             await self.raw_execute("UPDATE exchange_orders SET status=?,qty_filled=? WHERE order_id=?", (status, qty_filled, order_id))
         else:
             await self.raw_execute("UPDATE exchange_orders SET status=? WHERE order_id=?", (status, order_id))
 
-    async def lock_escrow(self, order_id, wallet, currency, amount_raw, tx_signature):
+    async def lock_escrow(self, order_id: str, wallet: str, currency: str, amount_raw: int | str, tx_signature: str) -> str:
         import uuid as _u
         eid = str(_u.uuid4())
         await self.raw_execute(
@@ -491,23 +510,23 @@ class Database:
             (eid, order_id, wallet, currency, str(amount_raw), tx_signature))
         return eid
 
-    async def get_escrow_by_order(self, order_id):
+    async def get_escrow_by_order(self, order_id: str) -> dict[str, Any] | None:
         row = await self._fetchone("SELECT escrow_id, order_id, wallet, currency, amount_raw, tx_signature, status, created_at FROM escrow WHERE order_id=? AND status='locked'", (order_id,))
         return dict(row) if row else None
 
-    async def release_escrow(self, escrow_id):
+    async def release_escrow(self, escrow_id: str) -> None:
         await self.raw_execute("UPDATE escrow SET status='released' WHERE escrow_id=?", (escrow_id,))
 
-    async def record_transaction(self, wallet, tx_sig, amount_usdc, purpose="marketplace"):
+    async def record_transaction(self, wallet: str, tx_sig: str, amount_usdc: float, purpose: str = "marketplace") -> None:
         await self.raw_execute(
             "INSERT OR IGNORE INTO transactions(tx_signature,wallet,amount_usdc,purpose) VALUES(?,?,?,?)",
             (tx_sig, wallet, amount_usdc, purpose))
 
-    async def tx_already_processed(self, tx_sig):
+    async def tx_already_processed(self, tx_sig: str) -> bool:
         row = await self._fetchone("SELECT 1 FROM transactions WHERE tx_signature=?", (tx_sig,))
         return row is not None
 
-    async def get_agent_volume_30d(self, wallet):
+    async def get_agent_volume_30d(self, wallet: str) -> float:
         cutoff = int(time.time()) - 30 * 86400
         row = await self._fetchone(
             "SELECT COALESCE(SUM(amount_usdc),0) AS total FROM transactions WHERE wallet=? AND created_at>=?",
@@ -528,7 +547,8 @@ class Database:
                     "SELECT COUNT(*) as cnt FROM transactions WHERE wallet=? AND purpose='crypto_swap'",
                     (wallet,))
                 return int(rows[0]['cnt']) if rows else 0
-        except Exception:
+        except Exception as e:
+            logger.warning("get_swap_count DB error: %s", e)
             return -1
 
     async def get_swap_volume_30d(self, wallet: str) -> float:
@@ -548,33 +568,34 @@ class Database:
                     (wallet, cutoff)
                 )
                 return float(rows[0]['vol']) if rows else 0
-        except Exception:
+        except Exception as e:
+            logger.warning("get_swap_volume_30d DB error: %s", e)
             return 0
 
-    async def save_auction(self, a):
+    async def save_auction(self, a: dict[str, Any]) -> None:
         await self.raw_execute("INSERT OR REPLACE INTO auctions(auction_id,data) VALUES(?,?)", (a["auctionId"], json.dumps(a)))
 
-    async def get_auction(self, auction_id):
+    async def get_auction(self, auction_id: str) -> dict[str, Any] | None:
         row = await self._fetchone("SELECT data FROM auctions WHERE auction_id=?", (auction_id,))
         return json.loads(row["data"]) if row else None
 
-    async def update_auction(self, auction_id, updates):
+    async def update_auction(self, auction_id: str, updates: dict[str, Any]) -> None:
         a = await self.get_auction(auction_id)
         if a:
             a.update(updates)
             await self.save_auction(a)
 
-    async def save_listing(self, l):
+    async def save_listing(self, l: dict[str, Any]) -> None:
         await self.raw_execute("INSERT OR REPLACE INTO listings(id,data) VALUES(?,?)", (l["id"], json.dumps(l)))
 
-    async def get_listings(self):
-        rows = await self.raw_execute_fetchall("SELECT data FROM listings")
+    async def get_listings(self, limit: int = 1000) -> list[dict[str, Any]]:
+        rows = await self.raw_execute_fetchall("SELECT data FROM listings LIMIT ?", (limit,))
         return [json.loads(r["data"]) for r in rows]
 
-    async def save_command(self, c):
+    async def save_command(self, c: dict[str, Any]) -> None:
         await self.raw_execute("INSERT OR REPLACE INTO commands(command_id,data) VALUES(?,?)", (c["commandId"], json.dumps(c)))
 
-    async def get_stats(self):
+    async def get_stats(self) -> dict[str, float | int]:
         now = int(time.time())
         cutoff = now - 86400
         try:
@@ -588,50 +609,52 @@ class Database:
                 "total_revenue": float(r2["rev"]) if r2 else 0.0,
                 "listing_count": int(r3["cnt"]) if r3 else 0,
             }
-        except Exception:
+        except Exception as e:
+            logger.warning("get_stats DB error: %s", e)
             return {"volume_24h": 0.0, "total_revenue": 0.0, "listing_count": 0}
 
-    async def get_activity(self, limit=30):
+    async def get_activity(self, limit: int = 30) -> list[dict[str, Any]]:
         try:
             rows = await self.raw_execute_fetchall(
                 "SELECT tx_signature,wallet,amount_usdc,purpose,created_at FROM transactions ORDER BY created_at DESC LIMIT ?",
                 (limit,))
             return [dict(r) for r in rows]
-        except Exception:
+        except Exception as e:
+            logger.warning("get_activity DB error: %s", e)
             return []
 
-    async def save_stake(self, stake: dict):
+    async def save_stake(self, stake: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT OR REPLACE INTO stakes(stake_id,wallet,data) VALUES(?,?,?)",
             (stake["stakeId"], stake["wallet"], json.dumps(stake)))
 
-    async def get_stake(self, wallet: str):
+    async def get_stake(self, wallet: str) -> dict[str, Any] | None:
         row = await self._fetchone(
             "SELECT data FROM stakes WHERE wallet=? ORDER BY created_at DESC LIMIT 1", (wallet,))
         return json.loads(row["data"]) if row else None
 
-    async def get_all_stakes(self):
-        rows = await self.raw_execute_fetchall("SELECT data FROM stakes")
+    async def get_all_stakes(self, limit: int = 1000) -> list[dict[str, Any]]:
+        rows = await self.raw_execute_fetchall("SELECT data FROM stakes LIMIT ?", (limit,))
         return [json.loads(r["data"]) for r in rows]
 
-    async def save_dispute(self, dispute: dict):
+    async def save_dispute(self, dispute: dict[str, Any]) -> None:
         dispute_id = dispute.get("id", dispute.get("disputeId", ""))
         await self.raw_execute(
             "INSERT OR REPLACE INTO disputes(id,data) VALUES(?,?)",
             (dispute_id, json.dumps(dispute)))
 
-    async def get_dispute(self, dispute_id: str):
+    async def get_dispute(self, dispute_id: str) -> dict[str, Any] | None:
         row = await self._fetchone(
             "SELECT data FROM disputes WHERE id=?", (dispute_id,))
         return json.loads(row["data"]) if row else None
 
-    async def get_all_disputes(self):
-        rows = await self.raw_execute_fetchall("SELECT data FROM disputes")
+    async def get_all_disputes(self, limit: int = 1000) -> list[dict[str, Any]]:
+        rows = await self.raw_execute_fetchall("SELECT data FROM disputes LIMIT ?", (limit,))
         return [json.loads(r["data"]) for r in rows]
 
     # ── Marketplace: Agents ──
 
-    async def save_agent(self, agent: dict):
+    async def save_agent(self, agent: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT OR REPLACE INTO agents(api_key,name,wallet,description,tier,volume_30d,total_spent,total_earned,services_listed) VALUES(?,?,?,?,?,?,?,?,?)",
             (agent["api_key"], agent["name"], agent["wallet"], agent.get("description", ""),
@@ -639,7 +662,7 @@ class Database:
              agent.get("total_spent", 0), agent.get("total_earned", 0),
              agent.get("services_listed", 0)))
 
-    async def get_agent(self, api_key: str):
+    async def get_agent(self, api_key: str) -> dict[str, Any] | None:
         # SELECT * intentional: all 10 columns (api_key, name, wallet, description, tier,
         # volume_30d, total_spent, total_earned, services_listed, created_at) are accessed
         # across 30+ callers in public_api, infra_features, marketplace_features, etc.
@@ -649,20 +672,20 @@ class Database:
             "FROM agents WHERE api_key=?", (api_key,))
         return dict(rows[0]) if rows else None
 
-    async def get_all_agents(self):
+    async def get_all_agents(self) -> list[dict[str, Any]]:
         return await self.raw_execute_fetchall(
             "SELECT api_key, name, wallet, description, tier, volume_30d, "
             "total_spent, total_earned, services_listed, created_at "
             "FROM agents ORDER BY created_at DESC")
 
-    async def get_agent_by_referral_code(self, code: str):
+    async def get_agent_by_referral_code(self, code: str) -> dict[str, Any] | None:
         """Find agent whose api_key[6:14] matches the referral code — O(1) with index."""
         rows = await self.raw_execute_fetchall(
             "SELECT api_key, name, wallet FROM agents WHERE substr(api_key, 7, 8) = ? LIMIT 1",
             (code,))
         return dict(rows[0]) if rows else None
 
-    async def update_agent(self, api_key: str, updates: dict):
+    async def update_agent(self, api_key: str, updates: dict[str, Any]) -> None:
         safe = {k: v for k, v in updates.items()
                 if k in ALLOWED_AGENT_COLUMNS and re.match(r'^[a-z_]+$', k)}
         if not safe:
@@ -671,13 +694,13 @@ class Database:
         vals = list(safe.values()) + [api_key]
         await self.raw_execute(f"UPDATE agents SET {sets} WHERE api_key=?", tuple(vals))
 
-    async def count_agents(self):
+    async def count_agents(self) -> int:
         rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c FROM agents")
         return rows[0]["c"] if rows else 0
 
     # ── Marketplace: Services ──
 
-    async def save_service(self, service: dict):
+    async def save_service(self, service: dict[str, Any]) -> None:
         if getattr(self, '_pg', None):
             async with self._pg.acquire() as conn:
                 await conn.execute(
@@ -699,22 +722,22 @@ class Database:
     _SVC_COLS = ("id, agent_api_key, agent_name, agent_wallet, name, description, "
                  "type, price_usdc, endpoint, status, rating, rating_count, sales, listed_at")
 
-    async def get_services(self, status="active"):
+    async def get_services(self, status: str = "active") -> list[dict[str, Any]]:
         return await self.raw_execute_fetchall(
             f"SELECT {self._SVC_COLS} FROM agent_services WHERE status=? ORDER BY rating DESC, sales DESC", (status,))
 
-    async def get_service(self, service_id: str):
+    async def get_service(self, service_id: str) -> dict[str, Any] | None:
         rows = await self.raw_execute_fetchall(
             f"SELECT {self._SVC_COLS} FROM agent_services WHERE id=?", (service_id,))
         return dict(rows[0]) if rows else None
 
-    async def get_service_by_name(self, name: str):
+    async def get_service_by_name(self, name: str) -> dict[str, Any] | None:
         """Cherche un service par son nom (case-insensitive)."""
         rows = await self.raw_execute_fetchall(
             f"SELECT {self._SVC_COLS} FROM agent_services WHERE LOWER(name)=LOWER(?) AND status='active' LIMIT 1", (name,))
         return dict(rows[0]) if rows else None
 
-    async def update_service(self, service_id: str, updates: dict):
+    async def update_service(self, service_id: str, updates: dict[str, Any]) -> None:
         safe = {k: v for k, v in updates.items()
                 if k in ALLOWED_SERVICE_COLUMNS and re.match(r'^[a-z_]+$', k)}
         if not safe:
@@ -725,13 +748,13 @@ class Database:
 
     # ── Marketplace: Transactions ──
 
-    async def save_marketplace_tx(self, tx: dict):
+    async def save_marketplace_tx(self, tx: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT INTO marketplace_tx(tx_id,buyer,seller,service,price_usdc,commission_usdc,seller_gets_usdc) VALUES(?,?,?,?,?,?,?)",
             (tx["tx_id"], tx["buyer"], tx["seller"], tx["service"],
              tx["price_usdc"], tx["commission_usdc"], tx["seller_gets_usdc"]))
 
-    async def get_marketplace_stats(self):
+    async def get_marketplace_stats(self) -> dict[str, int | float]:
         rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c FROM agents")
         agents_count = rows[0]["c"] if rows else 0
         rows = await self.raw_execute_fetchall("SELECT COUNT(*) as c FROM agent_services WHERE status='active'")
@@ -754,7 +777,7 @@ class Database:
 
     # ── Crypto Swaps ──
 
-    async def save_swap(self, swap: dict):
+    async def save_swap(self, swap: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT INTO crypto_swaps (swap_id, buyer_wallet, from_token, to_token, "
             "amount_in, amount_out, commission, payment_tx, jupiter_tx, status) "
@@ -767,7 +790,7 @@ class Database:
 
     # ── Stock Portfolios ──
 
-    async def save_stock_holding(self, api_key: str, symbol: str, shares: float):
+    async def save_stock_holding(self, api_key: str, symbol: str, shares: float) -> None:
         import time as _t
         now = int(_t.time())
         await self.raw_execute(
@@ -775,12 +798,12 @@ class Database:
             "ON CONFLICT(api_key,symbol) DO UPDATE SET shares=?,updated_at=?",
             (api_key, symbol, shares, now, shares, now))
 
-    async def get_stock_portfolio(self, api_key: str) -> dict:
+    async def get_stock_portfolio(self, api_key: str) -> dict[str, float]:
         rows = await self.raw_execute_fetchall(
             "SELECT symbol, shares FROM stock_portfolios WHERE api_key=? AND shares>0", (api_key,))
         return {r["symbol"]: float(r["shares"]) for r in rows}
 
-    async def get_all_stock_portfolios(self) -> dict:
+    async def get_all_stock_portfolios(self) -> dict[str, dict[str, float]]:
         rows = await self.raw_execute_fetchall(
             "SELECT api_key, symbol, shares FROM stock_portfolios WHERE shares>0")
         portfolios: dict = {}
@@ -788,19 +811,19 @@ class Database:
             portfolios.setdefault(r["api_key"], {})[r["symbol"]] = float(r["shares"])
         return portfolios
 
-    async def save_stock_trade(self, trade: dict):
+    async def save_stock_trade(self, trade: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT OR REPLACE INTO stock_trades(trade_id,data) VALUES(?,?)",
             (trade["trade_id"], json.dumps(trade)))
 
-    async def get_stock_trades(self, limit: int = 100) -> list:
+    async def get_stock_trades(self, limit: int = 100) -> list[dict[str, Any]]:
         rows = await self.raw_execute_fetchall(
             "SELECT data FROM stock_trades ORDER BY created_at DESC LIMIT ?", (limit,))
         return [json.loads(r["data"]) for r in rows]
 
     # ── GPU Instances ──
 
-    async def save_gpu_instance(self, instance: dict):
+    async def save_gpu_instance(self, instance: dict[str, Any]) -> None:
         await self.raw_execute(
             "INSERT INTO gpu_instances (instance_id, agent_wallet, agent_name, gpu_tier, "
             "duration_hours, price_per_hour, total_cost, commission, payment_tx, "
@@ -813,7 +836,7 @@ class Database:
              instance.get("status", "provisioning"), instance.get("ssh_endpoint", ""),
              instance.get("scheduled_end", 0)))
 
-    async def update_gpu_instance(self, instance_id: str, updates: dict):
+    async def update_gpu_instance(self, instance_id: str, updates: dict[str, Any]) -> None:
         allowed = {"status", "actual_end", "actual_cost", "ssh_endpoint", "runpod_pod_id"}
         filtered = {k: v for k, v in updates.items() if k in allowed}
         if not filtered:
@@ -827,20 +850,20 @@ class Database:
                  "price_per_hour, total_cost, commission, payment_tx, runpod_pod_id, "
                  "status, ssh_endpoint, scheduled_end, actual_end, actual_cost, created_at")
 
-    async def get_active_gpu_instances(self) -> list:
+    async def get_active_gpu_instances(self) -> list[dict[str, Any]]:
         rows = await self.raw_execute_fetchall(
             f"SELECT {self._GPU_COLS} FROM gpu_instances WHERE status IN ('provisioning', 'running') "
             "ORDER BY created_at DESC")
         return [dict(r) for r in rows] if rows else []
 
-    async def get_gpu_instance(self, instance_id: str) -> dict:
+    async def get_gpu_instance(self, instance_id: str) -> dict[str, Any]:
         rows = await self.raw_execute_fetchall(
             f"SELECT {self._GPU_COLS} FROM gpu_instances WHERE instance_id=?", (instance_id,))
         return dict(rows[0]) if rows else {}
 
     # ── Analytics (V12) ──
 
-    async def get_volume_timeseries(self, period_hours: int = 168, granularity_hours: int = 1):
+    async def get_volume_timeseries(self, period_hours: int = 168, granularity_hours: int = 1) -> list[dict[str, Any]]:
         """Return volume bucketed by granularity over the given period."""
         now = int(time.time())
         cutoff = now - period_hours * 3600
@@ -852,7 +875,7 @@ class Database:
         return [{"timestamp": r["bucket"], "volume_usdc": float(r["volume"]),
                  "tx_count": r["tx_count"]} for r in rows]
 
-    async def get_top_agents(self, limit: int = 10, period_days: int = 30):
+    async def get_top_agents(self, limit: int = 10, period_days: int = 30) -> list[dict[str, Any]]:
         """Return top agents by volume in the given period."""
         cutoff = int(time.time()) - period_days * 86400
         rows = await self.raw_execute_fetchall(
@@ -864,7 +887,7 @@ class Database:
             (cutoff, limit))
         return [dict(r) for r in rows]
 
-    async def get_revenue_breakdown(self, period_days: int = 30):
+    async def get_revenue_breakdown(self, period_days: int = 30) -> list[dict[str, Any]]:
         """Return revenue grouped by purpose over the given period."""
         cutoff = int(time.time()) - period_days * 86400
         rows = await self.raw_execute_fetchall(
@@ -878,7 +901,7 @@ class Database:
     # ── Analytics ──
 
     async def track_page_view(self, session_id: str, page: str, referrer: str,
-                               ip: str, user_agent: str, device: str):
+                               ip: str, user_agent: str, device: str) -> None:
         """Record a page view and update session."""
         now = int(time.time())
         await self.raw_execute(
@@ -898,7 +921,7 @@ class Database:
                 "VALUES(?,?,?,?,1,?,?)",
                 (session_id, ip, device, page, now, now))
 
-    async def get_analytics_summary(self, period_days: int = 30):
+    async def get_analytics_summary(self, period_days: int = 30) -> dict[str, Any]:
         """Analytics dashboard data."""
         now = int(time.time())
         day_ago = now - 86400
@@ -972,7 +995,7 @@ class Database:
 db = Database()
 
 
-async def create_database():
+async def create_database() -> Database:
     """Factory: Database() gere SQLite et PostgreSQL automatiquement.
     Si DATABASE_URL est defini, PostgreSQL est utilise. Sinon, SQLite."""
     db_instance = Database()

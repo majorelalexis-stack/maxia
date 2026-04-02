@@ -100,7 +100,7 @@ async def ton_info():
 @router.post("/api/ton/verify")
 async def ton_verify(request: Request):
     """Verifie une transaction sur TON."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_hash = body.get("tx_hash", "")
     if not tx_hash:
@@ -149,7 +149,7 @@ async def sui_info():
 @router.post("/api/sui/verify")
 async def sui_verify(request: Request):
     """Verifie une transaction sur SUI."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_digest = body.get("tx_digest", "") or body.get("tx_hash", "")
     if not tx_digest:
@@ -200,7 +200,7 @@ async def tron_info():
 @router.post("/api/tron/verify")
 async def tron_verify(request: Request):
     """Verifie une transaction sur TRON."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_id = body.get("tx_id", "") or body.get("tx_hash", "")
     if not tx_id:
@@ -245,7 +245,7 @@ async def near_info():
 @router.post("/api/near/verify")
 async def near_verify(request: Request):
     """Verifie une transaction NEAR."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_hash = body.get("tx_hash", "")
     if not tx_hash:
@@ -298,7 +298,7 @@ async def aptos_info():
 @router.post("/api/aptos/verify")
 async def aptos_verify(request: Request):
     """Verifie une transaction Aptos."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_hash = body.get("tx_hash", "")
     if not tx_hash:
@@ -350,7 +350,7 @@ async def sei_info():
 @router.post("/api/sei/verify")
 async def sei_verify(request: Request):
     """Verifie une transaction SEI (EVM)."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_hash = body.get("tx_hash", "")
     if not tx_hash:
@@ -364,7 +364,7 @@ async def sei_verify(request: Request):
 @router.post("/api/sei/verify-usdc")
 async def sei_verify_usdc(request: Request):
     """Verifie un transfert USDC sur SEI."""
-    check_rate_limit(request)
+    await check_rate_limit(request)
     body = await request.json()
     tx_hash = body.get("tx_hash", "")
     if not tx_hash:

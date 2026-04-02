@@ -640,7 +640,7 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
             "amount": str(amount_raw),
             "slippageBps": 50,
             "restrictIntermediateTokens": "true",
-            "platformFeeBps": "5",  # 0.05% referral fee to MAXIA treasury
+            # BUG 3 fix: removed platformFeeBps to avoid double-charging (MAXIA commission already applied)
         }
 
         # Single attempt, single URL, 3s timeout — no retry/sleep
@@ -662,13 +662,11 @@ async def get_swap_quote(from_token: str, to_token: str, amount: float,
                         "route": [r.get("swapInfo", {}).get("label", "") for r in jdata.get("routePlan", [])],
                         "raw": jdata,
                     }
-                    # #5: Apply commission ONCE — deduct from Jupiter output
-                    # instead of double-charging
-                    if jupiter_output > output_amount:
-                        commission_from_jupiter = round(jupiter_output * commission_bps / 10000, 6)
-                        output_amount = jupiter_output - commission_from_jupiter
-                        # Update commission_usd to reflect Jupiter-based calc
-                        commission_usd = round(commission_from_jupiter * to_price, 6)
+                    # BUG 4 fix: ALWAYS use Jupiter output for settlement (not cache estimate)
+                    # Apply commission ONCE — deduct from Jupiter output
+                    commission_from_jupiter = round(jupiter_output * commission_bps / 10000, 6)
+                    output_amount = jupiter_output - commission_from_jupiter
+                    commission_usd = round(commission_from_jupiter * to_price, 6)
                 else:
                     _log_swap(f"Jupiter returned 0 output — using cached prices")
         else:
@@ -749,10 +747,16 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
     if not payment_tx:
         return {"success": False, "error": "payment_tx required"}
 
-    # #2: Idempotency — reject re-used payment transactions
+    # S-1 fix: Idempotency — reserve tx BEFORE long operations (close TOCTOU gap)
     from database import db
     if await db.tx_already_processed(payment_tx):
         return {"success": False, "error": "Payment already used"}
+    # Reserve immediately to prevent concurrent reuse
+    try:
+        await db.record_transaction(buyer_wallet, payment_tx, 0, "swap_pending")
+    except Exception as e:
+        _log_swap(f"Idempotency reserve failed: {e}")
+        return {"success": False, "error": "Service temporarily unavailable"}
 
     # Obtenir le devis (commission calculated ONCE here — #5)
     quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d, swap_count)
@@ -893,7 +897,10 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
             "tenant_id": _tenant_id,
             "status": "completed",
         })
-        await db.record_transaction(buyer_wallet, payment_tx, commission_usd, "crypto_swap")
+        # S-1: Update pending → confirmed (reserved earlier)
+        await db.raw_execute(
+            "UPDATE transactions SET amount_usdc=?, purpose=? WHERE tx_signature=?",
+            (commission_usd, "crypto_swap", payment_tx))
     except Exception as e:
         _log_swap(f"DB persistence error: {e}")
 

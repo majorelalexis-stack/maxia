@@ -6,4 +6,20 @@ Disallow: /api/
 Disallow: /ws
 Disallow: /mcp/
 
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
 Sitemap: https://maxiaworld.app/sitemap.xml

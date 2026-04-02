@@ -107,6 +107,53 @@ class ReputationStaking:
         await self._db.save_dispute(dispute)
         return {"success": True, "status": dispute["status"], "dispute": dispute}
 
+    async def unstake(self, wallet: str) -> dict:
+        """Withdraw remaining stake (after any slash). Sends USDC back on-chain."""
+        stake = await self.get_stake(wallet)
+        if not stake or stake.get("status") == "none":
+            return {"success": False, "error": "No active stake found"}
+        if stake.get("status") == "insufficient":
+            return {"success": False, "error": "Stake slashed below minimum — cannot unstake"}
+
+        # Check no pending disputes
+        if self._db:
+            disputes = await self._db.get_all_disputes()
+            pending = [d for d in disputes if d.get("accused") == wallet and d.get("status") == "pending"]
+            if pending:
+                return {"success": False, "error": f"{len(pending)} dispute(s) pending — cannot unstake"}
+
+        amount = float(stake.get("amount", 0))
+        if amount <= 0:
+            return {"success": False, "error": "Nothing to withdraw"}
+
+        # Send USDC back to staker from treasury
+        try:
+            from solana_tx import send_usdc_transfer_real
+            from config import TREASURY_ADDRESS
+            result = await send_usdc_transfer_real(
+                to_address=wallet,
+                amount_usdc=amount,
+            )
+            if not result.get("success"):
+                return {"success": False, "error": f"On-chain transfer failed: {result.get('error', 'unknown')}"}
+
+            # Mark stake as withdrawn
+            stake["status"] = "withdrawn"
+            stake["withdrawnAt"] = int(time.time())
+            stake["withdrawTx"] = result.get("tx_signature", "")
+            if self._db:
+                await self._db.save_stake(stake)
+                await self._db.record_transaction(wallet, result.get("tx_signature", ""), amount, "stake_withdraw")
+
+            logger.info("[Staking] Unstake %s USDC to %s tx=%s", amount, wallet[:8], result.get("tx_signature", "")[:16])
+            return {"success": True, "amount_usdc": amount, "tx_signature": result.get("tx_signature", ""), **stake}
+
+        except ImportError:
+            return {"success": False, "error": "Solana transaction module not available"}
+        except Exception as e:
+            logger.error("[Staking] Unstake error for %s: %s", wallet[:8], e)
+            return {"success": False, "error": "Transfer failed — try again later"}
+
     async def get_stats(self) -> dict:
         if not self._db:
             return {"total_stakers": 0, "total_staked_usdc": 0}

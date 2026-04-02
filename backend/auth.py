@@ -69,8 +69,15 @@ if not _JWT_SECRET or len(_JWT_SECRET) < 16:
         )
 
 
+import re as _re
+_BASE58_WALLET_RE = _re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
+
+
 def create_session_token(wallet: str) -> str:
     """Cree un token de session signe HMAC-SHA256."""
+    # BUG 7 fix: wallet avec ':' pourrait forger l'expiry
+    if not _BASE58_WALLET_RE.match(wallet):
+        raise HTTPException(400, "Invalid wallet address format")
     payload = f"{wallet}:{int(time.time()) + 86400}"  # 24h expiry
     sig = hmac.new(_JWT_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}:{sig}"
@@ -90,7 +97,7 @@ def verify_session_token(token: str) -> str:
         raise HTTPException(401, "Token expire")
     return wallet
 
-# Tentatives echouees par wallet (rate limit brute force — kept in-memory, non-critical)
+# Tentatives echouees par wallet (Redis-backed avec fallback memoire)
 _FAILED_ATTEMPTS: dict = {}
 _MAX_FAILED_ATTEMPTS = 10
 _FAILED_WINDOW = 300  # 5 min
@@ -105,18 +112,36 @@ class AuthRequest(BaseModel):
     nonce: str
 
 
-def _check_brute_force(wallet: str):
-    """Bloque apres trop de tentatives echouees."""
-    now = time.time()
-    attempts = _FAILED_ATTEMPTS.get(wallet, [])
-    attempts = [t for t in attempts if now - t < _FAILED_WINDOW]
-    _FAILED_ATTEMPTS[wallet] = attempts
-    if len(attempts) >= _MAX_FAILED_ATTEMPTS:
-        raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
+async def _check_brute_force(wallet: str):
+    """Bloque apres trop de tentatives echouees (Redis-backed, memoire fallback)."""
+    rc = _get_rc()
+    try:
+        key = f"bf:{wallet}"
+        count = await rc.cache_get(key)
+        if count is not None and int(count) >= _MAX_FAILED_ATTEMPTS:
+            raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
+    except HTTPException:
+        raise
+    except Exception:
+        # Fallback memoire si Redis down
+        now = time.time()
+        attempts = _FAILED_ATTEMPTS.get(wallet, [])
+        attempts = [t for t in attempts if now - t < _FAILED_WINDOW]
+        _FAILED_ATTEMPTS[wallet] = attempts
+        if len(attempts) >= _MAX_FAILED_ATTEMPTS:
+            raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
 
 
-def _record_failed(wallet: str):
-    _FAILED_ATTEMPTS.setdefault(wallet, []).append(time.time())
+async def _record_failed(wallet: str):
+    rc = _get_rc()
+    try:
+        key = f"bf:{wallet}"
+        count = await rc.cache_get(key)
+        new_count = (int(count) + 1) if count else 1
+        await rc.cache_set(key, str(new_count), ttl=_FAILED_WINDOW)
+    except Exception:
+        # Fallback memoire
+        _FAILED_ATTEMPTS.setdefault(wallet, []).append(time.time())
 
 
 @router.post("/nonce")
@@ -128,14 +153,14 @@ async def get_nonce(req: NonceRequest):
 
 @router.post("/verify")
 async def verify_signature(req: AuthRequest):
-    _check_brute_force(req.wallet)
+    await _check_brute_force(req.wallet)
 
     stored_nonce = await _nonce_get(req.wallet)
     if not stored_nonce:
-        _record_failed(req.wallet)
+        await _record_failed(req.wallet)
         raise HTTPException(401, "Nonce introuvable.")
     if stored_nonce != req.nonce:
-        _record_failed(req.wallet)
+        await _record_failed(req.wallet)
         raise HTTPException(401, "Nonce invalide.")
 
     # Anti-replay: verifier que le nonce n'a pas deja ete utilise
@@ -149,7 +174,7 @@ async def verify_signature(req: AuthRequest):
         sig_bytes = bytes.fromhex(req.signature) if len(req.signature) == 128 else base58.b58decode(req.signature)
         vk.verify(message, sig_bytes)
     except (BadSignatureError, Exception) as e:
-        _record_failed(req.wallet)
+        await _record_failed(req.wallet)
         logger.warning("Signature verification failed: %s", e)
         raise HTTPException(401, "Authentication failed")
 
@@ -174,10 +199,10 @@ async def verify_signature(req: AuthRequest):
                     f"Wallet : <code>{req.wallet[:8]}...{req.wallet[-4:]}</code>\n"
                     f"Premier login detecte."
                 )
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except Exception as e:
+                logger.warning("Telegram notification failed for new wallet: %s", e)
+    except Exception as e:
+        logger.warning("First login DB check failed: %s", e)
 
     token = create_session_token(req.wallet)
     return {"ok": True, "wallet": req.wallet, "session_token": token, "first_login": first_login}
@@ -191,20 +216,30 @@ async def require_auth(
     if not x_wallet or not x_signature or not x_nonce:
         raise HTTPException(401, "Headers manquants: X-Wallet, X-Signature, X-Nonce")
 
-    _check_brute_force(x_wallet)
+    await _check_brute_force(x_wallet)
 
-    # Anti-replay: verifier que ce nonce+signature n'a pas deja ete utilise
+    # S6 fix: atomic anti-replay via cache_set (check + mark in one step)
     replay_key = f"{x_wallet}:{x_nonce}"
-    if await _nonce_is_used(replay_key):
-        raise HTTPException(401, "Signature deja utilisee (replay detecte).")
+    try:
+        rc = _get_rc()
+        # Check if already used
+        existing = await rc.cache_get(replay_key)
+        if existing:
+            raise HTTPException(401, "Signature deja utilisee (replay detecte).")
+        # Mark as used immediately (before signature verification)
+        await rc.cache_set(replay_key, "1", ttl=NONCE_TTL * 2)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("Redis nonce check unavailable: %s — fallback to post-verification", e)
 
     # Verifier que le nonce a ete delivre par notre serveur
     stored_nonce = await _nonce_get(x_wallet)
     if not stored_nonce:
-        _record_failed(x_wallet)
+        await _record_failed(x_wallet)
         raise HTTPException(401, "Nonce introuvable — demandez /api/auth/nonce d'abord.")
     if stored_nonce != x_nonce:
-        _record_failed(x_wallet)
+        await _record_failed(x_wallet)
         raise HTTPException(401, "Nonce invalide.")
 
     message = f"MAXIA login: {x_nonce}".encode()
@@ -214,12 +249,12 @@ async def require_auth(
         sig_bytes = bytes.fromhex(x_signature) if len(x_signature) == 128 else base58.b58decode(x_signature)
         vk.verify(message, sig_bytes)
     except Exception:
-        _record_failed(x_wallet)
+        await _record_failed(x_wallet)
         raise HTTPException(401, "Authentication failed")
 
     # Consommer le nonce apres usage reussi — Redis TTL handles cleanup
     await _nonce_delete(x_wallet)
-    await _nonce_mark_used(replay_key)
+    # S6: replay_key already marked above (pre-verification)
 
     return x_wallet
 
@@ -284,12 +319,10 @@ async def require_auth_flexible(
             raise HTTPException(401, "Invalid API key")
         except HTTPException:
             raise
-        except Exception:
-            # DB unavailable — fallback to sandbox mode only
-            from config import SANDBOX_MODE
-            if SANDBOX_MODE:
-                return {"wallet": x_api_key, "did": None, "auth_method": "api_key"}
-            raise HTTPException(401, "API key verification unavailable")
+        except Exception as e:
+            # BUG 8 fix: DB down → 503, NEVER accept unverified key
+            logger.error("API key verification DB error: %s", e)
+            raise HTTPException(503, "API key verification temporarily unavailable")
 
     raise HTTPException(401,
         "Authentication required. Use one of: "
@@ -363,9 +396,12 @@ async def require_agent_sig_auth(
     try:
         from datetime import datetime, timezone
         ts_dt = datetime.fromisoformat(x_agent_ts.replace("Z", "+00:00"))
-        age = abs((datetime.now(timezone.utc) - ts_dt).total_seconds())
-        if age > 60:
-            raise HTTPException(401, f"Timestamp too old ({int(age)}s). Max 60s skew.")
+        # S7 fix: directional check — reject past >60s AND future >10s
+        delta = (datetime.now(timezone.utc) - ts_dt).total_seconds()
+        if delta > 60:
+            raise HTTPException(401, f"Timestamp too old ({int(delta)}s). Max 60s.")
+        if delta < -10:
+            raise HTTPException(401, f"Timestamp in the future ({int(-delta)}s). Max 10s clock skew.")
     except ValueError:
         raise HTTPException(401, "Invalid X-Agent-Ts format. Expected ISO 8601.")
 
@@ -398,7 +434,7 @@ async def require_agent_sig_auth(
         vk = VerifyKey(pk_bytes)
         vk.verify(message, sig_bytes)
     except Exception:
-        _record_failed(x_agent_did)
+        await _record_failed(x_agent_did)
         raise HTTPException(401, "Signature verification failed")
 
     return {

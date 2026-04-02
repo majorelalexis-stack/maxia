@@ -44,6 +44,10 @@ class AgentWorker:
 
     def register_external_agent(self, wallet: str):
         self._external[wallet] = time.time()
+        # P1 fix: cleanup stale entries (>24h) to prevent unbounded growth
+        if len(self._external) > 1000:
+            cutoff = time.time() - 86400
+            self._external = {k: v for k, v in self._external.items() if v > cutoff}
 
     async def run(self):
         logger.info(f"Demarre (timeout={AGENT_TIMEOUT_S}s, multilingue)")

@@ -60,6 +60,7 @@ def audit_log(action: str, ip: str, details: str = "", user: str = "admin"):
 
 
 def _flush_audit():
+    """Sync flush — used at shutdown and from audit_log() (non-async context)."""
     global _audit_buffer
     try:
         with open(_AUDIT_LOG_FILE, "a") as f:
@@ -70,9 +71,8 @@ def _flush_audit():
         logger.error("[AUDIT] Flush error: %s", e)
 
 
-def get_audit_log(limit: int = 50) -> list:
-    """Retourne les dernieres entrees du log d'audit."""
-    _flush_audit()
+def _read_audit_log_sync(limit: int) -> list:
+    """Sync file read for audit log."""
     entries = []
     try:
         if _AUDIT_LOG_FILE.exists():
@@ -80,11 +80,24 @@ def get_audit_log(limit: int = 50) -> list:
             for line in lines[-limit:]:
                 try:
                     entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
-    except Exception:
-        pass
+                except json.JSONDecodeError as e:
+                    logger.debug("Audit log parse error: %s", e)
+    except Exception as e:
+        logger.warning("Audit log read error: %s", e)
     return entries
+
+
+def get_audit_log(limit: int = 50) -> list:
+    """Sync version — for non-async callers and backward compat."""
+    _flush_audit()
+    return _read_audit_log_sync(limit)
+
+
+async def get_audit_log_async(limit: int = 50) -> list:
+    """Async version — won't block event loop on file I/O."""
+    import asyncio
+    await asyncio.to_thread(_flush_audit)
+    return await asyncio.to_thread(_read_audit_log_sync, limit)
 
 
 # ── Admin auth helper ──
@@ -112,8 +125,8 @@ def require_admin(request: Request) -> str:
             from main import _ADMIN_SESSIONS
             if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > _t.time():
                 return "cookie"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("In-memory admin session check failed: %s", e)
         # Fallback: check persisted sessions on disk (multi-worker safe)
         try:
             sf = _Path(__file__).parent / ".admin_sessions.json"
@@ -121,8 +134,8 @@ def require_admin(request: Request) -> str:
                 sessions = _json.loads(sf.read_text())
                 if cookie_token in sessions and sessions[cookie_token] > _t.time():
                     return "cookie"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Disk admin session check failed: %s", e)
     audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
     raise HTTPException(403, "Unauthorized")
 
@@ -155,7 +168,13 @@ def check_admin_key():
 # ── IP extraction securisee (anti-spoofing) ──
 
 # Proxies de confiance — seuls ces IPs peuvent injecter X-Forwarded-For
-_TRUSTED_PROXIES = {"127.0.0.1", "::1"}
+from config import TRUSTED_PROXY_IPS
+_TRUSTED_PROXIES = TRUSTED_PROXY_IPS
+
+
+def _clean_ip(ip: str) -> str:
+    """Nettoie une IP — supprime backslash, espaces, et caracteres non-IP."""
+    return ip.strip().lstrip("\\").strip()
 
 
 def get_real_ip(request: Request) -> str:
@@ -164,14 +183,14 @@ def get_real_ip(request: Request) -> str:
     Ne fait confiance a X-Forwarded-For QUE si la requete vient d'un proxy connu.
     Prend la DERNIERE IP de la chaine (la plus proche du proxy, donc la plus fiable).
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _clean_ip(request.client.host if request.client else "unknown")
 
     # X-Forwarded-For seulement si la connexion directe vient d'un proxy de confiance
     if client_ip in _TRUSTED_PROXIES:
         xff = request.headers.get("X-Forwarded-For", "")
         if xff:
             # Derniere IP de la chaine = la plus fiable (ajoutee par notre proxy)
-            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            parts = [_clean_ip(p) for p in xff.split(",") if p.strip()]
             if parts:
                 return parts[-1]
 
@@ -200,6 +219,15 @@ RATE_LIMIT = 200
 RATE_WINDOW = 60
 _RATE_STORE_MAX_KEYS = 10000
 
+# IPs exemptees du rate limit (fondateur, VPS lui-meme, CEO local)
+RATE_LIMIT_WHITELIST = {
+    "127.0.0.1",    # localhost (VPS interne)
+    "::1",          # localhost IPv6
+    "146.59.237.43",  # VPS public IP (self-requests)
+    os.getenv("FOUNDER_IP", ""),  # IP dynamique fondateur (set dans .env)
+}
+RATE_LIMIT_WHITELIST.discard("")  # enlever si FOUNDER_IP pas set
+
 # Redis client reference — set via set_redis_client() at startup
 _redis_client = None
 
@@ -227,6 +255,8 @@ async def check_rate_limit_async(request: Request) -> None:
     3. In-memory fallback
     """
     ip = get_real_ip(request)
+    if ip in RATE_LIMIT_WHITELIST:
+        return
     # 1. Redis rate limiter (quotas journaliers par tier)
     try:
         from redis_rate_limiter import check_rate_limit_redis
@@ -234,11 +264,11 @@ async def check_rate_limit_async(request: Request) -> None:
         if not allowed:
             raise HTTPException(429, "Rate limit journalier depasse. Reessayez demain ou passez en tier Pro.")
     except ImportError:
-        pass
+        pass  # redis_rate_limiter not installed
     except HTTPException:
         raise
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Redis rate limiter error: %s", e)
     # 2. Redis client existant (per-minute burst protection)
     if _redis_client is not None and _redis_client.is_connected:
         allowed = await _redis_client.rate_limit_check(ip, RATE_LIMIT, RATE_WINDOW)
@@ -249,34 +279,58 @@ async def check_rate_limit_async(request: Request) -> None:
     _check_rate_limit_memory(ip)
 
 
-def check_rate_limit(request: Request) -> None:
-    """Rate limit — essaie Redis (redis_rate_limiter) puis fallback in-memory.
+async def check_rate_limit(request: Request, tier: str = "") -> None:
+    """Rate limit — Redis-backed (daily + per-minute) with in-memory fallback.
 
-    Redis permet le rate limiting distribue (multi-worker/multi-instance).
-    Si Redis est indisponible, degrade gracieusement vers le store in-memory local.
+    Args:
+        request: FastAPI Request
+        tier: Agent tier ("free", "pro", "enterprise"). Resolved from API key if empty.
     """
     ip = get_real_ip(request)
-    # Tentative Redis via redis_rate_limiter (async dans un sync context)
+    if ip in RATE_LIMIT_WHITELIST:
+        return
+    # Resolve tier from API key if not provided
+    if not tier:
+        api_key = request.headers.get("x-api-key", "")
+        if api_key:
+            try:
+                from database import db
+                row = await db._fetchone("SELECT tier FROM agents WHERE api_key=?", (api_key,))
+                if row:
+                    tier = (row.get("tier") or "free").lower()
+                    # Map marketplace tiers to rate limit tiers
+                    if tier in ("gold", "whale"):
+                        tier = "pro"
+                    elif tier == "enterprise":
+                        tier = "enterprise"
+                    else:
+                        tier = "free"
+            except Exception as e:
+                logger.warning("Rate limit tier DB lookup failed: %s", e)
+    # 1. Redis rate limiter (quotas journaliers par tier)
     try:
-        import asyncio
         from redis_rate_limiter import check_rate_limit_redis
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # On est dans un contexte async — on ne peut pas run_until_complete
-            # Le check Redis sera fait par check_rate_limit_async a la place
-            _check_rate_limit_memory(ip)
-            return
-        allowed = loop.run_until_complete(check_rate_limit_redis(ip, endpoint=request.url.path))
+        allowed = await check_rate_limit_redis(ip, endpoint=request.url.path, tier=tier or "free")
         if not allowed:
             raise HTTPException(429, "Rate limit journalier depasse. Reessayez demain ou passez en tier Pro.")
-        return
     except ImportError:
-        pass
+        pass  # redis_rate_limiter not installed
     except HTTPException:
         raise
-    except Exception:
-        pass
-    # Fallback in-memory
+    except Exception as e:
+        logger.warning("Redis rate limiter error: %s", e)
+    # 2. Redis client (per-minute burst protection)
+    if _redis_client is not None and _redis_client.is_connected:
+        try:
+            allowed = await _redis_client.rate_limit_check(ip, RATE_LIMIT, RATE_WINDOW)
+            if not allowed:
+                raise HTTPException(429, "Rate limit depasse. Reessayez dans 1 minute.")
+            return
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("Redis per-minute rate check error: %s", e)
+    # 3. Fallback in-memory
     _check_rate_limit_memory(ip)
 
 
@@ -300,6 +354,8 @@ def check_rate_limit_smart(identifier: str, endpoint: str = "") -> bool:
     Returns True if request is allowed, False if rate-limited.
     Sets rate limit info in _smart_rate_info[identifier] for response headers.
     """
+    if identifier in RATE_LIMIT_WHITELIST:
+        return True
     # H3: Ignorer les query params — ne checker que le path
     path = endpoint.split("?", 1)[0].lower()
 
@@ -346,6 +402,8 @@ def get_rate_limit_info(identifier: str) -> dict:
 
 def _check_rate_limit_memory(ip: str) -> None:
     """In-memory sliding window rate check."""
+    if ip in RATE_LIMIT_WHITELIST:
+        return
     now = time.time()
     _rate_store[ip] = [t for t in _rate_store[ip] if t > now - RATE_WINDOW]
     if len(_rate_store[ip]) >= RATE_LIMIT:
@@ -367,6 +425,8 @@ IP_RATE_WINDOW = 60   # seconds
 
 def check_ip_rate_limit(ip: str) -> bool:
     """Returns True if IP is rate-limited (should be blocked)."""
+    if ip in RATE_LIMIT_WHITELIST:
+        return False
     now = time.time()
     _ip_requests[ip] = [t for t in _ip_requests[ip] if now - t < IP_RATE_WINDOW]
     if len(_ip_requests[ip]) >= IP_RATE_LIMIT:
@@ -430,8 +490,8 @@ def _load_spend_log() -> dict:
             data = json.loads(_SPEND_FILE.read_text())
             if data.get("date") == time.strftime("%Y-%m-%d"):
                 return data
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Spend log read error: %s", e)
     return {"date": time.strftime("%Y-%m-%d"), "total": 0.0, "tx_count": 0}
 
 
@@ -520,8 +580,9 @@ def check_ceo_spending_limit(action: str, amount_usd: float = 0) -> dict:
 
     limits = _CEO_DAILY_LIMITS.get(action)
     if not limits:
-        # Action inconnue — prudence
-        return {"allowed": True, "reason": "Unknown action type — no specific limit"}
+        # BUG 23 fix: unknown action → DENY (fail-close, not fail-open)
+        logger.warning("[CEO] Unknown action type denied: %s", action)
+        return {"allowed": False, "reason": f"Unknown action type: {action} — not in allowed list"}
 
     # Limite par jour
     count = _ceo_action_counts.get(action, 0)
@@ -666,8 +727,8 @@ def _load_ofac_list():
                 addr = line.strip()
                 if addr and not addr.startswith("#"):
                     _OFAC_SANCTIONED_ADDRESSES.add(addr.lower())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("OFAC file read error: %s", e)
 
     _OFAC_LOADED = True
     logger.info("[OFAC] Loaded %d sanctioned addresses (local list)", len(_OFAC_SANCTIONED_ADDRESSES))
@@ -925,7 +986,8 @@ async def refresh_ofac_list() -> dict:
                                 added += 1
                     sources_fetched.append(filename)
                 # 404 = fichier pas encore disponible, ignorer silencieusement
-            except Exception:
+            except Exception as e:
+                logger.warning("OFAC fetch error for %s: %s", filename, e)
                 continue
 
     except Exception as e:
@@ -979,8 +1041,8 @@ async def set_agent_rate_tier(api_key: str, tier: str):
     if _redis_client and _redis_client.is_connected:
         try:
             await _redis_client.cache_set(f"tier:{api_key}", tier, ttl=86400)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Redis set_agent_rate_tier error: %s", e)
 
 
 async def get_agent_rate_tier(api_key: str) -> str:
@@ -995,8 +1057,8 @@ async def get_agent_rate_tier(api_key: str) -> str:
             if tier and tier in RATE_LIMIT_TIERS:
                 _agent_tiers[api_key] = tier
                 return tier
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Redis get_agent_rate_tier error: %s", e)
     return "free"
 
 
@@ -1039,8 +1101,8 @@ async def check_rate_limit_tiered(api_key: str) -> dict:
                 "limit_day": tier["req_per_day"],
                 "remaining_day": tier["req_per_day"] - day_count - 1,
             }
-        except Exception:
-            pass  # Fallback to in-memory
+        except Exception as e:
+            logger.warning("Redis tiered rate limit error, falling back to in-memory: %s", e)
 
     # In-memory fallback
     key_min = f"tier:{api_key}:min"

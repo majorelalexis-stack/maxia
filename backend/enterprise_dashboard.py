@@ -2,13 +2,12 @@
 
 Fournit des vues aggregees : overview flotte, analytics temporelles,
 drilldown par agent, compliance SLA, et breakdown revenus.
-Retourne des donnees demo (demo_data: true) si pas de donnees reelles.
+Retourne des donnees vides avec message explicatif si pas de donnees reelles.
 """
 import logging
 import os
 import time
 import json
-import random
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -46,56 +45,6 @@ def _period_to_seconds(period: str) -> int:
     return 7 * 86400  # Default 7 jours
 
 
-def _generate_sample_timeseries(period_days: int, metric: str) -> list:
-    """Genere des donnees de demo pour les charts (quand pas de donnees reelles)."""
-    now = datetime.utcnow()
-    series = []
-    for i in range(period_days, 0, -1):
-        day = now - timedelta(days=i)
-        date_str = day.strftime("%Y-%m-%d")
-        if metric == "revenue":
-            value = round(random.uniform(50, 500), 2)
-        elif metric == "calls":
-            value = random.randint(100, 2000)
-        elif metric == "errors":
-            value = random.randint(0, 20)
-        elif metric == "latency_p50":
-            value = random.randint(80, 300)
-        elif metric == "latency_p95":
-            value = random.randint(200, 1500)
-        else:
-            value = random.randint(10, 100)
-        series.append({"date": date_str, "value": value})
-    return series
-
-
-def _generate_sample_agents(owner_id: str, count: int = 5) -> list:
-    """Genere des agents de demo."""
-    names = [
-        "SentimentBot", "ImageGenPro", "DeFiScanner", "DataCruncher",
-        "SwapRouter", "TradingAssist", "NLPWorker", "SecurityAuditor",
-    ]
-    statuses = ["active", "active", "active", "active", "paused"]
-    chains = ["solana", "base", "polygon", "arbitrum", "avalanche"]
-
-    agents = []
-    for i in range(min(count, len(names))):
-        agents.append({
-            "agent_id": f"agent-demo-{i+1:03d}",
-            "name": names[i],
-            "status": random.choice(statuses),
-            "chain": random.choice(chains),
-            "uptime_pct": round(random.uniform(95, 99.99), 2),
-            "revenue_30d": round(random.uniform(100, 5000), 2),
-            "calls_30d": random.randint(500, 50000),
-            "avg_latency_ms": random.randint(50, 400),
-            "error_rate_pct": round(random.uniform(0, 5), 2),
-            "sla_tier": random.choice(["basic", "standard", "premium"]),
-            "created_at": int(time.time()) - random.randint(86400, 86400 * 90),
-        })
-    return agents
-
-
 # ── Core Functions ──
 
 
@@ -110,19 +59,15 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
         )
 
         if not agents:
-            # Retourner des donnees sample pour le dev frontend
-            sample_agents = _generate_sample_agents(owner_id)
             return {
                 "owner": owner_id,
-                "agent_count": len(sample_agents),
-                "active_count": sum(1 for a in sample_agents if a["status"] == "active"),
-                "total_revenue_30d": round(sum(a["revenue_30d"] for a in sample_agents), 2),
-                "total_calls_30d": sum(a["calls_30d"] for a in sample_agents),
-                "avg_uptime_pct": round(
-                    sum(a["uptime_pct"] for a in sample_agents) / len(sample_agents), 2
-                ),
-                "agents": sample_agents,
-                "demo_data": True,
+                "agent_count": 0,
+                "active_count": 0,
+                "total_revenue_30d": 0,
+                "total_calls_30d": 0,
+                "avg_uptime_pct": 0,
+                "agents": [],
+                "message": "No agents registered yet. Register at /api/public/register",
             }
 
         fleet = []
@@ -194,18 +139,16 @@ async def get_fleet_overview(owner_id: str, db) -> dict:
         }
 
     except Exception as e:
-        # Fallback sample
-        sample_agents = _generate_sample_agents(owner_id, 3)
+        logger.error("Fleet overview error for %s: %s", owner_id, e)
         return {
             "owner": owner_id,
-            "agent_count": len(sample_agents),
-            "active_count": len(sample_agents),
-            "total_revenue_30d": round(sum(a["revenue_30d"] for a in sample_agents), 2),
-            "total_calls_30d": sum(a["calls_30d"] for a in sample_agents),
-            "avg_uptime_pct": 99.0,
-            "agents": sample_agents,
-            "demo_data": True,
-            "_error": str(e),
+            "agent_count": 0,
+            "active_count": 0,
+            "total_revenue_30d": 0,
+            "total_calls_30d": 0,
+            "avg_uptime_pct": 0,
+            "agents": [],
+            "error": "Failed to load fleet data",
         }
 
 
@@ -246,13 +189,12 @@ async def get_fleet_analytics(owner_id: str, db, period: str = "7d") -> dict:
         pass
 
     if not real_data:
-        # Generer des donnees sample
-        revenue_series = _generate_sample_timeseries(period_days, "revenue")
-        calls_series = _generate_sample_timeseries(period_days, "calls")
+        revenue_series = []
+        calls_series = []
 
-    errors_series = _generate_sample_timeseries(period_days, "errors")
-    latency_p50 = _generate_sample_timeseries(period_days, "latency_p50")
-    latency_p95 = _generate_sample_timeseries(period_days, "latency_p95")
+    errors_series = []
+    latency_p50 = []
+    latency_p95 = []
 
     return {
         "owner": owner_id,
@@ -356,32 +298,11 @@ async def get_agent_drilldown(agent_id: str, db) -> dict:
             "demo_data": False,
         }
 
-    # Agent pas trouve — retourner des donnees sample
+    # Agent pas trouve
     return {
         "agent_id": agent_id,
-        "name": "SampleAgent",
-        "wallet": "demo...wallet",
-        "tier": "GOLD",
-        "status": "active",
-        "created_at": int(time.time()) - 86400 * 45,
-        "metrics": {
-            "total_revenue_usdc": 2340.50,
-            "total_services": 4,
-            "active_services": 3,
-            "total_sales": 892,
-            "avg_rating": 4.7,
-            "uptime_pct": 99.2,
-            "avg_latency_ms": 210,
-            "error_rate_pct": 2.1,
-        },
-        "services": [
-            {"name": "Sentiment Analysis", "type": "text", "price_usdc": 2.50, "status": "active", "rating": 4.8, "sales": 450},
-            {"name": "Image Generation", "type": "image", "price_usdc": 5.00, "status": "active", "rating": 4.6, "sales": 312},
-            {"name": "DeFi Scan", "type": "data", "price_usdc": 1.00, "status": "active", "rating": 4.9, "sales": 130},
-            {"name": "Code Review", "type": "text", "price_usdc": 10.00, "status": "paused", "rating": 4.5, "sales": 0},
-        ],
-        "recent_transactions": [],
-        "demo_data": True,
+        "error": "Agent not found",
+        "message": "No agent matches this ID. Check the agent_id or register at /api/public/register",
     }
 
 
@@ -421,53 +342,15 @@ async def get_sla_compliance(owner_id: str, db) -> dict:
         pass
 
     if not agents:
-        # Donnees sample
-        agents_sla = [
-            {
-                "agent_id": "agent-demo-001",
-                "name": "SentimentBot",
-                "sla_tier": "standard",
-                "target_uptime_pct": 99.0,
-                "actual_uptime_pct": 99.7,
-                "target_latency_ms": 2000,
-                "actual_latency_p95_ms": 850,
-                "compliant": True,
-                "violations_30d": 0,
-            },
-            {
-                "agent_id": "agent-demo-002",
-                "name": "ImageGenPro",
-                "sla_tier": "premium",
-                "target_uptime_pct": 99.9,
-                "actual_uptime_pct": 99.4,
-                "target_latency_ms": 500,
-                "actual_latency_p95_ms": 620,
-                "compliant": False,
-                "violations_30d": 3,
-                "violation_details": ["latency_exceeded", "latency_exceeded", "uptime_below_target"],
-            },
-            {
-                "agent_id": "agent-demo-003",
-                "name": "DeFiScanner",
-                "sla_tier": "basic",
-                "target_uptime_pct": 95.0,
-                "actual_uptime_pct": 98.2,
-                "target_latency_ms": 5000,
-                "actual_latency_p95_ms": 1200,
-                "compliant": True,
-                "violations_30d": 0,
-            },
-        ]
-        compliant_count = sum(1 for a in agents_sla if a["compliant"])
         return {
             "owner": owner_id,
-            "total_agents": len(agents_sla),
-            "compliant_count": compliant_count,
-            "non_compliant_count": len(agents_sla) - compliant_count,
-            "compliance_rate_pct": round(compliant_count / len(agents_sla) * 100, 1),
-            "agents": agents_sla,
+            "total_agents": 0,
+            "compliant_count": 0,
+            "non_compliant_count": 0,
+            "compliance_rate_pct": 0,
+            "agents": [],
             "sla_tiers": SLA_TIERS,
-            "demo_data": True,
+            "message": "No agents registered yet. Register at /api/public/register",
         }
 
     # Donnees reelles
@@ -568,34 +451,7 @@ async def get_revenue_breakdown(owner_id: str, db, period: str = "30d") -> dict:
     except Exception:
         pass
 
-    if not real_data:
-        # Donnees sample
-        by_service = {
-            "Sentiment Analysis": 1250.00,
-            "Image Generation": 890.50,
-            "DeFi Yield Scan": 445.00,
-            "swap:SOL/USDC": 320.00,
-            "swap:ETH/USDC": 180.00,
-            "GPU Rental": 2100.00,
-            "Data Feed": 560.00,
-        }
-        by_agent = {
-            "SentimentBot": 1250.00,
-            "ImageGenPro": 890.50,
-            "DeFiScanner": 445.00,
-            "SwapRouter": 500.00,
-            "GPURenter": 2100.00,
-            "DataFeeder": 560.00,
-        }
-        by_chain = {
-            "solana": 3200.00,
-            "base": 1100.00,
-            "polygon": 450.00,
-            "arbitrum": 320.00,
-            "ethereum": 675.50,
-        }
-        total = sum(by_service.values())
-    else:
+    if real_data:
         # Pas de donnees chain reelles en DB pour l'instant, estimation
         by_chain = {"solana": total * 0.6, "base": total * 0.25, "other": total * 0.15}
 

@@ -577,7 +577,7 @@ class TestSessionTokens:
 
     def test_token_format_three_parts(self):
         from auth import create_session_token
-        token = create_session_token("TestWallet123")
+        token = create_session_token("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU")
         parts = token.split(":")
         assert len(parts) == 3  # wallet:expiry:hmac
 
@@ -590,10 +590,10 @@ class TestSessionTokens:
     def test_tampered_wallet_rejected(self):
         from auth import create_session_token, verify_session_token
         from fastapi import HTTPException
-        token = create_session_token("OriginalWallet")
-        # Tamper with wallet part
+        token = create_session_token("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU")
+        # Tamper with wallet part (use valid base58 but different wallet)
         parts = token.split(":")
-        parts[0] = "EvilWallet"
+        parts[0] = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
         tampered = ":".join(parts)
         with pytest.raises(HTTPException):
             verify_session_token(tampered)

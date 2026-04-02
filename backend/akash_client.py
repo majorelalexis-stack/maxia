@@ -160,13 +160,28 @@ class AkashClient:
 
     async def check_tier_available(self, tier_id: str) -> bool:
         """Verifie si un tier specifique a des GPU dispo sur Akash."""
+        return self.get_tier_count(tier_id) > 0
+
+    def get_tier_count(self, tier_id: str) -> int:
+        """Nombre de GPU disponibles pour un tier (depuis le cache)."""
         if tier_id not in AKASH_GPU_MAP:
-            return False
+            return 0
         specs = AKASH_GPU_MAP[tier_id]
         model = specs["model"].lower()
-        avail = await self.get_gpu_availability()
-        models = avail.get("models", {})
-        return models.get(model, 0) > 0
+        models = AkashClient._gpu_avail_cache.get("models", {})
+        return models.get(model, 0)
+
+    async def get_credit_balance(self) -> dict:
+        """Recupere le solde credit Akash Console (USD credits)."""
+        try:
+            resp = await self._request("GET", "/v1/billing")
+            if "error" in resp:
+                return {"balance_usd": -1, "error": resp["error"]}
+            data = resp.get("data", resp)
+            balance = float(data.get("balance", data.get("credits", data.get("remaining", -1))))
+            return {"balance_usd": balance}
+        except Exception as e:
+            return {"balance_usd": -1, "error": str(e)}
 
     async def get_price_estimate(self, tier_id: str) -> float | None:
         """Prix/heure pour un tier sur Akash — basé sur le plafond avec réduction typique réseau."""

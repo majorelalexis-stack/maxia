@@ -38,7 +38,7 @@ def _get_ua() -> str:
     return random.choice(USER_AGENTS)
 
 
-def _is_blocked(url: str) -> bool:
+async def _is_blocked(url: str) -> bool:
     """Verifie si l'URL est bloquee (Art.1 + SSRF protection).
 
     Bloque: domaines interdits, schemas dangereux, IPs privees/loopback/link-local/metadata.
@@ -66,8 +66,8 @@ def _is_blocked(url: str) -> bool:
             return True
 
         # Resoudre le hostname en IP et verifier les plages privees
-        import socket
-        resolved_ips = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        import socket, asyncio
+        resolved_ips = await asyncio.to_thread(socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
         for _, _, _, _, sockaddr in resolved_ips:
             ip_str = sockaddr[0]
             ip = ipaddress.ip_address(ip_str)
@@ -164,7 +164,7 @@ async def scrape_url(url: str, extract_links: bool = True,
     if not url or not url.startswith("http"):
         return {"success": False, "error": "URL invalide. Doit commencer par http:// ou https://"}
 
-    if _is_blocked(url):
+    if await _is_blocked(url):
         return {"success": False, "error": "URL bloquee par Art.1 (contenu interdit)"}
 
     # Cache

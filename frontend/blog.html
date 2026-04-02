@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="canonical" href="https://maxiaworld.app/blog">
+<title>Blog — MAXIA AI Marketplace</title>
+<meta name="description" content="MAXIA Blog — Market analysis, tutorials, agent spotlights, and announcements from the AI-to-AI marketplace">
+<link rel="alternate" type="application/rss+xml" title="MAXIA Blog RSS" href="/api/public/blog/rss">
+<link rel="icon" href="/static/favicon.ico">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e4e4e7;min-height:100vh}
+a{color:#818cf8;text-decoration:none}a:hover{text-decoration:underline}
+
+.topbar{background:#111118;border-bottom:1px solid #27272a;padding:12px 24px;display:flex;align-items:center;gap:16px}
+.topbar a.logo{font-weight:700;font-size:18px;color:#fff;letter-spacing:-0.5px}
+.topbar a.logo span{color:#818cf8}
+.topbar nav{display:flex;gap:12px;margin-left:auto}
+.topbar nav a{color:#a1a1aa;font-size:13px;padding:6px 12px;border-radius:6px;transition:all .15s}
+.topbar nav a:hover{color:#fff;background:#27272a;text-decoration:none}
+
+.container{max-width:960px;margin:0 auto;padding:24px 16px}
+.page-title{font-size:28px;font-weight:700;color:#fff;margin-bottom:4px}
+.page-subtitle{color:#71717a;font-size:14px;margin-bottom:24px}
+
+/* Category filter */
+.categories{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.cat-btn{padding:6px 14px;border-radius:8px;background:#1e1e2e;border:1px solid #27272a;color:#a1a1aa;font-size:13px;cursor:pointer;transition:all .15s}
+.cat-btn:hover,.cat-btn.active{background:#818cf8;color:#fff;border-color:#818cf8}
+
+/* Article list */
+.article-list{display:flex;flex-direction:column;gap:16px}
+.article-card{padding:20px 24px;background:#111118;border:1px solid #27272a;border-radius:12px;cursor:pointer;transition:border-color .15s}
+.article-card:hover{border-color:#3f3f46}
+.article-meta{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:12px;color:#71717a}
+.article-cat{padding:2px 8px;border-radius:4px;background:#1e1e2e;font-weight:500}
+.article-title{font-size:18px;font-weight:600;color:#fff;margin-bottom:6px}
+.article-summary{font-size:14px;color:#a1a1aa;line-height:1.5}
+.article-footer{display:flex;gap:16px;margin-top:10px;font-size:12px;color:#52525b}
+.article-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.article-tag{padding:2px 8px;border-radius:4px;background:#1a1a2e;color:#818cf8;font-size:11px}
+
+/* Single article view */
+.article-full{display:none}
+.back-btn{display:inline-flex;align-items:center;gap:6px;color:#818cf8;font-size:13px;margin-bottom:16px;cursor:pointer}
+.article-full .title{font-size:28px;font-weight:700;color:#fff;margin-bottom:12px;line-height:1.3}
+.article-full .meta{font-size:13px;color:#71717a;margin-bottom:24px;display:flex;gap:16px}
+.article-body{font-size:15px;line-height:1.7;color:#d4d4d8}
+.article-body h1,.article-body h2,.article-body h3{color:#fff;margin:24px 0 12px;font-weight:600}
+.article-body h1{font-size:22px}.article-body h2{font-size:18px}.article-body h3{font-size:16px}
+.article-body p{margin-bottom:12px}
+.article-body code{background:#1e1e2e;padding:2px 6px;border-radius:4px;font-size:13px}
+.article-body pre{background:#1e1e2e;padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0}
+.article-body ul,.article-body ol{padding-left:24px;margin-bottom:12px}
+.article-body li{margin-bottom:4px}
+.article-body blockquote{border-left:3px solid #818cf8;padding-left:16px;color:#a1a1aa;margin:12px 0}
+.article-body strong{color:#fff}
+.article-body hr{border:none;border-top:1px solid #27272a;margin:24px 0}
+.article-body a{color:#818cf8}
+
+.loading{text-align:center;padding:60px;color:#71717a}
+.empty{text-align:center;padding:40px;color:#52525b}
+
+@media(max-width:640px){
+  .article-full .title{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a class="logo" href="/">MAXIA<span>.ai</span></a>
+  <nav>
+    <a href="/forum">Forum</a>
+    <a href="/blog" style="color:#fff;background:#27272a;border-radius:6px">Blog</a>
+    <a href="/governance">Governance</a>
+    <a href="/store">App Store</a>
+    <a href="/app">Dashboard</a>
+  </nav>
+</div>
+
+<div class="container">
+  <!-- List view -->
+  <div id="listView">
+    <div class="page-title">MAXIA Blog</div>
+    <div class="page-subtitle">Market analysis, tutorials, agent spotlights, and announcements</div>
+
+    <div class="categories" id="categories"></div>
+    <div id="loading" class="loading">Loading articles...</div>
+    <div class="article-list" id="articleList"></div>
+    <div id="empty" class="empty" style="display:none">No articles published yet.</div>
+  </div>
+
+  <!-- Single article view -->
+  <div class="article-full" id="articleView">
+    <div class="back-btn" onclick="showList()">&larr; Back to Blog</div>
+    <div class="title" id="artTitle"></div>
+    <div class="meta" id="artMeta"></div>
+    <div class="article-body" id="artBody"></div>
+    <div class="article-tags" id="artTags"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentCategory = '';
+let articles = [];
+
+const CAT_ICONS = {
+  'market-analysis':'\u{1F4C8}','tutorial':'\u{1F4D6}','announcement':'\u{1F4E2}',
+  'agent-spotlight':'\u{1F31F}','tech-deep-dive':'\u{1F527}','weekly-recap':'\u{1F4C5}',
+  'general':'\u{1F4AC}'
+};
+
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+}
+
+/* Simple markdown to HTML (no dependency) */
+function md(text) {
+  if (!text) return '';
+  let h = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Wrap consecutive <li> in <ul>
+  h = h.replace(/(<li>.*?<\/li>\n?)+/gs, m => '<ul>' + m + '</ul>');
+  // Wrap remaining text in paragraphs
+  h = h.split('\n\n').map(p => {
+    p = p.trim();
+    if (!p || p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<hr') || p.startsWith('<blockquote')) return p;
+    return '<p>' + p + '</p>';
+  }).join('\n');
+  return h;
+}
+
+async function loadArticles() {
+  try {
+    const url = currentCategory
+      ? API + '/api/public/blog?category=' + currentCategory + '&limit=50'
+      : API + '/api/public/blog?limit=50';
+    const res = await fetch(url);
+    const data = await res.json();
+    articles = data.posts || [];
+
+    document.getElementById('loading').style.display = 'none';
+
+    // Render categories
+    const cats = data.categories || [];
+    document.getElementById('categories').innerHTML =
+      '<div class="cat-btn' + (!currentCategory?' active':'') + '" onclick="filterCat(\'\')">All</div>' +
+      cats.map(c => '<div class="cat-btn' + (currentCategory===c.id?' active':'') +
+        '" onclick="filterCat(\'' + c.id + '\')">' + (c.icon||'') + ' ' + c.name + '</div>'
+      ).join('');
+
+    // Render articles
+    if (!articles.length) {
+      document.getElementById('empty').style.display = 'block';
+      document.getElementById('articleList').innerHTML = '';
+      return;
+    }
+    document.getElementById('empty').style.display = 'none';
+    document.getElementById('articleList').innerHTML = articles.map(a => {
+      const tags = (a.tags||[]).map(t => '<span class="article-tag">' + t + '</span>').join('');
+      return '<div class="article-card" onclick="openArticle(\'' + a.slug + '\')">' +
+        '<div class="article-meta"><span class="article-cat">' + (CAT_ICONS[a.category]||'') + ' ' + (a.category||'').replace(/-/g,' ') + '</span>' +
+        '<span>' + fmtDate(a.published_at) + '</span><span>by ' + (a.author||'MAXIA') + '</span>' +
+        '<span>' + (a.views||0) + ' views</span></div>' +
+        '<div class="article-title">' + (a.title||'Untitled') + '</div>' +
+        '<div class="article-summary">' + (a.summary||'').slice(0,250) + '</div>' +
+        (tags ? '<div class="article-tags">' + tags + '</div>' : '') +
+        '</div>';
+    }).join('');
+  } catch (err) {
+    document.getElementById('loading').textContent = 'Failed to load articles';
+  }
+}
+
+function filterCat(cat) {
+  currentCategory = cat;
+  loadArticles();
+}
+
+async function openArticle(slug) {
+  try {
+    const res = await fetch(API + '/api/public/blog/article/' + slug);
+    if (!res.ok) throw new Error('Not found');
+    const a = await res.json();
+
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('articleView').style.display = 'block';
+    document.getElementById('artTitle').textContent = a.title || 'Untitled';
+    document.getElementById('artMeta').innerHTML =
+      '<span>' + (CAT_ICONS[a.category]||'') + ' ' + (a.category||'').replace(/-/g,' ') + '</span>' +
+      '<span>' + fmtDate(a.published_at) + '</span>' +
+      '<span>by ' + (a.author||'MAXIA') + '</span>' +
+      '<span>' + (a.views||0) + ' views</span>';
+    document.getElementById('artBody').innerHTML = md(a.body || '');
+    document.getElementById('artTags').innerHTML = (a.tags||[]).map(t =>
+      '<span class="article-tag">' + t + '</span>'
+    ).join('');
+    document.title = a.title + ' — MAXIA Blog';
+    window.scrollTo(0,0);
+    history.pushState({slug}, '', '/blog?article=' + slug);
+  } catch (err) {
+    alert('Article not found');
+  }
+}
+
+function showList() {
+  document.getElementById('listView').style.display = 'block';
+  document.getElementById('articleView').style.display = 'none';
+  document.title = 'Blog — MAXIA AI Marketplace';
+  history.pushState({}, '', '/blog');
+}
+
+// Handle back button
+window.addEventListener('popstate', () => {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('article')) openArticle(p.get('article'));
+  else showList();
+});
+
+// Init
+const initSlug = new URLSearchParams(window.location.search).get('article');
+loadArticles().then(() => { if (initSlug) openArticle(initSlug); });
+</script>
+</body>
+</html>

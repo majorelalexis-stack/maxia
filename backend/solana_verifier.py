@@ -10,13 +10,9 @@ USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 
 async def _rpc_post(payload: dict, timeout: float = 8) -> dict:
-    """Post RPC avec failover. Skip Helius if it keeps failing, try publics first."""
+    """Post RPC avec failover. Essaie chaque URL dans l'ordre config (Chainstack > Alchemy > Helius > publics)."""
     last_error = None
-    # Prioritize public RPCs (Helius often rate-limited/down)
-    urls_to_try = [u for u in SOLANA_RPC_URLS if "helius" not in u][:2]
-    # Add Helius last as fallback
-    helius = [u for u in SOLANA_RPC_URLS if "helius" in u]
-    urls_to_try.extend(helius[:1])
+    urls_to_try = SOLANA_RPC_URLS[:5]  # Max 5 RPCs pour eviter des timeouts en cascade
     _timeout = httpx.Timeout(connect=3, read=timeout, write=3, pool=3)
     for rpc_url in urls_to_try:
         try:
@@ -96,9 +92,13 @@ async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
 
             # Chercher un transfert USDC vers le destinataire attendu
             for transfer in tx_info["transfers"]:
+                # BUG 2 fix: Only match USDC transfers, reject SOL native transfers
+                if transfer.get("mint") != USDC_MINT:
+                    continue
+                # S10 fix: base58 is case-sensitive — no .lower()
                 recipient_match = (
                     not expected_recipient
-                    or transfer["to"].lower() == expected_recipient.lower()
+                    or transfer["to"] == expected_recipient
                 )
                 amount_match = (
                     expected_amount_usdc <= 0

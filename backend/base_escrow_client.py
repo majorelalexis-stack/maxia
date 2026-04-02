@@ -34,6 +34,8 @@ try:
     logger.info(f"[BaseEscrow] ABI loaded — {len(_ABI)} entries")
 except FileNotFoundError:
     logger.warning(f"[BaseEscrow] ABI not found at {_ABI_PATH}")
+except json.JSONDecodeError:
+    logger.warning(f"[BaseEscrow] ABI file at {_ABI_PATH} contains invalid JSON")
 
 
 # ══════════════════════════════════════════
@@ -136,9 +138,9 @@ async def get_commission_tier(buyer_address: str) -> dict:
     try:
         data = _encode_function_call("getCommissionTier", ["address"], [buyer_address])
         result = await _rpc_call("eth_call", [{"to": ESCROW_CONTRACT, "data": data}, "latest"])
-        hex_result = result.get("result", "0x")
+        hex_result = result.get("result") or "0x"
 
-        if hex_result == "0x" or len(hex_result) < 130:
+        if not hex_result or hex_result == "0x" or len(hex_result) < 130:
             return {"tier": "BRONZE", "bps": 150}
 
         # Decode: string + uint256 (ABI encoded)

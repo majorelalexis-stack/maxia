@@ -7,6 +7,8 @@ from http_client import get_http_client
 
 logger = logging.getLogger(__name__)
 
+COINPAPRIKA_SOL = "https://api.coinpaprika.com/v1/tickers/sol-solana"
+COINPAPRIKA_ETH = "https://api.coinpaprika.com/v1/tickers/eth-ethereum"
 COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price?ids=solana,ethereum&vs_currencies=usd"
 
 # In-memory price cache with TTL
@@ -18,24 +20,46 @@ _CACHE_TTL_S = 30
 
 
 async def _fetch_prices() -> dict:
-    """Fetch live SOL/USD and ETH/USD from CoinGecko. Handles rate limits gracefully."""
+    """Fetch live SOL/USD and ETH/USD. CoinPaprika primary, CoinGecko fallback."""
+    prices = {}
+    client = get_http_client()
+
+    # Try CoinPaprika first (no rate limit issues)
     try:
-        client = get_http_client()
-        resp = await client.get(COINGECKO_URL, timeout=10)
-        if resp.status_code == 429:
-            logger.warning("[CurrencyConverter] CoinGecko rate limit — using cached prices")
-            return {}
-        resp.raise_for_status()
-        data = resp.json()
-        prices = {}
-        if "solana" in data and "usd" in data["solana"]:
-            prices["SOL"] = float(data["solana"]["usd"])
-        if "ethereum" in data and "usd" in data["ethereum"]:
-            prices["ETH"] = float(data["ethereum"]["usd"])
-        return prices
+        sol_resp, eth_resp = await asyncio.gather(
+            client.get(COINPAPRIKA_SOL, timeout=8),
+            client.get(COINPAPRIKA_ETH, timeout=8),
+            return_exceptions=True,
+        )
+        if not isinstance(sol_resp, Exception) and sol_resp.status_code == 200:
+            sol_data = sol_resp.json()
+            sol_price = (sol_data.get("quotes") or {}).get("USD", {}).get("price")
+            if sol_price:
+                prices["SOL"] = float(sol_price)
+        if not isinstance(eth_resp, Exception) and eth_resp.status_code == 200:
+            eth_data = eth_resp.json()
+            eth_price = (eth_data.get("quotes") or {}).get("USD", {}).get("price")
+            if eth_price:
+                prices["ETH"] = float(eth_price)
     except Exception as e:
-        logger.error(f"[CurrencyConverter] Erreur fetch prix: {e}")
-        return {}
+        logger.warning(f"[CurrencyConverter] CoinPaprika error: {e}")
+
+    # Fallback to CoinGecko for any missing
+    if len(prices) < 2:
+        try:
+            resp = await client.get(COINGECKO_URL, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if "SOL" not in prices and "solana" in data and "usd" in data["solana"]:
+                    prices["SOL"] = float(data["solana"]["usd"])
+                if "ETH" not in prices and "ethereum" in data and "usd" in data["ethereum"]:
+                    prices["ETH"] = float(data["ethereum"]["usd"])
+            elif resp.status_code == 429:
+                logger.warning("[CurrencyConverter] CoinGecko rate limit — using cached prices")
+        except Exception as e:
+            logger.error(f"[CurrencyConverter] CoinGecko fallback error: {e}")
+
+    return prices
 
 
 async def get_price(currency: str) -> float:

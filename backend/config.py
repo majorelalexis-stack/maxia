@@ -10,23 +10,34 @@ ESCROW_PRIVKEY_B58 = os.getenv("ESCROW_PRIVKEY_B58", "")
 ESCROW_PROGRAM_ID  = os.getenv("ESCROW_PROGRAM_ID", "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY")
 SOLANA_RPC         = os.getenv("SOLANA_RPC", "https://api.mainnet-beta.solana.com")
 HELIUS_API_KEY     = os.getenv("HELIUS_API_KEY", "")
+CHAINSTACK_RPC     = os.getenv("CHAINSTACK_RPC", "")  # Full URL: https://solana-mainnet.core.chainstack.com/xxxxx
+ALCHEMY_SOLANA_KEY = os.getenv("ALCHEMY_SOLANA_KEY", "")
 FEE_BPS            = int(os.getenv("FEE_BPS", "10"))
 
-# Solana RPC failover — comme base_verifier.py, on essaie chaque URL dans l'ordre
+# Solana RPC failover — agregation de free tiers gratuits pour maximiser la dispo
+# Chainstack 3M req/mois > Alchemy 750K/mois > Helius free > Ankr 200M credits > publics
 SOLANA_RPC_URLS: list = []
 
 def _build_solana_rpc_urls() -> list:
     urls = []
+    # 1. Chainstack — 3M requetes/mois gratuit, pas de CB
+    if CHAINSTACK_RPC:
+        urls.append(CHAINSTACK_RPC)
+    # 2. Alchemy — 750K getTransaction/mois gratuit, pas de CB
+    if ALCHEMY_SOLANA_KEY:
+        urls.append(f"https://solana-mainnet.g.alchemy.com/v2/{ALCHEMY_SOLANA_KEY}")
+    # 3. Helius — free tier limité mais fonctionne
     if HELIUS_API_KEY:
         urls.append(f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}")
+    # 4. Custom RPC si configuré
     custom = os.getenv("SOLANA_RPC", "")
     if custom and custom not in urls:
         urls.append(custom)
-    # Fallbacks publics (rate-limited mais fonctionnels)
+    # 5. Fallbacks publics (rate-limited mais toujours dispo)
     urls.extend([
+        "https://rpc.ankr.com/solana",
         "https://api.mainnet-beta.solana.com",
         "https://solana-mainnet.rpc.extrnode.com",
-        "https://rpc.ankr.com/solana",
     ])
     return urls
 
@@ -42,6 +53,12 @@ def get_rpc_url_safe() -> str:
     if "api-key=" in url:
         return url.split("api-key=")[0] + "api-key=***"
     return url
+
+# ── Trusted Proxies (IP extraction securisee) ──
+TRUSTED_PROXY_IPS = set(os.getenv("TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(","))
+
+# ── Observability (AgentOps) ──
+AGENTOPS_API_KEY = os.getenv("AGENTOPS_API_KEY", "")
 
 # ── IA (Groq) ──
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -184,6 +201,39 @@ def get_commission_tier_name(amount_usdc: float) -> str:
         if amount_usdc >= tier["min_amount"]:
             return tier["name"]
     return "BRONZE"
+
+# ── MCP Tool Tiers — gate tools by agent trust level ──
+# "free" = no API key needed, "bronze" = any registered agent, "gold" = trust >= 2, "whale" = trust >= 4
+MCP_TOOL_TIERS = {
+    # Free (read-only, no auth)
+    "maxia_discover": "free", "maxia_prices": "free", "maxia_trending": "free",
+    "maxia_fear_greed": "free", "maxia_marketplace_stats": "free",
+    "maxia_stocks_list": "free", "maxia_stocks_price": "free", "maxia_stocks_fees": "free",
+    "maxia_yield_best": "free", "maxia_gpu_tiers": "free", "maxia_defi_yield": "free",
+    "maxia_whales": "free", "maxia_candles": "free", "maxia_signals": "free",
+    "maxia_portfolio": "free",
+    # Bronze (any registered agent)
+    "maxia_register": "bronze", "maxia_sell": "bronze", "maxia_execute": "bronze",
+    "maxia_swap_quote": "bronze", "maxia_sentiment": "bronze", "maxia_token_risk": "bronze",
+    "maxia_wallet_analysis": "bronze", "maxia_gpu_status": "bronze",
+    "maxia_stocks_portfolio": "bronze", "maxia_datasets": "bronze",
+    "maxia_agent_id": "bronze", "maxia_trust_score": "bronze", "maxia_oracle_feed": "bronze",
+    "maxia_llm_models": "bronze", "maxia_price_alert": "bronze",
+    # Gold (trust >= 2: verified agents)
+    "maxia_gpu_rent": "gold", "maxia_stocks_buy": "gold", "maxia_stocks_sell": "gold",
+    "maxia_bridge_quote": "gold", "maxia_nft_mint": "gold", "maxia_subscribe": "gold",
+    "maxia_llm_chat": "gold", "maxia_finetune_models": "gold", "maxia_finetune_quote": "gold",
+    # Whale (trust >= 4: established agents)
+    "maxia_rpc_call": "whale", "maxia_finetune_start": "whale", "maxia_finetune_status": "whale",
+    "maxia_awp_register": "whale", "maxia_awp_stake": "whale",
+    "maxia_awp_discover": "whale", "maxia_awp_rewards": "whale",
+}
+
+MCP_TIER_ORDER = {"free": 0, "bronze": 1, "gold": 2, "whale": 3}
+
+def get_mcp_tool_tier(tool_name: str) -> str:
+    """Return the minimum tier required for a tool."""
+    return MCP_TOOL_TIERS.get(tool_name, "bronze")
 
 # ── GPU Tiers — prix LIVE RunPod (0% markup) ──
 # Les prix sont fetches en live via l'API RunPod GraphQL.

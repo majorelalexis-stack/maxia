@@ -217,50 +217,127 @@ async def _generate_comment(post_title: str, post_body: str) -> str:
     return ""
 
 
+_USER_AGENT = f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}" if REDDIT_USERNAME else "MAXIA_Bot/1.0"
+
+_reddit_token: str = ""
+_reddit_token_ts: float = 0
+_REDDIT_TOKEN_TTL = 3000  # 50 min (tokens last 60 min)
+
+
+async def _get_reddit_token() -> str:
+    """Get OAuth token, reuse if not expired."""
+    global _reddit_token, _reddit_token_ts
+    if _reddit_token and time.time() - _reddit_token_ts < _REDDIT_TOKEN_TTL:
+        return _reddit_token
+
+    client = get_http_client()
+    auth_resp = await client.post(
+        "https://www.reddit.com/api/v1/access_token",
+        auth=(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET),
+        data={
+            "grant_type": "password",
+            "username": REDDIT_USERNAME,
+            "password": REDDIT_PASSWORD,
+        },
+        headers={"User-Agent": _USER_AGENT},
+    )
+    token = auth_resp.json().get("access_token")
+    if not token:
+        raise RuntimeError(f"Reddit auth failed: {auth_resp.json()}")
+    _reddit_token = token
+    _reddit_token_ts = time.time()
+    return token
+
+
 async def post_to_reddit(subreddit: str, title: str, body: str) -> dict:
-    """Post to a subreddit using Reddit API (no asyncpraw needed)."""
+    """Post to a subreddit using Reddit API."""
     if not all([REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, REDDIT_PASSWORD]):
         return {"error": "Reddit API keys not configured"}
 
     try:
+        token = await _get_reddit_token()
         client = get_http_client()
-        # Get access token
-        auth_resp = await client.post(
-            "https://www.reddit.com/api/v1/access_token",
-            auth=(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET),
-            data={
-                "grant_type": "password",
-                "username": REDDIT_USERNAME,
-                "password": REDDIT_PASSWORD,
-            },
-            headers={"User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}"},
-        )
-        token = auth_resp.json().get("access_token")
-        if not token:
-            return {"error": "Auth failed", "detail": auth_resp.json()}
-
-        # Submit post
         post_resp = await client.post(
             "https://oauth.reddit.com/api/submit",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "User-Agent": f"MAXIA_Bot/1.0 by {REDDIT_USERNAME}",
-            },
-            data={
-                "kind": "self",
-                "sr": subreddit,
-                "title": title,
-                "text": body,
-            },
+            headers={"Authorization": f"Bearer {token}", "User-Agent": _USER_AGENT},
+            data={"kind": "self", "sr": subreddit, "title": title, "text": body},
         )
         result = post_resp.json()
         success = result.get("success", False)
-        url = ""
-        if result.get("json", {}).get("data", {}).get("url"):
-            url = result["json"]["data"]["url"]
+        url = result.get("json", {}).get("data", {}).get("url", "")
         return {"success": success, "url": url, "subreddit": subreddit}
     except Exception as e:
         return safe_error(e, "operation")
+
+
+async def _comment_on_post(thing_id: str, text: str) -> dict:
+    """Comment on a Reddit post/comment by fullname (t3_xxx or t1_xxx)."""
+    try:
+        token = await _get_reddit_token()
+        client = get_http_client()
+        resp = await client.post(
+            "https://oauth.reddit.com/api/comment",
+            headers={"Authorization": f"Bearer {token}", "User-Agent": _USER_AGENT},
+            data={"thing_id": thing_id, "text": text},
+        )
+        data = resp.json()
+        success = bool(data.get("json", {}).get("data", {}).get("things"))
+        return {"success": success, "thing_id": thing_id}
+    except Exception as e:
+        logger.error("[Reddit] Comment error: %s", e)
+        return {"success": False, "error": str(e)}
+
+
+async def _monitor_mentions():
+    """Search Reddit for keyword mentions and reply if relevant."""
+    if not REDDIT_CLIENT_ID:
+        return
+
+    history = _load_history()
+    commented_ids = {c.get("post_id") for c in history.get("comments", [])}
+
+    try:
+        token = await _get_reddit_token()
+        client = get_http_client()
+
+        for keyword in MONITOR_KEYWORDS[:3]:  # Limit to 3 keywords per cycle
+            resp = await client.get(
+                "https://oauth.reddit.com/search",
+                headers={"Authorization": f"Bearer {token}", "User-Agent": _USER_AGENT},
+                params={"q": keyword, "sort": "new", "limit": 5, "t": "week", "type": "link"},
+            )
+            if resp.status_code != 200:
+                continue
+
+            posts = resp.json().get("data", {}).get("children", [])
+            for post in posts:
+                post_data = post.get("data", {})
+                post_id = post_data.get("name", "")  # t3_xxx fullname
+                if not post_id or post_id in commented_ids:
+                    continue
+                # Skip our own posts
+                if post_data.get("author", "").lower() == REDDIT_USERNAME.lower():
+                    continue
+
+                title = post_data.get("title", "")
+                body = post_data.get("selftext", "")[:500]
+                comment_text = await _generate_comment(title, body)
+                if not comment_text:
+                    continue
+
+                result = await _comment_on_post(post_id, comment_text)
+                if result.get("success"):
+                    history.setdefault("comments", []).append({
+                        "post_id": post_id, "sub": post_data.get("subreddit", ""),
+                        "ts": time.time(), "keyword": keyword,
+                    })
+                    _save_history(history)
+                    logger.info("[Reddit] Commented on %s (keyword: %s)", post_id, keyword)
+                    await asyncio.sleep(120)  # 2 min between comments
+                    break  # One comment per keyword per cycle
+
+    except Exception as e:
+        logger.error("[Reddit] Monitor error: %s", e)
 
 
 async def run_reddit_bot():
@@ -297,6 +374,9 @@ async def run_reddit_bot():
                             logger.error(f"[Reddit] Failed r/{sub}: {result.get('error', '')}")
                         await asyncio.sleep(60)  # Wait between posts
                         break  # One post per cycle
+
+            # Monitor mentions and comment on relevant posts
+            await _monitor_mentions()
 
         except Exception as e:
             logger.error(f"[Reddit] Loop error: {e}")

@@ -27,3 +27,6 @@ local_ceo/.browser_dedup.json
 local_ceo/learnings.json
 local_ceo/platform_scores.json
 local_ceo/rnd_findings.md
+
+# Pip install artifacts
+backend/=*

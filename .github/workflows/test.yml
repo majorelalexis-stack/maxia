@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r backend/requirements.txt 2>&1 | tail -5
-          pip install pytest pytest-asyncio 2>&1 | tail -3
+          pip install pytest pytest-asyncio pytest-cov bandit pip-audit 2>&1 | tail -3
 
       - name: Syntax check all Python files
         run: |
@@ -58,6 +58,8 @@ jobs:
               'sla_enforcer', 'fleet_manager', 'proof_of_delivery',
               'dispute_resolver', 'app_store', 'business_listing',
               'solana_defi', 'compliance_report',
+              'chain_verify_api', 'evm_verifier_base',
+              'intent', 'mcp_server', 'redis_rate_limiter',
           ]
           errors = []
           for mod in modules:
@@ -72,14 +74,11 @@ jobs:
           print(f'All {len(modules)} modules imported OK')
           "
 
-      - name: Run unit tests (94 tests)
+      - name: Run ALL test suites (176+ tests)
         run: |
-          PYTHONPATH=backend python -m pytest tests/test_backend.py -v --tb=short
+          PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=5
 
-      - name: Run chaos tests (7 tests)
-        run: python tests/chaos_test.py
-
-      - name: Load FastAPI app (559 routes)
+      - name: Load FastAPI app (559+ routes)
         run: |
           cd backend
           python -c "
@@ -110,6 +109,10 @@ jobs:
                       ('/oracle/feeds', 200),
                       ('/status/chain/solana', 200),
                       ('/api/public/marketplace-stats', 200),
+                      ('/api/public/discover', 200),
+                      ('/llms.txt', 200),
+                      ('/robots.txt', 200),
+                      ('/mcp/manifest', 200),
                   ]
                   failures = []
                   for path, expected in tests:
@@ -127,8 +130,12 @@ jobs:
           asyncio.run(smoke())
           "
 
-      - name: Security scan (pip-audit)
+      - name: Security scan (bandit)
         run: |
-          pip install pip-audit
-          pip-audit -r backend/requirements.txt --ignore-vuln GHSA-0000 2>&1 || true
+          bandit -r backend/ -ll -q --exclude backend/tests_smoke.py 2>&1 | head -50
+        continue-on-error: true
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip-audit -r backend/requirements.txt 2>&1 | tail -20
         continue-on-error: true

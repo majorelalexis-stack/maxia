@@ -128,3 +128,27 @@ async def serve_creator():
 async def serve_legal():
     """Legal Disclaimer — platform status, tokenized stocks, jurisdictional restrictions."""
     return _serve("legal.html")
+
+
+@router.get("/profile", response_class=HTMLResponse)
+async def serve_profile():
+    """Agent Profile — public profile page with stats, badges, and activity."""
+    return _serve("profile.html")
+
+
+@router.get("/launch", response_class=HTMLResponse)
+async def serve_launch():
+    """Product Hunt launch page (S41)."""
+    return _serve("launch.html")
+
+
+@router.get("/blog", response_class=HTMLResponse)
+async def serve_blog():
+    """Blog — knowledge base with market analysis, tutorials, and announcements."""
+    return _serve("blog.html")
+
+
+@router.get("/governance", response_class=HTMLResponse)
+async def serve_governance():
+    """Governance — vote on platform decisions and feature requests."""
+    return _serve("governance.html")

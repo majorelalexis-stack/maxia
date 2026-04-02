@@ -26,9 +26,12 @@ Tools exposed:
   - maxia_trust_score: Agent trust score (0-100)
   - maxia_subscribe: Recurring USDC subscriptions
 """
-import json, time, asyncio
+import json, time, asyncio, logging
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from error_utils import safe_error
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
@@ -88,8 +91,9 @@ MCP_TOOLS = [
                 "api_key": {"type": "string", "description": "Your MAXIA API key"},
                 "service_id": {"type": "string", "description": "Service ID from discover results"},
                 "prompt": {"type": "string", "description": "Your request/prompt for the service"},
+                "payment_tx": {"type": "string", "description": "USDC payment transaction signature (send USDC to treasury first)"},
             },
-            "required": ["api_key", "service_id", "prompt"],
+            "required": ["api_key", "service_id", "prompt", "payment_tx"],
         },
     },
     {
@@ -340,59 +344,8 @@ MCP_TOOLS = [
         "description": "Create a price alert for a token (triggers when price goes above/below target).",
         "inputSchema": {"type": "object", "properties": {"token": {"type": "string"}, "condition": {"type": "string", "enum": ["above", "below"]}, "target_price": {"type": "number"}, "wallet": {"type": "string"}}, "required": ["token", "condition", "target_price"]},
     },
-    # ── Fine-Tuning LLM Tools ──
-    {
-        "name": "maxia_finetune_models",
-        "description": "List all base models available for fine-tuning (Llama, Qwen, Mistral, Gemma, DeepSeek, Phi) with VRAM requirements and GPU recommendations.",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "maxia_finetune_quote",
-        "description": "Get a price quote for fine-tuning an LLM on your dataset via Unsloth + RunPod GPU.",
-        "inputSchema": {"type": "object", "properties": {"base_model": {"type": "string", "description": "Model ID: llama-3.3-8b, qwen-2.5-14b, mistral-7b, etc."}, "dataset_rows": {"type": "integer", "description": "Number of rows in your JSONL dataset"}, "epochs": {"type": "integer", "default": 3}}, "required": ["base_model", "dataset_rows"]},
-    },
-    {
-        "name": "maxia_finetune_start",
-        "description": "Start a fine-tuning job. Provisions GPU, runs Unsloth training, returns model. Supports GGUF, safetensors, merged, LoRA output.",
-        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "base_model": {"type": "string"}, "dataset_url": {"type": "string", "description": "HTTPS URL to JSONL dataset"}, "epochs": {"type": "integer", "default": 3}, "output_format": {"type": "string", "enum": ["gguf", "safetensors", "merged", "lora_only"], "default": "gguf"}}, "required": ["api_key", "base_model", "dataset_url"]},
-    },
-    {
-        "name": "maxia_finetune_status",
-        "description": "Check status and progress of a fine-tuning job.",
-        "inputSchema": {"type": "object", "properties": {"job_id": {"type": "string"}}, "required": ["job_id"]},
-    },
-    # ── AWP Protocol Tools ──
-    {
-        "name": "maxia_awp_register",
-        "description": "Register an AI agent on the AWP (Autonomous Worker Protocol) on Base L2 for staking and cross-protocol discovery.",
-        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "agent_name": {"type": "string"}, "wallet_address": {"type": "string", "description": "EVM wallet on Base"}, "capabilities": {"type": "array", "items": {"type": "string"}}}, "required": ["api_key", "agent_name", "wallet_address"]},
-    },
-    {
-        "name": "maxia_awp_stake",
-        "description": "Stake USDC on the AWP protocol to increase your agent's trust score and earn 3-12% APY rewards.",
-        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "amount_usdc": {"type": "number", "minimum": 10}, "lock_period_days": {"type": "integer", "default": 30}}, "required": ["api_key", "amount_usdc"]},
-    },
-    {
-        "name": "maxia_awp_discover",
-        "description": "Discover AI agents on the AWP decentralized network. Filter by capability and trust score.",
-        "inputSchema": {"type": "object", "properties": {"capability": {"type": "string"}, "min_trust": {"type": "integer", "default": 0}}},
-    },
-    {
-        "name": "maxia_awp_rewards",
-        "description": "Check staking rewards for an AWP agent.",
-        "inputSchema": {"type": "object", "properties": {"agent_id": {"type": "string"}}, "required": ["agent_id"]},
-    },
-    # ── LLM-as-a-Service ──
-    {
-        "name": "maxia_llm_models",
-        "description": "List available LLM tiers (local/fast/mid/strategic) with pricing per 1K tokens in USDC.",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "maxia_llm_chat",
-        "description": "Send a chat completion request to MAXIA's multi-provider LLM gateway. OpenAI-compatible. Auto-routes to optimal tier.",
-        "inputSchema": {"type": "object", "properties": {"api_key": {"type": "string"}, "messages": {"type": "array", "items": {"type": "object", "properties": {"role": {"type": "string"}, "content": {"type": "string"}}}}, "model": {"type": "string", "enum": ["auto", "local", "fast", "mid", "strategic"], "default": "auto"}, "max_tokens": {"type": "integer", "default": 500}}, "required": ["api_key", "messages"]},
-    },
+    # ── Fine-Tuning, AWP, LLM tools removed from manifest (not yet implemented) ──
+    # When ready, re-add: maxia_finetune_models/quote/start/status, maxia_awp_register/stake/discover/rewards, maxia_llm_models/chat
 ]
 
 
@@ -413,9 +366,17 @@ async def mcp_info():
 
 
 @router.get("/tools")
-async def mcp_list_tools():
-    """List all available MCP tools."""
-    return {"tools": MCP_TOOLS}
+async def mcp_list_tools(tier: str = ""):
+    """List available MCP tools, optionally filtered by tier."""
+    from config import get_mcp_tool_tier, MCP_TIER_ORDER
+    tools_with_tier = []
+    for tool in MCP_TOOLS:
+        t = {**tool, "tier": get_mcp_tool_tier(tool["name"])}
+        tools_with_tier.append(t)
+    if tier and tier in MCP_TIER_ORDER:
+        max_level = MCP_TIER_ORDER[tier]
+        tools_with_tier = [t for t in tools_with_tier if MCP_TIER_ORDER.get(t["tier"], 0) <= max_level]
+    return {"tools": tools_with_tier}
 
 
 # #10 MCP free tier: read-only tools work without API key (5 calls/min per IP)
@@ -434,7 +395,8 @@ async def mcp_call_tool(request: Request):
 
     # Free tier rate limiting for tools that don't need API key
     if tool_name in FREE_TOOLS and not args.get("api_key"):
-        ip = request.client.host if request.client else "unknown"
+        from security import get_real_ip
+        ip = get_real_ip(request)
         import time as _t
         now = _t.time()
         calls = _mcp_free_calls.setdefault(ip, [])
@@ -442,6 +404,17 @@ async def mcp_call_tool(request: Request):
         if len(calls) >= 5:
             return {"content": [{"type": "text", "text": "Free tier: max 5 calls/min. Register for unlimited: POST /api/public/register"}], "isError": True}
         calls.append(now)
+
+    # Tier-based access control
+    from config import get_mcp_tool_tier, MCP_TIER_ORDER
+    required_tier = get_mcp_tool_tier(tool_name)
+    if required_tier != "free":
+        api_key = args.get("api_key", request.headers.get("x-api-key", ""))
+        if not api_key:
+            return {"content": [{"type": "text", "text": f"Tool '{tool_name}' requires {required_tier} tier. Register: POST /api/public/register"}], "isError": True}
+        agent_tier = await _get_agent_tier(api_key)
+        if MCP_TIER_ORDER.get(agent_tier, 0) < MCP_TIER_ORDER.get(required_tier, 0):
+            return {"content": [{"type": "text", "text": f"Tool '{tool_name}' requires {required_tier} tier (your tier: {agent_tier}). Upgrade by increasing trade volume."}], "isError": True}
 
     try:
         result = await _execute_tool(tool_name, args)
@@ -451,9 +424,29 @@ async def mcp_call_tool(request: Request):
         }
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"Error: {str(e)}"}],
+            "content": [{"type": "text", "text": safe_error(e, f"mcp_call:{tool_name}")["error"]}],
             "isError": True,
         }
+
+
+async def _get_agent_tier(api_key: str) -> str:
+    """Lookup agent tier from API key. Maps trust level to MCP tier."""
+    try:
+        from database import get_db
+        db = await get_db()
+        row = await db.fetchone("SELECT trust_level FROM agents WHERE api_key = ?", (api_key,))
+        if not row:
+            return "bronze"  # Valid key but no trust data = bronze
+        trust = row[0] if row[0] is not None else 0
+        if trust >= 4:
+            return "whale"
+        elif trust >= 2:
+            return "gold"
+        return "bronze"
+    except Exception as e:
+        log.error("MCP tier check DB error: %s", e)
+        from fastapi import HTTPException
+        raise HTTPException(503, "Service temporarily unavailable")
 
 
 async def _execute_tool(name: str, args: dict) -> dict:
@@ -491,11 +484,15 @@ async def _execute_tool(name: str, args: dict) -> dict:
             return r.json()
 
         elif name == "maxia_execute":
+            # S4 fix: payment_tx MUST be passed — no free execution
+            if "payment_tx" not in args or not args["payment_tx"]:
+                return {"error": "payment_tx is required. Send USDC to treasury first, then pass the tx signature."}
             r = await client.post("/api/public/execute",
                 headers={"X-API-Key": args["api_key"]},
                 json={
                     "service_id": args["service_id"],
                     "prompt": args["prompt"],
+                    "payment_tx": args["payment_tx"],
                 })
             return r.json()
 
@@ -610,7 +607,12 @@ async def _execute_tool(name: str, args: dict) -> dict:
             return r.json()
         elif name == "maxia_rpc_call":
             chain = args.get("chain", "solana")
-            r = await client.post(f"/api/rpc/{chain}", json={"jsonrpc": "2.0", "id": 1, "method": args.get("method", ""), "params": args.get("params", [])}, headers={"X-API-Key": "mcp-internal"})
+            # BUG 10 fix: whitelist chain to prevent path injection
+            _VALID_CHAINS = {"solana", "base", "ethereum", "xrp", "polygon", "arbitrum",
+                             "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei"}
+            if chain not in _VALID_CHAINS:
+                return {"error": f"Unsupported chain: {chain}"}
+            r = await client.post(f"/api/rpc/{chain}", json={"jsonrpc": "2.0", "id": 1, "method": args.get("method", ""), "params": args.get("params", [])})
             return r.json()
         elif name == "maxia_oracle_feed":
             # Use /api/public/crypto/prices (CoinGecko live) — NOT /api/oracle/feed (fallback statique)
@@ -669,52 +671,7 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.post("/api/trading/alerts", json=args)
             return r.json()
 
-        # ── Fine-Tuning LLM ──
-        elif name == "maxia_finetune_models":
-            r = await client.get("/api/finetune/models")
-            return r.json()
-        elif name == "maxia_finetune_quote":
-            r = await client.post("/api/finetune/quote", json=args)
-            return r.json()
-        elif name == "maxia_finetune_start":
-            r = await client.post("/api/finetune/start",
-                headers={"X-API-Key": args.get("api_key", "")},
-                json={k: v for k, v in args.items() if k != "api_key"})
-            return r.json()
-        elif name == "maxia_finetune_status":
-            r = await client.get(f"/api/finetune/status/{args.get('job_id', '')}")
-            return r.json()
-
-        # ── AWP Protocol ──
-        elif name == "maxia_awp_register":
-            r = await client.post("/api/awp/register",
-                headers={"X-API-Key": args.get("api_key", "")},
-                json={k: v for k, v in args.items() if k != "api_key"})
-            return r.json()
-        elif name == "maxia_awp_stake":
-            r = await client.post("/api/awp/stake",
-                headers={"X-API-Key": args.get("api_key", "")},
-                json={k: v for k, v in args.items() if k != "api_key"})
-            return r.json()
-        elif name == "maxia_awp_discover":
-            r = await client.get("/api/awp/discover", params={
-                "capability": args.get("capability", ""),
-                "min_trust": args.get("min_trust", 0),
-            })
-            return r.json()
-        elif name == "maxia_awp_rewards":
-            r = await client.get(f"/api/awp/rewards/{args.get('agent_id', '')}")
-            return r.json()
-
-        # ── LLM-as-a-Service ──
-        elif name == "maxia_llm_models":
-            r = await client.get("/api/llm/models")
-            return r.json()
-        elif name == "maxia_llm_chat":
-            r = await client.post("/api/llm/chat",
-                headers={"X-API-Key": args.get("api_key", "")},
-                json={"messages": args.get("messages", []), "model": args.get("model", "auto"), "max_tokens": args.get("max_tokens", 500)})
-            return r.json()
+        # ── Fine-Tuning, AWP, LLM tools removed (not yet implemented) ──
 
         else:
             return {"error": f"Unknown tool: {name}", "available": [t["name"] for t in MCP_TOOLS]}
@@ -742,15 +699,38 @@ async def mcp_sse(request: Request):
 
 @router.post("/sse/call")
 async def mcp_sse_call(request: Request):
-    """Execute MCP tool via SSE-compatible endpoint."""
+    """Execute MCP tool via SSE-compatible endpoint (same auth as /tools/call)."""
     body = await request.json()
     tool_name = body.get("name", "")
     args = body.get("arguments", {})
+
+    # Same auth + rate limit as /tools/call (BUG 9 fix)
+    if tool_name in FREE_TOOLS and not args.get("api_key"):
+        from security import get_real_ip
+        ip = get_real_ip(request)
+        import time as _t
+        now = _t.time()
+        calls = _mcp_free_calls.setdefault(ip, [])
+        calls[:] = [t for t in calls if now - t < 60]
+        if len(calls) >= 5:
+            return {"content": [{"type": "text", "text": "Free tier: max 5 calls/min. Register for unlimited: POST /api/public/register"}], "isError": True}
+        calls.append(now)
+    elif tool_name not in FREE_TOOLS:
+        from config import get_mcp_tool_tier, MCP_TIER_ORDER
+        required_tier = get_mcp_tool_tier(tool_name)
+        if required_tier != "free":
+            api_key = args.get("api_key", request.headers.get("x-api-key", ""))
+            if not api_key:
+                return {"content": [{"type": "text", "text": f"Tool '{tool_name}' requires {required_tier} tier. Register: POST /api/public/register"}], "isError": True}
+            agent_tier = await _get_agent_tier(api_key)
+            if MCP_TIER_ORDER.get(agent_tier, 0) < MCP_TIER_ORDER.get(required_tier, 0):
+                return {"content": [{"type": "text", "text": f"Tool '{tool_name}' requires {required_tier} tier (your tier: {agent_tier}). Upgrade by increasing trade volume."}], "isError": True}
+
     try:
         result = await _execute_tool(tool_name, args)
         return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}], "isError": False}
     except Exception as e:
-        return {"content": [{"type": "text", "text": f"Error: {str(e)}"}], "isError": True}
+        return {"content": [{"type": "text", "text": safe_error(e, f"mcp_sse:{tool_name}")["error"]}], "isError": True}
 
 
 # ══════════════════════════════════════════
@@ -772,5 +752,5 @@ async def mcp_manifest():
             "header": "X-API-Key",
             "register_url": f"{MAXIA_URL}/api/public/register",
         },
-        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi", "sentiment", "token-risk", "wallet-analysis", "trending", "fear-greed", "gpu-rental", "tokenized-stocks", "candles", "whale-tracker", "copy-trading", "leaderboard", "agent-chat", "templates", "webhooks", "escrow", "sla", "clones", "llm-finetune", "awp-staking", "awp-discovery"],
+        "capabilities": ["discover", "register", "sell", "execute", "swap", "prices", "defi", "sentiment", "token-risk", "wallet-analysis", "trending", "fear-greed", "gpu-rental", "tokenized-stocks", "candles", "whale-tracker", "copy-trading", "leaderboard", "agent-chat", "templates", "webhooks", "escrow", "sla", "clones"],
     }

@@ -123,11 +123,66 @@ A2A_AGENT_CARD = {
                 "Swap ETH to USDC on Arbitrum",
             ],
         },
+        {
+            "id": "escrow",
+            "name": "On-Chain Escrow",
+            "description": "Lock USDC in on-chain escrow on Solana (Anchor PDA) or Base L2 (Solidity). Buyer confirms delivery or opens dispute. 48h auto-refund.",
+            "tags": ["escrow", "solana", "base", "usdc", "trust"],
+            "examples": ["Lock 50 USDC in escrow for a code review", "Check escrow status"],
+        },
+        {
+            "id": "sentiment-analysis",
+            "name": "Crypto Sentiment Analysis",
+            "description": "Real-time crypto sentiment via Fear & Greed Index, social signals, whale tracking, and technical indicators.",
+            "tags": ["sentiment", "analysis", "crypto", "fear-greed"],
+            "examples": ["What's BTC sentiment right now?", "Fear & Greed Index today"],
+        },
+        {
+            "id": "image-generation",
+            "name": "Image Generation",
+            "description": "Generate images using FLUX.1 via Pollinations.ai. Up to 2048px. Free tier available.",
+            "tags": ["image", "generation", "ai", "flux"],
+            "examples": ["Generate a logo for an AI project", "Create a banner image"],
+        },
+        {
+            "id": "web-scraper",
+            "name": "Web Scraping",
+            "description": "Scrape any web page and return structured JSON data. $0.05/page.",
+            "tags": ["scraper", "data", "web"],
+            "examples": ["Scrape product data from this URL", "Extract article text"],
+        },
+        {
+            "id": "smart-contract-audit",
+            "name": "Smart Contract Audit",
+            "description": "AI-powered security audit of Solidity or Rust smart contracts. $9.99 per audit.",
+            "tags": ["audit", "security", "smart-contract", "solidity", "rust"],
+            "examples": ["Audit this Solidity contract for vulnerabilities"],
+        },
+        {
+            "id": "code-generation",
+            "name": "Code Generation",
+            "description": "Generate code in Python, Rust, JavaScript, or TypeScript. $3.99 per request.",
+            "tags": ["code", "generation", "python", "rust", "javascript"],
+            "examples": ["Write a Rust function to parse JSON", "Generate a Python API client"],
+        },
     ],
 }
 
 # ── Task storage (in-memory, prod: use DB) ──
 _tasks: dict = {}  # task_id -> task object
+_TASKS_MAX = 5000  # P2 fix: prevent unbounded growth
+
+
+def _cleanup_tasks():
+    """Remove completed tasks older than 1 hour."""
+    if len(_tasks) <= _TASKS_MAX:
+        return
+    cutoff = time.time() - 3600
+    stale = [k for k, v in _tasks.items()
+             if v.get("status") in ("completed", "failed", "canceled")
+             and v.get("updatedAt", 0) < cutoff]
+    for k in stale:
+        del _tasks[k]
 
 
 # ── A2A JSON-RPC Methods ──
@@ -183,6 +238,7 @@ async def _handle_tasks_send(params: dict, req_id) -> dict:
         })
 
     _tasks[task_id] = task
+    _cleanup_tasks()
     return _make_result(task, req_id)
 
 

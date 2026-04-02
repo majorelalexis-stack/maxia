@@ -19,7 +19,7 @@ def _get_db():
     return db
 
 def _get_auction_manager():
-    from main import auction_manager
+    from ws_handlers import auction_manager
     return auction_manager
 
 def _get_runpod():
@@ -78,11 +78,14 @@ async def get_tiers():
         else:
             sell_price = base_price
 
-        # Check live availability on Akash
+        # Check live availability + count on Akash
         is_avail = False
+        avail_count = 0
         if AKASH_ENABLED and akash_client and tier_id in AKASH_GPU_MAP:
             try:
-                is_avail = await akash_client.check_tier_available(tier_id)
+                await akash_client.get_gpu_availability()  # refresh cache if stale
+                avail_count = akash_client.get_tier_count(tier_id)
+                is_avail = avail_count > 0
             except Exception:
                 is_avail = False
 
@@ -90,6 +93,7 @@ async def get_tiers():
             "id": tier_id, "label": g["label"], "vram_gb": g["vram_gb"],
             "price_per_hour_usdc": sell_price,
             "available": is_avail,
+            "available_count": avail_count,
             "source": "live" if AKASH_ENABLED else "fallback",
             "maxia_markup": f"{int(_GPU_MARKUP*100)}%",
             "provider": "akash",
@@ -97,6 +101,7 @@ async def get_tiers():
         if g.get("local"):
             tier["local"] = True
             tier["available"] = False
+            tier["available_count"] = 0
         tiers.append(tier)
 
     return {
@@ -224,7 +229,33 @@ def _resolve_gpu_tier(gpu_input: str) -> str | None:
 @router.get("/api/public/gpu/tiers")
 async def get_gpu_tiers_public():
     """Live GPU pricing via Akash Network. No auth required."""
-    return await get_tiers()
+    result = await get_tiers()
+    result["treasury_solana"] = TREASURY_ADDRESS
+    from config import TREASURY_ADDRESS_BASE
+    result["treasury_base"] = TREASURY_ADDRESS_BASE
+    return result
+
+
+@router.get("/api/public/solana/blockhash")
+async def get_solana_blockhash():
+    """Return latest Solana blockhash via backend RPC (Helius). Avoids browser CORS/403."""
+    import httpx
+    from config import SOLANA_RPC_URLS
+    for rpc_url in SOLANA_RPC_URLS:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post(rpc_url, json={
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "getLatestBlockhash",
+                    "params": [{"commitment": "confirmed"}]
+                })
+                data = resp.json()
+                bh = data.get("result", {}).get("value", {}).get("blockhash")
+                if bh:
+                    return {"blockhash": bh}
+        except Exception:
+            continue
+    raise HTTPException(502, "All Solana RPCs unavailable")
 
 
 @router.get("/api/public/prices")

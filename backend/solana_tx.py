@@ -211,45 +211,61 @@ TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 
 async def find_token_account(wallet: str, mint: str = USDC_MINT) -> str:
-    """Trouve le token account USDC d'un wallet."""
-    rpc = get_rpc_url()
-    try:
-        payload = {
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getTokenAccountsByOwner",
-            "params": [wallet, {"mint": mint}, {"encoding": "jsonParsed"}],
-        }
-        client = get_http_client()
-        resp = await client.post(rpc, json=payload, timeout=10)
-        data = resp.json()
-        accounts = data.get("result", {}).get("value", [])
-        if accounts:
-            return accounts[0].get("pubkey", "")
-    except Exception as e:
-        logger.error(f"Token account error: {e}")
+    """Trouve le token account USDC d'un wallet avec failover multi-RPC."""
+    from config import SOLANA_RPC_URLS
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getTokenAccountsByOwner",
+        "params": [wallet, {"mint": mint}, {"encoding": "jsonParsed"}],
+    }
+    for rpc_url in (SOLANA_RPC_URLS[:5] if SOLANA_RPC_URLS else [get_rpc_url()]):
+        try:
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=10)
+            data = resp.json()
+            if "error" in data and data["error"]:
+                continue
+            accounts = data.get("result", {}).get("value", [])
+            if accounts:
+                return accounts[0].get("pubkey", "")
+            return ""  # Valid response, no accounts
+        except Exception:
+            continue
+    logger.error("find_token_account: ALL RPCs failed for %s", wallet[:8])
     return ""
 
 
 async def get_usdc_balance(wallet: str) -> float:
-    """Recupere le solde USDC d'un wallet."""
-    rpc = get_rpc_url()
-    try:
-        payload = {
-            "jsonrpc": "2.0", "id": 1,
-            "method": "getTokenAccountsByOwner",
-            "params": [wallet, {"mint": USDC_MINT}, {"encoding": "jsonParsed"}],
-        }
-        client = get_http_client()
-        resp = await client.post(rpc, json=payload, timeout=10)
-        data = resp.json()
-        accounts = data.get("result", {}).get("value", [])
-        if accounts:
-            info = accounts[0].get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
-            amount = info.get("tokenAmount", {}).get("uiAmount", 0)
-            return float(amount) if amount else 0
-    except Exception:
-        pass
-    return 0
+    """Recupere le solde USDC d'un wallet avec failover multi-RPC."""
+    from config import SOLANA_RPC_URLS
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getTokenAccountsByOwner",
+        "params": [wallet, {"mint": USDC_MINT}, {"encoding": "jsonParsed"}],
+    }
+    for rpc_url in (SOLANA_RPC_URLS[:4] if SOLANA_RPC_URLS else [get_rpc_url()]):
+        try:
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=10)
+            data = resp.json()
+            if "error" in data and data["error"]:
+                logger.warning("get_usdc_balance RPC error on %s: %s", rpc_url.split("?")[0][:30], data["error"])
+                continue
+            accounts = data.get("result", {}).get("value", [])
+            if accounts:
+                info = accounts[0].get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                amount = info.get("tokenAmount", {}).get("uiAmount", 0)
+                balance = float(amount) if amount else 0.0
+                logger.info("USDC balance %s...: %.2f (via %s)", wallet[:8], balance, rpc_url.split("?")[0][:30])
+                return balance
+            # No accounts = wallet has 0 USDC (valid response)
+            logger.info("USDC balance %s...: 0.00 (no token account, via %s)", wallet[:8], rpc_url.split("?")[0][:30])
+            return 0.0
+        except Exception as e:
+            logger.warning("get_usdc_balance failed on %s: %s", rpc_url.split("?")[0][:30], e)
+            continue
+    logger.error("get_usdc_balance: ALL RPCs failed for %s", wallet[:8])
+    return 0.0
 
 
 async def send_usdc_transfer_real(to_address: str, amount_usdc: float,

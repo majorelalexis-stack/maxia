@@ -47,6 +47,7 @@ async def _get_redis():
     if not url:
         _redis_available = False
         _redis = False  # Marque comme "tente"
+        logger.warning("REDIS_URL not set — rate limiting uses in-memory fallback (not shared across workers)")
         return None
     try:
         import redis.asyncio as aioredis
@@ -90,6 +91,9 @@ async def check_rate_limit_redis(ip: str, endpoint: str = "", tier: str = "") ->
     Utilise Redis (INCR + EXPIRE atomique) si disponible, sinon fallback in-memory.
     Le tier determine la limite : free=100/jour, pro=10000/jour, enterprise=100000/jour.
     """
+    from security import RATE_LIMIT_WHITELIST
+    if ip in RATE_LIMIT_WHITELIST:
+        return True
     if not tier:
         tier = DEFAULT_TIER
     limit = TIER_LIMITS.get(tier, TIER_LIMITS["free"])

@@ -141,6 +141,77 @@ async def forum_report(post_id: str, request: Request):
     return await report_post(_get_db(), post_id, wallet, body.get("reason", ""))
 
 
+# ── Phase 3: Trending + Tags ──
+
+
+@router.get("/api/public/forum/trending")
+async def forum_trending(hours: int = 24, limit: int = 10):
+    """AI Forum — trending posts (last N hours)."""
+    from forum import get_trending
+
+    hours = min(max(hours, 1), 168)  # 1h to 7 days
+    limit = min(max(limit, 1), 50)
+    posts = await get_trending(_get_db(), hours=hours, limit=limit)
+    return {"posts": posts, "hours": hours, "total": len(posts)}
+
+
+@router.get("/api/public/forum/tags")
+async def forum_tags(limit: int = 50):
+    """AI Forum — all tags with frequency."""
+    from forum import get_all_tags
+
+    limit = min(max(limit, 1), 200)
+    tags = await get_all_tags(_get_db(), limit=limit)
+    return {"tags": tags, "total": len(tags)}
+
+
+@router.get("/api/public/forum/tag/{tag}")
+async def forum_by_tag(tag: str, limit: int = 20, page: int = 0):
+    """AI Forum — posts filtered by tag."""
+    from forum import get_posts_by_tag
+
+    tag = tag.strip()[:50]
+    limit = min(max(limit, 1), 100)
+    offset = max(page, 0) * limit
+    posts = await get_posts_by_tag(_get_db(), tag, limit=limit, offset=offset)
+    return {"posts": posts, "tag": tag, "total": len(posts)}
+
+
+# ── Phase 6c: Filtered posts ──
+
+
+@router.get("/api/public/forum/filtered")
+async def forum_filtered(
+    sort: str = "hot",
+    community: str = "",
+    post_type: str = "",
+    chain: str = "",
+    min_budget: float = 0,
+    max_budget: float = 0,
+    since: int = 0,
+    limit: int = 20,
+    page: int = 0,
+):
+    """AI Forum — posts with advanced filters."""
+    from forum import get_posts_filtered
+
+    limit = min(max(limit, 1), 100)
+    offset = max(page, 0) * limit
+    posts = await get_posts_filtered(
+        _get_db(),
+        community=community,
+        sort=sort,
+        limit=limit,
+        offset=offset,
+        post_type=post_type,
+        chain=chain,
+        min_budget=min_budget,
+        max_budget=max_budget,
+        since=since,
+    )
+    return {"posts": posts, "total": len(posts)}
+
+
 @router.post("/api/admin/forum/ban")
 async def forum_admin_ban(request: Request):
     """Admin — ban an agent from the forum."""

@@ -20,8 +20,63 @@ from alerts import alert_system, alert_error
 
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
-# #2: Global asyncio lock — prevents double-spend race conditions
-_escrow_lock = asyncio.Lock()
+# S1 audit fix: distributed lock via Redis (multi-worker safe)
+# Falls back to asyncio.Lock if Redis unavailable
+_escrow_lock_local = asyncio.Lock()
+
+
+async def _acquire_escrow_lock(escrow_id: str, timeout_ms: int = 10000) -> bool:
+    """Acquire a distributed lock for an escrow operation via Redis SET NX PX.
+
+    E-4 fix: if Redis unavailable, use local asyncio.Lock (NOT return True blindly).
+    """
+    try:
+        from redis_client import redis_client
+        if redis_client and redis_client.is_connected:
+            key = f"escrow_lock:{escrow_id}"
+            acquired = await redis_client._redis.set(key, "1", nx=True, px=timeout_ms)
+            return bool(acquired)
+    except Exception as e:
+        logger.warning("[Escrow] Redis lock unavailable: %s — using local lock", e)
+    # Fallback: local asyncio lock (safe for single worker, best-effort for multi)
+    await _escrow_lock_local.acquire()
+    return True
+
+
+async def _release_escrow_lock(escrow_id: str):
+    """Release the distributed escrow lock (Redis + local fallback)."""
+    try:
+        from redis_client import redis_client
+        if redis_client and redis_client.is_connected:
+            await redis_client._redis.delete(f"escrow_lock:{escrow_id}")
+    except Exception as e:
+        logger.warning("[Escrow] Redis lock release failed: %s", e)
+    # Also release local lock if held
+    if _escrow_lock_local.locked():
+        try:
+            _escrow_lock_local.release()
+        except RuntimeError:
+            pass
+
+
+class _DistributedEscrowLock:
+    """Async context manager: Redis distributed lock with local fallback."""
+    def __init__(self, escrow_id: str):
+        self._id = escrow_id
+        self._use_local = False
+
+    async def __aenter__(self):
+        acquired = await _acquire_escrow_lock(self._id)
+        if not acquired:
+            raise RuntimeError("Escrow operation in progress, please retry")
+        return self
+
+    async def __aexit__(self, *args):
+        await _release_escrow_lock(self._id)
+
+
+# Drop-in replacement: _escrow_lock usage changes from
+#   async with _escrow_lock:  →  async with _DistributedEscrowLock(escrow_id):
 
 # Solana base58 address regex (#3 / #13)
 _SOLANA_ADDR_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{32,44}$')
@@ -102,8 +157,8 @@ class EscrowClient:
                 escrow = json.loads(row["data"])
                 self._escrows[escrow["escrowId"]] = escrow
             logger.info("%d escrows actifs charges depuis DB", len(self._escrows))
-        except Exception:
-            pass  # Table pas encore creee
+        except Exception as e:
+            logger.warning("Escrow DB load failed (table may not exist yet): %s", e)
 
     async def _save_escrow(self, escrow: dict):
         """Persiste un escrow en DB."""
@@ -128,8 +183,8 @@ class EscrowClient:
                 (escrow_id,))
             if rows:
                 return json.loads(rows[0]["data"])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Escrow DB reload failed for %s: %s", escrow_id, e)
         return None
 
     async def create_escrow(self, buyer_wallet: str, seller_wallet: str,
@@ -164,12 +219,22 @@ class EscrowClient:
             return {"success": False, "error": "amount_usdc must be positive"}
 
         # V-10: Use tx_already_processed (indexed column) instead of LIKE on JSON
+        # BUG 1 fix: also check escrow_records + NEVER skip on exception
         if self._db:
             try:
                 if await self._db.tx_already_processed(tx_signature):
                     return {"success": False, "error": f"Escrow already exists for tx {tx_signature[:16]}..."}
-            except Exception:
-                pass  # Table may not exist yet
+                # Also check escrow_records table for tx_signature
+                dup = await self._db._fetchone(
+                    "SELECT 1 FROM escrow_records WHERE json_extract(data, '$.tx_signature')=?",
+                    (tx_signature,)
+                )
+                if dup:
+                    return {"success": False, "error": f"Escrow already exists for tx {tx_signature[:16]}..."}
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error("Escrow idempotency check failed: %s", e)
+                return {"success": False, "error": "Escrow verification temporarily unavailable"}
 
         escrow_id = str(uuid.uuid4())
 
@@ -235,8 +300,8 @@ class EscrowClient:
         err = self._check_enabled()
         if err:
             return err
-        # #2: Lock to prevent race condition / double-spend
-        async with _escrow_lock:
+        # S1 fix: distributed lock (Redis) — multi-worker safe
+        async with _DistributedEscrowLock(escrow_id):
             # #10: Reload from DB (source of truth) before acting
             db_escrow = await self._load_escrow_from_db(escrow_id)
             if db_escrow:
@@ -285,7 +350,17 @@ class EscrowClient:
                     )
                     commission_tx = comm_result.get("signature", "")
                 except Exception as comm_err:
-                    logger.warning("Commission transfer failed (non-blocking): %s", comm_err)
+                    # E-2 fix: alert on commission failure (real money lost)
+                    logger.error("COMMISSION LOST: %s USDC for escrow %s: %s", commission_usdc, escrow_id, comm_err)
+                    try:
+                        from alerts import _send_private
+                        await _send_private(
+                            f"\U0001f534 <b>Commission Lost</b>\n"
+                            f"Escrow: <code>{escrow_id[:16]}</code>\n"
+                            f"Amount: <code>{commission_usdc} USDC</code>\n"
+                            f"Error: <code>{str(comm_err)[:100]}</code>")
+                    except Exception as e2:
+                        logger.warning("Commission loss alert failed: %s", e2)
 
             if result.get("success"):
                 escrow["status"] = "released"
@@ -320,8 +395,8 @@ class EscrowClient:
         err = self._check_enabled()
         if err:
             return err
-        # #2: Lock to prevent race condition / double-spend
-        async with _escrow_lock:
+        # S1 fix: distributed lock (Redis) — multi-worker safe
+        async with _DistributedEscrowLock(escrow_id):
             # #10: Reload from DB (source of truth) before acting
             db_escrow = await self._load_escrow_from_db(escrow_id)
             if db_escrow:
@@ -380,8 +455,8 @@ class EscrowClient:
         err = self._check_enabled()
         if err:
             return err
-        # #2: Lock to prevent race condition / double-spend
-        async with _escrow_lock:
+        # S1 fix: distributed lock (Redis) — multi-worker safe
+        async with _DistributedEscrowLock(escrow_id):
             # #10: Reload from DB (source of truth)
             db_escrow = await self._load_escrow_from_db(escrow_id)
             if db_escrow:

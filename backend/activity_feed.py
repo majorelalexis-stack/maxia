@@ -275,9 +275,11 @@ async def feed_stream(request: Request):
         except asyncio.CancelledError:
             pass
         finally:
-            # Nettoyer la queue a la deconnexion
-            if queue in _sse_queues:
+            # P4 fix: always cleanup on disconnect (robust removal)
+            try:
                 _sse_queues.remove(queue)
+            except ValueError:
+                pass  # Already removed
 
     return StreamingResponse(
         event_generator(),

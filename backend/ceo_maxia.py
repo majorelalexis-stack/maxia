@@ -3245,6 +3245,8 @@ class CEOMaxia:
             self._last_start_alert = _today
             await alert_info("CEO VPS V5 SCOUT — collecte metriques + scan agents on-chain")
 
+        from agentops_integration import start_trace, end_trace, record_error as ao_record_error
+
         while self._running:
             self._cycle += 1
             now = datetime.utcnow()
@@ -3253,29 +3255,41 @@ class CEOMaxia:
             try:
                 # Mode minimal : monitoring, RADAR, CRISIS, ANALYTICS
                 # PAS d'outreach social (delegue au CEO local avec browser-use)
-                await self._tactique()
+                await self._run_tracked("tactique", self._tactique)
 
                 # Strategique 1x/jour (20h UTC) — garder pour le pricing et scaling
                 if now.hour == 20 and self._last["strat"] != today:
                     self._last["strat"] = today
-                    await self._strategique()
+                    await self._run_tracked("strategique", self._strategique)
 
                 # Vision hebdo (dimanche 18h) — garder pour la retrospective
                 if now.weekday() == 6 and now.hour == 18 and self._last["vision"] != today:
                     self._last["vision"] = today
-                    await self._vision()
+                    await self._run_tracked("vision", self._vision)
 
                 # Expansion mensuelle — garder
                 if now.day == 1 and now.hour == 10 and self._last["expansion"] != today:
                     self._last["expansion"] = today
-                    await self._expansion()
+                    await self._run_tracked("expansion", self._expansion)
 
                 await self._check_hunter()
                 await self._check_errors()
 
             except Exception as e:
                 logger.error("Error #%s: %s", self._cycle, e)
+                ao_record_error(f"ceo_cycle_{self._cycle}", e)
             await asyncio.sleep(10800)  # 3 heures
+
+    async def _run_tracked(self, loop_name: str, coro_fn):
+        """Execute une boucle CEO avec trace AgentOps."""
+        from agentops_integration import start_trace, end_trace
+        trace = start_trace(tags=["ceo", loop_name, f"cycle-{self._cycle}"])
+        try:
+            await coro_fn()
+            end_trace(trace, "Success", f"{loop_name} cycle {self._cycle}")
+        except Exception:
+            end_trace(trace, "Fail", f"{loop_name} cycle {self._cycle} failed")
+            raise
 
     def stop(self):
         self._running = False

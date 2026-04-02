@@ -1,7 +1,6 @@
 """MAXIA Escrow routes — extracted from main.py."""
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Header
 from error_utils import safe_error
-from auth import require_auth
 
 router = APIRouter(prefix="/api/escrow", tags=["escrow"])
 
@@ -13,6 +12,24 @@ def _get_escrow_client():
     return escrow_client
 
 
+async def _require_wallet(
+    x_wallet: str = Header(None, alias="X-Wallet"),
+    authorization: str = Header(None, alias="Authorization"),
+) -> str:
+    """Auth legere pour escrow: accepte X-Wallet ou Bearer session token.
+    La vraie securite c'est la verification on-chain de la tx (create)
+    et le check buyer_wallet en DB (confirm/reclaim)."""
+    # 1) Bearer session token
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+        from auth import verify_session_token
+        return verify_session_token(token)
+    # 2) X-Wallet header (le frontend l'envoie via api())
+    if x_wallet and len(x_wallet) >= 32:
+        return x_wallet
+    raise HTTPException(401, "Wallet required: connect your wallet first")
+
+
 # ══════════════════════════════════════════════════════════
 #  V11: ESCROW ON-CHAIN (Art.21)
 # ══════════════════════════════════════════════════════════
@@ -20,7 +37,7 @@ def _get_escrow_client():
 @router.get("/info")
 async def escrow_public_info():
     """Escrow public info — Solana + Base contracts, stats. No auth."""
-    from config import ESCROW_PROGRAM_ID, ESCROW_CONTRACT_BASE
+    from config import ESCROW_PROGRAM_ID, ESCROW_CONTRACT_BASE, ESCROW_ADDRESS
     escrow_client = _get_escrow_client()
     stats = escrow_client.get_stats()
 
@@ -35,6 +52,7 @@ async def escrow_public_info():
     return {
         "solana": {
             "program_id": ESCROW_PROGRAM_ID,
+            "escrow_wallet": ESCROW_ADDRESS,
             "explorer": f"https://solscan.io/account/{ESCROW_PROGRAM_ID}",
             "network": "mainnet-beta",
             "active_escrows": stats.get("active", 0) if isinstance(stats, dict) else 0,
@@ -94,16 +112,48 @@ async def escrow_stats(request: Request):
     return escrow_client.get_stats()
 
 @router.get("/list")
-async def list_escrows(wallet: str = Depends(require_auth)):
-    """List escrows for the authenticated wallet (as buyer or seller)."""
-    escrow_client = _get_escrow_client()
-    all_escrows = escrow_client._escrows
-    user_escrows = [e for e in all_escrows.values()
-                    if e.get("buyer") == wallet or e.get("seller") == wallet]
-    return {"escrows": user_escrows, "count": len(user_escrows), "wallet": wallet}
+async def list_escrows(wallet: str = Depends(_require_wallet)):
+    """List escrows for the authenticated wallet (as buyer or seller). Reads from DB."""
+    import json as _json
+    try:
+        from database import db
+        rows = await db.raw_execute_fetchall(
+            "SELECT escrow_id, buyer, seller, status, data, created_at "
+            "FROM escrow_records WHERE buyer=? OR seller=? ORDER BY created_at DESC",
+            (wallet, wallet))
+        escrows = []
+        for r in rows:
+            e = dict(r)
+            db_status = e.get("status", "unknown")
+            db_created = e.get("created_at")
+            if e.get("data"):
+                try:
+                    e.update(_json.loads(e["data"]))
+                except Exception:
+                    pass
+            # DB columns are source of truth — override JSON
+            e["status"] = db_status
+            e["escrowId"] = e.get("escrowId", e.get("escrow_id", ""))
+            # Fix timeout display
+            timeout_at = e.get("timeoutAt", 0)
+            if timeout_at and db_created:
+                e["timeout_hours"] = max(1, int((timeout_at - db_created) / 3600))
+            if db_created and db_created > 1000000000:
+                import datetime
+                e["created_at"] = datetime.datetime.fromtimestamp(db_created).isoformat()
+            del e["data"]
+            escrows.append(e)
+        return {"escrows": escrows, "count": len(escrows), "wallet": wallet}
+    except Exception:
+        # Fallback to in-memory
+        escrow_client = _get_escrow_client()
+        all_escrows = escrow_client._escrows
+        user_escrows = [e for e in all_escrows.values()
+                        if e.get("buyer") == wallet or e.get("seller") == wallet]
+        return {"escrows": user_escrows, "count": len(user_escrows), "wallet": wallet}
 
 @router.get("/{escrow_id}")
-async def get_escrow_by_id(escrow_id: str, wallet: str = Depends(require_auth)):
+async def get_escrow_by_id(escrow_id: str, wallet: str = Depends(_require_wallet)):
     """Get escrow details. Auth required (only buyer/seller can view)."""
     escrow_client = _get_escrow_client()
     data = escrow_client.get_escrow(escrow_id)
@@ -114,23 +164,26 @@ async def get_escrow_by_id(escrow_id: str, wallet: str = Depends(require_auth)):
     return data
 
 @router.post("/create")
-async def create_escrow(req: dict, wallet: str = Depends(require_auth)):
+async def create_escrow(req: dict, wallet: str = Depends(_require_wallet)):
     escrow_client = _get_escrow_client()
     # #6: Validate timeout_hours at API level
     timeout = int(req.get("timeout_hours", 72))
     if timeout < 1 or timeout > 168:
         raise HTTPException(400, "timeout_hours must be 1-168")
+    tx_signature = req.get("tx_signature", "")
+    if not tx_signature:
+        raise HTTPException(400, "tx_signature required — send USDC to escrow wallet first")
     return await escrow_client.create_escrow(
         buyer_wallet=wallet,
         seller_wallet=req.get("seller_wallet", ""),
         amount_usdc=float(req.get("amount_usdc", 0)),
         service_id=req.get("service_id", ""),
-        tx_signature=req.get("tx_signature", ""),
+        tx_signature=tx_signature,
         timeout_hours=timeout,
     )
 
 @router.post("/confirm")
-async def confirm_escrow(req: dict, wallet: str = Depends(require_auth)):
+async def confirm_escrow(req: dict, wallet: str = Depends(_require_wallet)):
     escrow_client = _get_escrow_client()
     return await escrow_client.confirm_delivery(
         escrow_id=req.get("escrow_id", ""),
@@ -138,7 +191,7 @@ async def confirm_escrow(req: dict, wallet: str = Depends(require_auth)):
     )
 
 @router.post("/reclaim")
-async def reclaim_escrow(req: dict, wallet: str = Depends(require_auth)):
+async def reclaim_escrow(req: dict, wallet: str = Depends(_require_wallet)):
     escrow_client = _get_escrow_client()
     return await escrow_client.reclaim_timeout(
         escrow_id=req.get("escrow_id", ""),

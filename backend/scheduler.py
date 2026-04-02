@@ -215,6 +215,82 @@ class Scheduler:
                         if "No module" not in str(e):
                             logger.error("[V13+] Badges error: %s", e)
 
+                # Toutes les heures (12 cycles) : check credit Akash
+                if _cycle % 12 == 0:
+                    try:
+                        from akash_client import akash as _akash
+                        credit = await _akash.get_credit_balance()
+                        bal = credit.get("balance_usd", -1)
+                        if bal >= 0:
+                            if bal < 1:
+                                await alert_system(
+                                    "AKASH CREDIT CRITIQUE",
+                                    f"Solde Akash: ${bal:.2f} — GPU rental IMPOSSIBLE. Recharger immediatement."
+                                )
+                                logger.warning("[Akash] Credit CRITIQUE: $%.2f", bal)
+                            elif bal < 5:
+                                await alert_system(
+                                    "Akash credit bas",
+                                    f"Solde Akash: ${bal:.2f} — recharger bientot."
+                                )
+                                logger.warning("[Akash] Credit bas: $%.2f", bal)
+                            else:
+                                logger.info("[Akash] Credit OK: $%.2f", bal)
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[V13] Akash credit check error: %s", e)
+
+                # Toutes les heures : auto-close governance expirees
+                if _cycle % 12 == 0:
+                    try:
+                        from governance import auto_close_expired
+                        closed = await auto_close_expired()
+                        if closed:
+                            logger.info("[Governance] %d propositions auto-cloturees", closed)
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[Governance] Auto-close error: %s", e)
+
+                # Toutes les semaines (2016 cycles de 5 min) : newsletter digest
+                if _cycle % 2016 == 0:
+                    try:
+                        from newsletter import generate_weekly_digest
+                        digest = await generate_weekly_digest()
+                        logger.info("[Newsletter] Digest genere: %s", digest.get("title", ""))
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[Newsletter] Digest error: %s", e)
+
+                # Toutes les semaines (2016 cycles) : CEO auto-blog (1 article/semaine)
+                if _cycle % 2016 == 100:  # Offset from newsletter to avoid collision
+                    try:
+                        from ceo_maxia import deployer_blog_post, ceo
+                        if ceo and hasattr(ceo, 'memory'):
+                            topics = [
+                                ("How AI Agents Trade Services on Solana", "MAXIA escrow, USDC payments, 14 chains"),
+                                ("MCP Protocol: 46 Tools for AI Agents", "MCP server, tool discovery, agent integration"),
+                                ("GPU Rental via Akash: Cheaper Than AWS", "Akash 6 tiers, 15% markup, decentralized compute"),
+                                ("On-Chain Escrow: How MAXIA Protects Payments", "Solana PDA, Base L2, auto-refund 48h"),
+                                ("DeFi Yields for AI Agents", "yield scanning, lending, staking across Solana DeFi"),
+                                ("Token Swap on 7 Chains: Jupiter + 0x", "65 tokens, 4160 pairs, real-time oracle"),
+                            ]
+                            topic = topics[(_cycle // 2016) % len(topics)]
+                            result = await deployer_blog_post(topic[0], topic[1], ceo.memory)
+                            logger.info("[CEO Blog] Auto-post: %s -> %s", topic[0], result.get("success", False))
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[CEO Blog] Auto-post error: %s", e)
+
+                # Toutes les 24h (288 cycles) : refresh fallback prices
+                if _cycle % 288 == 0:
+                    try:
+                        from price_oracle import refresh_fallback_prices
+                        updated = await refresh_fallback_prices()
+                        logger.info("[V13] Fallback prices refreshed: %d live", updated)
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[V13] Fallback price refresh error: %s", e)
+
                 # Toutes les 24h (288 cycles) : refresh liste OFAC
                 if _cycle % 288 == 0:
                     try:
