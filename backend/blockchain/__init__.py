@@ -1,0 +1,1 @@
+"""MAXIA blockchain package."""

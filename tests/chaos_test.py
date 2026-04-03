@@ -74,7 +74,7 @@ if "dotenv" not in sys.modules:
     _fake_dotenv.load_dotenv = lambda *a, **kw: None
     sys.modules["dotenv"] = _fake_dotenv
 
-from chain_resilience import (
+from blockchain.chain_resilience import (
     ChainCircuitBreaker,
     CircuitOpenError,
     get_all_chain_status,

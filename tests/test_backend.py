@@ -29,40 +29,40 @@ class TestSwapCommissions:
     """Verify BRONZE / SILVER / GOLD / WHALE thresholds and first-swap-free."""
 
     def test_first_swap_free(self):
-        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
         assert get_swap_commission_bps(100, volume_30d=0, swap_count=0) == 0
         assert get_swap_tier_name(100, volume_30d=0, swap_count=0) == "FREE"
 
     def test_bronze_tier_default(self):
-        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
         # volume_30d=0 -> BRONZE (0-1000)
         assert get_swap_commission_bps(50, volume_30d=0) == 10
         assert get_swap_tier_name(50, volume_30d=0) == "BRONZE"
 
     def test_bronze_upper_boundary(self):
-        from crypto_swap import get_swap_commission_bps
+        from trading.crypto_swap import get_swap_commission_bps
         assert get_swap_commission_bps(100, volume_30d=999) == 10  # still BRONZE
 
     def test_silver_tier(self):
-        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
         assert get_swap_commission_bps(100, volume_30d=1000) == 5
         assert get_swap_tier_name(100, volume_30d=1000) == "SILVER"
         assert get_swap_commission_bps(100, volume_30d=4999) == 5
 
     def test_gold_tier(self):
-        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
         assert get_swap_commission_bps(100, volume_30d=5000) == 3
         assert get_swap_tier_name(100, volume_30d=5000) == "GOLD"
         assert get_swap_commission_bps(100, volume_30d=24999) == 3
 
     def test_whale_tier(self):
-        from crypto_swap import get_swap_commission_bps, get_swap_tier_name
+        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
         assert get_swap_commission_bps(100, volume_30d=25000) == 1
         assert get_swap_tier_name(100, volume_30d=25000) == "WHALE"
         assert get_swap_commission_bps(100, volume_30d=1_000_000) == 1
 
     def test_tier_names_match_defined_tiers(self):
-        from crypto_swap import SWAP_COMMISSION_TIERS
+        from trading.crypto_swap import SWAP_COMMISSION_TIERS
         expected = {"BRONZE", "SILVER", "GOLD", "WHALE"}
         assert set(SWAP_COMMISSION_TIERS.keys()) == expected
 
@@ -75,27 +75,27 @@ class TestStockCommissions:
     """Verify stock commission BRONZE / SILVER / GOLD / WHALE thresholds."""
 
     def test_bronze_stock(self):
-        from tokenized_stocks import get_stock_commission_bps
+        from trading.tokenized_stocks import get_stock_commission_bps
         assert get_stock_commission_bps(100) == 50   # 0.5%
         assert get_stock_commission_bps(999) == 50
 
     def test_silver_stock(self):
-        from tokenized_stocks import get_stock_commission_bps
+        from trading.tokenized_stocks import get_stock_commission_bps
         assert get_stock_commission_bps(1000) == 20  # 0.2%
         assert get_stock_commission_bps(4999) == 20
 
     def test_gold_stock(self):
-        from tokenized_stocks import get_stock_commission_bps
+        from trading.tokenized_stocks import get_stock_commission_bps
         assert get_stock_commission_bps(5000) == 10  # 0.1%
         assert get_stock_commission_bps(24999) == 10
 
     def test_whale_stock(self):
-        from tokenized_stocks import get_stock_commission_bps
+        from trading.tokenized_stocks import get_stock_commission_bps
         assert get_stock_commission_bps(25000) == 5  # 0.05%
         assert get_stock_commission_bps(500_000) == 5
 
     def test_stock_tier_names(self):
-        from tokenized_stocks import STOCK_COMMISSION_TIERS
+        from trading.tokenized_stocks import STOCK_COMMISSION_TIERS
         expected = {"BRONZE", "SILVER", "GOLD", "WHALE"}
         assert set(STOCK_COMMISSION_TIERS.keys()) == expected
 
@@ -108,17 +108,17 @@ class TestMarketplaceCommissions:
     """Verify per-transaction BRONZE / GOLD / WHALE from config.py."""
 
     def test_bronze_marketplace(self):
-        from config import get_commission_bps
+        from core.config import get_commission_bps
         assert get_commission_bps(100) == 150   # 1.5%
         assert get_commission_bps(499) == 150
 
     def test_gold_marketplace(self):
-        from config import get_commission_bps
+        from core.config import get_commission_bps
         assert get_commission_bps(500) == 50    # 0.5%
         assert get_commission_bps(4999) == 50
 
     def test_whale_marketplace(self):
-        from config import get_commission_bps
+        from core.config import get_commission_bps
         assert get_commission_bps(5000) == 10   # 0.1%
         assert get_commission_bps(100_000) == 10
 
@@ -131,34 +131,34 @@ class TestContentSafety:
     """Verify that blocked words/patterns are caught and safe text passes."""
 
     def test_safe_text_passes(self):
-        from security import check_content_safety
+        from core.security import check_content_safety
         # Should NOT raise
         check_content_safety("Hello world, this is a legitimate AI service")
         check_content_safety("Trade 100 USDC for SOL on MAXIA marketplace")
 
     def test_blocked_word_caught(self):
-        from security import check_content_safety
+        from core.security import check_content_safety
         from fastapi import HTTPException
         with pytest.raises(Exception):
             check_content_safety("this contains malware instructions")
 
     def test_blocked_pattern_caught(self):
-        from security import check_content_safety
+        from core.security import check_content_safety
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             check_content_safety("content about child porn is blocked")
 
     def test_case_insensitive_blocking(self):
-        from security import check_content_safety
+        from core.security import check_content_safety
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             check_content_safety("RANSOMWARE deployment guide")
 
     def test_multiple_blocked_words(self):
         """Every word in BLOCKED_WORDS should be caught."""
-        from security import check_content_safety
+        from core.security import check_content_safety
         from fastapi import HTTPException
-        from config import BLOCKED_WORDS
+        from core.config import BLOCKED_WORDS
         for word in BLOCKED_WORDS:
             with pytest.raises(HTTPException):
                 check_content_safety(f"test {word} test")
@@ -172,36 +172,36 @@ class TestWalletValidation:
     """Verify Solana and EVM address validation logic."""
 
     def test_valid_solana_address(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         # Typical Solana address (base58, 32-44 chars)
         assert validate_wallet_address("7v91N7iZ9mNicL8WfG6cgSCKyRXydQjLh6UYBWwm6y1Q") is True
 
     def test_valid_evm_address(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         assert validate_wallet_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913") is True
         assert validate_wallet_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chain="evm") is True
 
     def test_invalid_short_address(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         assert validate_wallet_address("abc") is False
         assert validate_wallet_address("") is False
 
     def test_invalid_evm_wrong_prefix(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         assert validate_wallet_address("1x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chain="evm") is False
 
     def test_invalid_evm_wrong_length(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         # Too short (39 hex chars instead of 40)
         assert validate_wallet_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA0291", chain="evm") is False
 
     def test_invalid_solana_forbidden_chars(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         # Solana base58 excludes 0, O, I, l
         assert validate_wallet_address("0v91N7iZ9mNicL8WfG6cgSCKyRXydQjLh6UYBWwm6y1Q") is False
 
     def test_auto_detect_evm(self):
-        from security import validate_wallet_address
+        from core.security import validate_wallet_address
         # Auto mode should detect 0x prefix as EVM
         assert validate_wallet_address("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", chain="auto") is True
 
@@ -214,7 +214,7 @@ class TestCircuitBreaker:
     """Test CLOSED -> OPEN -> HALF_OPEN -> CLOSED state transitions."""
 
     def _make_breaker(self, fail_max=3, reset_timeout=0.1, success_to_close=2):
-        from chain_resilience import ChainCircuitBreaker
+        from blockchain.chain_resilience import ChainCircuitBreaker
         return ChainCircuitBreaker(
             "test_chain",
             fail_max=fail_max,
@@ -228,7 +228,7 @@ class TestCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_closed_to_open_after_failures(self):
-        from chain_resilience import CircuitOpenError
+        from blockchain.chain_resilience import CircuitOpenError
         cb = self._make_breaker(fail_max=3)
 
         for i in range(3):
@@ -239,7 +239,7 @@ class TestCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_open_blocks_calls(self):
-        from chain_resilience import CircuitOpenError
+        from blockchain.chain_resilience import CircuitOpenError
         cb = self._make_breaker(fail_max=1, reset_timeout=9999)
 
         # Trip the breaker
@@ -335,7 +335,7 @@ class TestGetAllChainStatus:
     """Test get_all_chain_status() returns all 14 chains."""
 
     def test_returns_all_chains(self):
-        from chain_resilience import get_all_chain_status, chain_breakers
+        from blockchain.chain_resilience import get_all_chain_status, chain_breakers
         status = get_all_chain_status()
         # Should have entries for every chain_breaker
         assert len(status) == len(chain_breakers)
@@ -352,39 +352,39 @@ class TestPythOracleStaleness:
     """Verify staleness thresholds: dual-tier (normal + HFT)."""
 
     def test_stock_staleness_normal(self):
-        from pyth_oracle import MAX_STALENESS_STOCK_NORMAL_S
+        from trading.pyth_oracle import MAX_STALENESS_STOCK_NORMAL_S
         assert MAX_STALENESS_STOCK_NORMAL_S == 600  # 10min for tokenized stocks
 
     def test_stock_staleness_hft(self):
-        from pyth_oracle import MAX_STALENESS_STOCK_HFT_S
+        from trading.pyth_oracle import MAX_STALENESS_STOCK_HFT_S
         assert MAX_STALENESS_STOCK_HFT_S == 5
 
     def test_crypto_staleness_normal(self):
-        from pyth_oracle import MAX_STALENESS_CRYPTO_NORMAL_S
+        from trading.pyth_oracle import MAX_STALENESS_CRYPTO_NORMAL_S
         assert MAX_STALENESS_CRYPTO_NORMAL_S == 120
 
     def test_crypto_staleness_hft(self):
-        from pyth_oracle import MAX_STALENESS_CRYPTO_HFT_S
+        from trading.pyth_oracle import MAX_STALENESS_CRYPTO_HFT_S
         assert MAX_STALENESS_CRYPTO_HFT_S == 3
 
     def test_confidence_tiered(self):
-        from pyth_oracle import get_confidence_threshold
+        from trading.pyth_oracle import get_confidence_threshold
         assert get_confidence_threshold("SOL") == 2.0   # major
         assert get_confidence_threshold("LINK") == 5.0  # mid
         assert get_confidence_threshold("BONK") == 10.0 # small
 
     def test_stale_circuit_threshold(self):
-        from pyth_oracle import STALE_CIRCUIT_THRESHOLD
+        from trading.pyth_oracle import STALE_CIRCUIT_THRESHOLD
         assert STALE_CIRCUIT_THRESHOLD == 5
 
     def test_equity_feeds_exist(self):
-        from pyth_oracle import EQUITY_FEEDS
+        from trading.pyth_oracle import EQUITY_FEEDS
         assert "AAPL" in EQUITY_FEEDS
         assert "TSLA" in EQUITY_FEEDS
         assert "NVDA" in EQUITY_FEEDS
 
     def test_crypto_feeds_exist(self):
-        from pyth_oracle import CRYPTO_FEEDS
+        from trading.pyth_oracle import CRYPTO_FEEDS
         assert "BTC" in CRYPTO_FEEDS
         assert "ETH" in CRYPTO_FEEDS
         assert "SOL" in CRYPTO_FEEDS
@@ -398,13 +398,13 @@ class TestPriceJumpDetection:
     """>5% in 5 minutes should trigger a jump flag."""
 
     def test_no_history_no_jump(self):
-        from tokenized_stocks import _check_price_jump
+        from trading.tokenized_stocks import _check_price_jump
         is_jump, pct = _check_price_jump("TEST_NO_HIST", 100.0)
         assert is_jump is False
         assert pct == 0.0
 
     def test_small_change_no_jump(self):
-        from tokenized_stocks import _record_price, _check_price_jump, _price_history
+        from trading.tokenized_stocks import _record_price, _check_price_jump, _price_history
         symbol = "TEST_SMALL_CHANGE"
         _price_history.pop(symbol, None)  # clean state
         _record_price(symbol, 100.0)
@@ -412,7 +412,7 @@ class TestPriceJumpDetection:
         assert is_jump is False
 
     def test_big_change_triggers_jump(self):
-        from tokenized_stocks import _record_price, _check_price_jump, _price_history
+        from trading.tokenized_stocks import _record_price, _check_price_jump, _price_history
         symbol = "TEST_BIG_JUMP"
         _price_history.pop(symbol, None)
         _record_price(symbol, 100.0)
@@ -421,7 +421,7 @@ class TestPriceJumpDetection:
         assert pct == 6.0
 
     def test_negative_jump_triggers(self):
-        from tokenized_stocks import _record_price, _check_price_jump, _price_history
+        from trading.tokenized_stocks import _record_price, _check_price_jump, _price_history
         symbol = "TEST_NEG_JUMP"
         _price_history.pop(symbol, None)
         _record_price(symbol, 100.0)
@@ -429,7 +429,7 @@ class TestPriceJumpDetection:
         assert is_jump is True
 
     def test_exact_5pct_does_not_trigger(self):
-        from tokenized_stocks import _record_price, _check_price_jump, _price_history
+        from trading.tokenized_stocks import _record_price, _check_price_jump, _price_history
         symbol = "TEST_EXACT_5"
         _price_history.pop(symbol, None)
         _record_price(symbol, 100.0)
@@ -445,31 +445,31 @@ class TestAgeSpread:
     """0.5% per 60s of age, capped at 3%."""
 
     def test_fresh_price_zero_spread(self):
-        from tokenized_stocks import _calc_age_spread
+        from trading.tokenized_stocks import _calc_age_spread
         assert _calc_age_spread(0) == 0.0
         assert _calc_age_spread(30) == 0.0
         assert _calc_age_spread(59) == 0.0
 
     def test_60s_age_spread(self):
-        from tokenized_stocks import _calc_age_spread
+        from trading.tokenized_stocks import _calc_age_spread
         spread = _calc_age_spread(60)
         # 60/60 * 0.5 = 0.5%
         assert spread == 0.5
 
     def test_120s_age_spread(self):
-        from tokenized_stocks import _calc_age_spread
+        from trading.tokenized_stocks import _calc_age_spread
         spread = _calc_age_spread(120)
         # 120/60 * 0.5 = 1.0%
         assert spread == 1.0
 
     def test_capped_at_3pct(self):
-        from tokenized_stocks import _calc_age_spread
+        from trading.tokenized_stocks import _calc_age_spread
         spread = _calc_age_spread(600)
         # 600/60 * 0.5 = 5.0 -> capped at 3.0
         assert spread == 3.0
 
     def test_large_age_still_capped(self):
-        from tokenized_stocks import _calc_age_spread
+        from trading.tokenized_stocks import _calc_age_spread
         spread = _calc_age_spread(10000)
         assert spread == 3.0
 
@@ -493,29 +493,29 @@ class TestGetRealIp:
         return req
 
     def test_direct_connection_returns_client_ip(self):
-        from security import get_real_ip
+        from core.security import get_real_ip
         req = self._make_request("203.0.113.42")
         assert get_real_ip(req) == "203.0.113.42"
 
     def test_untrusted_proxy_ignores_xff(self):
         """If client IP is NOT in trusted proxies, X-Forwarded-For is ignored."""
-        from security import get_real_ip
+        from core.security import get_real_ip
         req = self._make_request("203.0.113.42", xff="10.0.0.1, 192.168.1.1")
         assert get_real_ip(req) == "203.0.113.42"
 
     def test_trusted_proxy_uses_last_xff(self):
         """If client IP IS a trusted proxy, use the last IP in XFF chain."""
-        from security import get_real_ip
+        from core.security import get_real_ip
         req = self._make_request("127.0.0.1", xff="10.0.0.1, 203.0.113.50")
         assert get_real_ip(req) == "203.0.113.50"
 
     def test_trusted_proxy_single_xff(self):
-        from security import get_real_ip
+        from core.security import get_real_ip
         req = self._make_request("127.0.0.1", xff="203.0.113.99")
         assert get_real_ip(req) == "203.0.113.99"
 
     def test_no_client_returns_unknown(self):
-        from security import get_real_ip
+        from core.security import get_real_ip
         req = MagicMock()
         req.client = None
         req.headers = {}
@@ -530,18 +530,18 @@ class TestRateLimitFreeEndpoints:
     """Verify query params don't bypass free endpoint detection (H3 fix)."""
 
     def test_free_endpoint_always_allowed(self):
-        from security import check_rate_limit_smart
+        from core.security import check_rate_limit_smart
         # Free keywords: "prices", "candles", etc.
         for _ in range(200):
             assert check_rate_limit_smart("test_free_1", "/api/public/crypto/prices") is True
 
     def test_free_endpoint_with_query_params(self):
         """Query params should NOT bypass free endpoint check (H3)."""
-        from security import check_rate_limit_smart
+        from core.security import check_rate_limit_smart
         assert check_rate_limit_smart("test_free_q", "/api/public/crypto/prices?token=SOL") is True
 
     def test_paid_endpoint_rate_limited(self):
-        from security import check_rate_limit_smart, _rate_store, RATE_LIMIT
+        from core.security import check_rate_limit_smart, _rate_store, RATE_LIMIT
         # Clean state for this identifier
         _rate_store.pop("test_paid_1", None)
         # Paid endpoint — exhaust the limit
@@ -551,11 +551,11 @@ class TestRateLimitFreeEndpoints:
         assert check_rate_limit_smart("test_paid_1", "/api/marketplace/execute") is False
 
     def test_mcp_is_free(self):
-        from security import check_rate_limit_smart
+        from core.security import check_rate_limit_smart
         assert check_rate_limit_smart("test_mcp", "/mcp/manifest") is True
 
     def test_docs_is_free(self):
-        from security import check_rate_limit_smart
+        from core.security import check_rate_limit_smart
         assert check_rate_limit_smart("test_docs", "/docs") is True
 
 
@@ -567,7 +567,7 @@ class TestSessionTokens:
     """Create and verify round-trip for session tokens."""
 
     def test_create_and_verify_roundtrip(self):
-        from auth import create_session_token, verify_session_token
+        from core.auth import create_session_token, verify_session_token
         wallet = "7v91N7iZ9mNicL8WfG6cgSCKyRXydQjLh6UYBWwm6y1Q"
         token = create_session_token(wallet)
 
@@ -576,19 +576,19 @@ class TestSessionTokens:
         assert result == wallet
 
     def test_token_format_three_parts(self):
-        from auth import create_session_token
+        from core.auth import create_session_token
         token = create_session_token("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU")
         parts = token.split(":")
         assert len(parts) == 3  # wallet:expiry:hmac
 
     def test_invalid_token_rejected(self):
-        from auth import verify_session_token
+        from core.auth import verify_session_token
         from fastapi import HTTPException
         with pytest.raises(Exception):
             verify_session_token("totally:invalid:signature")
 
     def test_tampered_wallet_rejected(self):
-        from auth import create_session_token, verify_session_token
+        from core.auth import create_session_token, verify_session_token
         from fastapi import HTTPException
         token = create_session_token("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU")
         # Tamper with wallet part (use valid base58 but different wallet)
@@ -599,7 +599,7 @@ class TestSessionTokens:
             verify_session_token(tampered)
 
     def test_expired_token_rejected(self):
-        from auth import verify_session_token, _JWT_SECRET
+        from core.auth import verify_session_token, _JWT_SECRET
         from fastapi import HTTPException
         # Craft an already-expired token
         wallet = "TestWallet"
@@ -611,7 +611,7 @@ class TestSessionTokens:
             verify_session_token(expired_token)
 
     def test_malformed_token_rejected(self):
-        from auth import verify_session_token
+        from core.auth import verify_session_token
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             verify_session_token("only_one_part")
@@ -629,28 +629,28 @@ class TestEscrowConfigValidation:
     def test_same_escrow_and_treasury_address_rejected(self):
         """ESCROW_ADDRESS == TREASURY_ADDRESS must produce an error."""
         same_addr = "7v91N7iZ9mNicL8WfG6cgSCKyRXydQjLh6UYBWwm6y1Q"
-        with patch("escrow_client.ESCROW_ADDRESS", same_addr), \
-             patch("escrow_client.TREASURY_ADDRESS", same_addr), \
-             patch("escrow_client.ESCROW_PRIVKEY_B58", ""):
-            from escrow_client import _verify_escrow_config
+        with patch("blockchain.escrow_client.ESCROW_ADDRESS", same_addr), \
+             patch("blockchain.escrow_client.TREASURY_ADDRESS", same_addr), \
+             patch("blockchain.escrow_client.ESCROW_PRIVKEY_B58", ""):
+            from blockchain.escrow_client import _verify_escrow_config
             errors = _verify_escrow_config()
             matching = [e for e in errors if "ESCROW_ADDRESS == TREASURY_ADDRESS" in e]
             assert len(matching) >= 1
 
     def test_empty_escrow_address_flagged(self):
-        with patch("escrow_client.ESCROW_ADDRESS", ""), \
-             patch("escrow_client.TREASURY_ADDRESS", "something"), \
-             patch("escrow_client.ESCROW_PRIVKEY_B58", ""):
-            from escrow_client import _verify_escrow_config
+        with patch("blockchain.escrow_client.ESCROW_ADDRESS", ""), \
+             patch("blockchain.escrow_client.TREASURY_ADDRESS", "something"), \
+             patch("blockchain.escrow_client.ESCROW_PRIVKEY_B58", ""):
+            from blockchain.escrow_client import _verify_escrow_config
             errors = _verify_escrow_config()
             matching = [e for e in errors if "ESCROW_ADDRESS non defini" in e]
             assert len(matching) >= 1
 
     def test_invalid_escrow_address_format(self):
-        with patch("escrow_client.ESCROW_ADDRESS", "not-a-valid-address!!!"), \
-             patch("escrow_client.TREASURY_ADDRESS", "something"), \
-             patch("escrow_client.ESCROW_PRIVKEY_B58", ""):
-            from escrow_client import _verify_escrow_config
+        with patch("blockchain.escrow_client.ESCROW_ADDRESS", "not-a-valid-address!!!"), \
+             patch("blockchain.escrow_client.TREASURY_ADDRESS", "something"), \
+             patch("blockchain.escrow_client.ESCROW_PRIVKEY_B58", ""):
+            from blockchain.escrow_client import _verify_escrow_config
             errors = _verify_escrow_config()
             matching = [e for e in errors if "invalide" in e.lower()]
             assert len(matching) >= 1
@@ -664,30 +664,30 @@ class TestSQLColumnWhitelist:
     """Verify only allowed columns pass the whitelist check."""
 
     def test_agent_allowed_columns(self):
-        from database import ALLOWED_AGENT_COLUMNS
+        from core.database import ALLOWED_AGENT_COLUMNS
         # These should be allowed
         for col in ["name", "wallet", "description", "tier", "volume_30d"]:
             assert col in ALLOWED_AGENT_COLUMNS
 
     def test_agent_dangerous_columns_blocked(self):
-        from database import ALLOWED_AGENT_COLUMNS
+        from core.database import ALLOWED_AGENT_COLUMNS
         # SQL injection attempts should NOT be in the whitelist
         for dangerous in ["password", "admin", "1; DROP TABLE", "wallet; --", "' OR 1=1"]:
             assert dangerous not in ALLOWED_AGENT_COLUMNS
 
     def test_service_allowed_columns(self):
-        from database import ALLOWED_SERVICE_COLUMNS
+        from core.database import ALLOWED_SERVICE_COLUMNS
         for col in ["name", "description", "price_usdc", "status", "rating"]:
             assert col in ALLOWED_SERVICE_COLUMNS
 
     def test_service_dangerous_columns_blocked(self):
-        from database import ALLOWED_SERVICE_COLUMNS
+        from core.database import ALLOWED_SERVICE_COLUMNS
         for dangerous in ["secret_key", "privkey", "admin", "DROP"]:
             assert dangerous not in ALLOWED_SERVICE_COLUMNS
 
     def test_whitelists_are_frozensets(self):
         """Frozensets are immutable — cannot be modified at runtime."""
-        from database import ALLOWED_AGENT_COLUMNS, ALLOWED_SERVICE_COLUMNS
+        from core.database import ALLOWED_AGENT_COLUMNS, ALLOWED_SERVICE_COLUMNS
         assert isinstance(ALLOWED_AGENT_COLUMNS, frozenset)
         assert isinstance(ALLOWED_SERVICE_COLUMNS, frozenset)
 
@@ -700,11 +700,11 @@ class TestGPUTiers:
     """Verify GPU_TIERS_FALLBACK structure and prices."""
 
     def test_fallback_tiers_exist(self):
-        from config import GPU_TIERS_FALLBACK
+        from core.config import GPU_TIERS_FALLBACK
         assert len(GPU_TIERS_FALLBACK) >= 10
 
     def test_each_tier_has_required_fields(self):
-        from config import GPU_TIERS_FALLBACK
+        from core.config import GPU_TIERS_FALLBACK
         for tier in GPU_TIERS_FALLBACK:
             assert "id" in tier
             assert "label" in tier
@@ -712,12 +712,12 @@ class TestGPUTiers:
             assert "base_price_per_hour" in tier
 
     def test_prices_are_positive(self):
-        from config import GPU_TIERS_FALLBACK
+        from core.config import GPU_TIERS_FALLBACK
         for tier in GPU_TIERS_FALLBACK:
             assert tier["base_price_per_hour"] > 0, f"{tier['id']} has non-positive price"
 
     def test_h100_exists(self):
-        from config import GPU_TIERS_FALLBACK
+        from core.config import GPU_TIERS_FALLBACK
         ids = [t["id"] for t in GPU_TIERS_FALLBACK]
         assert "h100_sxm" in ids or "h100_nvl" in ids
 
@@ -731,31 +731,31 @@ class TestSwapQuoteValidation:
 
     @pytest.mark.asyncio
     async def test_unknown_from_token(self):
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         result = await get_swap_quote("FAKECOIN", "SOL", 100)
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_unknown_to_token(self):
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         result = await get_swap_quote("SOL", "FAKECOIN", 100)
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_same_token_rejected(self):
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         result = await get_swap_quote("SOL", "SOL", 100)
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_negative_amount_rejected(self):
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         result = await get_swap_quote("SOL", "USDC", -10)
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_zero_amount_rejected(self):
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         result = await get_swap_quote("SOL", "USDC", 0)
         assert "error" in result
 
@@ -768,12 +768,12 @@ class TestSupportedTokens:
     """Verify the token catalog integrity."""
 
     def test_sol_and_usdc_present(self):
-        from crypto_swap import SUPPORTED_TOKENS
+        from trading.crypto_swap import SUPPORTED_TOKENS
         assert "SOL" in SUPPORTED_TOKENS
         assert "USDC" in SUPPORTED_TOKENS
 
     def test_token_has_required_fields(self):
-        from crypto_swap import SUPPORTED_TOKENS
+        from trading.crypto_swap import SUPPORTED_TOKENS
         for symbol, info in SUPPORTED_TOKENS.items():
             assert "mint" in info, f"{symbol} missing mint"
             assert "name" in info, f"{symbol} missing name"
@@ -781,7 +781,7 @@ class TestSupportedTokens:
 
     def test_at_least_50_tokens(self):
         """CLAUDE.md says 71 tokens."""
-        from crypto_swap import SUPPORTED_TOKENS
+        from trading.crypto_swap import SUPPORTED_TOKENS
         assert len(SUPPORTED_TOKENS) >= 50
 
 
@@ -793,7 +793,7 @@ class TestBurstProtection:
     """Anti-DDoS burst limit: 20 req/2s, 60s ban."""
 
     def test_normal_traffic_passes(self):
-        from security import check_burst_limit, _burst_store, _burst_bans
+        from core.security import check_burst_limit, _burst_store, _burst_bans
         ip = "test_burst_normal"
         _burst_store.pop(ip, None)
         _burst_bans.pop(ip, None)
@@ -801,7 +801,7 @@ class TestBurstProtection:
             assert check_burst_limit(ip) is True
 
     def test_burst_triggers_ban(self):
-        from security import check_burst_limit, _burst_store, _burst_bans, BURST_LIMIT
+        from core.security import check_burst_limit, _burst_store, _burst_bans, BURST_LIMIT
         ip = "test_burst_ban"
         _burst_store.pop(ip, None)
         _burst_bans.pop(ip, None)
@@ -821,7 +821,7 @@ class TestNonceCleanup:
 
     def test_nonce_redis_functions_exist(self):
         """Verify Redis-backed nonce functions are available."""
-        from auth import _nonce_set, _nonce_get, _nonce_delete, _nonce_mark_used, _nonce_is_used, NONCE_TTL
+        from core.auth import _nonce_set, _nonce_get, _nonce_delete, _nonce_mark_used, _nonce_is_used, NONCE_TTL
         assert callable(_nonce_set)
         assert callable(_nonce_get)
         assert callable(_nonce_delete)
@@ -838,21 +838,21 @@ class TestTierConsistency:
     """Higher volumes / amounts should always get lower or equal fees."""
 
     def test_swap_tiers_monotonically_decrease(self):
-        from crypto_swap import get_swap_commission_bps
+        from trading.crypto_swap import get_swap_commission_bps
         volumes = [0, 500, 1000, 5000, 25000, 100_000]
         bps = [get_swap_commission_bps(100, volume_30d=v) for v in volumes]
         for i in range(1, len(bps)):
             assert bps[i] <= bps[i - 1], f"BPS should decrease: {bps}"
 
     def test_stock_tiers_monotonically_decrease(self):
-        from tokenized_stocks import get_stock_commission_bps
+        from trading.tokenized_stocks import get_stock_commission_bps
         amounts = [100, 1000, 5000, 25000, 100_000]
         bps = [get_stock_commission_bps(a) for a in amounts]
         for i in range(1, len(bps)):
             assert bps[i] <= bps[i - 1], f"BPS should decrease: {bps}"
 
     def test_marketplace_tiers_monotonically_decrease(self):
-        from config import get_commission_bps
+        from core.config import get_commission_bps
         amounts = [100, 500, 5000, 50_000]
         bps = [get_commission_bps(a) for a in amounts]
         for i in range(1, len(bps)):

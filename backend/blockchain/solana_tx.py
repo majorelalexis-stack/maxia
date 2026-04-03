@@ -1,0 +1,364 @@
+"""MAXIA Solana TX V11 — Transactions reelles via RPC HTTP (serialisation corrigee)"""
+import logging
+import asyncio, time, struct, base64
+
+logger = logging.getLogger(__name__)
+import httpx
+import base58
+from nacl.signing import SigningKey
+from core.config import get_rpc_url
+from core.http_client import get_http_client
+
+# V-07: Lazy load private keys (not at module level to avoid stack trace exposure)
+def _get_marketing_wallet():
+    from core.config import MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
+    return MARKETING_WALLET_PRIVKEY, MARKETING_WALLET_ADDRESS
+
+logger.info("Mode RPC HTTP natif — transactions reelles activees")
+
+MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+SYSTEM_PROGRAM_ID = "11111111111111111111111111111111"
+
+
+def _keypair_from_b58(privkey_b58: str):
+    secret = base58.b58decode(privkey_b58)
+    return SigningKey(secret[:32])
+
+
+def _encode_compact_u16(val: int) -> bytes:
+    """Encode un entier en compact-u16 (format Solana wire)."""
+    if val < 0x80:
+        return bytes([val])
+    elif val < 0x4000:
+        return bytes([val & 0x7F | 0x80, val >> 7])
+    else:
+        return bytes([val & 0x7F | 0x80, (val >> 7) & 0x7F | 0x80, val >> 14])
+
+
+def _build_message(from_pubkey: bytes, to_pubkey: bytes,
+                    lamports: int, memo: str,
+                    recent_blockhash: str) -> bytes:
+    """Construit un message Solana v0 legacy correctement serialise."""
+    system_prog = base58.b58decode(SYSTEM_PROGRAM_ID)
+    memo_prog = base58.b58decode(MEMO_PROGRAM_ID)
+    blockhash_bytes = base58.b58decode(recent_blockhash)
+
+    # Comptes: [0]=from (signer+writable), [1]=to (writable), [2]=system, [3]=memo
+    accounts = [from_pubkey, to_pubkey, system_prog, memo_prog]
+
+    # Header
+    num_required_sigs = 1
+    num_readonly_signed = 0
+    num_readonly_unsigned = 2  # system + memo programs
+    header = bytes([num_required_sigs, num_readonly_signed, num_readonly_unsigned])
+
+    # Compact array of account keys
+    account_keys = _encode_compact_u16(len(accounts))
+    for acc in accounts:
+        account_keys += acc
+
+    # Recent blockhash (32 bytes)
+    bh = blockhash_bytes
+
+    # Instructions
+    instructions = bytearray()
+
+    # Instruction 1: System Transfer (program index = 2)
+    transfer_data = struct.pack("<I", 2) + struct.pack("<Q", lamports)
+    instructions += bytes([2])  # program_id index
+    instructions += _encode_compact_u16(2)  # num accounts
+    instructions += bytes([0, 1])  # account indices [from, to]
+    instructions += _encode_compact_u16(len(transfer_data))
+    instructions += transfer_data
+
+    # Instruction 2: Memo (program index = 3)
+    memo_bytes = memo.encode("utf-8")[:400]  # Limiter la taille
+    instructions += bytes([3])  # program_id index
+    instructions += _encode_compact_u16(1)  # num accounts (signer)
+    instructions += bytes([0])  # account index [from = signer]
+    instructions += _encode_compact_u16(len(memo_bytes))
+    instructions += memo_bytes
+
+    # Compact array of instructions (2 instructions)
+    num_ix = _encode_compact_u16(2)
+
+    # Assemble message
+    message = header + account_keys + bh + num_ix + bytes(instructions)
+
+    return message
+
+
+async def get_sol_balance(wallet_address: str) -> float:
+    """Get SOL balance. Tries Helius first, falls back to public RPC."""
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "getBalance", "params": [wallet_address]}
+    # Try Helius first, then public RPC as fallback
+    for rpc in [get_rpc_url(), "https://api.mainnet-beta.solana.com"]:
+        try:
+            client = get_http_client()
+            resp = await client.post(rpc, json=payload, timeout=10)
+            data = resp.json()
+            if data.get("error"):
+                continue  # Rate limited or error, try next RPC
+            balance = data.get("result", {}).get("value", 0) / 1e9
+            if balance > 0 or "api.mainnet-beta" in rpc:
+                return balance  # Trust public RPC even if 0
+        except Exception:
+            continue
+    return 0.0
+
+
+async def get_recent_blockhash() -> str:
+    rpc = get_rpc_url()
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "getLatestBlockhash", "params": []}
+    client = get_http_client()
+    resp = await client.post(rpc, json=payload, timeout=10)
+    data = resp.json()
+    return data["result"]["value"]["blockhash"]
+
+
+async def send_memo_transfer(to_address: str, amount_sol: float, memo_text: str) -> dict:
+    """Envoie un micro-transfert SOL avec memo. VRAIE TRANSACTION."""
+    _privkey, _wallet_addr = _get_marketing_wallet()
+    if not _privkey:
+        return {"success": False, "error": "MARKETING_WALLET_PRIVKEY non configure"}
+    if amount_sol > 0.01:
+        return {"success": False, "error": "Securite: max 0.01 SOL par tx"}
+
+    balance = await get_sol_balance(_wallet_addr)
+    if balance < amount_sol + 0.005:
+        return {"success": False, "error": f"Solde insuffisant: {balance:.4f} SOL"}
+
+    try:
+        rpc = get_rpc_url()
+        signing_key = _keypair_from_b58(_privkey)
+        from_pubkey = bytes(signing_key.verify_key)
+        to_pubkey = base58.b58decode(to_address)
+
+        blockhash = await get_recent_blockhash()
+
+        lamports = int(amount_sol * 1e9)
+        message = _build_message(from_pubkey, to_pubkey, lamports, memo_text[:400], blockhash)
+
+        # Signer le message
+        signature = signing_key.sign(message).signature
+
+        # Transaction = compact_array(signatures) + message
+        signed_tx = _encode_compact_u16(1) + signature + message
+
+        tx_base64 = base64.b64encode(signed_tx).decode("ascii")
+
+        payload = {
+            "jsonrpc": "2.0", "id": 1,
+            "method": "sendTransaction",
+            "params": [tx_base64, {"encoding": "base64", "skipPreflight": False, "preflightCommitment": "confirmed"}],
+        }
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=15)
+        data = resp.json()
+
+        if "result" in data:
+            sig = data["result"]
+            logger.info(f"SENT: {sig[:20]}... -> {to_address[:8]}...")
+            return {
+                "success": True, "status": "sent", "signature": sig,
+                "from": _wallet_addr, "to": to_address,
+                "amount_sol": amount_sol, "memo": memo_text[:400],
+                "explorer": f"https://solscan.io/tx/{sig}",
+            }
+        else:
+            error = data.get("error", {})
+            err_msg = error.get("message", str(error)) if isinstance(error, dict) else str(error)
+            # Log concis, pas flood
+            if "Blockhash" in err_msg:
+                logger.warning("Blockhash expire — retry au prochain cycle")
+            else:
+                logger.error(f"RPC error: {err_msg[:120]}")
+            return {"success": False, "error": err_msg}
+
+    except Exception as e:
+        logger.error(f"TX error: {e}")
+        return {"success": False, "error": "An error occurred"}
+
+
+async def verify_usdc_payment(tx_signature: str, expected_amount_usdc: float = 0,
+                                expected_to: str = "") -> dict:
+    """Verifie un paiement USDC avec montant et destinataire via solana_verifier."""
+    from blockchain.solana_verifier import verify_transaction
+    return await verify_transaction(
+        tx_signature=tx_signature,
+        expected_amount_usdc=expected_amount_usdc,
+        expected_recipient=expected_to,
+    )
+
+
+async def check_wallet_activity(wallet_address: str, min_sol: float = 0.1) -> dict:
+    balance = await get_sol_balance(wallet_address)
+    return {
+        "wallet": wallet_address, "balance_sol": balance,
+        "is_active": balance >= min_sol, "meets_minimum": balance >= min_sol,
+    }
+
+
+async def send_usdc_transfer(to_address: str, amount_usdc: float,
+                              from_privkey: str, from_address: str) -> dict:
+    """Vrai transfert USDC — delegue a send_usdc_transfer_real."""
+    return await send_usdc_transfer_real(to_address, amount_usdc, from_privkey, from_address)
+
+
+# ── USDC SPL Token Transfer reel ──
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+
+async def find_token_account(wallet: str, mint: str = USDC_MINT) -> str:
+    """Trouve le token account USDC d'un wallet avec failover multi-RPC."""
+    from core.config import SOLANA_RPC_URLS
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getTokenAccountsByOwner",
+        "params": [wallet, {"mint": mint}, {"encoding": "jsonParsed"}],
+    }
+    for rpc_url in (SOLANA_RPC_URLS[:5] if SOLANA_RPC_URLS else [get_rpc_url()]):
+        try:
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=10)
+            data = resp.json()
+            if "error" in data and data["error"]:
+                continue
+            accounts = data.get("result", {}).get("value", [])
+            if accounts:
+                return accounts[0].get("pubkey", "")
+            return ""  # Valid response, no accounts
+        except Exception:
+            continue
+    logger.error("find_token_account: ALL RPCs failed for %s", wallet[:8])
+    return ""
+
+
+async def get_usdc_balance(wallet: str) -> float:
+    """Recupere le solde USDC d'un wallet avec failover multi-RPC."""
+    from core.config import SOLANA_RPC_URLS
+    payload = {
+        "jsonrpc": "2.0", "id": 1,
+        "method": "getTokenAccountsByOwner",
+        "params": [wallet, {"mint": USDC_MINT}, {"encoding": "jsonParsed"}],
+    }
+    for rpc_url in (SOLANA_RPC_URLS[:4] if SOLANA_RPC_URLS else [get_rpc_url()]):
+        try:
+            client = get_http_client()
+            resp = await client.post(rpc_url, json=payload, timeout=10)
+            data = resp.json()
+            if "error" in data and data["error"]:
+                logger.warning("get_usdc_balance RPC error on %s: %s", rpc_url.split("?")[0][:30], data["error"])
+                continue
+            accounts = data.get("result", {}).get("value", [])
+            if accounts:
+                info = accounts[0].get("account", {}).get("data", {}).get("parsed", {}).get("info", {})
+                amount = info.get("tokenAmount", {}).get("uiAmount", 0)
+                balance = float(amount) if amount else 0.0
+                logger.info("USDC balance %s...: %.2f (via %s)", wallet[:8], balance, rpc_url.split("?")[0][:30])
+                return balance
+            # No accounts = wallet has 0 USDC (valid response)
+            logger.info("USDC balance %s...: 0.00 (no token account, via %s)", wallet[:8], rpc_url.split("?")[0][:30])
+            return 0.0
+        except Exception as e:
+            logger.warning("get_usdc_balance failed on %s: %s", rpc_url.split("?")[0][:30], e)
+            continue
+    logger.error("get_usdc_balance: ALL RPCs failed for %s", wallet[:8])
+    return 0.0
+
+
+async def send_usdc_transfer_real(to_address: str, amount_usdc: float,
+                                    from_privkey: str, from_address: str) -> dict:
+    """Vrai transfert USDC SPL via RPC."""
+    if not from_privkey:
+        return {"success": False, "error": "Cle privee non configuree"}
+    if amount_usdc <= 0:
+        return {"success": False, "error": "Montant invalide"}
+
+    # Verifier le solde SOL pour les frais
+    sol_balance = await get_sol_balance(from_address)
+    if sol_balance < 0.005:
+        return {"success": False, "error": f"SOL insuffisant pour frais: {sol_balance:.4f}"}
+
+    # Verifier le solde USDC
+    usdc_balance = await get_usdc_balance(from_address)
+    if usdc_balance < amount_usdc:
+        return {"success": False, "error": f"USDC insuffisant: {usdc_balance:.2f} (besoin: {amount_usdc:.2f})"}
+
+    try:
+        rpc = get_rpc_url()
+        signing_key = _keypair_from_b58(from_privkey)
+        from_pubkey = bytes(signing_key.verify_key)
+
+        # Trouver les token accounts
+        from_token_account = await find_token_account(from_address)
+        to_token_account = await find_token_account(to_address)
+
+        if not from_token_account:
+            return {"success": False, "error": "Token account USDC source introuvable"}
+        if not to_token_account:
+            return {"success": False, "error": "Token account USDC destination introuvable (le destinataire doit avoir un compte USDC)"}
+
+        from_ta = base58.b58decode(from_token_account)
+        to_ta = base58.b58decode(to_token_account)
+        token_prog = base58.b58decode(TOKEN_PROGRAM)
+
+        blockhash = await get_recent_blockhash()
+        blockhash_bytes = base58.b58decode(blockhash)
+
+        # Amount en raw (USDC = 6 decimales)
+        amount_raw = int(amount_usdc * 1_000_000)
+
+        # Construire le message
+        # Accounts: [0]=from_owner (signer), [1]=from_token_account, [2]=to_token_account, [3]=token_program
+        accounts = [from_pubkey, from_ta, to_ta, token_prog]
+        header = bytes([1, 0, 1])  # 1 signer, 0 readonly signed, 1 readonly unsigned (token prog)
+        account_keys = _encode_compact_u16(len(accounts))
+        for acc in accounts:
+            account_keys += acc
+
+        # SPL Token Transfer instruction (index 3 in SPL Token program)
+        # Data: 1 byte instruction (3) + 8 bytes amount (u64 LE)
+        transfer_data = bytes([3]) + struct.pack("<Q", amount_raw)
+        ix = bytes([3])  # program index (token program)
+        ix += _encode_compact_u16(3)  # 3 accounts
+        ix += bytes([1, 2, 0])  # [from_token, to_token, owner/signer]
+        ix += _encode_compact_u16(len(transfer_data))
+        ix += transfer_data
+
+        message = header + account_keys + blockhash_bytes + _encode_compact_u16(1) + ix
+
+        # Signer
+        signature = signing_key.sign(message).signature
+        signed_tx = _encode_compact_u16(1) + signature + message
+
+        tx_base64 = base64.b64encode(signed_tx).decode("ascii")
+
+        payload = {
+            "jsonrpc": "2.0", "id": 1,
+            "method": "sendTransaction",
+            "params": [tx_base64, {"encoding": "base64", "skipPreflight": False}],
+        }
+        client = get_http_client()
+        resp = await client.post(rpc, json=payload, timeout=15)
+        data = resp.json()
+
+        if "result" in data:
+            sig = data["result"]
+            logger.info(f"USDC SENT: {amount_usdc} USDC -> {to_address[:8]}... TX: {sig[:16]}...")
+            return {
+                "success": True, "signature": sig,
+                "amount_usdc": amount_usdc,
+                "from": from_address, "to": to_address,
+                "explorer": f"https://solscan.io/tx/{sig}",
+            }
+        else:
+            error = data.get("error", {})
+            err_msg = error.get("message", str(error)) if isinstance(error, dict) else str(error)
+            logger.error(f"USDC error: {err_msg[:100]}")
+            return {"success": False, "error": err_msg}
+
+    except Exception as e:
+        logger.error(f"USDC TX error: {e}")
+        return {"success": False, "error": "An error occurred"}

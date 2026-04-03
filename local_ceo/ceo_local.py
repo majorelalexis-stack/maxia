@@ -2868,7 +2868,7 @@ class CEOLocal:
                     backend_dir = os.path.join(os.path.dirname(__file__), "..", "backend")
                     if backend_dir not in sys.path:
                         sys.path.insert(0, backend_dir)
-                    from reddit_bot import post_to_reddit
+                    from integrations.reddit_bot import post_to_reddit
                     api_result = await post_to_reddit(
                         params.get("subreddit", "solanadev"),
                         params.get("title", ""),

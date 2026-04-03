@@ -1,0 +1,1 @@
+"""MAXIA routes package."""

@@ -27,7 +27,7 @@ class TestBug7WalletValidation:
 
     def test_valid_base58_wallet_accepted(self):
         """Normal Solana wallet should create a token."""
-        from auth import create_session_token, verify_session_token
+        from core.auth import create_session_token, verify_session_token
         wallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
         token = create_session_token(wallet)
         assert token
@@ -36,27 +36,27 @@ class TestBug7WalletValidation:
 
     def test_wallet_with_colon_rejected(self):
         """Wallet containing ':' must be rejected to prevent expiry forgery."""
-        from auth import create_session_token
+        from core.auth import create_session_token
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as exc_info:
             create_session_token("evil:99999999999:fakesig")
         assert exc_info.value.status_code == 400
 
     def test_wallet_empty_rejected(self):
-        from auth import create_session_token
+        from core.auth import create_session_token
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             create_session_token("")
 
     def test_wallet_non_base58_rejected(self):
-        from auth import create_session_token
+        from core.auth import create_session_token
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
             create_session_token("0xNotABase58Address!!!")
 
     def test_token_expired_rejected(self):
         """Expired token should raise 401."""
-        from auth import verify_session_token, _JWT_SECRET
+        from core.auth import verify_session_token, _JWT_SECRET
         from fastapi import HTTPException
         wallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
         expired_ts = str(int(time.time()) - 100)
@@ -69,7 +69,7 @@ class TestBug7WalletValidation:
 
     def test_token_tampered_rejected(self):
         """Tampered signature should raise 401."""
-        from auth import create_session_token, verify_session_token
+        from core.auth import create_session_token, verify_session_token
         from fastapi import HTTPException
         wallet = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
         token = create_session_token(wallet)
@@ -91,7 +91,7 @@ class TestBug8SandboxBypass:
         # The fix replaces the old code that returned {"wallet": x_api_key} on exception
         # with raise HTTPException(503). We verify the code pattern exists.
         import inspect
-        from auth import require_auth_flexible as require_flexible_auth
+        from core.auth import require_auth_flexible as require_flexible_auth
         source = inspect.getsource(require_flexible_auth)
         # Must NOT contain sandbox fallback on exception
         assert "SANDBOX_MODE" not in source or "503" in source
@@ -107,12 +107,12 @@ class TestBug2UsdcMintFilter:
     """BUG 2: SOL native transfers must be rejected, only USDC_MINT passes."""
 
     def test_usdc_mint_constant_correct(self):
-        from solana_verifier import USDC_MINT
+        from blockchain.solana_verifier import USDC_MINT
         assert USDC_MINT == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
     def test_verify_code_filters_by_mint(self):
         """verify_transaction must check transfer.get('mint') != USDC_MINT."""
-        with open(os.path.join(BACKEND_DIR, "solana_verifier.py"), encoding="utf-8") as f:
+        with open(os.path.join(BACKEND_DIR, "blockchain", "solana_verifier.py"), encoding="utf-8") as f:
             source = f.read()
         assert "USDC_MINT" in source
         # BUG 2 fix: explicit mint check must exist
@@ -130,7 +130,7 @@ class TestBug3DoubleFee:
         """Jupiter quote params must NOT contain platformFeeBps."""
         import inspect
         # Read the get_swap_quote function source
-        from crypto_swap import get_swap_quote
+        from trading.crypto_swap import get_swap_quote
         source = inspect.getsource(get_swap_quote)
         # Must not have platformFeeBps as an active parameter
         lines = [l.strip() for l in source.split('\n') if 'platformFeeBps' in l]
@@ -148,7 +148,7 @@ class TestBug5Bug6NameErrors:
     """BUG 5: _CACHE_TTL undefined. BUG 6: CONFIDENCE_WARN_PCT undefined."""
 
     def test_cache_ttl_constants_exist(self):
-        from pyth_oracle import _CACHE_TTL_NORMAL, _CACHE_TTL_HFT
+        from trading.pyth_oracle import _CACHE_TTL_NORMAL, _CACHE_TTL_HFT
         assert _CACHE_TTL_NORMAL > 0
         assert _CACHE_TTL_HFT > 0
         assert _CACHE_TTL_NORMAL >= _CACHE_TTL_HFT
@@ -156,13 +156,13 @@ class TestBug5Bug6NameErrors:
     def test_no_bare_cache_ttl_reference(self):
         """_CACHE_TTL (without suffix) must not be used anywhere."""
         import inspect
-        from pyth_oracle import get_batch_prices
+        from trading.pyth_oracle import get_batch_prices
         source = inspect.getsource(get_batch_prices)
         # Should reference _CACHE_TTL_NORMAL, not bare _CACHE_TTL
         assert "_CACHE_TTL_NORMAL" in source or "_CACHE_TTL_HFT" in source
 
     def test_confidence_tiers_exist(self):
-        from pyth_oracle import _CONFIDENCE_TIERS
+        from trading.pyth_oracle import _CONFIDENCE_TIERS
         assert "major" in _CONFIDENCE_TIERS
         assert "mid" in _CONFIDENCE_TIERS
         assert "small" in _CONFIDENCE_TIERS
@@ -178,7 +178,7 @@ class TestBug9McpSseAuth:
     def test_sse_call_has_auth_check(self):
         """mcp_sse_call must contain auth/tier checks (same as mcp_call_tool)."""
         import inspect
-        from mcp_server import mcp_sse_call
+        from marketplace.mcp_server import mcp_sse_call
         source = inspect.getsource(mcp_sse_call)
         # Must check free tools rate limit
         assert "FREE_TOOLS" in source
@@ -188,7 +188,7 @@ class TestBug9McpSseAuth:
     def test_sse_call_uses_safe_error(self):
         """mcp_sse_call must use safe_error, not str(e)."""
         import inspect
-        from mcp_server import mcp_sse_call
+        from marketplace.mcp_server import mcp_sse_call
         source = inspect.getsource(mcp_sse_call)
         assert "safe_error" in source
         assert "str(e)" not in source
@@ -204,7 +204,7 @@ class TestBug10McpPathInjection:
     def test_rpc_call_validates_chain(self):
         """maxia_rpc_call must validate chain against whitelist."""
         import inspect
-        from mcp_server import _execute_tool
+        from marketplace.mcp_server import _execute_tool
         source = inspect.getsource(_execute_tool)
         assert "_VALID_CHAINS" in source
         assert "not in _VALID_CHAINS" in source
@@ -212,7 +212,7 @@ class TestBug10McpPathInjection:
     def test_no_mcp_internal_hardcoded_key(self):
         """mcp-internal API key must not be hardcoded in headers."""
         import inspect
-        from mcp_server import _execute_tool
+        from marketplace.mcp_server import _execute_tool
         source = inspect.getsource(_execute_tool)
         # The fix removed the X-API-Key: mcp-internal header
         lines = [l for l in source.split('\n') if 'mcp-internal' in l]
@@ -230,7 +230,7 @@ class TestBug11DoubleSpend:
         """On timeout, must raise 503, NOT continue processing."""
         import inspect
         # Read the execute endpoint source
-        with open(os.path.join(BACKEND_DIR, "public_api.py"), encoding="utf-8") as f:
+        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api.py"), encoding="utf-8") as f:
             source = f.read()
         # Find the timeout handler
         assert "TimeoutError" in source
@@ -248,7 +248,7 @@ class TestBug12ZeroPrice:
 
     def test_awp_stake_has_nonzero_price(self):
         """awp-stake must have a real price, not 0."""
-        with open(os.path.join(BACKEND_DIR, "public_api.py"), encoding="utf-8") as f:
+        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api.py"), encoding="utf-8") as f:
             source = f.read()
         # Find the price dict
         import re
@@ -259,7 +259,7 @@ class TestBug12ZeroPrice:
 
     def test_zero_price_guard_exists(self):
         """Must reject services with price <= 0."""
-        with open(os.path.join(BACKEND_DIR, "public_api.py"), encoding="utf-8") as f:
+        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api.py"), encoding="utf-8") as f:
             source = f.read()
         assert "price <= 0" in source
 
@@ -290,14 +290,14 @@ class TestS29McpSafeError:
 
     def test_mcp_call_tool_uses_safe_error(self):
         import inspect
-        from mcp_server import mcp_call_tool
+        from marketplace.mcp_server import mcp_call_tool
         source = inspect.getsource(mcp_call_tool)
         assert "safe_error" in source
         assert 'f"Error: {str(e)}"' not in source
 
     def test_mcp_sse_call_uses_safe_error(self):
         import inspect
-        from mcp_server import mcp_sse_call
+        from marketplace.mcp_server import mcp_sse_call
         source = inspect.getsource(mcp_sse_call)
         assert "safe_error" in source
         assert 'f"Error: {str(e)}"' not in source
@@ -309,13 +309,13 @@ class TestS29McpSafeError:
 
 class TestS29TrustedProxies:
     def test_trusted_proxy_ips_in_config(self):
-        from config import TRUSTED_PROXY_IPS
+        from core.config import TRUSTED_PROXY_IPS
         assert isinstance(TRUSTED_PROXY_IPS, set)
         assert "127.0.0.1" in TRUSTED_PROXY_IPS
 
     def test_security_uses_config_proxies(self):
         import inspect
-        from security import get_real_ip
+        from core.security import get_real_ip
         source = inspect.getsource(get_real_ip)
         assert "_TRUSTED_PROXIES" in source
 
@@ -329,7 +329,7 @@ class TestS30SsoAsync:
 
     def test_no_urllib_in_http_helpers(self):
         import inspect
-        from enterprise_sso import _http_get, _http_post
+        from enterprise.enterprise_sso import _http_get, _http_post
         get_src = inspect.getsource(_http_get)
         post_src = inspect.getsource(_http_post)
         assert "urllib" not in get_src, "_http_get still uses urllib"
@@ -346,7 +346,7 @@ class TestS35DbTypes:
     def test_database_limit_on_unbounded_queries(self):
         """get_listings and get_all_stakes must have LIMIT."""
         import inspect
-        from database import Database
+        from core.database import Database
         listings_src = inspect.getsource(Database.get_listings)
         stakes_src = inspect.getsource(Database.get_all_stakes)
         assert "LIMIT" in listings_src, "get_listings missing LIMIT"

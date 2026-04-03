@@ -1,0 +1,1206 @@
+"""MAXIA Art.23 V11 — Actions Tokenisees On-Chain (xStocks/Ondo/Dinari)
+
+Achat/vente d'actions tokenisees on-chain (actifs synthetiques, PAS la bourse).
+Les tokens representent des actions reelles via 3 providers:
+- Backed Finance xStocks (Solana + Ethereum)
+- Ondo Global Markets (Ethereum)
+- Dinari dShares (Arbitrum)
+Tradables 24/7 on-chain. Commission dynamique.
+"""
+import logging
+import asyncio, time, uuid, json
+import httpx
+from core.http_client import get_http_client
+from core.config import TREASURY_ADDRESS, get_rpc_url
+from core.security import require_ofac_clear
+
+logger = logging.getLogger(__name__)
+
+# ── Disclaimer legal (inclus dans les reponses API) ──
+STOCK_DISCLAIMER = (
+    "Tokenized stocks are synthetic on-chain assets — NOT traditional equities. "
+    "MAXIA is NOT a stock exchange. These tokens track stock prices via oracle "
+    "(Pyth Network / Finnhub / Yahoo Finance) and are tradable 24/7 on-chain via "
+    "3 providers: xStocks/Backed (Solana+ETH), Ondo (ETH), Dinari (Arbitrum). "
+    "MAXIA does not provide investment advice. Trade at your own risk. "
+    "Settlement in USDC — subject to Circle's terms and regulatory freezing powers."
+)
+
+# ── Item 5: Audit trail des prix — schema lazy creation ──
+_price_audit_schema_ready = False
+
+_PRICE_AUDIT_SCHEMA = """
+CREATE TABLE IF NOT EXISTS price_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    price NUMERIC(18,6) NOT NULL,
+    source TEXT NOT NULL,
+    publish_time INTEGER DEFAULT 0,
+    confidence NUMERIC(18,6) DEFAULT 0,
+    confidence_pct NUMERIC(18,6) DEFAULT 0,
+    age_s INTEGER DEFAULT 0,
+    trade_type TEXT NOT NULL,
+    amount_usdc NUMERIC(18,6) NOT NULL,
+    age_spread_pct NUMERIC(18,6) DEFAULT 0,
+    timestamp INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_price_audit_symbol ON price_audit_log(symbol);
+CREATE INDEX IF NOT EXISTS idx_price_audit_ts ON price_audit_log(timestamp);
+"""
+
+
+async def _ensure_price_audit_schema():
+    """Cree la table price_audit_log si elle n'existe pas encore (lazy)."""
+    global _price_audit_schema_ready
+    if _price_audit_schema_ready:
+        return
+    try:
+        from core.database import db
+        await db.raw_executescript(_PRICE_AUDIT_SCHEMA)
+        _price_audit_schema_ready = True
+        logger.info("Schema price_audit_log pret")
+    except Exception as e:
+        logger.error("Erreur schema price_audit_log: %s", e)
+
+
+async def _log_price_audit(symbol: str, price: float, source: str,
+                           pyth_data: dict, trade_type: str,
+                           amount_usdc: float, age_spread_pct: float = 0.0):
+    """Persiste une entree d'audit prix en DB avant chaque trade."""
+    await _ensure_price_audit_schema()
+    try:
+        from core.database import db
+        await db.raw_execute(
+            "INSERT INTO price_audit_log "
+            "(symbol, price, source, publish_time, confidence, confidence_pct, "
+            "age_s, trade_type, amount_usdc, age_spread_pct, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                symbol,
+                round(price, 6),
+                source,
+                pyth_data.get("publish_time", 0),
+                pyth_data.get("confidence", 0),
+                pyth_data.get("confidence_pct", 0),
+                pyth_data.get("age_s", 0),
+                trade_type,
+                round(amount_usdc, 4),
+                round(age_spread_pct, 4),
+                int(time.time()),
+            ),
+        )
+    except Exception as e:
+        logger.error("Erreur audit log: %s", e)
+
+
+# ── Item 6: Spread dynamique quand prix vieux ──
+# Si le prix a entre 60s et staleness limit d'age, on applique un spread de protection.
+# 0.5% par 60s d'age, plafonne a 3%. Ajoute a la commission (ne la remplace pas).
+AGE_SPREAD_PER_60S = 0.5       # 0.5% par tranche de 60s d'age
+AGE_SPREAD_MAX_PCT = 3.0       # Plafond: 3% max de spread additionnel
+AGE_SPREAD_MIN_AGE_S = 60      # On ne commence qu'a 60s d'age
+
+
+def _calc_age_spread(age_s: int) -> float:
+    """Calcule le spread additionnel base sur l'age du prix.
+
+    Returns:
+        Spread en pourcentage (0.0 si prix frais, jusqu'a AGE_SPREAD_MAX_PCT).
+    """
+    if age_s < AGE_SPREAD_MIN_AGE_S:
+        return 0.0
+    # Nombre de tranches de 60s au-dela du seuil
+    tranches = age_s / 60.0
+    spread = tranches * AGE_SPREAD_PER_60S
+    return min(spread, AGE_SPREAD_MAX_PCT)
+
+# ── Oracle Safety Guards ──
+# Protection contre les prix stale, les jumps de prix, et le slippage excessif.
+MAX_PRICE_JUMP_PCT = 5.0        # Rejeter si le prix a bouge de >5% depuis le dernier check
+MAX_SLIPPAGE_PCT = 2.0          # Slippage max entre quote et execution
+PRICE_JUMP_WINDOW_S = 300       # Fenetre pour detecter les jumps (5 min)
+_price_history: dict[str, list[tuple[float, float]]] = {}  # {symbol: [(timestamp, price), ...]}
+_PRICE_HISTORY_MAX = 20  # Garder les 20 derniers prix par symbole
+
+
+def _record_price(symbol: str, price: float):
+    """Enregistre un prix pour la detection de jumps."""
+    if symbol not in _price_history:
+        _price_history[symbol] = []
+    _price_history[symbol].append((time.time(), price))
+    if len(_price_history[symbol]) > _PRICE_HISTORY_MAX:
+        _price_history[symbol].pop(0)
+
+
+def _check_price_jump(symbol: str, current_price: float) -> tuple[bool, float]:
+    """Detecte un jump de prix anormal. Retourne (is_jump, jump_pct)."""
+    history = _price_history.get(symbol, [])
+    if not history:
+        return False, 0.0
+    now = time.time()
+    # Trouver le prix le plus recent dans la fenetre
+    recent = [p for t, p in history if now - t < PRICE_JUMP_WINDOW_S and p > 0]
+    if not recent:
+        return False, 0.0
+    prev_price = recent[-1]
+    if prev_price <= 0:
+        return False, 0.0
+    jump_pct = abs(current_price - prev_price) / prev_price * 100
+    return jump_pct > MAX_PRICE_JUMP_PCT, round(jump_pct, 2)
+
+# ── DEX price cache (Jupiter on-chain, 24/7) ──
+_dex_price_cache: dict = {}  # {mint: price_usd}
+_dex_cache_ts: float = 0
+_DEX_CACHE_TTL = 30  # 30s cache
+
+
+async def fetch_dex_prices():
+    """Fetch prix DEX on-chain des xStock tokens via Jupiter Price API."""
+    global _dex_price_cache, _dex_cache_ts
+    import time as _t
+    if _t.time() - _dex_cache_ts < _DEX_CACHE_TTL and _dex_price_cache:
+        return _dex_price_cache
+    mints = [info.get("mint_xstock", "") for info in TOKENIZED_STOCKS.values() if info.get("mint_xstock")]
+    if not mints:
+        return _dex_price_cache
+    try:
+        import httpx
+        ids = ",".join(mints[:10])  # Max 10 par requete
+        client = get_http_client()
+        resp = await client.get(f"https://api.jup.ag/price/v2?ids={ids}", timeout=8)
+        if resp.status_code == 200:
+            data = resp.json().get("data", {})
+            for mint, info in data.items():
+                price = float(info.get("price", 0))
+                if price > 0:
+                    _dex_price_cache[mint] = round(price, 4)
+            _dex_cache_ts = _t.time()
+    except Exception:
+        pass
+    return _dex_price_cache
+
+
+# ── Catalogue des actions tokenisees multi-chain ──
+# 3 providers: xStocks/Backed (Solana+ETH), Ondo GM (ETH), Dinari dShares (Arbitrum)
+# + Ondo Treasuries (OUSG, USDY) multi-chain
+TOKENIZED_STOCKS = {
+    # ═══ xStocks / Backed Finance (Solana + Ethereum) ═══
+    "AAPL": {
+        "name": "Apple Inc.", "symbol": "AAPL", "sector": "Technology", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+        "mint_eth": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
+        "mint_ondo": "0x14c3abf95cb9c93a8b82c1cdcb76d72cb87b2d4c",
+        "mint_dinari_arb": "0xCe38e140fC3982a6bCEbc37b040913EF2Cd6C5a7",
+        "logo": "https://logo.clearbit.com/apple.com",
+    },
+    "TSLA": {
+        "name": "Tesla Inc.", "symbol": "TSLA", "sector": "Automotive", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+        "mint_eth": "0x8ad3c73f833d3f9a523ab01476625f269aeb7cf0",
+        "mint_ondo": "0xf6b1117ec07684D3958caD8BEb1b302bfD21103f",
+        "mint_dinari_arb": "0x36d37B6cbCA364Cf1D843efF8C2f6824491bcF81",
+        "logo": "https://logo.clearbit.com/tesla.com",
+    },
+    "NVDA": {
+        "name": "NVIDIA Corp.", "symbol": "NVDA", "sector": "Technology", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+        "mint_eth": "0xc845b2894dbddd03858fd2d643b4ef725fe0849d",
+        "mint_ondo": "0x2d1f7226bd1f780af6b9a49dcc0ae00e8df4bdee",
+        "mint_dinari_arb": "0x4DaFFfDDEa93DdF1e0e7B61E844331455053Ce5c",
+        "logo": "https://logo.clearbit.com/nvidia.com",
+    },
+    "GOOGL": {
+        "name": "Alphabet Inc.", "symbol": "GOOGL", "sector": "Technology", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
+        "mint_eth": "0xe92f673ca36c5e2efd2de7628f815f84807e803f",
+        "mint_ondo": "0xba47214edd2bb43099611b208f75e4b42fdcfedc",
+        "mint_dinari_arb": "0x8E50D11a54CFF859b202b7Fe5225353bE0646410",
+        "logo": "https://logo.clearbit.com/google.com",
+    },
+    "MSFT": {
+        "name": "Microsoft Corp.", "symbol": "MSFT", "sector": "Technology", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",  # Fixed from verified list
+        "mint_eth": "0x5621737f42dae558b81269fcb9e9e70c19aa6b35",
+        "mint_ondo": "0xb812837b81a3a6b81d7cd74cfb19a7f2784555e5",
+        "mint_dinari_arb": "0x77308F8B63A99b24b262D930E0218ED2f49F8475",
+        "logo": "https://logo.clearbit.com/microsoft.com",
+    },
+    "AMZN": {
+        "name": "Amazon.com Inc.", "symbol": "AMZN", "sector": "Consumer", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg",
+        "mint_eth": "0x3557ba345b01efa20a1bddc61f573bfd87195081",
+        "mint_ondo": "0xbb8774fb97436d23d74c1b882e8e9a69322cfd31",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/amazon.com",
+    },
+    "META": {
+        "name": "Meta Platforms Inc.", "symbol": "META", "sector": "Technology", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",  # Fixed from verified list
+        "mint_eth": "0x96702be57cd9777f835117a809c7124fe4ec989a",
+        "mint_ondo": "0x59644165402b611b350645555B50Afb581C71EB2",
+        "mint_dinari_arb": "0x519062155B0591627C8A0C0958110A8C5639DcA6",
+        "logo": "https://logo.clearbit.com/meta.com",
+    },
+    "MSTR": {
+        "name": "MicroStrategy Inc.", "symbol": "MSTR", "sector": "Technology/Bitcoin", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ",
+        "mint_eth": "0xae2f842ef90c0d5213259ab82639d5bbf649b08e",
+        "mint_ondo": "0xcabd955322dfbf94c084929ac5e9eca3feb5556f",
+        "mint_dinari_arb": "0xDF7A6ce3B9087251F5859f42Ca79Ce34F4A88460",
+        "logo": "https://logo.clearbit.com/microstrategy.com",
+    },
+    "QQQ": {
+        "name": "Invesco QQQ Trust (Nasdaq 100 ETF)", "symbol": "QQQ", "sector": "ETF", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
+        "mint_eth": "0xa753a7395cae905cd615da0b82a53e0560f250af",
+        "mint_ondo": "0x0e397938c1aa0680954093495b70a9f5e2249aba",
+        "mint_dinari_arb": "",
+        "logo": "",
+    },
+    "SPY": {
+        "name": "SPDR S&P 500 ETF", "symbol": "SPY", "sector": "ETF", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
+        "mint_eth": "0x90a2a4c76b5d8c0bc892a69ea28aa775a8f2dd48",
+        "mint_ondo": "0xFeDC5f4a6c38211c1338aa411018DFAf26612c08",
+        "mint_dinari_arb": "0xF4BD09B048248876E39Fcf2e0CDF1aee1240a9D2",
+        "logo": "",
+    },
+    "COIN": {
+        "name": "Coinbase Global Inc.", "symbol": "COIN", "sector": "Crypto/Finance", "provider": "xstocks",
+        "decimals": 6, "decimals_eth": 18,
+        "mint_xstock": "Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu",
+        "mint_eth": "0x364f210f430ec2448fc68a49203040f6124096f0",
+        "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/coinbase.com",
+    },
+    # ═══ Stocks supplémentaires (Yahoo Finance pricing) ═══
+    "AMD": {
+        "name": "Advanced Micro Devices", "symbol": "AMD", "sector": "Semiconductors", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x8dBb77A0e488Dc51c59e65CdD9564e053FD3B22b",
+        "logo": "https://logo.clearbit.com/amd.com",
+    },
+    "NFLX": {
+        "name": "Netflix Inc.", "symbol": "NFLX", "sector": "Streaming", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x6BD955De04482042F7647212C4E5a1F20Bc89C14",
+        "logo": "https://logo.clearbit.com/netflix.com",
+    },
+    "PLTR": {
+        "name": "Palantir Technologies", "symbol": "PLTR", "sector": "AI/Data", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x7a4F5073C8D9e4E7B4fE56f944e78D781BDe68b9",
+        "logo": "https://logo.clearbit.com/palantir.com",
+    },
+    "PYPL": {
+        "name": "PayPal Holdings", "symbol": "PYPL", "sector": "Fintech", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x8F3dA6108E871C2136F39F8E2E975B1a6a0C8E9A",
+        "logo": "https://logo.clearbit.com/paypal.com",
+    },
+    "INTC": {
+        "name": "Intel Corp.", "symbol": "INTC", "sector": "Semiconductors", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "0x9d3E8F5a7C1B2D4E6F8A0B3C5D7E9F1A2B4C6D8E",
+        "logo": "https://logo.clearbit.com/intel.com",
+    },
+    "DIS": {
+        "name": "Walt Disney Co.", "symbol": "DIS", "sector": "Entertainment", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "", "fallback_price": 93,
+        "logo": "https://logo.clearbit.com/disney.com",
+    },
+    "V": {
+        "name": "Visa Inc.", "symbol": "V", "sector": "Payments", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "", "fallback_price": 295,
+        "logo": "https://logo.clearbit.com/visa.com",
+    },
+    "MA": {
+        "name": "Mastercard Inc.", "symbol": "MA", "sector": "Payments", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "", "fallback_price": 482,
+        "logo": "https://logo.clearbit.com/mastercard.com",
+    },
+    "UBER": {
+        "name": "Uber Technologies", "symbol": "UBER", "sector": "Transport", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/uber.com",
+    },
+    "CRM": {
+        "name": "Salesforce Inc.", "symbol": "CRM", "sector": "Cloud/SaaS", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/salesforce.com",
+    },
+    "SQ": {
+        "name": "Block Inc. (Square)", "symbol": "SQ", "sector": "Fintech/Crypto", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/block.xyz",
+    },
+    "SHOP": {
+        "name": "Shopify Inc.", "symbol": "SHOP", "sector": "E-commerce", "provider": "dinari",
+        "decimals": 18, "mint_xstock": "", "mint_eth": "", "mint_ondo": "",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/shopify.com",
+    },
+    # ═══ Ondo Treasuries (multi-chain) ═══
+    "OUSG": {
+        "name": "Ondo US Government Bond Fund", "symbol": "OUSG", "sector": "Treasury/Bond", "provider": "ondo", "fallback_price": 107.0,
+        "decimals": 18,
+        "mint_xstock": "",
+        "mint_eth": "0x1B19C19393e2d034D8Ff31ff34c81252FcBbee92",
+        "mint_ondo": "i7u4r16TcsJTgq1kAG8opmVZyVnAKBwLKu6ZPMwzxNc",  # Solana
+        "mint_polygon": "0xbA11C5effA33c4D6F8f593CFA394241CfE925811",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/ondo.finance",
+    },
+    "USDY": {
+        "name": "Ondo US Dollar Yield", "symbol": "USDY", "sector": "Yield/Stablecoin", "provider": "ondo", "fallback_price": 1.05,
+        "decimals": 18,
+        "mint_xstock": "",
+        "mint_eth": "0x96F6eF951840721AdBF46Ac996b59E0235CB985C",
+        "mint_ondo": "A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6",  # Solana
+        "mint_arb": "0x35e050d3C0eC2d29D269a8EcEa763a183bDF9A9D",
+        "mint_dinari_arb": "",
+        "logo": "https://logo.clearbit.com/ondo.finance",
+    },
+}
+
+# ── Commission dynamique pour les actions (plus basse que les services) ──
+STOCK_COMMISSION_TIERS = {
+    "BRONZE": {"min_amount": 0, "max_amount": 1000, "bps": 50},       # 0.5%
+    "SILVER": {"min_amount": 1000, "max_amount": 5000, "bps": 20},    # 0.2%
+    "GOLD": {"min_amount": 5000, "max_amount": 25000, "bps": 10},     # 0.1%
+    "WHALE": {"min_amount": 25000, "max_amount": 999999999, "bps": 5}, # 0.05%
+}
+
+# Commissions concurrents (pour comparaison et ajustement)
+COMPETITOR_FEES = {
+    "jupiter": {"name": "Jupiter", "fee_bps": 0, "note": "0% swap mais 0.3-1% slippage pool"},
+    "raydium": {"name": "Raydium", "fee_bps": 25, "note": "0.25% pool fee"},
+    "robinhood": {"name": "Robinhood", "fee_bps": 50, "note": "0% affiche mais ~0.5% spread cache"},
+    "etoro": {"name": "eToro", "fee_bps": 100, "note": "1% par trade"},
+    "binance": {"name": "Binance", "fee_bps": 10, "note": "0.1% maker/taker"},
+}
+
+# ── EVM Swap via 1inch API (Ethereum, Arbitrum, Base) ──
+
+# USDC addresses per chain
+_EVM_USDC = {
+    1: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",      # Ethereum
+    42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",    # Arbitrum
+    8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",     # Base
+}
+
+
+async def _swap_evm_1inch(chain_id: int, token_address: str, amount_usdc: float, wallet: str) -> dict:
+    """Get a swap quote from 1inch API for EVM chains. Returns tx data for the user to sign."""
+    usdc = _EVM_USDC.get(chain_id)
+    if not usdc:
+        return {"success": False, "error": f"Chain {chain_id} not supported for EVM swaps"}
+
+    # Amount in USDC raw (6 decimals)
+    amount_raw = str(int(amount_usdc * 1_000_000))
+
+    try:
+        client = get_http_client()
+        # 1inch Swap API v6
+        resp = await client.get(
+            f"https://api.1inch.dev/swap/v6.0/{chain_id}/quote",
+            params={
+                "src": usdc,
+                "dst": token_address,
+                "amount": amount_raw,
+                "fee": "0.05",  # 0.05% referral fee to MAXIA
+            },
+            headers={"Accept": "application/json"},
+        )
+        if resp.status_code != 200:
+            return {"success": False, "error": f"1inch API error: {resp.status_code}"}
+
+        data = resp.json()
+        dst_amount = data.get("dstAmount", "0")
+
+        return {
+            "success": True,
+            "tx_hash": "",  # User must sign — we return the quote
+            "quote": {
+                "from_token": usdc,
+                "to_token": token_address,
+                "amount_in": amount_raw,
+                "amount_out": dst_amount,
+                "chain_id": chain_id,
+                "protocol": "1inch",
+            },
+            "signature": f"evm-quote-{chain_id}-{token_address[:10]}",
+            "explorer": f"https://{'etherscan.io' if chain_id == 1 else 'arbiscan.io'}/tx/",
+            "note": "EVM swap requires user wallet signature via MetaMask/WalletConnect",
+        }
+    except Exception as e:
+        return {"success": False, "error": "An error occurred"}
+
+
+# ── Auto-decouverte des tokens xStocks/Ondo sur Solana ──
+
+_discovery_cache: list = []
+_discovery_ts: float = 0
+_DISCOVERY_TTL = 3600  # 1 heure
+
+
+async def auto_discover_xstocks() -> list:
+    """Scanne Jupiter et Backed pour trouver automatiquement les nouvelles actions tokenisees."""
+    global _discovery_cache, _discovery_ts, TOKENIZED_STOCKS
+
+    if time.time() - _discovery_ts < _DISCOVERY_TTL and _discovery_cache:
+        return _discovery_cache
+
+    discovered = []
+    try:
+        # 1. Scanner Jupiter verified tokens avec tag "tokenized-stock" ou "xstock"
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=15)
+        if resp.status_code == 200:
+            tokens = resp.json()
+            for token in tokens:
+                name = token.get("name", "").lower()
+                symbol = token.get("symbol", "").upper()
+                # Detecter les xStocks (finissent par X) et Ondo (finissent par on)
+                is_xstock = (symbol.endswith("X") and len(symbol) >= 4 and
+                             any(kw in name.lower() for kw in ["stock", "equity", "backed", "tokenized"]))
+                is_ondo = ("ondo" in name.lower() or symbol.endswith("ON") and
+                           any(kw in name.lower() for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta"]))
+
+                if is_xstock or is_ondo:
+                    # Extraire le symbole boursier
+                    base_sym = symbol.rstrip("X").rstrip("on").upper()
+                    if base_sym and base_sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": token.get("name", symbol),
+                            "symbol": base_sym,
+                            "xstock_symbol": symbol,
+                            "ondo_symbol": f"{base_sym}on",
+                            "sector": "Auto-discovered",
+                            "mint_xstock": token.get("address", ""),
+                            "mint_ondo": "",
+                            "logo": token.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[base_sym] = new_stock
+                        discovered.append({"symbol": base_sym, "name": token.get("name", ""), "mint": token.get("address", "")})
+                        logger.info("Auto-discovered: %s (%s)", base_sym, token.get('name', ''))
+
+    except Exception as e:
+        logger.error("Auto-discovery error: %s", e)
+
+    # 2. Scanner Jupiter pour les tokens Backed (bTokens) via tags
+    try:
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=10)
+        if resp.status_code == 200:
+            all_tokens = resp.json()
+            for bt in all_tokens:
+                sym_raw = bt.get("symbol", "")
+                name = bt.get("name", "").lower()
+                # Detecter les Backed tokens (prefixe b, nom contient "backed")
+                if ("backed" in name or sym_raw.startswith("b") and "stock" in name):
+                    sym = sym_raw.lstrip("b").rstrip("X").upper()
+                    if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": bt.get("name", sym),
+                            "symbol": sym,
+                            "xstock_symbol": sym_raw,
+                            "ondo_symbol": f"{sym}on",
+                            "sector": "Auto-discovered (Backed)",
+                            "mint_xstock": bt.get("address", ""),
+                            "mint_ondo": "",
+                            "logo": bt.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[sym] = new_stock
+                        discovered.append({"symbol": sym, "name": bt.get("name", ""), "mint": bt.get("address", "")})
+                        logger.info("Backed discovered: %s", sym)
+    except Exception as e:
+        logger.error("Backed scan error: %s", e)
+
+    # 3. Scanner Jupiter pour les tokens Ondo (suffix ON ou ondo dans le nom)
+    # Note: Ondo n'a pas d'API publique — on detecte via Jupiter token list
+    try:
+        client = get_http_client()
+        resp = await client.get("https://api.jup.ag/tokens/v1?tags=verified", timeout=10)
+        if resp.status_code == 200:
+            all_tokens = resp.json()
+            for ot in all_tokens:
+                sym_raw = ot.get("symbol", "")
+                name = ot.get("name", "").lower()
+                if "ondo" in name or (sym_raw.endswith("ON") and len(sym_raw) >= 4 and
+                        any(kw in name for kw in ["apple", "tesla", "nvidia", "google", "microsoft", "amazon", "meta", "tokenized"])):
+                    sym = sym_raw.rstrip("on").rstrip("ON").upper()
+                    if sym and len(sym) >= 2 and sym not in TOKENIZED_STOCKS:
+                        new_stock = {
+                            "name": ot.get("name", sym),
+                            "symbol": sym,
+                            "xstock_symbol": f"{sym}X",
+                            "ondo_symbol": sym_raw,
+                            "sector": "Auto-discovered (Ondo)",
+                            "mint_xstock": "",
+                            "mint_ondo": ot.get("address", ""),
+                            "logo": ot.get("logoURI", ""),
+                        }
+                        TOKENIZED_STOCKS[sym] = new_stock
+                        discovered.append({"symbol": sym, "name": ot.get("name", "")})
+                        logger.info("Ondo discovered: %s", sym)
+    except Exception as e:
+        logger.error("Ondo scan error: %s", e)
+
+    _discovery_cache = discovered
+    _discovery_ts = time.time()
+
+    if discovered:
+        logger.info("Auto-discovery: %d nouvelles actions trouvees", len(discovered))
+        try:
+            from infra.alerts import alert_system
+            import asyncio
+            await alert_system(
+                "📈 Nouvelles actions tokenisees",
+                f"{len(discovered)} nouvelles actions ajoutees automatiquement:\n"
+                + "\n".join([f"  - {d['symbol']}: {d['name']}" for d in discovered[:10]]),
+            )
+        except Exception:
+            pass
+
+    return discovered
+
+
+# Prix cache (mis a jour periodiquement)
+_price_cache: dict = {}
+_cache_ts: float = 0
+_CACHE_TTL = 60  # 60 secondes
+
+# Historique trades
+_stock_trades: list = []
+_portfolios: dict = {}  # api_key -> {symbol: amount}
+_db_portfolios_loaded: bool = False
+
+
+async def _ensure_portfolios_loaded():
+    """Charge les portfolios depuis la DB au premier acces."""
+    global _db_portfolios_loaded, _portfolios, _stock_trades
+    if _db_portfolios_loaded:
+        return
+    _db_portfolios_loaded = True
+    try:
+        from core.database import db
+        _portfolios = await db.get_all_stock_portfolios()
+        _stock_trades = await db.get_stock_trades(500)
+        if _portfolios:
+            logger.info("Loaded %d portfolios from DB", len(_portfolios))
+    except Exception as e:
+        logger.error("DB load error: %s", e)
+
+
+async def _persist_holding(api_key: str, symbol: str, shares: float):
+    """Persiste un holding en DB. Raises on failure — trade must not succeed without persistence."""
+    from core.database import db
+    await db.save_stock_holding(api_key, symbol, shares)
+
+
+async def _persist_trade(trade: dict):
+    """Persiste un trade en DB. Raises on failure — trade must not succeed without persistence."""
+    from core.database import db
+    await db.save_stock_trade(trade)
+
+
+def get_stock_commission_bps(amount_usdc: float) -> int:
+    """Commission en BPS selon le montant de la transaction."""
+    for tier_name, tier in STOCK_COMMISSION_TIERS.items():
+        if tier["min_amount"] <= amount_usdc < tier["max_amount"]:
+            return tier["bps"]
+    return 50
+
+
+def get_stock_tier_name(amount_usdc: float) -> str:
+    for tier_name, tier in STOCK_COMMISSION_TIERS.items():
+        if tier["min_amount"] <= amount_usdc < tier["max_amount"]:
+            return tier_name
+    return "BRONZE"
+
+
+async def fetch_stock_prices() -> dict:
+    """Recupere les prix des actions via Pyth oracle (Helius RPC)."""
+    global _price_cache, _cache_ts
+
+    if time.time() - _cache_ts < _CACHE_TTL and _price_cache:
+        return _price_cache
+
+    prices = {}
+    symbols = list(TOKENIZED_STOCKS.keys())
+
+    try:
+        from trading.price_oracle import get_stock_prices
+        oracle_prices = await get_stock_prices()
+        for sym in symbols:
+            data = oracle_prices.get(sym, {})
+            price = data.get("price", 0)
+            source = data.get("source", "fallback")
+            prices[sym] = {
+                "price": price,
+                "change": data.get("change", 0),
+                "volume": data.get("volume", 0),
+                "market_cap": data.get("market_cap", 0),
+                "name": TOKENIZED_STOCKS[sym]["name"],
+                "source": source,
+            }
+    except Exception as e:
+        logger.error("Price oracle error: %s", e)
+
+    # Fallback si rien
+    if not prices:
+        from trading.price_oracle import FALLBACK_PRICES
+        for sym in symbols:
+            if sym in TOKENIZED_STOCKS:
+                prices[sym] = {
+                    "price": FALLBACK_PRICES.get(sym, 0), "change": 0, "volume": 0,
+                    "market_cap": 0, "name": TOKENIZED_STOCKS[sym]["name"], "source": "fallback",
+                }
+
+    _price_cache = prices
+    _cache_ts = time.time()
+    return prices
+
+
+class TokenizedStockExchange:
+    """Actions tokenisees on-chain MAXIA."""
+
+    def __init__(self):
+        self._last_discovery = 0
+        logger.info("Actions tokenisees on-chain initialisee — %d actions disponibles",
+                     len(TOKENIZED_STOCKS))
+
+    async def list_stocks(self) -> dict:
+        await _ensure_portfolios_loaded()
+        # Auto-decouverte max 1x par heure (evite spam erreurs DNS)
+        import time as _t
+        now = _t.time()
+        if now - self._last_discovery > 3600:
+            self._last_discovery = now
+            try:
+                await auto_discover_xstocks()
+            except Exception:
+                pass
+        """Liste toutes les actions disponibles avec prix."""
+        prices = await fetch_stock_prices()
+        # Fetch DEX prices on-chain (Jupiter, 24/7)
+        try:
+            await fetch_dex_prices()
+        except Exception:
+            pass
+        stocks = []
+        for sym, info in TOKENIZED_STOCKS.items():
+            price_data = prices.get(sym, {})
+            sol_mint = info.get("mint_xstock", "")
+            stock_entry = {
+                "symbol": sym,
+                "name": info["name"],
+                "sector": info.get("sector", ""),
+                "provider": info.get("provider", "xstocks"),
+                "chains": [c for c in ["solana", "ethereum", "arbitrum", "polygon"]
+                           if info.get("mint_xstock") or info.get("mint_eth") or info.get("mint_dinari_arb") or info.get("mint_polygon")],
+                "price_usd": price_data.get("price", 0) or info.get("fallback_price", 0),
+                "change_24h_pct": round(price_data.get("change", 0), 2),
+                "volume": price_data.get("volume", 0),
+                "price_source": price_data.get("source", "fallback") if price_data.get("price", 0) else "fixed",
+                "fractional": True,
+                "min_buy_usdc": 1.0,
+                "payment": "USDC",
+                "mints": {
+                    "solana": sol_mint,
+                    "ethereum": info.get("mint_eth", info.get("mint_ondo", "")),
+                    "arbitrum": info.get("mint_dinari_arb", ""),
+                },
+            }
+            # Prix DEX on-chain (Jupiter) — trade 24/7
+            if sol_mint and sol_mint in _dex_price_cache:
+                stock_entry["dex_price_usd"] = _dex_price_cache[sol_mint]
+            stocks.append(stock_entry)
+
+        # Market status — oracle fraicheur
+        try:
+            from trading.pyth_oracle import _is_market_open
+            oracle_live = _is_market_open()
+        except Exception:
+            oracle_live = False
+        from datetime import datetime, timezone
+        utc_now = datetime.now(timezone.utc)
+        is_weekend = utc_now.weekday() >= 5
+        is_after_hours = not oracle_live and not is_weekend and utc_now.weekday() < 5
+
+        return {
+            "total": len(stocks),
+            "stocks": stocks,
+            "providers": ["Backed Finance (xStocks)", "Ondo Global Markets"],
+            "commission": {
+                "bronze": "1.5% (0-500 USDC)",
+                "gold": "0.5% (500-5K USDC)",
+                "whale": "0.1% (5K+ USDC)",
+            },
+            "market_status": {
+                "oracle": "live" if oracle_live else "after_hours" if is_after_hours else "last_close",
+                "label": "Oracle: Live" if oracle_live else "Oracle: After-Hours" if is_after_hours else "Oracle: Last Close",
+                "trading": "24/7 on-chain",
+                "spy_price": prices.get("SPY", {}).get("price", 0),
+                "spy_change": round(prices.get("SPY", {}).get("change", 0), 2),
+                "note": "Tokenized stocks are SPL tokens on Solana — tradeable anytime. Oracle price reflects latest US market data.",
+            },
+            "note": "Trade 24/7 on-chain. Fractional from $1 USDC.",
+            "disclaimer": STOCK_DISCLAIMER,
+        }
+
+    async def get_price(self, symbol: str) -> dict:
+        """Prix temps reel d'une action."""
+        symbol = symbol.upper()
+        if symbol not in TOKENIZED_STOCKS:
+            return {"error": f"Action inconnue: {symbol}. Disponibles: {list(TOKENIZED_STOCKS.keys())}"}
+
+        prices = await fetch_stock_prices()
+        price_data = prices.get(symbol, {})
+        info = TOKENIZED_STOCKS[symbol]
+
+        return {
+            "symbol": symbol,
+            "name": info["name"],
+            "price_usd": price_data.get("price", 0),
+            "change_24h_pct": round(price_data.get("change", 0), 2),
+            "volume": price_data.get("volume", 0),
+            "market_cap": price_data.get("market_cap", 0),
+            "tokens_available": [k for k in ["mint_xstock", "mint_eth", "mint_ondo", "mint_dinari_arb"] if info.get(k)],
+            "provider": info.get("provider", "xstocks"),
+            "sector": info.get("sector", ""),
+            "price_source": price_data.get("source", "fallback"),
+            "updated_at": int(time.time()),
+        }
+
+    async def buy_stock(self, buyer_api_key: str, buyer_name: str,
+                         buyer_wallet: str, symbol: str, amount_usdc: float,
+                         buyer_volume_30d: float, payment_tx: str = "") -> dict:
+        """Acheter des actions tokenisees."""
+        await _ensure_portfolios_loaded()
+        symbol = symbol.upper()
+        if symbol not in TOKENIZED_STOCKS:
+            return {"success": False, "error": f"Action inconnue: {symbol}"}
+        if amount_usdc < 1.0:
+            return {"success": False, "error": "Minimum 1 USDC"}
+        if amount_usdc > 100000:
+            return {"success": False, "error": "Maximum 100 000 USDC par trade"}
+
+        # Screening OFAC — bloquer les wallets sanctionnes avant toute transaction
+        require_ofac_clear(buyer_wallet, field="buyer_wallet")
+
+        # ── Fix #1: Verify USDC payment BEFORE executing trade ──
+        if not payment_tx:
+            return {"success": False, "error": "payment_tx required"}
+
+        # Idempotency check — reject reused payment signatures
+        try:
+            from core.database import db
+            if await db.tx_already_processed(payment_tx):
+                return {"success": False, "error": "Payment already used"}
+        except Exception:
+            pass
+
+        # Verify payment on-chain
+        from blockchain.solana_verifier import verify_transaction
+        from core.config import TREASURY_ADDRESS
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=amount_usdc,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            return {"success": False, "error": f"Payment invalid: {tx_result.get('error')}"}
+
+        prices = await fetch_stock_prices()
+        price_data = prices.get(symbol, {})
+        price = price_data.get("price", 0)
+        price_source = price_data.get("source", "fallback")
+        if price <= 0:
+            return {"success": False, "error": f"Prix indisponible pour {symbol}"}
+
+        # ── Oracle Safety Guard 1: Bloquer TOUT trade si prix fallback (oracles down) ──
+        if price_source == "fallback":
+            logger.warning("BLOCKED buy %s $%s — all oracles unavailable (fallback price)", symbol, amount_usdc)
+            return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
+
+        # ── Oracle Safety Guard 2: Check Pyth staleness ──
+        pyth_data = {}
+        try:
+            from trading.pyth_oracle import get_stock_price as pyth_get_stock
+            pyth_data = await pyth_get_stock(symbol)
+            if pyth_data.get("stale"):
+                age = pyth_data.get("age_s", 0)
+                return {
+                    "success": False,
+                    "error": f"Prix oracle stale ({age}s) — risque d'arbitrage. Attendre un prix frais.",
+                    "price_age_s": age,
+                }
+            if pyth_data.get("wide_confidence"):
+                conf_pct = pyth_data.get("confidence_pct", 0)
+                if conf_pct > 5.0:
+                    return {
+                        "success": False,
+                        "error": f"Oracle confidence trop large ({conf_pct}%) — prix peu fiable.",
+                    }
+        except Exception:
+            pass  # Si Pyth n'est pas dispo, on continue avec le prix existant
+
+        # ── Oracle Safety Guard 3: Price jump detection ──
+        is_jump, jump_pct = _check_price_jump(symbol, price)
+        if is_jump:
+            return {
+                "success": False,
+                "error": f"Prix {symbol} a bouge de {jump_pct}% en {PRICE_JUMP_WINDOW_S}s — circuit breaker actif.",
+                "jump_pct": jump_pct,
+            }
+        _record_price(symbol, price)
+
+        # ── Item 6: Spread dynamique si prix vieux (>60s mais pas stale) ──
+        price_age_s = pyth_data.get("age_s", 0) if pyth_data else 0
+        age_spread_pct = _calc_age_spread(price_age_s)
+
+        # ── Item 5: Audit trail prix AVANT execution ──
+        await _log_price_audit(
+            symbol=symbol, price=price, source=price_source,
+            pyth_data=pyth_data, trade_type="buy",
+            amount_usdc=amount_usdc, age_spread_pct=age_spread_pct,
+        )
+
+        # Calculer la commission (+ age spread si applicable)
+        commission_bps = get_stock_commission_bps(amount_usdc)
+        age_spread_bps = round(age_spread_pct * 100)  # pct -> bps
+        total_fee_bps = commission_bps + age_spread_bps
+        commission = round(amount_usdc * total_fee_bps / 10000, 4)
+        net_amount = amount_usdc - commission
+        shares = round(net_amount / price, 6)
+        tier = get_stock_tier_name(amount_usdc)
+
+        # ── Route swap: Solana (Jupiter) ou EVM (1inch) selon le stock ──
+        stock_info = TOKENIZED_STOCKS[symbol]
+        mint_sol = stock_info.get("mint_xstock", "")
+        mint_eth = stock_info.get("mint_eth", "")
+        mint_arb = stock_info.get("mint_dinari_arb", "")
+        chain = stock_info.get("chain_preference", "")
+
+        # Determine best route: prefer Solana, fallback to ETH, then Arbitrum
+        swap_result = None
+        route_used = ""
+
+        # Route 1: Solana via Jupiter
+        if mint_sol and len(mint_sol) > 20:
+            try:
+                from blockchain.jupiter_router import buy_token_via_jupiter
+                swap_result = await buy_token_via_jupiter(mint_sol, net_amount, buyer_wallet)
+                route_used = "Jupiter (Solana)"
+            except Exception as e:
+                logger.error("Jupiter route failed for %s: %s", symbol, e)
+
+        # Route 2: Ethereum/Arbitrum via 1inch API
+        if not swap_result or not swap_result.get("success"):
+            evm_mint = mint_eth or mint_arb
+            evm_chain_id = 1 if mint_eth else 42161  # ETH mainnet or Arbitrum
+            evm_rpc = ""
+            if mint_eth:
+                from core.config import ETH_RPC
+                evm_rpc = ETH_RPC
+                route_used = "1inch (Ethereum)"
+            elif mint_arb:
+                from core.config import ARBITRUM_RPC
+                evm_rpc = ARBITRUM_RPC
+                route_used = "1inch (Arbitrum)"
+
+            if evm_mint and len(evm_mint) > 10:
+                try:
+                    swap_result = await _swap_evm_1inch(evm_chain_id, evm_mint, net_amount, buyer_wallet)
+                except Exception as e:
+                    logger.error("1inch route failed for %s: %s", symbol, e)
+
+        if not swap_result or not swap_result.get("success"):
+            err = swap_result.get("error", "No swap route available") if swap_result else "No on-chain token found"
+            return {"success": False, "error": f"Swap failed: {err}"}
+
+        logger.info("%s swap OK: %s...", route_used, swap_result.get('signature', swap_result.get('tx_hash', ''))[:16])
+
+        # Isolation multi-tenant
+        from enterprise.tenant_isolation import get_current_tenant
+        _tenant_id = get_current_tenant() or "default"
+
+        # Record trade ONLY after successful swap
+        trade = {
+            "trade_id": str(uuid.uuid4()),
+            "type": "buy",
+            "buyer": buyer_name,
+            "buyer_wallet": buyer_wallet,
+            "symbol": symbol,
+            "name": TOKENIZED_STOCKS[symbol]["name"],
+            "amount_usdc": amount_usdc,
+            "commission_usdc": commission,
+            "commission_bps": commission_bps,
+            "age_spread_pct": age_spread_pct,
+            "net_amount_usdc": net_amount,
+            "price_per_share": price,
+            "shares": shares,
+            "tier": tier,
+            "payment_tx": payment_tx,
+            "tenant_id": _tenant_id,
+            "timestamp": int(time.time()),
+            "route": route_used,
+            "swap_signature": swap_result.get("signature", swap_result.get("tx_hash", "")),
+            "swap_explorer": swap_result.get("explorer", ""),
+            "on_chain": True,
+            "price_source": price_source,
+        }
+        _stock_trades.append(trade)
+
+        # Mettre a jour le portfolio
+        _portfolios.setdefault(buyer_api_key, {})
+        _portfolios[buyer_api_key].setdefault(symbol, 0)
+        _portfolios[buyer_api_key][symbol] += shares
+        await _persist_holding(buyer_api_key, symbol, _portfolios[buyer_api_key][symbol])
+        await _persist_trade(trade)
+
+        # Record transaction in DB
+        from core.database import db as _db
+        await _db.record_transaction(buyer_wallet, payment_tx, amount_usdc, "stock_trade")
+
+        # Alerte Discord
+        try:
+            from infra.alerts import alert_revenue
+            await alert_revenue(commission, f"Achat action {symbol} — {buyer_name} ({amount_usdc} USDC)")
+        except Exception:
+            pass
+
+        logger.info("BUY %.4f %s @ $%s par %s — commission %s USDC", shares, symbol, price, buyer_name, commission)
+
+        return {
+            "success": True,
+            **trade,
+            "message": f"Achat de {shares:.4f} actions {symbol} a ${price:.2f}/action. Commission: {commission:.4f} USDC ({total_fee_bps/100:.2f}%).",
+            "price_source": price_source,
+            "disclaimer": STOCK_DISCLAIMER,
+        }
+
+    async def sell_stock(self, seller_api_key: str, seller_name: str,
+                          seller_wallet: str, symbol: str, shares: float,
+                          seller_volume_30d: float) -> dict:
+        """Vendre des actions tokenisees."""
+        await _ensure_portfolios_loaded()
+        symbol = symbol.upper()
+        if symbol not in TOKENIZED_STOCKS:
+            return {"success": False, "error": f"Action inconnue: {symbol}"}
+        if shares <= 0:
+            return {"success": False, "error": "Shares must be > 0"}
+
+        # Screening OFAC — bloquer les wallets sanctionnes avant toute transaction
+        require_ofac_clear(seller_wallet, field="seller_wallet")
+
+        # ── Fix #8: Verify seller actually holds the shares ──
+        portfolio = _portfolios.get(seller_api_key, {})
+        held = portfolio.get(symbol, 0)
+        if held <= 0:
+            return {"success": False, "error": f"You do not hold any {symbol} shares"}
+        if held < shares:
+            return {"success": False, "error": f"Solde insuffisant: {held:.6f} {symbol} (demande: {shares})"}
+
+        prices = await fetch_stock_prices()
+        price_data = prices.get(symbol, {})
+        price = price_data.get("price", 0)
+        price_source = price_data.get("source", "fallback")
+        if price <= 0:
+            return {"success": False, "error": f"Prix indisponible pour {symbol}"}
+
+        # ── Oracle Safety Guards (memes que buy_stock) ──
+        gross_usdc_est = round(shares * price, 4)
+        # Bloquer TOUT trade si prix fallback (oracles down)
+        if price_source == "fallback":
+            logger.warning("BLOCKED sell %s %s shares (~$%s) — all oracles unavailable (fallback price)", symbol, shares, gross_usdc_est)
+            return {"success": False, "error": "All oracle sources unavailable. Trading paused for safety. Try again later."}
+        pyth_data = {}
+        try:
+            from trading.pyth_oracle import get_stock_price as pyth_get_stock
+            pyth_data = await pyth_get_stock(symbol)
+            if pyth_data.get("stale"):
+                return {"success": False, "error": f"Prix oracle stale ({pyth_data.get('age_s', 0)}s) — risque d'arbitrage."}
+        except Exception:
+            pass
+        is_jump, jump_pct = _check_price_jump(symbol, price)
+        if is_jump:
+            return {"success": False, "error": f"Prix {symbol} a bouge de {jump_pct}% — circuit breaker actif."}
+        _record_price(symbol, price)
+
+        # ── Item 6: Spread dynamique si prix vieux (>60s mais pas stale) ──
+        price_age_s = pyth_data.get("age_s", 0) if pyth_data else 0
+        age_spread_pct = _calc_age_spread(price_age_s)
+
+        gross_usdc = round(shares * price, 4)
+
+        # ── Item 5: Audit trail prix AVANT execution ──
+        await _log_price_audit(
+            symbol=symbol, price=price, source=price_source,
+            pyth_data=pyth_data, trade_type="sell",
+            amount_usdc=gross_usdc, age_spread_pct=age_spread_pct,
+        )
+
+        # Calculer la commission (+ age spread si applicable)
+        commission_bps = get_stock_commission_bps(gross_usdc)
+        age_spread_bps = round(age_spread_pct * 100)  # pct -> bps
+        total_fee_bps = commission_bps + age_spread_bps
+        commission = round(gross_usdc * total_fee_bps / 10000, 4)
+        net_usdc = gross_usdc - commission
+        tier = get_stock_tier_name(gross_usdc)
+
+        # ── Fix #3 (sell): Only record trade AFTER Jupiter swap succeeds ──
+        mint = TOKENIZED_STOCKS[symbol].get("mint_xstock") or TOKENIZED_STOCKS[symbol].get("mint_ondo", "")
+        if mint and len(mint) > 20:
+            try:
+                from blockchain.jupiter_router import sell_token_via_jupiter
+                # Token decimals: USDC = 6, most xStocks = 6, Ondo = 18
+                token_decimals = TOKENIZED_STOCKS[symbol].get("decimals", 6)
+                amount_raw = int(shares * (10 ** token_decimals))
+                jupiter_result = await sell_token_via_jupiter(mint, amount_raw, seller_wallet)
+                if not jupiter_result.get("success"):
+                    return {"success": False, "error": f"Swap failed: {jupiter_result.get('error')}"}
+
+                # Isolation multi-tenant
+                from enterprise.tenant_isolation import get_current_tenant
+                _tenant_id = get_current_tenant() or "default"
+
+                # Record trade ONLY after successful swap
+                trade = {
+                    "trade_id": str(uuid.uuid4()),
+                    "type": "sell",
+                    "seller": seller_name,
+                    "seller_wallet": seller_wallet,
+                    "symbol": symbol,
+                    "name": TOKENIZED_STOCKS[symbol]["name"],
+                    "shares": shares,
+                    "price_per_share": price,
+                    "gross_usdc": gross_usdc,
+                    "commission_usdc": commission,
+                    "commission_bps": commission_bps,
+                    "age_spread_pct": age_spread_pct,
+                    "net_usdc": net_usdc,
+                    "tier": tier,
+                    "tenant_id": _tenant_id,
+                    "timestamp": int(time.time()),
+                    "route": "xStocks/Ondo -> Jupiter -> USDC",
+                    "jupiter_signature": jupiter_result.get("signature", ""),
+                    "on_chain": True,
+                    "price_source": price_source,
+                }
+                _stock_trades.append(trade)
+
+                # Mettre a jour le portfolio
+                _portfolios[seller_api_key][symbol] -= shares
+                await _persist_holding(seller_api_key, symbol, _portfolios[seller_api_key][symbol])
+                await _persist_trade(trade)
+
+                try:
+                    from infra.alerts import alert_revenue
+                    await alert_revenue(commission, f"Vente action {symbol} — {seller_name} ({gross_usdc} USDC)")
+                except Exception:
+                    pass
+
+                logger.info("SELL %.4f %s @ $%s par %s — commission %s USDC", shares, symbol, price, seller_name, commission)
+
+                return {
+                    "success": True,
+                    **trade,
+                    "message": f"Vente de {shares:.4f} actions {symbol}. Vous recevez {net_usdc:.4f} USDC. Commission: {commission:.4f} USDC ({total_fee_bps/100:.2f}%).",
+                    "price_source": price_source,
+                    "disclaimer": STOCK_DISCLAIMER,
+                }
+            except Exception as e:
+                return {"success": False, "error": "An error occurred"}
+        else:
+            return {"success": False, "error": f"Stock {symbol} not available for trading (no on-chain token)"}
+
+    async def get_portfolio(self, api_key: str) -> dict:
+        """Portfolio de l'utilisateur."""
+        await _ensure_portfolios_loaded()
+        portfolio = _portfolios.get(api_key, {})
+        holdings = []
+        total_value = 0
+        for sym, qty in portfolio.items():
+            if qty > 0:
+                price = _price_cache.get(sym, {}).get("price", 0)
+                value = qty * price
+                total_value += value
+                holdings.append({
+                    "symbol": sym,
+                    "name": TOKENIZED_STOCKS.get(sym, {}).get("name", sym),
+                    "shares": round(qty, 6),
+                    "price_usd": price,
+                    "value_usd": round(value, 2),
+                })
+        return {
+            "holdings": holdings,
+            "total_value_usd": round(total_value, 2),
+            "total_positions": len(holdings),
+        }
+
+    def compare_fees(self) -> dict:
+        """Compare les frais MAXIA vs concurrence."""
+        return {
+            "maxia_tiers": {
+                name: {
+                    "volume_range": f"{t['min_amount']}-{t['max_amount'] if t['max_amount'] < 999999999 else '∞'} USDC",
+                    "fee_pct": f"{t['bps']/100:.2f}%",
+                    "fee_bps": t["bps"],
+                }
+                for name, t in STOCK_COMMISSION_TIERS.items()
+            },
+            "competitors": {
+                k: {"fee_pct": f"{v['fee_bps']/100:.2f}%", "note": v["note"]}
+                for k, v in COMPETITOR_FEES.items()
+            },
+            "maxia_advantages": [
+                "Commission la plus basse pour les gros volumes (0.05% Whale)",
+                "Transparente — pas de spread cache comme Robinhood",
+                "Paiement USDC sur Solana (pas de carte bancaire)",
+                "Achat fractionne a partir de 1 USDC",
+                "API ouverte pour les agents IA",
+                "24/7 trading (pas de fermeture de marche)",
+            ],
+        }
+
+    def get_stats(self) -> dict:
+        """Statistiques des actions tokenisees."""
+        buys = [t for t in _stock_trades if t["type"] == "buy"]
+        sells = [t for t in _stock_trades if t["type"] == "sell"]
+        total_volume = sum(t.get("amount_usdc", 0) for t in buys) + sum(t.get("gross_usdc", 0) for t in sells)
+        total_commission = sum(t.get("commission_usdc", 0) for t in _stock_trades)
+
+        return {
+            "total_trades": len(_stock_trades),
+            "total_buys": len(buys),
+            "total_sells": len(sells),
+            "total_volume_usdc": round(total_volume, 2),
+            "total_commission_usdc": round(total_commission, 4),
+            "stocks_available": len(TOKENIZED_STOCKS),
+            "providers": ["Backed Finance", "Ondo Global Markets"],
+            "commission_tiers": STOCK_COMMISSION_TIERS,
+            "unique_holders": len([k for k, v in _portfolios.items() if any(q > 0 for q in v.values())]),
+        }
+
+
+stock_exchange = TokenizedStockExchange()

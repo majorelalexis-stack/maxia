@@ -17,7 +17,7 @@ if _SENTRY_DSN:
     except Exception:
         pass
 
-from error_utils import safe_error
+from core.error_utils import safe_error
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,21 +27,21 @@ from fastapi.staticfiles import StaticFiles
 logger = logging.getLogger(__name__)
 
 # ── Core imports ──
-from database import db, create_database
-from auth import router as auth_router, require_auth, require_auth_flexible
-from agent_worker import agent_worker
-from ws_handlers import broadcast_all, send_to_wallet, init_redis_pubsub, auction_manager, router as ws_router
-from lifespan_workers import dispute_auto_resolve_worker, volume_decay_worker, price_broadcast_loop
-from referral_manager import router as ref_router
-from data_marketplace import router as data_router
-from models import (
+from core.database import db, create_database
+from core.auth import router as auth_router, require_auth, require_auth_flexible
+from agents.agent_worker import agent_worker
+from core.ws_handlers import broadcast_all, send_to_wallet, init_redis_pubsub, auction_manager, router as ws_router
+from core.lifespan_workers import dispute_auto_resolve_worker, volume_decay_worker, price_broadcast_loop
+from billing.referral_manager import router as ref_router
+from marketplace.data_marketplace import router as data_router
+from core.models import (
     AuctionCreateRequest, AuctionSettleRequest, CommandRequest,
     ListingCreateRequest, BaseVerifyRequest, AP2PaymentRequest,
     GpuRentRequest, GpuRentPublicRequest,
 )
-from runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
+from gpu.runpod_client import RunPodClient, get_gpu_tiers_live, GPU_MAP
 try:
-    from akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
+    from gpu.akash_client import AkashClient, akash as akash_client, AKASH_GPU_MAP, AKASH_MAX_PRICE, _active_deployments
     logger.info("[Akash] Module charge OK — %d GPU mappings", len(AKASH_GPU_MAP))
 except Exception as e:
     logger.warning("[Akash] Import echoue: %s — mode RunPod only", e)
@@ -52,14 +52,14 @@ except Exception as e:
     class AkashClient:
         pass
 try:
-    from agentid_client import agentid as agentid_client
+    from agents.agentid_client import agentid as agentid_client
 except ImportError:
     agentid_client = None
-from config import AKASH_ENABLED
-from solana_verifier import verify_transaction
-from security import check_content_safety, check_rate_limit, set_redis_client
-from redis_client import redis_client
-from config import (
+from core.config import AKASH_ENABLED
+from blockchain.solana_verifier import verify_transaction
+from core.security import check_content_safety, check_rate_limit, set_redis_client
+from core.redis_client import redis_client
+from core.config import (
     GPU_TIERS, COMMISSION_TIERS, get_commission_bps,
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE,
     TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
@@ -70,25 +70,25 @@ from config import (
 _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
 
 # ── V12: EVM verifiers extracted to chain_verify_api.py ──
-from kiteai_client import kite_client
-from ap2_manager import ap2_manager
-from x402_middleware import x402_middleware
+from integrations.kiteai_client import kite_client
+from integrations.ap2_manager import ap2_manager
+from integrations.x402_middleware import x402_middleware
 
 # ── V10.1 — Agent Autonome (CEO VPS SUPPRIME — S20) ──
 # growth_agent, scout_agent, brain, scheduler, swarm: REMOVED from VPS
 # CEO runs ONLY on local PC (7900XT Ollama). VPS = marketplace only.
-from alerts import alert_system
-from preflight import check_system_ready, print_preflight
-from security import get_daily_spend_stats
-from dynamic_pricing import adjust_market_fees, get_pricing_status
-from cross_chain_handler import cross_chain
-from reputation_staking import reputation_staking
-from scale_out import scale_out_manager
-from escrow_client import escrow_client
-from public_api import router as public_router
+from infra.alerts import alert_system
+from infra.preflight import check_system_ready, print_preflight
+from core.security import get_daily_spend_stats
+from infra.dynamic_pricing import adjust_market_fees, get_pricing_status
+from blockchain.cross_chain_handler import cross_chain
+from infra.reputation_staking import reputation_staking
+from infra.scale_out import scale_out_manager
+from blockchain.escrow_client import escrow_client
+from marketplace.public_api import router as public_router
 
 try:
-    from mcp_server import router as mcp_router
+    from marketplace.mcp_server import router as mcp_router
 except ImportError:
     mcp_router = None
 
@@ -98,7 +98,7 @@ AUCTION_DURATION_S = int(os.getenv("AUCTION_DURATION_S", "30"))
 
 runpod          = RunPodClient(api_key=os.getenv("RUNPOD_API_KEY", ""))
 # ── Native AI Services (registered at startup via seed_data.py) ──
-from seed_data import register_native_services
+from core.seed_data import register_native_services
 
 
 # ── Lifespan ──
@@ -106,11 +106,11 @@ from seed_data import register_native_services
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # AgentOps — AVANT tout import LLM pour auto-instrumentation Groq/Anthropic
-    from agentops_integration import init_agentops, shutdown_agentops
+    from agents.agentops_integration import init_agentops, shutdown_agentops
     init_agentops()
 
     # V12: Redis connect (graceful fallback to in-memory)
-    from config import REDIS_URL
+    from core.config import REDIS_URL
     await redis_client.connect(REDIS_URL)
     set_redis_client(redis_client)
 
@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
 
     # V12: GPU pricing live — fetch les prix RunPod au demarrage + auto-refresh 30min
     try:
-        from gpu_pricing import refresh_gpu_prices, auto_refresh_loop
+        from gpu.gpu_pricing import refresh_gpu_prices, auto_refresh_loop
         await refresh_gpu_prices()
         asyncio.create_task(auto_refresh_loop())
     except Exception as e:
@@ -190,14 +190,14 @@ async def lifespan(app: FastAPI):
 
     # Seed forum with initial posts
     try:
-        from forum_seed import seed_forum
+        from routes.forum_seed import seed_forum
         await seed_forum(db)
     except Exception as e:
         logger.error("[Forum] Seed error: %s", e)
 
     # Marketplace tables + seed native services
     try:
-        from creator_marketplace import ensure_marketplace_tables
+        from features.creator_marketplace import ensure_marketplace_tables
         await ensure_marketplace_tables(db)
     except Exception as e:
         logger.error("[Marketplace] Init error: %s", e)
@@ -217,9 +217,9 @@ async def lifespan(app: FastAPI):
         pass  # Column already exists
 
     # V12: Init new modules (API keys, SLA, webhooks)
-    from api_keys import ensure_tables as ensure_api_keys_tables
-    from webhook_dispatcher import ensure_tables as ensure_webhook_tables, retry_worker
-    from sla_manager import ensure_tables as ensure_sla_tables
+    from billing.api_keys import ensure_tables as ensure_api_keys_tables
+    from integrations.webhook_dispatcher import ensure_tables as ensure_webhook_tables, retry_worker
+    from enterprise.sla_manager import ensure_tables as ensure_sla_tables
     await ensure_api_keys_tables(db)
     await ensure_webhook_tables(db)
     await ensure_sla_tables(db)
@@ -230,7 +230,7 @@ async def lifespan(app: FastAPI):
 
     # V12: Health monitor (UptimeRobot-style)
     try:
-        from health_monitor import run_health_monitor
+        from infra.health_monitor import run_health_monitor
         t_health = asyncio.create_task(run_health_monitor())
     except Exception as e:
         logger.error("[MAXIA] Health monitor init error: %s", e)
@@ -238,14 +238,14 @@ async def lifespan(app: FastAPI):
 
     # V12: Pyth SSE streaming (prix live <1s pour clients HFT)
     try:
-        from pyth_oracle import start_pyth_stream
+        from trading.pyth_oracle import start_pyth_stream
         await start_pyth_stream()
     except Exception as e:
         logger.error("[MAXIA] Pyth stream init error: %s — HTTP polling fallback", e)
 
     # Enterprise: billing flush loop (persiste usage toutes les 60s)
     try:
-        from enterprise_billing import billing_flush_loop
+        from enterprise.enterprise_billing import billing_flush_loop
         asyncio.create_task(billing_flush_loop())
         logger.info("[Enterprise] Billing flush loop started")
     except Exception as e:
@@ -253,24 +253,24 @@ async def lifespan(app: FastAPI):
 
     # V12: New features (trading, marketplace, infra)
     try:
-        from trading_features import ensure_tables as ensure_trading_tables, check_whales, update_candles, copy_trade_worker
+        from trading.trading_features import ensure_tables as ensure_trading_tables, check_whales, update_candles, copy_trade_worker
         await ensure_trading_tables()
         t6 = asyncio.create_task(check_whales())
         t7 = asyncio.create_task(update_candles())
         t_copy = asyncio.create_task(copy_trade_worker())
         # Universal candle feeder — feeds ALL tokens (not just Pyth) every 5s
-        from pyth_oracle import _universal_candle_feeder
+        from trading.pyth_oracle import _universal_candle_feeder
         asyncio.create_task(_universal_candle_feeder())
     except Exception as e:
         logger.error("[MAXIA] Trading features init error: %s", e)
         t6 = t7 = None
     try:
-        from marketplace_features import ensure_tables as ensure_mkt_tables
+        from marketplace.marketplace_features import ensure_tables as ensure_mkt_tables
         await ensure_mkt_tables()
     except Exception as e:
         logger.error("[MAXIA] Marketplace features init error: %s", e)
     try:
-        from infra_features import ensure_tables as ensure_infra_tables
+        from features.infra_features import ensure_tables as ensure_infra_tables
         await ensure_infra_tables()
     except Exception as e:
         logger.error("[MAXIA] Infra features init error: %s", e)
@@ -278,7 +278,7 @@ async def lifespan(app: FastAPI):
     # V12: DB backup
     t_backup = None
     try:
-        from db_backup import run_backup_scheduler
+        from infra.db_backup import run_backup_scheduler
         t_backup = asyncio.create_task(run_backup_scheduler())
     except Exception as e:
         logger.error("[MAXIA] DB backup init error: %s", e)
@@ -291,14 +291,14 @@ async def lifespan(app: FastAPI):
 
     # V12: Load persisted trading data (alerts + follows) from DB
     try:
-        from trading_tools import load_trading_data
+        from trading.trading_tools import load_trading_data
         await load_trading_data()
     except Exception as e:
         logger.error("[MAXIA] Trading data load error: %s", e)
 
     # V12: Price alerts worker (notifies CLIENTS, not founder)
     try:
-        from trading_tools import alert_checker_worker
+        from trading.trading_tools import alert_checker_worker
         t_alerts = asyncio.create_task(alert_checker_worker())
         logger.info("[MAXIA] Price alerts worker started (60s interval)")
     except Exception as e:
@@ -306,7 +306,7 @@ async def lifespan(app: FastAPI):
 
     # V12: Start task queue worker
     try:
-        from ceo_maxia import task_queue
+        from agents.ceo_maxia import task_queue
         t_taskq = asyncio.create_task(task_queue.worker())
     except Exception as e:
         logger.error("[MAXIA] Task queue init error: %s", e)
@@ -314,14 +314,14 @@ async def lifespan(app: FastAPI):
 
     # Init file logger
     try:
-        from logger import app_logger
+        from core.logger import app_logger
         app_logger.info("MAXIA V12 starting up")
     except Exception:
         pass
 
     # Preflight env check
     try:
-        from preflight import check_system_ready, print_preflight
+        from infra.preflight import check_system_ready, print_preflight
         pf = await check_system_ready()
         print_preflight(pf)
         missing = pf.get("env_vars", {}).get("missing_critical", [])
@@ -331,7 +331,7 @@ async def lifespan(app: FastAPI):
         logger.error("[MAXIA] Preflight error: %s", e)
 
     # Security checks at startup
-    from security import check_jwt_secret, check_admin_key, _flush_audit
+    from core.security import check_jwt_secret, check_admin_key, _flush_audit
     if not check_jwt_secret():
         logger.info("[MAXIA] ⚠️  Set JWT_SECRET in .env for production security!")
     # H4: Validation ADMIN_KEY au demarrage
@@ -343,7 +343,7 @@ async def lifespan(app: FastAPI):
 
     # V13+: Streaming Payments updater (60s interval)
     try:
-        from streaming_payments import stream_updater_loop
+        from features.streaming_payments import stream_updater_loop
         asyncio.create_task(stream_updater_loop())
         logger.info("[MAXIA] Streaming payments updater started (60s interval)")
     except Exception as e:
@@ -356,7 +356,7 @@ async def lifespan(app: FastAPI):
 
     # Pyth SSE permanent — stream prix live en continu (pas on-demand)
     try:
-        from pyth_oracle import start_pyth_stream, start_fallback_refresh, start_equity_poll
+        from trading.pyth_oracle import start_pyth_stream, start_fallback_refresh, start_equity_poll
         await start_pyth_stream()
         await start_equity_poll()
         await start_fallback_refresh()
@@ -366,7 +366,7 @@ async def lifespan(app: FastAPI):
 
     # Chainlink Oracle — verification feeds on-chain Base au demarrage
     try:
-        from chainlink_oracle import verify_feeds_at_startup
+        from trading.chainlink_oracle import verify_feeds_at_startup
         cl_results = await verify_feeds_at_startup()
         verified = sum(1 for v in cl_results.values() if v.get("verified"))
         logger.info("[MAXIA] Chainlink Base: %s/%s feeds verified on-chain", verified, len(cl_results))
@@ -389,7 +389,7 @@ async def lifespan(app: FastAPI):
         pass
     # Save CEO memory
     try:
-        from ceo_maxia import ceo
+        from agents.ceo_maxia import ceo
         ceo.memory.save()
         logger.info("[MAXIA] CEO memory saved")
     except Exception:
@@ -427,13 +427,13 @@ async def lifespan(app: FastAPI):
     # CEO VPS removed — no scheduler/scout to stop
     # Close connections
     try:
-        from price_oracle import close_http_pool
+        from trading.price_oracle import close_http_pool
         await close_http_pool()
     except Exception:
         pass
     # Close shared HTTP client
     try:
-        from http_client import close_http_client
+        from core.http_client import close_http_client
         await close_http_client()
     except Exception:
         pass
@@ -489,7 +489,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     traceback.print_exc()
     # S37: Alert Telegram + Discord on 500 errors
     try:
-        from alerts import _send_private, _send_discord
+        from infra.alerts import _send_private, _send_discord
         path = str(request.url.path)[:100]
         err_type = type(exc).__name__
         await _send_private(
@@ -583,7 +583,7 @@ async def https_redirect_middleware(request, call_next):
 # ── Rate Limit + Burst Protection Middleware ──
 @app.middleware("http")
 async def rate_limit_headers_middleware(request, call_next):
-    from security import check_rate_limit_smart, get_rate_limit_info, check_burst_limit, get_burst_ban_remaining, check_ip_rate_limit, RATE_LIMIT_WHITELIST, get_real_ip
+    from core.security import check_rate_limit_smart, get_rate_limit_info, check_burst_limit, get_burst_ban_remaining, check_ip_rate_limit, RATE_LIMIT_WHITELIST, get_real_ip
     ip = get_real_ip(request)
 
     # Whitelist — fondateur, VPS, CEO local : skip ALL rate limits
@@ -611,7 +611,7 @@ async def rate_limit_headers_middleware(request, call_next):
 
     # Redis rate limit (daily quotas) — async, uses Redis when available
     try:
-        from security import check_rate_limit_async
+        from core.security import check_rate_limit_async
         await check_rate_limit_async(request)
     except HTTPException as e:
         from starlette.responses import JSONResponse as _JSONRespRedis
@@ -655,69 +655,69 @@ if mcp_router:
     app.include_router(mcp_router)
 
 # V12: Analytics dashboard
-from analytics import router as analytics_router
+from features.analytics import router as analytics_router
 app.include_router(analytics_router)
 
 # V12: New features routers
 try:
-    from trading_features import get_router as get_trading_router
+    from trading.trading_features import get_router as get_trading_router
     app.include_router(get_trading_router())
 except Exception as e:
     logger.error("[MAXIA] Trading router error: %s", e)
 try:
-    from marketplace_features import get_router as get_mkt_router
+    from marketplace.marketplace_features import get_router as get_mkt_router
     app.include_router(get_mkt_router())
 except Exception as e:
     logger.error("[MAXIA] Marketplace router error: %s", e)
 try:
-    from infra_features import get_router as get_infra_router
+    from features.infra_features import get_router as get_infra_router
     app.include_router(get_infra_router())
 except Exception as e:
     logger.error("[MAXIA] Infra router error: %s", e)
 try:
-    from email_service import router as email_router
+    from integrations.email_service import router as email_router
     app.include_router(email_router)
     logger.info("[Email] Service ceo@maxiaworld.app monte")
 except Exception as e:
     logger.error("[MAXIA] Email router error: %s", e)
 try:
-    from yield_aggregator import router as yield_router
+    from trading.yield_aggregator import router as yield_router
     app.include_router(yield_router)
     logger.info("[Yield] Aggregator DeFi monte")
 except Exception as e:
     logger.error("[MAXIA] Yield router error: %s", e)
 try:
-    from rpc_service import router as rpc_router
+    from features.rpc_service import router as rpc_router
     app.include_router(rpc_router)
     logger.info("[RPC] RPC-as-a-Service 14 chains monte")
 except Exception as e:
     logger.error("[MAXIA] RPC router error: %s", e)
 try:
-    from oracle_service import router as oracle_router
+    from features.oracle_service import router as oracle_router
     app.include_router(oracle_router)
     logger.info("[Oracle] Oracle + Data Marketplace monte")
 except Exception as e:
     logger.error("[MAXIA] Oracle router error: %s", e)
 try:
-    from bridge_service import router as bridge_router
+    from features.bridge_service import router as bridge_router
     app.include_router(bridge_router)
     logger.info("[Bridge] Cross-chain bridge 14 chains monte")
 except Exception as e:
     logger.error("[MAXIA] Bridge router error: %s", e)
 try:
-    from nft_service import router as nft_router
+    from features.nft_service import router as nft_router
     app.include_router(nft_router)
     logger.info("[NFT] Agent ID + Trust Score + Service Passes monte")
 except Exception as e:
     logger.error("[MAXIA] NFT router error: %s", e)
 try:
-    from subscription_service import router as sub_router
+    from billing.subscription_service import router as sub_router
     app.include_router(sub_router)
     logger.info("[Subscriptions] Streaming payments USDC monte")
 except Exception as e:
     logger.error("[MAXIA] Subscription router error: %s", e)
 try:
-    from trading_tools import router as trading_router
+    from trading.trading_tools import router as trading_router
     app.include_router(trading_router)
     logger.info("[Trading] Whale tracker, candles, signals, portfolio, alerts monte")
 except Exception as e:
@@ -725,7 +725,7 @@ except Exception as e:
 
 # V12: Fine-tuning LLM as a Service (Unsloth + RunPod)
 try:
-    from finetune_service import router as finetune_router
+    from gpu.finetune_service import router as finetune_router
     app.include_router(finetune_router)
     logger.info("[Finetune] LLM Fine-Tuning as a Service (Unsloth) monte")
 except Exception as e:
@@ -733,7 +733,7 @@ except Exception as e:
 
 # V12: AWP Protocol (Agent Staking on Base)
 try:
-    from awp_protocol import router as awp_router
+    from integrations.awp_protocol import router as awp_router
     app.include_router(awp_router)
     logger.info("[AWP] Autonomous Worker Protocol (staking + discovery) monte")
 except Exception as e:
@@ -741,7 +741,7 @@ except Exception as e:
 
 # V12: Protocol Catalog — 50+ DeFi/Web3 protocols across 14 chains
 try:
-    from goat_bridge import router as goat_router, router_alias as protocols_router
+    from integrations.goat_bridge import router as goat_router, router_alias as protocols_router
     app.include_router(goat_router)
     app.include_router(protocols_router)
     logger.info("[Protocols] Protocol Catalog (50+ protocols, 14 chains) monte")
@@ -750,7 +750,7 @@ except Exception as e:
 
 # V12: Solana DeFi (lending/borrowing/staking)
 try:
-    from solana_defi import router as solana_defi_router
+    from trading.solana_defi import router as solana_defi_router
     app.include_router(solana_defi_router)
     logger.info("[DeFi] Solana DeFi (lending/borrowing/staking/LP) monte")
 except Exception as e:
@@ -758,7 +758,7 @@ except Exception as e:
 
 # V12: LLM-as-a-Service (OpenAI-compatible, multi-provider)
 try:
-    from llm_service import router as llm_svc_router
+    from ai.llm_service import router as llm_svc_router
     app.include_router(llm_svc_router)
     logger.info("[LLM] LLM-as-a-Service (OpenAI-compatible) monte")
 except Exception as e:
@@ -766,7 +766,7 @@ except Exception as e:
 
 # V12: A2A Protocol (Google/Linux Foundation — Agent2Agent)
 try:
-    from a2a_protocol import router as a2a_router
+    from marketplace.a2a_protocol import router as a2a_router
     app.include_router(a2a_router)
     logger.info("[A2A] Agent2Agent Protocol (JSON-RPC 2.0 + SSE) monte")
 except Exception as e:
@@ -774,7 +774,7 @@ except Exception as e:
 
 # V12: Agentverse Bridge (Fetch.ai ecosystem registration + health)
 try:
-    from agentverse_bridge import router as agentverse_router
+    from agents.agentverse_bridge import router as agentverse_router
     app.include_router(agentverse_router)
     logger.info("[AGENTVERSE] Fetch.ai Agentverse bridge monte")
 except Exception as e:
@@ -782,7 +782,7 @@ except Exception as e:
 
 # V13: Proof of Delivery + Dispute Resolution (Art.47)
 try:
-    from proof_of_delivery import router as pod_router
+    from features.proof_of_delivery import router as pod_router
     app.include_router(pod_router)
     logger.info("[PoD] Proof of Delivery + Dispute Resolution monte")
 except Exception as e:
@@ -790,7 +790,7 @@ except Exception as e:
 
 # V13: Chain Resilience + Status Page (Art.48)
 try:
-    from chain_resilience import router as resilience_router
+    from blockchain.chain_resilience import router as resilience_router
     app.include_router(resilience_router)
     logger.info("[Resilience] Circuit Breaker + Status Page monte")
 except Exception as e:
@@ -798,7 +798,7 @@ except Exception as e:
 
 # V13: Agent Leaderboard (Art.49)
 try:
-    from agent_leaderboard import router as leaderboard_router
+    from agents.agent_leaderboard import router as leaderboard_router
     app.include_router(leaderboard_router)
     logger.info("[Leaderboard] Agent Scoring + Grades monte")
 except Exception as e:
@@ -806,7 +806,7 @@ except Exception as e:
 
 # V13: SLA Enforcer (Art.50)
 try:
-    from sla_enforcer import router as sla_router
+    from enterprise.sla_enforcer import router as sla_router
     app.include_router(sla_router)
     logger.info("[SLA] Enforcer + Circuit Breaker monte")
 except Exception as e:
@@ -814,7 +814,7 @@ except Exception as e:
 
 # V13: Pyth Oracle (Art.51)
 try:
-    from pyth_oracle import router as pyth_router
+    from trading.pyth_oracle import router as pyth_router
     app.include_router(pyth_router)
     logger.info("[Pyth] Real-time Oracle (stocks + crypto) monte")
 except Exception as e:
@@ -822,7 +822,7 @@ except Exception as e:
 
 # Chat conversationnel (P2)
 try:
-    from chat_handler import router as chat_router
+    from features.chat_handler import router as chat_router
     app.include_router(chat_router)
     logger.info("[Chat] Conversational trading chat monte")
 except Exception as e:
@@ -830,7 +830,7 @@ except Exception as e:
 
 # Gamification (P3)
 try:
-    from gamification import router as gamification_router
+    from features.gamification import router as gamification_router
     app.include_router(gamification_router)
     logger.info("[Gamification] Points + badges + leaderboard monte")
 except Exception as e:
@@ -838,7 +838,7 @@ except Exception as e:
 
 # Jupiter Perps (P5)
 try:
-    from perps_client import router as perps_router
+    from trading.perps_client import router as perps_router
     app.include_router(perps_router)
     logger.info("[Perps] Jupiter Perpetuals (read-only) monte")
 except Exception as e:
@@ -846,7 +846,7 @@ except Exception as e:
 
 # Token Launcher — Pump.fun (P6)
 try:
-    from token_launcher import router as token_router
+    from features.token_launcher import router as token_router
     app.include_router(token_router)
     logger.info("[TokenLaunch] Pump.fun token launcher monte")
 except Exception as e:
@@ -854,7 +854,7 @@ except Exception as e:
 
 # V13+: Activity Feed (Art.53)
 try:
-    from activity_feed import router as feed_router
+    from features.activity_feed import router as feed_router
     app.include_router(feed_router)
     logger.info("[Feed] Activity Feed (SSE + REST) monte")
 except Exception as e:
@@ -862,7 +862,7 @@ except Exception as e:
 
 # V13+: Referral + Badges (Art.54)
 try:
-    from referral import router as referral_router, badges_router
+    from billing.referral import router as referral_router, badges_router
     app.include_router(referral_router)
     app.include_router(badges_router)
     logger.info("[Referral] Referral + Badges monte")
@@ -871,7 +871,7 @@ except Exception as e:
 
 # V13+: EVM Multi-Chain Swap — 6 chains via 0x (Art.55)
 try:
-    from evm_swap import router as evm_swap_router
+    from trading.evm_swap import router as evm_swap_router
     app.include_router(evm_swap_router)
     logger.info("[EVM-Swap] Multi-chain swap (6 chains, 36 tokens, 0x) monte")
 except Exception as e:
@@ -879,7 +879,7 @@ except Exception as e:
 
 # V13+: Business Listings — AI Business Marketplace (Art.56)
 try:
-    from business_listing import router as business_router
+    from features.business_listing import router as business_router
     app.include_router(business_router)
     logger.info("[Business] AI Business Marketplace (Flippt-style) monte")
 except Exception as e:
@@ -887,7 +887,7 @@ except Exception as e:
 
 # V13: Reverse Auctions (Art.52)
 try:
-    from reverse_auction import router as auction_router
+    from marketplace.reverse_auction import router as auction_router
     app.include_router(auction_router)
     logger.info("[Auction] Reverse Auctions (RFQ) monte")
 except Exception as e:
@@ -895,28 +895,28 @@ except Exception as e:
 
 # ═══ Enterprise Suite (6 modules) ═══
 try:
-    from enterprise_billing import router as billing_router
+    from enterprise.enterprise_billing import router as billing_router
     app.include_router(billing_router)
     logger.info("[Enterprise] Billing (usage-based metering + invoices) monte")
 except Exception as e:
     logger.error("[MAXIA] Billing router error: %s", e)
 
 try:
-    from stripe_billing import router as stripe_router
+    from enterprise.stripe_billing import router as stripe_router
     app.include_router(stripe_router)
     logger.info("[Enterprise] Stripe Billing (checkout + webhooks + portal) monte")
 except Exception as e:
     logger.error("[MAXIA] Stripe billing router error: %s", e)
 
 try:
-    from enterprise_sso import router as sso_router
+    from enterprise.enterprise_sso import router as sso_router
     app.include_router(sso_router)
     logger.info("[Enterprise] SSO (OIDC/Google/Microsoft) monte")
 except Exception as e:
     logger.error("[MAXIA] SSO router error: %s", e)
 
 try:
-    from enterprise_metrics import router as metrics_router, metrics_middleware
+    from enterprise.enterprise_metrics import router as metrics_router, metrics_middleware
     app.include_router(metrics_router)
     app.middleware("http")(metrics_middleware)
     logger.info("[Enterprise] Metrics (Prometheus /metrics + SLA) monte")
@@ -928,7 +928,7 @@ except Exception as e:
 async def tenant_middleware(request, call_next):
     """Set tenant context from X-Tenant header or API key lookup."""
     try:
-        from tenant_isolation import TenantContext
+        from enterprise.tenant_isolation import TenantContext
         tenant_id = request.headers.get("X-Tenant", "")
         if not tenant_id:
             # Fallback: extract from API key if authenticated
@@ -942,48 +942,48 @@ async def tenant_middleware(request, call_next):
         return await call_next(request)
 
 try:
-    from audit_trail import router as audit_router
+    from enterprise.audit_trail import router as audit_router
     app.include_router(audit_router)
     logger.info("[Enterprise] Audit Trail (compliance + policies) monte")
 except Exception as e:
     logger.error("[MAXIA] Audit router error: %s", e)
 
 try:
-    from tenant_isolation import router as tenant_router
+    from enterprise.tenant_isolation import router as tenant_router
     app.include_router(tenant_router)
     logger.info("[Enterprise] Tenant Isolation (multi-tenant + plans) monte")
 except Exception as e:
     logger.error("[MAXIA] Tenant router error: %s", e)
 
 try:
-    from enterprise_dashboard import router as dashboard_router
+    from enterprise.enterprise_dashboard import router as dashboard_router
     app.include_router(dashboard_router)
     logger.info("[Enterprise] Dashboard (fleet analytics + SLA + revenue) monte")
 except Exception as e:
     logger.error("[MAXIA] Dashboard router error: %s", e)
 
 try:
-    from redis_rate_limiter import router as rate_limit_router
+    from core.redis_rate_limiter import router as rate_limit_router
     app.include_router(rate_limit_router)
     logger.info("[RateLimit] Redis Rate Limiter monte")
 except Exception as e:
     logger.error("[MAXIA] Rate limiter router error: %s", e)
 
 try:
-    from agent_analytics import router as agent_analytics_router
+    from agents.agent_analytics import router as agent_analytics_router
     app.include_router(agent_analytics_router)
     logger.info("[Analytics] Agent Analytics monte")
 except Exception as e:
     logger.error("[MAXIA] Agent Analytics router error: %s", e)
 
 try:
-    from agent_credit import router as agent_credit_router
+    from agents.agent_credit import router as agent_credit_router
     app.include_router(agent_credit_router)
     logger.info("[Credit] Agent Credit System monte")
 except Exception as e:
     logger.error("[MAXIA] Agent Credit router error: %s", e)
 try:
-    from prepaid_credits import router as prepaid_router
+    from billing.prepaid_credits import router as prepaid_router
     app.include_router(prepaid_router)
     logger.info("[Credits] Prepaid Credits System monte")
 except Exception as e:
@@ -991,7 +991,7 @@ except Exception as e:
 
 # V13+: Streaming Payments — pay-per-second (Art.57)
 try:
-    from streaming_payments import router as stream_router
+    from features.streaming_payments import router as stream_router
     app.include_router(stream_router)
     logger.info("[StreamPay] Streaming Payments (pay-per-second) monte")
 except Exception as e:
@@ -999,7 +999,7 @@ except Exception as e:
 
 # V13+: Agent Subcontracting — delegation automatique (Art.58)
 try:
-    from agent_subcontract import router as subcontract_router
+    from agents.agent_subcontract import router as subcontract_router
     app.include_router(subcontract_router)
     logger.info("[Subcontract] Agent Subcontracting (delegation) monte")
 except Exception as e:
@@ -1007,7 +1007,7 @@ except Exception as e:
 
 # V13+: Composable Agent Builder — assemble agents from components no-code (Art.59)
 try:
-    from agent_builder import router as agent_builder_router
+    from agents.agent_builder import router as agent_builder_router
     app.include_router(agent_builder_router)
     logger.info("[AgentBuilder] Composable Agent Builder monte")
 except Exception as e:
@@ -1024,36 +1024,36 @@ if FRONTEND_DIR.exists():
 # ═══════════════════════════════════════════════════════════
 #  HTML PAGE ROUTES (pages.py)
 # ═══════════════════════════════════════════════════════════
-from pages import router as pages_router
+from routes.pages import router as pages_router
 app.include_router(pages_router)
 logger.info("[Pages] 16 HTML page routes monte")
 
 # ── V12: Extracted inline routes into separate router files ──
-from admin_routes import router as admin_inline_router, _verify_admin, ADMIN_KEY
+from routes.admin_routes import router as admin_inline_router, _verify_admin, ADMIN_KEY
 app.include_router(admin_inline_router)
 logger.info("[Admin] Admin + agent permissions routes monte")
 
-from staking_routes import router as staking_inline_router
+from features.staking_routes import router as staking_inline_router
 app.include_router(staking_inline_router)
 logger.info("[Staking] Staking + credit score + alerts routes monte")
 
-from exchange_routes import router as exchange_inline_router
+from routes.exchange_routes import router as exchange_inline_router
 app.include_router(exchange_inline_router)
 logger.info("[Exchange] Exchange + stocks + bridge + pricing routes monte")
 
-from enterprise_routes import router as enterprise_inline_router
+from enterprise.enterprise_routes import router as enterprise_inline_router
 app.include_router(enterprise_inline_router)
 logger.info("[Enterprise] Enterprise + analytics + events routes monte")
 
-from marketplace_inline import router as marketplace_inline_router
+from marketplace.marketplace_inline import router as marketplace_inline_router
 app.include_router(marketplace_inline_router)
 logger.info("[Marketplace] Marketplace inline routes monte")
 
-from kite_ap2_routes import router as kite_ap2_inline_router
+from integrations.kite_ap2_routes import router as kite_ap2_inline_router
 app.include_router(kite_ap2_inline_router)
 logger.info("[KiteAP2] Kite AI + AP2 routes monte")
 
-from pages_routes import router as pages_inline_router
+from routes.pages_routes import router as pages_inline_router
 app.include_router(pages_inline_router)
 logger.info("[PagesInline] Pages + health + docs + versioning routes monte")
 
@@ -1074,20 +1074,20 @@ logger.info("[PagesInline] Pages + health + docs + versioning routes monte")
 
 # ── CEO API routes (extracted to ceo_api.py) ──
 try:
-    from ceo_api import router as ceo_api_router
+    from agents.ceo_api import router as ceo_api_router
     app.include_router(ceo_api_router)
     logger.info("[CEO-API] Routes montees")
 except Exception as e:
     logger.error("[MAXIA] CEO API router error: %s", e)
 
 # ── AI Forum (forum_api.py) ──
-from forum_api import router as forum_api_router
+from routes.forum_api import router as forum_api_router
 app.include_router(forum_api_router)
 logger.info("[Forum] Forum API routes monte")
 
 # ── Agent Profiles ──
 try:
-    from agent_profile import router as profile_router
+    from agents.agent_profile import router as profile_router
     app.include_router(profile_router)
     logger.info("[Profile] Agent profile routes monte")
 except Exception as e:
@@ -1095,7 +1095,7 @@ except Exception as e:
 
 # ── Blog / Knowledge Base ──
 try:
-    from blog import router as blog_router
+    from routes.blog import router as blog_router
     app.include_router(blog_router)
     logger.info("[Blog] Blog API routes monte")
 except Exception as e:
@@ -1103,7 +1103,7 @@ except Exception as e:
 
 # ── Newsletter ──
 try:
-    from newsletter import router as newsletter_router
+    from integrations.newsletter import router as newsletter_router
     app.include_router(newsletter_router)
     logger.info("[Newsletter] Newsletter routes monte")
 except Exception as e:
@@ -1111,7 +1111,7 @@ except Exception as e:
 
 # ── Governance Lite ──
 try:
-    from governance import router as governance_router
+    from features.governance import router as governance_router
     app.include_router(governance_router)
     logger.info("[Governance] Governance routes monte")
 except Exception as e:
@@ -1131,7 +1131,7 @@ logger.info("[WS] 5 WebSocket endpoints monte (ws_handlers.py)")
 #  GPU AUCTIONS + RENTAL (Art.5) — extracted to gpu_api.py
 # ═══════════════════════════════════════════════════════════
 try:
-    from gpu_api import router as gpu_api_router
+    from gpu.gpu_api import router as gpu_api_router
     app.include_router(gpu_api_router)
     logger.info("[GPU-API] Routes montees")
 except Exception as e:
@@ -1142,7 +1142,7 @@ except Exception as e:
 #  EVM CHAIN VERIFY — extracted to chain_verify_api.py (S33)
 # ═══════════════════════════════════════════════════════════
 try:
-    from chain_verify_api import router as chain_verify_router
+    from routes.chain_verify_api import router as chain_verify_router
     app.include_router(chain_verify_router)
 except Exception as e:
     logger.warning("chain_verify_api not loaded: %s", e)
@@ -1156,7 +1156,7 @@ except Exception as e:
 #  V11: ESCROW ON-CHAIN (Art.21) — extracted to escrow_api.py
 # ══════════════════════════════════════════════════════════
 try:
-    from escrow_api import router as escrow_api_router
+    from routes.escrow_api import router as escrow_api_router
     app.include_router(escrow_api_router)
     logger.info("[ESCROW-API] Routes montees")
 except Exception as e:
@@ -1167,7 +1167,7 @@ except Exception as e:
 
 # ── Chain verification routes (extracted to chain_api.py) ──
 try:
-    from chain_api import router as chain_api_router
+    from routes.chain_api import router as chain_api_router
     app.include_router(chain_api_router)
     logger.info("[CHAIN-API] Routes montees")
 except Exception as e:
