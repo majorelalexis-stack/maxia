@@ -50,7 +50,7 @@ print(m.discover())     # AI services
 ## Architecture
 
 ### Backend (`backend/`)
-Python 3.12 FastAPI monolith (~180 modules, 670 routes). Organized in 14 packages (S39). Entry point is `main.py` which wires together 60+ features as routes and background tasks.
+Python 3.12 FastAPI monolith (~180 modules, 673 routes). Organized in 14 packages (S39). Entry point is `main.py` which wires together 60+ features as routes and background tasks.
 
 ```
 backend/
