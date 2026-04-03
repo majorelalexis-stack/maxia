@@ -16,7 +16,7 @@ from typing import Optional
 
 def _get_db():
     """Lazy import to avoid stale reference from monkey-patched db singleton."""
-    import database
+    from core import database
     return database.db
 from core.auth import require_auth
 from infra.alerts import alert_system, alert_error

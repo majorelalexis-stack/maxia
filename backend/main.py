@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
         logger.error("[GPU Pricing] Init error: %s — prix fallback utilises", e)
 
     # V12: Database factory — PostgreSQL if DATABASE_URL set, else SQLite
-    import database as _db_mod
+    from core import database as _db_mod
     db_instance = await create_database()
     # Patch the module-level singleton so all imports see the new instance
     _db_mod.db = db_instance
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
 
     # Inject WS per-wallet callback into forum module
     try:
-        import forum as _forum_mod
+        from routes import forum as _forum_mod
         _forum_mod._ws_notify_callback = send_to_wallet
     except Exception:
         pass

@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from core.error_utils import safe_error
 def _get_db():
     """Lazy DB import to avoid stale singleton reference."""
-    import database
+    from core import database
     return database.db
 
 router = APIRouter(prefix="/api/ceo", tags=["ceo"])

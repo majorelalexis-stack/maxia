@@ -31,7 +31,7 @@ except ImportError:
 def _cfg(name, default=""):
     """Read from config.py first, then os.getenv."""
     try:
-        import config
+        from core import config
         return getattr(config, name, os.getenv(name, default))
     except ImportError:
         return os.getenv(name, default)
