@@ -393,6 +393,14 @@ SONIC_USDC_CONTRACT    = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"  # USDC.e 
 SONIC_USDT_CONTRACT    = ""  # USDT not yet on Sonic
 TREASURY_ADDRESS_SONIC = os.getenv("TREASURY_ADDRESS_SONIC", "")
 
+# ── S52: Cosmos / Noble (20eme blockchain, non-EVM, IBC) ──
+COSMOS_LCD_URL        = os.getenv("COSMOS_LCD_URL", "https://rest.cosmos.directory/noble")
+TREASURY_ADDRESS_COSMOS = os.getenv("TREASURY_ADDRESS_COSMOS", "")
+
+# ── S52: Hedera (21eme blockchain, non-EVM) ──
+HEDERA_MIRROR_URL     = os.getenv("HEDERA_MIRROR_URL", "https://mainnet-public.mirrornode.hedera.com")
+TREASURY_ADDRESS_HEDERA = os.getenv("TREASURY_ADDRESS_HEDERA", "")
+
 # ── V12: TRON (10eme blockchain, non-EVM) ──
 TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
 TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")

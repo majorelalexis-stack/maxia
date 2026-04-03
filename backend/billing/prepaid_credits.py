@@ -191,6 +191,16 @@ async def deposit_credits(req: DepositRequest, x_api_key: str = Header(None, ali
                 expected_amount_usdc=req.amount_usdc,
                 expected_recipient=TREASURY_ADDRESS,
             ), timeout=20)
+        elif req.chain == "cosmos":
+            from blockchain.cosmos_verifier import verify_usdc_transfer as cosmos_verify
+            result = await asyncio.wait_for(
+                cosmos_verify(req.payment_tx, req.amount_usdc),
+                timeout=20)
+        elif req.chain == "hedera":
+            from blockchain.hedera_verifier import verify_usdc_transfer as hedera_verify
+            result = await asyncio.wait_for(
+                hedera_verify(req.payment_tx, req.amount_usdc),
+                timeout=20)
         else:
             # EVM chains
             from routes.chain_verify_api import evm_verifiers
