@@ -573,3 +573,47 @@ class Maxia:
                 "wallet": wallet,
             },
         )
+
+    # ------------------------------------------------------------------
+    # Prepaid Credits (off-chain micropayments, zero gas)
+    # ------------------------------------------------------------------
+
+    def credits_balance(self) -> dict:
+        """Get prepaid credit balance.
+
+        Returns:
+            Dict with ``balance_usdc``, ``total_deposited``, ``total_spent``,
+            and ``transactions`` list.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            bal = m.credits_balance()
+            print(f"${bal['balance_usdc']} available")
+        """
+        self._require_key()
+        return self._get("/api/credits/balance")
+
+    def credits_deposit(self, payment_tx: str, amount_usdc: float, chain: str = "solana") -> dict:
+        """Deposit USDC on-chain and receive prepaid credits.
+
+        Send USDC to MAXIA Treasury first, then call this with the tx signature.
+        Credits are added instantly — no gas per API call after that.
+
+        Args:
+            payment_tx: On-chain USDC transaction signature.
+            amount_usdc: Amount deposited.
+            chain: Chain used (``"solana"``, ``"base"``, ``"ethereum"``, etc.).
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.credits_deposit("5xYz...", 10.0, chain="solana")
+            print(f"Balance: ${result['balance_usdc']}")
+        """
+        self._require_key()
+        return self._post("/api/credits/deposit", json={
+            "payment_tx": payment_tx,
+            "amount_usdc": amount_usdc,
+            "chain": chain,
+        })

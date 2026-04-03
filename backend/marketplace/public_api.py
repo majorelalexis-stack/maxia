@@ -469,9 +469,6 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
 
     if not prompt:
         raise HTTPException(400, "Prompt requis")
-    if not payment_tx:
-        raise HTTPException(400, "payment_tx required. Send USDC to Treasury first, then pass the Solana tx signature.")
-
     # Art.1 — Filtrage STRICT anti-pedopornographie et contenu illegal
     _check_safety(prompt, "prompt")
 
@@ -482,31 +479,50 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     }
     price = prices.get(service_type, 1.99)
 
-    # ═══ REAL USDC PAYMENT VERIFICATION ═══
+    # ═══ PAYMENT: PREPAID CREDITS OR ON-CHAIN USDC ═══
+    paid_with_credits = False
+    if not payment_tx:
+        # Try prepaid credits (off-chain, zero gas)
+        try:
+            from billing.prepaid_credits import get_balance, deduct_credits
+            agent_id = agent.get("agent_id", x_api_key)
+            balance = await get_balance(agent_id)
+            if balance >= price:
+                result = await deduct_credits(agent_id, price, f"buy:{service_type}")
+                if result.get("success"):
+                    paid_with_credits = True
+                    logger.info("/buy paid with credits: %s USDC (balance: %s)", price, result.get("balance"))
+        except Exception as e:
+            logger.debug("Credits check failed, falling back to on-chain: %s", e)
 
-    # Idempotency: reject reused payment signatures
-    from core.database import db as _buy_db
-    if await _buy_db.tx_already_processed(payment_tx):
-        raise HTTPException(400, "Payment already used for a previous purchase")
+        if not paid_with_credits:
+            raise HTTPException(400,
+                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit). "
+                "Send USDC to Treasury first, then pass the Solana tx signature.")
 
-    # On-chain verification via solana_verifier (BUG 26 fix: 20s timeout)
-    try:
-        from blockchain.solana_verifier import verify_transaction
-        tx_result = await asyncio.wait_for(verify_transaction(
-            tx_signature=payment_tx,
-            expected_amount_usdc=price,
-            expected_recipient=TREASURY_ADDRESS,
-        ), timeout=20)
-        if not tx_result.get("valid"):
-            raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}. "
-                                f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
-    except asyncio.TimeoutError:
-        raise HTTPException(504, "Payment verification timed out. Please retry.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Payment verification error in /buy: %s", e)
-        raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
+    if not paid_with_credits:
+        # ═══ ON-CHAIN USDC VERIFICATION ═══
+        from core.database import db as _buy_db
+        if await _buy_db.tx_already_processed(payment_tx):
+            raise HTTPException(400, "Payment already used for a previous purchase")
+
+        try:
+            from blockchain.solana_verifier import verify_transaction
+            tx_result = await asyncio.wait_for(verify_transaction(
+                tx_signature=payment_tx,
+                expected_amount_usdc=price,
+                expected_recipient=TREASURY_ADDRESS,
+            ), timeout=20)
+            if not tx_result.get("valid"):
+                raise HTTPException(400, f"Payment invalid: {tx_result.get('error', 'verification failed')}. "
+                                    f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+        except asyncio.TimeoutError:
+            raise HTTPException(504, "Payment verification timed out. Please retry.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Payment verification error in /buy: %s", e)
+            raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
 
     logger.info("/buy payment verified: %s... (%s USDC from %s...)", payment_tx[:16], price, tx_result.get("from", "?")[:12])
 

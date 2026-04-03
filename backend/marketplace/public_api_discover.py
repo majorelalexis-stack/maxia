@@ -302,11 +302,6 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
 
     if not prompt:
         raise HTTPException(400, "prompt required")
-    if not payment_tx:
-        raise HTTPException(400,
-            "payment_tx required. Send USDC to Treasury on Solana first, then pass the tx signature. "
-            f"Treasury: {TREASURY_ADDRESS}")
-
     _check_safety(prompt, "prompt")
 
     # Find the service
@@ -338,55 +333,85 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     else:
         raise HTTPException(404, "Service not found. Use GET /discover to find services.")
 
-    # ═══ VERIFY REAL USDC PAYMENT ON-CHAIN ═══
+    # ═══ PAYMENT: PREPAID CREDITS OR ON-CHAIN USDC ═══
+    paid_with_credits = False
+    if not payment_tx:
+        # Try prepaid credits (off-chain, zero gas)
+        try:
+            from billing.prepaid_credits import get_balance, deduct_credits
+            agent_id = buyer.get("agent_id", x_api_key)
+            balance = await get_balance(agent_id)
+            if balance >= price:
+                credit_result = await deduct_credits(agent_id, price, f"execute:{service_id}")
+                if credit_result.get("success"):
+                    paid_with_credits = True
+                    logger.info("/execute paid with credits: %s USDC for %s (balance: %s)",
+                                price, service_id, credit_result.get("balance"))
+        except Exception as e:
+            logger.debug("Credits check failed, falling back to on-chain: %s", e)
 
-    # P-1 fix: Mark tx as "pending" BEFORE verification to close TOCTOU gap
-    from core.database import db as _exec_db
-    try:
-        if await asyncio.wait_for(_exec_db.tx_already_processed(payment_tx), timeout=5):
-            raise HTTPException(400, "Payment already used for a previous purchase")
-        # Reserve this tx immediately (atomic idempotency)
-        await _exec_db.record_transaction(
-            buyer.get("wallet", ""), payment_tx, 0, "execute_pending")
-    except asyncio.TimeoutError:
-        raise HTTPException(503, "Payment verification temporarily unavailable, please retry")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("[Execute] Idempotency reserve failed: %s", e)
-        raise HTTPException(503, "Service temporarily unavailable")
-
-    # On-chain verification via solana_verifier (max 20s built-in)
-    try:
-        from blockchain.solana_verifier import verify_transaction
-        verification = await asyncio.wait_for(
-            verify_transaction(
-                tx_signature=payment_tx,
-                expected_amount_usdc=price,
-                expected_recipient=TREASURY_ADDRESS,
-            ),
-            timeout=25,
-        )
-        if not verification.get("valid"):
+        if not paid_with_credits:
             raise HTTPException(400,
-                f"Payment invalid: {verification.get('error', 'verification failed')}. "
-                f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
-    except asyncio.TimeoutError:
-        raise HTTPException(504, "Payment verification timed out (25s). Solana RPC may be slow. Try again.")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Payment verification error in /execute: %s", e)
-        raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
+                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit). "
+                f"Send USDC to Treasury on Solana first. Treasury: {TREASURY_ADDRESS}")
 
     payment_verified = True
-    payment_info = {
-        "verified": True,
-        "signature": payment_tx,
-        "amount_usdc": verification.get("amount_usdc", price),
-        "from": verification.get("from", ""),
-        "to": verification.get("to", TREASURY_ADDRESS),
-    }
+    payment_info = {}
+
+    if not paid_with_credits:
+        # ═══ ON-CHAIN USDC VERIFICATION ═══
+
+        # P-1 fix: Mark tx as "pending" BEFORE verification to close TOCTOU gap
+        from core.database import db as _exec_db
+        try:
+            if await asyncio.wait_for(_exec_db.tx_already_processed(payment_tx), timeout=5):
+                raise HTTPException(400, "Payment already used for a previous purchase")
+            await _exec_db.record_transaction(
+                buyer.get("wallet", ""), payment_tx, 0, "execute_pending")
+        except asyncio.TimeoutError:
+            raise HTTPException(503, "Payment verification temporarily unavailable, please retry")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("[Execute] Idempotency reserve failed: %s", e)
+            raise HTTPException(503, "Service temporarily unavailable")
+
+        try:
+            from blockchain.solana_verifier import verify_transaction
+            verification = await asyncio.wait_for(
+                verify_transaction(
+                    tx_signature=payment_tx,
+                    expected_amount_usdc=price,
+                    expected_recipient=TREASURY_ADDRESS,
+                ),
+                timeout=25,
+            )
+            if not verification.get("valid"):
+                raise HTTPException(400,
+                    f"Payment invalid: {verification.get('error', 'verification failed')}. "
+                    f"Expected {price} USDC to {TREASURY_ADDRESS[:12]}...")
+        except asyncio.TimeoutError:
+            raise HTTPException(504, "Payment verification timed out (25s). Solana RPC may be slow. Try again.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Payment verification error in /execute: %s", e)
+            raise HTTPException(400, "Payment verification failed. Ensure your USDC transfer to Treasury is confirmed on Solana.")
+
+        payment_info = {
+            "verified": True,
+            "signature": payment_tx,
+            "amount_usdc": verification.get("amount_usdc", price),
+            "from": verification.get("from", ""),
+            "to": verification.get("to", TREASURY_ADDRESS),
+        }
+    else:
+        payment_info = {
+            "verified": True,
+            "method": "prepaid_credits",
+            "amount_usdc": price,
+            "balance_remaining": credit_result.get("balance", 0),
+        }
 
     logger.info("/execute payment verified: %s... (%s USDC from %s...)", payment_tx[:16], price, verification.get("from", "?")[:12])
 
