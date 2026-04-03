@@ -201,6 +201,16 @@ async def deposit_credits(req: DepositRequest, x_api_key: str = Header(None, ali
             result = await asyncio.wait_for(
                 hedera_verify(req.payment_tx, req.amount_usdc),
                 timeout=20)
+        elif req.chain == "cardano":
+            from blockchain.cardano_verifier import verify_usdc_transfer as cardano_verify
+            result = await asyncio.wait_for(
+                cardano_verify(req.payment_tx, req.amount_usdc),
+                timeout=20)
+        elif req.chain == "polkadot":
+            from blockchain.polkadot_verifier import verify_usdc_transfer as polkadot_verify
+            result = await asyncio.wait_for(
+                polkadot_verify(req.payment_tx, req.amount_usdc),
+                timeout=20)
         else:
             # EVM chains
             from routes.chain_verify_api import evm_verifiers

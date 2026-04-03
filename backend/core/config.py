@@ -401,6 +401,14 @@ TREASURY_ADDRESS_COSMOS = os.getenv("TREASURY_ADDRESS_COSMOS", "")
 HEDERA_MIRROR_URL     = os.getenv("HEDERA_MIRROR_URL", "https://mainnet-public.mirrornode.hedera.com")
 TREASURY_ADDRESS_HEDERA = os.getenv("TREASURY_ADDRESS_HEDERA", "")
 
+# ── S53: Cardano (22eme blockchain, non-EVM) ──
+BLOCKFROST_API_KEY      = os.getenv("BLOCKFROST_API_KEY", "")
+TREASURY_ADDRESS_CARDANO = os.getenv("TREASURY_ADDRESS_CARDANO", "")
+
+# ── S53: Polkadot Asset Hub (23eme blockchain, non-EVM) ──
+SUBSCAN_API_KEY         = os.getenv("SUBSCAN_API_KEY", "")
+TREASURY_ADDRESS_POLKADOT = os.getenv("TREASURY_ADDRESS_POLKADOT", "")
+
 # ── V12: TRON (10eme blockchain, non-EVM) ──
 TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
 TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")
