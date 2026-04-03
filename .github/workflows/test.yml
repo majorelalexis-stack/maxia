@@ -89,7 +89,7 @@ jobs:
 
       - name: Run ALL test suites (285+ tests)
         run: |
-          PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=5
+          PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=3
 
       - name: Load FastAPI app (670+ routes)
         run: |

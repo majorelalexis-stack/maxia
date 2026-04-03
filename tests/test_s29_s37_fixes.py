@@ -111,12 +111,14 @@ class TestBug2UsdcMintFilter:
         assert USDC_MINT == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
     def test_verify_code_filters_by_mint(self):
-        """verify_transaction must check transfer.get('mint') != USDC_MINT."""
+        """verify_transaction must check transfer mint against accepted stablecoins (USDC+USDT)."""
         with open(os.path.join(BACKEND_DIR, "blockchain", "solana_verifier.py"), encoding="utf-8") as f:
             source = f.read()
         assert "USDC_MINT" in source
-        # BUG 2 fix: explicit mint check must exist
-        assert 'transfer.get("mint") != USDC_MINT' in source
+        assert "USDT_MINT" in source
+        # S44: accepts both USDC and USDT via ACCEPTED_STABLECOIN_MINTS set
+        assert "ACCEPTED_STABLECOIN_MINTS" in source
+        assert 'not in ACCEPTED_STABLECOIN_MINTS' in source
 
 
 # ═══════════════════════════════════════════════════════════════════
