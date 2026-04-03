@@ -7,6 +7,8 @@ from core.config import get_rpc_url, TREASURY_ADDRESS, SOLANA_RPC_URLS
 logger = logging.getLogger(__name__)
 
 USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+USDT_MINT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+ACCEPTED_STABLECOIN_MINTS = {USDC_MINT, USDT_MINT}
 
 
 async def _rpc_post(payload: dict, timeout: float = 8) -> dict:
@@ -92,8 +94,8 @@ async def _verify_transaction_inner(tx_signature: str, expected_wallet: str,
 
             # Chercher un transfert USDC vers le destinataire attendu
             for transfer in tx_info["transfers"]:
-                # BUG 2 fix: Only match USDC transfers, reject SOL native transfers
-                if transfer.get("mint") != USDC_MINT:
+                # BUG 2 fix: Only match USDC/USDT transfers, reject SOL native transfers
+                if transfer.get("mint") not in ACCEPTED_STABLECOIN_MINTS:
                     continue
                 # S10 fix: base58 is case-sensitive — no .lower()
                 recipient_match = (
@@ -164,18 +166,17 @@ def _parse_transfers(result: dict) -> dict:
         ix_type = parsed.get("type", "")
         info = parsed.get("info", {})
 
-        # SPL Token transfer / transferChecked — USDC ONLY
+        # SPL Token transfer / transferChecked — USDC or USDT only
         if ix_type in ("transfer", "transferChecked") and ix.get("program") == "spl-token":
-            # V-05: Verify token mint is USDC (reject worthless tokens)
+            # V-05: Verify token mint is a recognized stablecoin (reject worthless tokens)
             token_mint = info.get("mint", "")
             if ix_type == "transferChecked":
-                # transferChecked always has mint — reject if not USDC
-                if token_mint and token_mint != USDC_MINT:
+                # transferChecked always has mint — reject if not USDC/USDT
+                if token_mint and token_mint not in ACCEPTED_STABLECOIN_MINTS:
                     continue
             elif ix_type == "transfer":
-                # Plain transfer has no mint field — REJECT (cannot verify it's USDC)
-                # An attacker could send a worthless SPL token via plain transfer
-                if not token_mint or token_mint != USDC_MINT:
+                # Plain transfer has no mint field — REJECT (cannot verify it's a stablecoin)
+                if not token_mint or token_mint not in ACCEPTED_STABLECOIN_MINTS:
                     continue
 
             amount_str = info.get("tokenAmount", {}).get("uiAmountString")

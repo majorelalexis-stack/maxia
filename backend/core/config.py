@@ -89,6 +89,7 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 BASE_RPC              = os.getenv("BASE_RPC", "https://mainnet.base.org")
 BASE_CHAIN_ID         = 8453
 BASE_USDC_CONTRACT    = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+BASE_USDT_CONTRACT    = "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2"  # Tether USDT on Base
 TREASURY_ADDRESS_BASE = os.getenv("TREASURY_ADDRESS_BASE", "")
 BASE_MIN_TX_USDC      = float(os.getenv("BASE_MIN_TX_USDC", "0.01"))  # Min $0.01 on Base (low gas)
 ESCROW_CONTRACT_BASE  = os.getenv("ESCROW_CONTRACT_BASE", "0xBd31bB973183F8476d0C4cF57a92e648b130510C")
@@ -97,6 +98,7 @@ ESCROW_CONTRACT_BASE  = os.getenv("ESCROW_CONTRACT_BASE", "0xBd31bB973183F8476d0
 ETH_RPC              = os.getenv("ETH_RPC", "https://eth.llamarpc.com")
 ETH_CHAIN_ID         = 1
 ETH_USDC_CONTRACT    = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+ETH_USDT_CONTRACT    = "0xdAC17F958D2ee523a2206206994597C13D831ec7"  # Tether USDT on Ethereum
 TREASURY_ADDRESS_ETH = os.getenv("TREASURY_ADDRESS_ETH", "")
 ETH_MIN_TX_USDC      = float(os.getenv("ETH_MIN_TX_USDC", "10"))  # min $10 sur ETH (gas fees)
 
@@ -339,24 +341,28 @@ SUI_USDC_TYPE = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f90
 POLYGON_RPC              = os.getenv("POLYGON_RPC", "https://polygon-rpc.com")
 POLYGON_CHAIN_ID         = 137
 POLYGON_USDC_CONTRACT    = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+POLYGON_USDT_CONTRACT    = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"  # Tether USDT on Polygon
 TREASURY_ADDRESS_POLYGON = os.getenv("TREASURY_ADDRESS_POLYGON", "")
 
 # ── V12: Arbitrum One (7eme blockchain, EVM L2) ──
 ARBITRUM_RPC              = os.getenv("ARBITRUM_RPC", "https://arb1.arbitrum.io/rpc")
 ARBITRUM_CHAIN_ID         = 42161
 ARBITRUM_USDC_CONTRACT    = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+ARBITRUM_USDT_CONTRACT    = "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"  # Tether USDT on Arbitrum
 TREASURY_ADDRESS_ARBITRUM = os.getenv("TREASURY_ADDRESS_ARBITRUM", "")
 
 # ── V12: Avalanche C-Chain (8eme blockchain, EVM) ──
 AVALANCHE_RPC              = os.getenv("AVALANCHE_RPC", "https://api.avax.network/ext/bc/C/rpc")
 AVALANCHE_CHAIN_ID         = 43114
 AVALANCHE_USDC_CONTRACT    = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+AVALANCHE_USDT_CONTRACT    = "0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7"  # Tether USDT on Avalanche
 TREASURY_ADDRESS_AVALANCHE = os.getenv("TREASURY_ADDRESS_AVALANCHE", "")
 
 # ── V12: BNB Chain (9eme blockchain, EVM) ──
 BNB_RPC              = os.getenv("BNB_RPC", "https://bsc-dataseed.binance.org")
 BNB_CHAIN_ID         = 56
 BNB_USDC_CONTRACT    = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"
+BNB_USDT_CONTRACT    = "0x55d398326f99059fF775485246999027B3197955"  # Tether USDT (BSC-USD) on BNB
 TREASURY_ADDRESS_BNB = os.getenv("TREASURY_ADDRESS_BNB", "")
 
 # ── V12: TRON (10eme blockchain, non-EVM) ──

@@ -60,6 +60,7 @@ class EvmVerifier:
         treasury_address: str,
         min_tx_usdc: float = 0.01,
         expected_usdc_contract: Optional[str] = None,
+        usdt_contract: str = "",
     ) -> None:
         """Initialize the verifier for a specific EVM chain.
 
@@ -72,6 +73,7 @@ class EvmVerifier:
             treasury_address: Default recipient for USDC transfers (from env).
             min_tx_usdc: Minimum USDC amount for transactions on this chain.
             expected_usdc_contract: If provided, assert USDC contract matches at init.
+            usdt_contract: Optional USDT ERC-20 contract address on this chain.
         """
         if not rpc_urls:
             raise ValueError(f"{chain_name}: rpc_urls cannot be empty")
@@ -81,6 +83,11 @@ class EvmVerifier:
         self.network_id = network_id
         self.rpc_urls = list(rpc_urls)  # defensive copy
         self.usdc_contract = usdc_contract.lower()
+        self.usdt_contract = usdt_contract.lower() if usdt_contract else ""
+        # Set of all accepted stablecoin contracts for this chain
+        self.accepted_stablecoins = {self.usdc_contract}
+        if self.usdt_contract:
+            self.accepted_stablecoins.add(self.usdt_contract)
         self.treasury_address = treasury_address.lower() if treasury_address else ""
         self.min_tx_usdc = min_tx_usdc
 
@@ -310,9 +317,9 @@ class EvmVerifier:
                 # Must have at least 3 topics: event sig, from, to
                 if len(topics) < 3:
                     continue
-                # Must be from our USDC contract and be a Transfer event
+                # Must be from a recognized stablecoin contract and be a Transfer event
                 if (
-                    log_entry.get("address", "").lower() != self.usdc_contract
+                    log_entry.get("address", "").lower() not in self.accepted_stablecoins
                     or topics[0] != _TRANSFER_TOPIC
                 ):
                     continue
