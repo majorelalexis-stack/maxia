@@ -996,6 +996,12 @@ try:
     logger.info("[StreamPay] Streaming Payments (pay-per-second) monte")
 except Exception as e:
     logger.error("[MAXIA] StreamPay router error: %s", e)
+try:
+    from blockchain.lightning_api import router as lightning_router
+    app.include_router(lightning_router)
+    logger.info("[Lightning] Bitcoin Lightning API monte")
+except Exception as e:
+    logger.error("[MAXIA] Lightning router error: %s", e)
 
 # V13+: Agent Subcontracting — delegation automatique (Art.58)
 try:

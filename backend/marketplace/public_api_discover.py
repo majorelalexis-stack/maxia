@@ -333,9 +333,15 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     else:
         raise HTTPException(404, "Service not found. Use GET /discover to find services.")
 
-    # ═══ PAYMENT: PREPAID CREDITS OR ON-CHAIN USDC ═══
+    # ═══ PAYMENT: CREDITS → LIGHTNING L402 → ON-CHAIN USDC ═══
     paid_with_credits = False
-    if not payment_tx:
+    paid_with_lightning = False
+    lightning_charge_id = req.get("lightning_charge_id", "").strip()[:100] if isinstance(req.get("lightning_charge_id"), str) else ""
+    # Also check X-Lightning-Payment header
+    if not lightning_charge_id:
+        lightning_charge_id = request.headers.get("x-lightning-payment", "").strip()[:100]
+
+    if not payment_tx and not lightning_charge_id:
         # Try prepaid credits (off-chain, zero gas)
         try:
             from billing.prepaid_credits import get_balance, deduct_credits
@@ -348,17 +354,52 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                     logger.info("/execute paid with credits: %s USDC for %s (balance: %s)",
                                 price, service_id, credit_result.get("balance"))
         except Exception as e:
-            logger.debug("Credits check failed, falling back to on-chain: %s", e)
+            logger.debug("Credits check failed: %s", e)
 
         if not paid_with_credits:
+            # Try L402 Lightning challenge (return 402 with invoice)
+            try:
+                from integrations.l402_middleware import create_l402_challenge, build_402_response
+                challenge = await create_l402_challenge(price, service_id)
+                if challenge.get("success"):
+                    return build_402_response(challenge)
+            except Exception as e:
+                logger.debug("L402 challenge failed, requiring on-chain: %s", e)
+
             raise HTTPException(400,
-                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit). "
+                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit, "
+                "or use Lightning via L402). "
                 f"Send USDC to Treasury on Solana first. Treasury: {TREASURY_ADDRESS}")
+
+    # Verify Lightning payment if charge_id provided
+    if lightning_charge_id and not paid_with_credits:
+        try:
+            from integrations.l402_middleware import verify_lightning_payment
+            ln_result = await verify_lightning_payment(lightning_charge_id, expected_usd=price)
+            if ln_result.get("verified"):
+                paid_with_lightning = True
+                logger.info("/execute paid with Lightning: %s sats for %s",
+                            ln_result.get("amount_sats"), service_id)
+            else:
+                raise HTTPException(402, f"Lightning payment not settled: {ln_result.get('error', 'unpaid')}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Lightning verification error: %s", e)
+            raise HTTPException(400, "Lightning payment verification failed")
 
     payment_verified = True
     payment_info = {}
 
-    if not paid_with_credits:
+    if paid_with_lightning:
+        payment_info = {
+            "verified": True,
+            "method": "lightning",
+            "charge_id": lightning_charge_id,
+            "amount_sats": ln_result.get("amount_sats", 0),
+            "amount_usd": price,
+        }
+    elif not paid_with_credits:
         # ═══ ON-CHAIN USDC VERIFICATION ═══
 
         # P-1 fix: Mark tx as "pending" BEFORE verification to close TOCTOU gap
