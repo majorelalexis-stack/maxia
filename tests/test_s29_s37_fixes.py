@@ -250,9 +250,9 @@ class TestBug12ZeroPrice:
 
     def test_awp_stake_has_nonzero_price(self):
         """awp-stake must have a real price, not 0."""
-        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api.py"), encoding="utf-8") as f:
+        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api_discover.py"), encoding="utf-8") as f:
             source = f.read()
-        # Find the price dict
+        # Find the price dict (in /execute endpoint, split to public_api_discover.py in S34)
         import re
         match = re.search(r'"maxia-awp-stake":\s*([\d.]+)', source)
         assert match, "maxia-awp-stake not found in price dict"
