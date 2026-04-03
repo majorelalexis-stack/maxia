@@ -30,10 +30,22 @@ _BTC_PRICE_TTL = 60  # refresh every 60s
 
 
 async def get_btc_price() -> float:
-    """Get current BTC/USD price (cached 60s)."""
+    """Get current BTC/USD price (cached 60s). Uses MAXIA oracle first, CoinGecko fallback."""
     global _btc_price_cache, _btc_price_ts
     if _btc_price_cache > 0 and time.time() - _btc_price_ts < _BTC_PRICE_TTL:
         return _btc_price_cache
+    # Try MAXIA's own price oracle first (already has BTC from Pyth/CoinGecko)
+    try:
+        from trading.price_oracle import get_prices
+        prices = await get_prices()
+        btc_price = prices.get("prices", prices).get("BTC", 0)
+        if btc_price and btc_price > 0:
+            _btc_price_cache = float(btc_price)
+            _btc_price_ts = time.time()
+            return _btc_price_cache
+    except Exception:
+        pass
+    # Fallback: direct CoinGecko
     try:
         client = get_http_client()
         resp = await client.get(
@@ -47,7 +59,7 @@ async def get_btc_price() -> float:
         return _btc_price_cache
     except Exception as e:
         logger.warning("[Lightning] BTC price fetch failed: %s", e)
-        return _btc_price_cache or 60000.0  # fallback
+        return _btc_price_cache or 83000.0  # fallback estimate
 
 
 def usd_to_sats(usd_amount: float, btc_price: float) -> int:
