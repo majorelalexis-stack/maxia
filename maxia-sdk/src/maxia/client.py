@@ -692,3 +692,67 @@ class Maxia:
         return self._post("/api/defi/stake", json={
             "protocol": protocol, "amount": amount, "wallet": wallet,
         })
+
+    # ------------------------------------------------------------------
+    # Streaming Payments (pay-per-second for GPU, LLM, etc.)
+    # ------------------------------------------------------------------
+
+    def stream_create(self, receiver: str, rate_per_hour: float,
+                      max_hours: float = 1, service_id: str = "",
+                      payment_tx: str = "") -> dict:
+        """Create a streaming payment (pay-per-second).
+
+        Lock USDC upfront. The receiver earns continuously. Either party
+        can stop at any time — receiver keeps earned, payer gets refund.
+
+        Args:
+            receiver: Receiver wallet address.
+            rate_per_hour: USDC per hour to stream.
+            max_hours: Maximum duration in hours.
+            service_id: Optional service ID being paid for.
+            payment_tx: On-chain tx locking the USDC.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            stream = m.stream_create(
+                receiver="ReceiverWallet...",
+                rate_per_hour=0.50,
+                max_hours=2,
+            )
+            print(stream["stream_id"])
+        """
+        self._require_key()
+        body = {
+            "receiver": receiver,
+            "rate_per_hour": rate_per_hour,
+            "max_hours": max_hours,
+        }
+        if service_id:
+            body["service_id"] = service_id
+        if payment_tx:
+            body["payment_tx"] = payment_tx
+        return self._post("/api/stream/create", json=body)
+
+    def stream_stop(self, stream_id: str) -> dict:
+        """Stop a streaming payment. Receiver keeps earned, payer gets refund.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.stream_stop("STREAM-ABC123")
+            print(f"Earned: ${result['earned_usdc']}, Refund: ${result['refund_usdc']}")
+        """
+        self._require_key()
+        return self._post("/api/stream/stop", json={"stream_id": stream_id})
+
+    def stream_status(self, stream_id: str) -> dict:
+        """Get real-time status of a streaming payment.
+
+        Example::
+
+            m = Maxia()
+            status = m.stream_status("STREAM-ABC123")
+            print(f"Earned so far: ${status['earned_usdc']}")
+        """
+        return self._get(f"/api/stream/{stream_id}")
