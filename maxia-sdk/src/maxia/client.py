@@ -67,7 +67,7 @@ class Maxia:
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
-            headers={"User-Agent": "maxia-python/0.1.0"},
+            headers={"User-Agent": "maxia-python/12.1.0"},
         )
 
     # ------------------------------------------------------------------
@@ -284,6 +284,80 @@ class Maxia:
         """
         return self._get("/api/public/services")
 
+    def discover(self, capability: str = "", chain: str = "", min_rating: float = 0, limit: int = 20) -> dict:
+        """Discover AI services and agents on the marketplace.
+
+        Args:
+            capability: Filter by capability (e.g. ``"swap"``, ``"audit"``).
+            chain: Filter by blockchain (e.g. ``"solana"``).
+            min_rating: Minimum rating (0-5).
+            limit: Max results.
+
+        Returns:
+            Dict with ``services`` list and ``total`` count.
+
+        Example::
+
+            m = Maxia()
+            data = m.discover(capability="swap")
+            for svc in data.get("services", []):
+                print(svc["name"])
+        """
+        params = {"limit": limit}
+        if capability:
+            params["capability"] = capability
+        if chain:
+            params["chain"] = chain
+        if min_rating:
+            params["min_rating"] = min_rating
+        return self._get("/api/public/discover", params=params)
+
+    def trending(self) -> dict:
+        """Get trending crypto tokens and social buzz.
+
+        Example::
+
+            m = Maxia()
+            print(m.trending())
+        """
+        return self._get("/api/public/trending")
+
+    def fear_greed(self) -> dict:
+        """Get the crypto Fear & Greed Index.
+
+        Example::
+
+            m = Maxia()
+            fg = m.fear_greed()
+            print(fg.get("value"), fg.get("classification"))
+        """
+        return self._get("/api/public/fear-greed")
+
+    def wallet_analysis(self, address: str) -> dict:
+        """Analyze a wallet's holdings and activity.
+
+        Args:
+            address: Wallet address (Solana or EVM).
+
+        Example::
+
+            m = Maxia()
+            data = m.wallet_analysis("So1ana...addr")
+            print(data.get("total_value_usd"))
+        """
+        return self._get("/api/public/wallet-analysis", params={"address": address})
+
+    def chains(self) -> dict:
+        """List all 14 supported blockchains with status.
+
+        Example::
+
+            m = Maxia()
+            for chain in m.chains().get("chains", []):
+                print(chain["name"], chain["status"])
+        """
+        return self._get("/api/public/chain-support")
+
     def escrow_info(self) -> dict:
         """Get escrow program info and stats (no wallet data).
 
@@ -420,6 +494,53 @@ class Maxia:
         if payment_tx:
             body["payment_tx"] = payment_tx
         return self._post("/api/public/execute", json=body)
+
+    def gpu_rent(self, tier: str, duration_hours: float = 1, wallet: str = "") -> dict:
+        """Rent a GPU via Akash Network.
+
+        Args:
+            tier: GPU tier (e.g. ``"rtx4090"``, ``"h100_sxm5"``, ``"a100_80gb"``).
+            duration_hours: Rental duration in hours.
+            wallet: Wallet address for payment.
+
+        Returns:
+            Dict with ``pod_id``, ``ssh_command``, ``cost_usdc``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            pod = m.gpu_rent("rtx4090", duration_hours=2, wallet="So1ana...")
+            print(pod["ssh_command"])
+        """
+        self._require_key()
+        body = {"tier": tier, "duration_hours": duration_hours}
+        if wallet:
+            body["wallet"] = wallet
+        return self._post("/api/public/gpu/rent", json=body)
+
+    def negotiate(self, service_id: str, proposed_price: float, message: str = "") -> dict:
+        """Negotiate the price of a service.
+
+        Args:
+            service_id: Service to negotiate on.
+            proposed_price: Your proposed price in USDC.
+            message: Optional message to the seller.
+
+        Returns:
+            Dict with ``accepted``, ``counter_price``, ``message``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.negotiate("svc_123", proposed_price=0.30)
+            if result.get("accepted"):
+                print("Deal!")
+        """
+        self._require_key()
+        body = {"service_id": service_id, "proposed_price": proposed_price}
+        if message:
+            body["message"] = message
+        return self._post("/api/public/negotiate", json=body)
 
     def swap(self, from_token: str, to_token: str, amount: float, wallet: str) -> dict:
         """Execute a crypto swap.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "maxia"
-version = "0.1.0"
+version = "12.1.0"
 description = "Python SDK for MAXIA — AI-to-AI Marketplace on 14 blockchains"
 readme = "README.md"
 license = "MIT"
@@ -23,9 +23,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["httpx>=0.27"]
+dependencies = ["httpx>=0.28"]
 
 [project.urls]
 Homepage = "https://maxiaworld.app"
 Documentation = "https://maxiaworld.app/docs"
-Repository = "https://github.com/MaxiaAI/maxia-python"
+Repository = "https://github.com/majorelalexis-stack/maxia"
