@@ -29,16 +29,21 @@ jobs:
       - name: Syntax check all Python files
         run: |
           python -c "
-          import ast, glob, sys
+          import ast, glob, sys, os
           errors = 0
-          for f in glob.glob('backend/*.py') + glob.glob('local_ceo/*.py') + glob.glob('tests/*.py'):
+          patterns = ['backend/**/*.py', 'local_ceo/*.py', 'tests/*.py']
+          files = []
+          for p in patterns:
+              files.extend(glob.glob(p, recursive=True))
+          for f in files:
+              if '__pycache__' in f:
+                  continue
               try:
                   ast.parse(open(f, encoding='utf-8').read())
               except SyntaxError as e:
                   print(f'FAIL {f}: {e}')
                   errors += 1
-          total = len(glob.glob('backend/*.py')) + len(glob.glob('local_ceo/*.py')) + len(glob.glob('tests/*.py'))
-          print(f'{total} files checked, {errors} errors')
+          print(f'{len(files)} files checked, {errors} errors')
           sys.exit(errors)
           "
 
@@ -49,18 +54,25 @@ jobs:
           import sys, importlib, os
           sys.path.insert(0, '.')
           modules = [
-              'config', 'security', 'auth', 'database',
-              'price_oracle', 'pyth_oracle', 'chain_resilience',
-              'crypto_swap', 'tokenized_stocks', 'evm_swap',
-              'dynamic_pricing', 'logger', 'api_keys',
-              'trading_tools', 'gpu_pricing', 'referral',
-              'error_tracker', 'alert_service', 'activity_feed',
-              'agent_credit_score', 'agent_leaderboard',
-              'sla_enforcer', 'fleet_manager', 'proof_of_delivery',
-              'dispute_resolver', 'app_store', 'business_listing',
-              'solana_defi', 'compliance_report',
-              'chain_verify_api', 'evm_verifier_base',
-              'intent', 'mcp_server', 'redis_rate_limiter',
+              'core.config', 'core.security', 'core.auth', 'core.database',
+              'core.error_utils', 'core.http_client', 'core.models',
+              'core.redis_client', 'core.redis_rate_limiter', 'core.logger',
+              'trading.price_oracle', 'trading.pyth_oracle', 'trading.crypto_swap',
+              'trading.tokenized_stocks', 'trading.evm_swap', 'trading.trading_tools',
+              'trading.solana_defi',
+              'blockchain.chain_resilience', 'blockchain.evm_verifier_base',
+              'marketplace.intent', 'marketplace.mcp_server',
+              'marketplace.public_api_shared',
+              'infra.dynamic_pricing', 'infra.alert_service', 'infra.error_tracker',
+              'gpu.gpu_pricing',
+              'billing.referral', 'billing.api_keys',
+              'features.activity_feed', 'features.app_store',
+              'features.business_listing', 'features.proof_of_delivery',
+              'agents.agent_credit_score', 'agents.agent_leaderboard',
+              'enterprise.sla_enforcer', 'enterprise.fleet_manager',
+              'enterprise.compliance_report',
+              'routes.chain_verify_api',
+              'marketplace.dispute_resolver',
           ]
           errors = []
           for mod in modules:
@@ -75,11 +87,11 @@ jobs:
           print(f'All {len(modules)} modules imported OK')
           "
 
-      - name: Run ALL test suites (176+ tests)
+      - name: Run ALL test suites (285+ tests)
         run: |
           PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=5
 
-      - name: Load FastAPI app (559+ routes)
+      - name: Load FastAPI app (670+ routes)
         run: |
           cd backend
           python -c "
@@ -114,6 +126,8 @@ jobs:
                       ('/llms.txt', 200),
                       ('/robots.txt', 200),
                       ('/mcp/manifest', 200),
+                      ('/api/credits/stats', 200),
+                      ('/api/defi/staking', 200),
                   ]
                   failures = []
                   for path, expected in tests:
