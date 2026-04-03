@@ -51,17 +51,18 @@ async def get_demand():
 async def chain_support():
     """What features are available on which chains. Honest transparency."""
     return {
-        "chains": 14,
+        "chains": 18,
         "features": {
             "swap": {"chains": ["solana", "ethereum", "base", "arbitrum", "polygon", "avalanche", "bnb"], "method": "Jupiter (Solana) + 1inch (EVM)", "tokens": 71},
             "tokenized_stocks": {"chains": ["solana", "ethereum", "arbitrum"], "method": "Jupiter + 1inch + Dinari", "stocks": 25},
-            "escrow": {"chains": ["solana"], "method": "Wallet-based (smart contract pending)", "note": "On-chain PDA escrow coming with 2.91 SOL deploy"},
-            "gpu_rental": {"chains": ["solana"], "method": "RunPod + local 7900XT", "tiers": 7},
+            "escrow": {"chains": ["solana", "base"], "method": "Solana PDA + Base Solidity", "contracts": 2},
+            "gpu_rental": {"chains": ["solana"], "method": "Akash Network + local 7900XT", "tiers": 7},
             "defi_yields": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "near"], "method": "DeFiLlama + direct protocol APIs"},
             "bridge": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "optimism"], "method": "Li.Fi aggregator"},
             "wallet_analysis": {"chains": ["solana"], "method": "Helius DAS API"},
-            "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron"], "method": "RPC + registries"},
-            "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei"], "method": "USDC verification on each chain"},
+            "lightning": {"chains": ["bitcoin"], "method": "OpenNode L402 — micropayments in sats"},
+            "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron", "zksync", "linea", "scroll"], "method": "RPC + registries"},
+            "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei", "zksync", "linea", "scroll", "bitcoin"], "method": "USDC/USDT on-chain + Lightning sats", "stablecoins": ["USDC", "USDT"]},
         },
         "note": "Not all features are available on all chains. We prioritize where agents actually are.",
     }

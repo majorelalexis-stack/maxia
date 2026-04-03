@@ -19,6 +19,9 @@ from core.config import (
     AVALANCHE_RPC, AVALANCHE_CHAIN_ID, AVALANCHE_USDC_CONTRACT, AVALANCHE_USDT_CONTRACT, TREASURY_ADDRESS_AVALANCHE,
     BNB_RPC, BNB_CHAIN_ID, BNB_USDC_CONTRACT, BNB_USDT_CONTRACT, TREASURY_ADDRESS_BNB,
     SEI_RPC, SEI_CHAIN_ID, SEI_USDC_CONTRACT, TREASURY_ADDRESS_SEI,
+    ZKSYNC_RPC, ZKSYNC_CHAIN_ID, ZKSYNC_USDC_CONTRACT, ZKSYNC_USDT_CONTRACT, TREASURY_ADDRESS_ZKSYNC,
+    LINEA_RPC, LINEA_CHAIN_ID, LINEA_USDC_CONTRACT, LINEA_USDT_CONTRACT, TREASURY_ADDRESS_LINEA,
+    SCROLL_RPC, SCROLL_CHAIN_ID, SCROLL_USDC_CONTRACT, SCROLL_USDT_CONTRACT, TREASURY_ADDRESS_SCROLL,
 )
 
 router = APIRouter(tags=["chain-verify"])
@@ -54,6 +57,18 @@ evm_verifiers = {
     "sei": EvmVerifier("SEI", SEI_CHAIN_ID, "sei-mainnet",
         [os.getenv("SEI_RPC", "https://evm-rpc.sei-apis.com")],
         SEI_USDC_CONTRACT, TREASURY_ADDRESS_SEI),
+    "zksync": EvmVerifier("zkSync Era", ZKSYNC_CHAIN_ID, "zksync-mainnet",
+        [os.getenv("ZKSYNC_RPC", "https://mainnet.era.zksync.io"), "https://zksync.drpc.org"],
+        ZKSYNC_USDC_CONTRACT, TREASURY_ADDRESS_ZKSYNC,
+        usdt_contract=ZKSYNC_USDT_CONTRACT),
+    "linea": EvmVerifier("Linea", LINEA_CHAIN_ID, "linea-mainnet",
+        [os.getenv("LINEA_RPC", "https://rpc.linea.build"), "https://linea.drpc.org"],
+        LINEA_USDC_CONTRACT, TREASURY_ADDRESS_LINEA,
+        usdt_contract=LINEA_USDT_CONTRACT),
+    "scroll": EvmVerifier("Scroll", SCROLL_CHAIN_ID, "scroll-mainnet",
+        [os.getenv("SCROLL_RPC", "https://rpc.scroll.io"), "https://scroll.drpc.org"],
+        SCROLL_USDC_CONTRACT, TREASURY_ADDRESS_SCROLL,
+        usdt_contract=SCROLL_USDT_CONTRACT),
 }
 
 
