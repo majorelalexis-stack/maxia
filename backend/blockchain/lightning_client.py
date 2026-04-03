@@ -38,7 +38,8 @@ async def get_btc_price() -> float:
     try:
         from trading.price_oracle import get_prices
         prices = await get_prices()
-        btc_price = prices.get("prices", prices).get("BTC", 0)
+        btc_data = prices.get("prices", prices).get("BTC", 0)
+        btc_price = btc_data.get("price", btc_data) if isinstance(btc_data, dict) else btc_data
         if btc_price and btc_price > 0:
             _btc_price_cache = float(btc_price)
             _btc_price_ts = time.time()
