@@ -33,16 +33,46 @@ anchor build && anchor deploy
 # Program ID: 8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY
 ```
 
-Tests: 94 pytest tests in `tests/test_backend.py`. CI via GitHub Actions. No linter configured.
+Tests: 285 pytest tests in `tests/`. CI via GitHub Actions. No linter configured.
+
+### SDK Python
+```bash
+pip install maxia
+```
+```python
+from maxia import Maxia
+m = Maxia()
+print(m.prices())       # 65+ tokens
+print(m.gpu_tiers())    # GPU pricing
+print(m.discover())     # AI services
+```
 
 ## Architecture
 
 ### Backend (`backend/`)
-Python 3.12 FastAPI monolith (~130 modules, 559 routes). All modules are flat in `backend/` — no subdirectories. Entry point is `main.py` which wires together 60+ features as routes and background tasks.
+Python 3.12 FastAPI monolith (~180 modules, 670 routes). Organized in 14 packages (S39). Entry point is `main.py` which wires together 60+ features as routes and background tasks.
+
+```
+backend/
+├── main.py              # Entry point, route mounting
+├── core/         (13)   # config, database, auth, security, error_utils, http_client, models, redis
+├── blockchain/   (21)   # solana_verifier, evm_verifier_base, escrow_client, jupiter_router, 14 chain verifiers
+├── trading/      (13)   # crypto_swap, price_oracle, pyth_oracle, chainlink_oracle, tokenized_stocks, solana_defi
+├── marketplace/  (15)   # public_api (split: shared/sandbox/discover/trading/tools), mcp_server, a2a_protocol
+├── agents/       (29)   # ceo_maxia (split: llm/memory/subagents/core), swarm, brain, scheduler, scout
+├── enterprise/   (12)   # billing, sso, metrics, audit_trail, tenant_isolation, stripe
+├── integrations/ (13)   # discord, telegram, twitter, reddit, kiteai, x402
+├── infra/        (10)   # alerts, preflight, scale_out, health_monitor, db_backup
+├── gpu/          (5)    # akash_client, runpod_client, gpu_api, gpu_pricing
+├── ai/           (5)    # llm_router, llm_service, image_gen, sentiment_analyzer
+├── features/     (21)   # gamification, streaming_payments, wallet_monitor, nft, governance
+├── billing/      (6)    # referral, prepaid_credits, subscriptions, api_keys
+└── routes/       (11)   # admin, forum, blog, pages, chain_api, escrow_api
+```
 
 **Core framework:**
 - `main.py` — FastAPI app, all route mounting, WebSocket manager, lifespan startup (DB init, scheduler, swarm)
-- `config.py` — all env vars, commission tiers, GPU tiers, content safety lists, pricing config
+- `core/config.py` — all env vars, commission tiers, GPU tiers, content safety lists, pricing config
 - `database.py` — PostgreSQL (prod via asyncpg) / SQLite (dev via aiosqlite), schema migrations via `schema_version` table
 - `models.py` — Pydantic request/response models
 - `auth.py` — JWT auth, `require_auth` dependency, `require_agent_sig_auth` (ed25519 DID signature auth)
@@ -109,8 +139,13 @@ Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.j
 - **Feature system**: Originally organized as 15 "Articles" (Art.1 = safety, Art.2 = commissions, Art.3 = oracle, etc.), now expanded to 47+ features including trading tools, analytics, and autonomous agent capabilities.
 - **Commission tiers (Marketplace/Escrow)**: BRONZE (1.5%, <$500), GOLD (0.5%, $500-5000), WHALE (0.1%, >$5000). **Swap**: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01% — configured in `config.py` and `crypto_swap.py`
 - **Content safety**: All user inputs must pass `check_content_safety()` from `security.py` (Art.1)
+- **Stablecoins**: USDC + USDT accepted on 9 chains (Solana, Base, ETH, Polygon, Arbitrum, Avalanche, BNB, TRON, TON)
+- **Prepaid credits**: Agents deposit USDC once → consume credits via API (zero gas per call). Endpoints: `/api/credits/deposit`, `/api/credits/balance`
+- **Streaming payments**: Pay-per-second for long services (GPU, monitoring). Endpoints: `/api/stream/create`, `/api/stream/stop`
+- **DeFi**: Live rates via DeFiLlama (Kamino, Solend, MarginFi lending + Marinade, Jito, BlazeStake staking + Orca, Raydium LP). Build unsigned Solana tx for wallet signing.
+- **SDK**: `pip install maxia` — 30 methods, sync httpx client. PyPI: https://pypi.org/project/maxia/
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
-- **AI models**: LLM Router with fallback chain: Groq `llama-3.3-70b-versatile` (rate limited 1req/10s) → Mistral Small → Claude Sonnet. CEO local: Qwen 3 14B (CEO), Qwen 3.5 9B (executor), Qwen 2.5-VL 7B (vision) on 7900XT.
+- **AI models**: LLM Router with fallback chain: Groq `llama-3.3-70b-versatile` (rate limited 1req/10s) → Mistral Small → Claude Sonnet. CEO local: desactive (GPU libre pour Aider/coding).
 - **Database**: PostgreSQL 17 in prod (asyncpg, pool 2-20), SQLite for dev. Schema migrations via `schema_version` table. Set `DATABASE_URL=postgresql://...` in `.env` for PostgreSQL.
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
 - **Security**: Security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options), SSRF protection, IP spoofing prevention, global exception handler + safe_error() (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation, Solana commitment `finalized`, Swagger/ReDoc disabled in prod, admin cookie opaque (session token), startup secret validation
