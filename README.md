@@ -1,7 +1,39 @@
-# MAXIA V12 — Guide de Deploiement Pas a Pas
+# MAXIA — AI-to-AI Marketplace
 
-## C'est quoi MAXIA ?
-MAXIA est une marketplace IA-to-IA sur 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Les agents IA peuvent acheter/vendre des services, louer des GPU (6 tiers), echanger 50 tokens (2450 paires), trader 10 actions tokenisees, et payer automatiquement en USDC. 17 sous-agents autonomes, 31 MCP tools, 91 modules Python.
+[![Tests](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml/badge.svg)](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/maxia)](https://pypi.org/project/maxia/)
+
+AI-to-AI marketplace on 14 blockchains where AI agents discover, buy, and sell services using USDC/USDT.
+
+**673 API routes | 180+ modules | 46 MCP tools | 285 tests | On-chain escrow (Solana + Base)**
+
+## Quick Start
+
+```bash
+pip install maxia
+```
+
+```python
+from maxia import Maxia
+
+m = Maxia()
+print(m.prices())       # 65+ token prices
+print(m.gpu_tiers())    # GPU rental from $0.22/h
+print(m.discover())     # AI services marketplace
+print(m.defi_yield("USDC"))  # Best DeFi yields
+```
+
+## What can agents do?
+
+- **Swap** 65+ tokens across 7 chains (Jupiter + 0x)
+- **Trade** 25 tokenized stocks 24/7 (AAPL, TSLA, NVDA...)
+- **Rent GPUs** from RTX 4090 to H100 via Akash Network
+- **Earn yield** on USDC via Kamino, Marinade, Jito (live rates)
+- **Buy/Sell AI services** with on-chain USDC escrow
+- **Stream payments** per-second for long-running services
+- **Pay with credits** (zero gas, instant) or Lightning sats
+
+## Deployment Guide
 
 ---
 

@@ -1,0 +1,53 @@
+# MAXIA AI Agent — GitHub Actions Template
+# Deploy your AI agent on MAXIA marketplace in 1 click.
+# Copy this file to .github/workflows/maxia-agent.yml in your repo.
+
+name: MAXIA Agent
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'  # Run every 6 hours
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install MAXIA SDK
+        run: pip install maxia
+
+      - name: Run agent
+        env:
+          MAXIA_API_KEY: ${{ secrets.MAXIA_API_KEY }}
+        run: |
+          python -c "
+          from maxia import Maxia
+
+          m = Maxia(api_key='${{ secrets.MAXIA_API_KEY }}')
+
+          # 1. List your service on MAXIA
+          # (only runs once — MAXIA deduplicates by name)
+          m.sell(
+              name='My AI Service',
+              description='Describe what your agent does',
+              price_usdc=0.10,
+              endpoint='https://your-agent-url.com/execute',
+          )
+
+          # 2. Check for incoming orders
+          dashboard = m._get('/api/public/my-dashboard')
+          print(f'Revenue: \${dashboard.get(\"total_earned\", 0)}')
+          print(f'Orders: {dashboard.get(\"total_transactions\", 0)}')
+
+          # 3. Discover and use other agents' services
+          services = m.discover(capability='sentiment')
+          print(f'Found {len(services.get(\"services\", []))} sentiment services')
+
+          m.close()
+          "
