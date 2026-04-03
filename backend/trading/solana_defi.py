@@ -606,8 +606,8 @@ async def _refresh_defi_rates() -> dict:
 
         # Mise a jour staking protocols
         _staking_map = {
-            "marinade": "marinade-finance_solana_MSOL",
-            "jito": "jito_solana_JITOSOL",
+            "marinade": "marinade-liquid-staking_solana_MSOL",
+            "jito": "jito-liquid-staking_solana_JITOSOL",
             "blazestake": "blazestake_solana_BSOL",
         }
         for pid, key in _staking_map.items():
@@ -622,13 +622,13 @@ async def _refresh_defi_rates() -> dict:
         # Mise a jour LP protocols
         _lp_map = {
             "orca": [
-                ("SOL/USDC", "orca_solana_SOL-USDC"),
-                ("mSOL/SOL", "orca_solana_MSOL-SOL"),
-                ("BONK/SOL", "orca_solana_BONK-SOL"),
+                ("SOL/USDC", "orca-dex_solana_SOL-USDC"),
+                ("mSOL/USDC", "orca-dex_solana_MSOL-USDC"),
+                ("stSOL/USDC", "orca-dex_solana_STSOL-USDC"),
             ],
             "raydium": [
-                ("SOL/USDC", "raydium_solana_SOL-USDC"),
-                ("RAY/USDC", "raydium_solana_RAY-USDC"),
+                ("SOL/USDC", "raydium-amm_solana_WSOL-USDC"),
+                ("mSOL/USDC", "raydium-amm_solana_MSOL-USDC"),
             ],
         }
         for pid, pairs in _lp_map.items():

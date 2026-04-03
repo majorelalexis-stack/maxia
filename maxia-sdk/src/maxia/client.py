@@ -617,3 +617,78 @@ class Maxia:
             "amount_usdc": amount_usdc,
             "chain": chain,
         })
+
+    # ------------------------------------------------------------------
+    # Solana DeFi (Lending, Borrowing, Staking)
+    # ------------------------------------------------------------------
+
+    def defi_lending(self) -> dict:
+        """List Solana lending protocols with live APY rates.
+
+        Example::
+
+            m = Maxia()
+            for p in m.defi_lending()["protocols"]:
+                print(p["name"], p["supply_apy"].get("USDC", 0))
+        """
+        return self._get("/api/defi/lending")
+
+    def defi_best_rate(self, asset: str = "USDC") -> dict:
+        """Find the best lending rate for an asset across all protocols.
+
+        Example::
+
+            m = Maxia()
+            best = m.defi_best_rate("USDC")
+            print(f"Best: {best['best_supply']['protocol']} at {best['best_supply']['apy']}%")
+        """
+        return self._get("/api/defi/lending/best", params={"asset": asset})
+
+    def defi_staking(self) -> dict:
+        """List Solana liquid staking protocols (Marinade, Jito, BlazeStake).
+
+        Example::
+
+            m = Maxia()
+            for p in m.defi_staking()["protocols"]:
+                print(p["name"], f"{p['apy']}% APY")
+        """
+        return self._get("/api/defi/staking")
+
+    def defi_lend(self, protocol: str, asset: str, amount: float, wallet: str) -> dict:
+        """Lend an asset to earn interest. Returns unsigned tx for wallet signing.
+
+        Args:
+            protocol: Lending protocol (``"kamino"``, ``"solend"``, ``"marginfi"``).
+            asset: Asset to lend (``"USDC"``, ``"SOL"``).
+            amount: Amount to lend.
+            wallet: Solana wallet address.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            tx = m.defi_lend("kamino", "USDC", 100.0, "So1ana...")
+            print(tx["transaction_b64"])  # Sign with wallet
+        """
+        self._require_key()
+        return self._post("/api/defi/lend", json={
+            "protocol": protocol, "asset": asset, "amount": amount, "wallet": wallet,
+        })
+
+    def defi_stake(self, protocol: str, amount: float, wallet: str) -> dict:
+        """Stake SOL via liquid staking (Marinade, Jito, BlazeStake).
+
+        Args:
+            protocol: Staking protocol (``"marinade"``, ``"jito"``, ``"blazestake"``).
+            amount: SOL amount to stake.
+            wallet: Solana wallet address.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            tx = m.defi_stake("marinade", 1.0, "So1ana...")
+        """
+        self._require_key()
+        return self._post("/api/defi/stake", json={
+            "protocol": protocol, "amount": amount, "wallet": wallet,
+        })
