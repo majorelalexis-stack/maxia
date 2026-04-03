@@ -386,6 +386,13 @@ SCROLL_USDC_CONTRACT    = "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4"
 SCROLL_USDT_CONTRACT    = "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df"
 TREASURY_ADDRESS_SCROLL = os.getenv("TREASURY_ADDRESS_SCROLL", "")
 
+# ── S50: Sonic (ex-Fantom) (19eme blockchain, EVM) ──
+SONIC_RPC              = os.getenv("SONIC_RPC", "https://rpc.soniclabs.com")
+SONIC_CHAIN_ID         = 146
+SONIC_USDC_CONTRACT    = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"  # USDC.e on Sonic
+SONIC_USDT_CONTRACT    = ""  # USDT not yet on Sonic
+TREASURY_ADDRESS_SONIC = os.getenv("TREASURY_ADDRESS_SONIC", "")
+
 # ── V12: TRON (10eme blockchain, non-EVM) ──
 TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
 TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")

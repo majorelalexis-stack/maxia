@@ -51,7 +51,7 @@ async def get_demand():
 async def chain_support():
     """What features are available on which chains. Honest transparency."""
     return {
-        "chains": 18,
+        "chains": 19,
         "features": {
             "swap": {"chains": ["solana", "ethereum", "base", "arbitrum", "polygon", "avalanche", "bnb"], "method": "Jupiter (Solana) + 1inch (EVM)", "tokens": 71},
             "tokenized_stocks": {"chains": ["solana", "ethereum", "arbitrum"], "method": "Jupiter + 1inch + Dinari", "stocks": 25},
@@ -61,8 +61,8 @@ async def chain_support():
             "bridge": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "optimism"], "method": "Li.Fi aggregator"},
             "wallet_analysis": {"chains": ["solana"], "method": "Helius DAS API"},
             "lightning": {"chains": ["bitcoin"], "method": "OpenNode L402 — micropayments in sats"},
-            "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron", "zksync", "linea", "scroll"], "method": "RPC + registries"},
-            "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei", "zksync", "linea", "scroll", "bitcoin"], "method": "USDC/USDT on-chain + Lightning sats", "stablecoins": ["USDC", "USDT"]},
+            "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron", "zksync", "linea", "scroll", "sonic"], "method": "RPC + registries"},
+            "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei", "zksync", "linea", "scroll", "sonic", "bitcoin"], "method": "USDC/USDT on-chain + Lightning sats", "stablecoins": ["USDC", "USDT"]},
         },
         "note": "Not all features are available on all chains. We prioritize where agents actually are.",
     }

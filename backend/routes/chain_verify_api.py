@@ -22,6 +22,7 @@ from core.config import (
     ZKSYNC_RPC, ZKSYNC_CHAIN_ID, ZKSYNC_USDC_CONTRACT, ZKSYNC_USDT_CONTRACT, TREASURY_ADDRESS_ZKSYNC,
     LINEA_RPC, LINEA_CHAIN_ID, LINEA_USDC_CONTRACT, LINEA_USDT_CONTRACT, TREASURY_ADDRESS_LINEA,
     SCROLL_RPC, SCROLL_CHAIN_ID, SCROLL_USDC_CONTRACT, SCROLL_USDT_CONTRACT, TREASURY_ADDRESS_SCROLL,
+    SONIC_RPC, SONIC_CHAIN_ID, SONIC_USDC_CONTRACT, TREASURY_ADDRESS_SONIC,
 )
 
 router = APIRouter(tags=["chain-verify"])
@@ -69,6 +70,9 @@ evm_verifiers = {
         [os.getenv("SCROLL_RPC", "https://rpc.scroll.io"), "https://scroll.drpc.org"],
         SCROLL_USDC_CONTRACT, TREASURY_ADDRESS_SCROLL,
         usdt_contract=SCROLL_USDT_CONTRACT),
+    "sonic": EvmVerifier("Sonic", SONIC_CHAIN_ID, "sonic-mainnet",
+        [os.getenv("SONIC_RPC", "https://rpc.soniclabs.com")],
+        SONIC_USDC_CONTRACT, TREASURY_ADDRESS_SONIC),
 }
 
 
