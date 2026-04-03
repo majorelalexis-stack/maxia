@@ -1,6 +1,6 @@
 """GPU Pricing Live — fetch les prix RunPod en temps reel via API GraphQL.
 
-0% markup : MAXIA facture exactement le prix RunPod Community Cloud.
+5% markup : MAXIA facture le prix RunPod Community Cloud + 5% marge.
 Les prix sont rafraichis toutes les 30 minutes.
 Fallback sur les prix statiques si l'API est down.
 
@@ -90,7 +90,8 @@ def _build_tiers_from_runpod(gpu_types: list) -> list:
 
     # local_7900xt retire — GPU utilise par le CEO local (Ollama + Qwen)
 
-    # 2. GPU RunPod — prix Community Cloud (le moins cher, 0% markup)
+    # 2. GPU RunPod — prix Community Cloud + 5% MAXIA markup
+    _MARKUP = 1.05  # 5% margin on RunPod cost
     for gpu in gpu_types:
         gpu_id = gpu.get("id", "")
         display = gpu.get("displayName", gpu_id)
@@ -104,8 +105,8 @@ def _build_tiers_from_runpod(gpu_types: list) -> list:
             existing = next((t for t in tiers if t["id"] == tier_id), None)
             if existing:
                 community = gpu.get("communityPrice") or 999
-                if community < existing["base_price_per_hour"]:
-                    existing["base_price_per_hour"] = round(community, 2)
+                if community < existing["base_price_per_hour"] / _MARKUP:
+                    existing["base_price_per_hour"] = round(community * _MARKUP, 2)
             continue
 
         # Prix Community Cloud (le plus bas)
@@ -119,7 +120,7 @@ def _build_tiers_from_runpod(gpu_types: list) -> list:
             "id": tier_id,
             "label": mapping["label"],
             "vram_gb": mapping["vram_gb"],
-            "base_price_per_hour": round(price, 2),
+            "base_price_per_hour": round(price * _MARKUP, 2),
             "runpod_id": gpu_id,
             "runpod_display": display,
             "live_price": True,
@@ -167,7 +168,7 @@ async def refresh_gpu_prices() -> list:
             for t in new_tiers:
                 src = "LIVE" if t.get("live_price") else ("LOCAL" if t.get("local") else "CALC")
                 logger.info(f"  {t['label']:20s} {t['vram_gb']:>3d}GB  ${t['base_price_per_hour']:.2f}/h  [{src}]")
-            logger.info(f"{len(new_tiers)} tiers mis a jour (prix live RunPod, 0% markup)")
+            logger.info(f"{len(new_tiers)} tiers mis a jour (prix live RunPod, 5% markup)")
             return new_tiers
         else:
             logger.warning("Pas assez de tiers construits — garde les prix actuels")
