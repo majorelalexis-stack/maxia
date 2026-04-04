@@ -105,7 +105,7 @@ def _hash_key(api_key: str) -> str:
 # E7 — KILL SWITCH: Self-Service Freeze
 # ══════════════════════════════════════════
 
-@router.post("/agent/kill-switch")
+@router.post("/my/kill-switch")
 async def kill_switch(x_api_key: str = Header(alias="X-API-Key", default="")):
     """Emergency kill switch — agent freezes itself. No admin needed.
     Frozen agents can only read, not write/spend. Unfreezing requires admin."""
@@ -149,7 +149,7 @@ async def kill_switch(x_api_key: str = Header(alias="X-API-Key", default="")):
             "agent": agent["name"],
             "frozen_at": now,
             "message": "Agent frozen. All write operations blocked. Contact admin to unfreeze.",
-            "unfreeze": "Admin only — POST /api/admin/agent/unfreeze",
+            "unfreeze": "Admin only — contact support to unfreeze",
         }
     except HTTPException:
         raise
@@ -163,7 +163,7 @@ class BudgetRequest(BaseModel):
     max_single_tx_usd: float = Field(..., gt=0, le=100000)
 
 
-@router.post("/agent/set-budget")
+@router.post("/my/set-budget")
 async def set_budget(req: BudgetRequest, x_api_key: str = Header(alias="X-API-Key", default="")):
     """Set custom daily spending budget. Agent can only lower their caps, not raise above trust level."""
     if not x_api_key:
@@ -206,7 +206,7 @@ async def set_budget(req: BudgetRequest, x_api_key: str = Header(alias="X-API-Ke
         raise HTTPException(500, safe_error("Budget update failed", e))
 
 
-@router.get("/agent/spend-summary")
+@router.get("/my/spend-summary")
 async def spend_summary(x_api_key: str = Header(alias="X-API-Key", default="")):
     """Real-time spending summary — today's spend, budget remaining, recent transactions."""
     if not x_api_key:
@@ -258,7 +258,7 @@ async def spend_summary(x_api_key: str = Header(alias="X-API-Key", default="")):
             "max_single_tx_usd": perms.get("max_single_tx_usd", 10),
             "trust_level": perms.get("trust_level", 0),
             "recent_transactions": recent_tx,
-            "kill_switch": "POST /api/public/agent/kill-switch",
+            "kill_switch": "POST /api/public/my/kill-switch",
         }
     except HTTPException:
         raise
@@ -272,7 +272,7 @@ class AlertRequest(BaseModel):
     webhook_url: str = Field("", max_length=500)
 
 
-@router.post("/agent/spend-alert")
+@router.post("/my/spend-alert")
 async def set_spend_alert(req: AlertRequest, x_api_key: str = Header(alias="X-API-Key", default="")):
     """Configure a spend alert — get notified when budget usage exceeds threshold."""
     if not x_api_key:
