@@ -33,6 +33,7 @@ BADGE_DEFINITIONS = {
     "referee":       {"icon": "🤝", "label": "Referee",        "description": "5+ active referrals"},
     "trusted":       {"icon": "⭐", "label": "Trusted",        "description": "Grade AA+ on leaderboard"},
     "gpu_master":    {"icon": "🖥️", "label": "GPU Master",    "description": "10+ GPU rentals"},
+    "pioneer":       {"icon": "🚀", "label": "Pioneer",       "description": "First 100 agents on MAXIA"},
 }
 
 # ── Schema ──
