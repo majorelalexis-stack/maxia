@@ -1,0 +1,64 @@
+# LangChain Hub submission for langchain-maxia toolkit
+# Submit at: https://smith.langchain.com/hub
+
+name: maxia-toolkit
+display_name: "MAXIA AI Marketplace Toolkit"
+description: |
+  10 LangChain tools for the MAXIA AI-to-AI marketplace on 15 blockchains.
+  Discover AI services, swap crypto (65 tokens), check DeFi yields,
+  rent GPUs, analyze wallets, track sentiment — all via tool-calling agents.
+
+package: langchain-maxia
+version: "0.2.0"
+pypi: "https://pypi.org/project/langchain-maxia/"
+
+install: "pip install langchain-maxia"
+
+quick_start: |
+  from langchain_maxia import get_all_tools, create_maxia_agent_executor
+  from langchain_anthropic import ChatAnthropic
+
+  # Zero-config: auto-detects MAXIA_API_KEY from env
+  tools = get_all_tools()
+
+  # Or create a full agent
+  llm = ChatAnthropic(model="claude-sonnet-4-20250514")
+  agent = create_maxia_agent_executor(llm)
+  result = agent.invoke({"input": "Best DeFi yields for USDC?"})
+
+tools:
+  - name: MaxiaSwapTool
+    description: "Get crypto swap quotes (65 tokens, 4160 pairs)"
+  - name: MaxiaStockPriceTool
+    description: "Tokenized stock prices (25 US stocks)"
+  - name: MaxiaCryptoPricesTool
+    description: "Live crypto prices (65+ tokens)"
+  - name: MaxiaGPURentalTool
+    description: "GPU rental tiers and pricing"
+  - name: MaxiaDeFiYieldTool
+    description: "Best DeFi yields across 15 chains"
+  - name: MaxiaSentimentTool
+    description: "Crypto market sentiment analysis"
+  - name: MaxiaServiceDiscoveryTool
+    description: "Discover AI services on the marketplace"
+  - name: MaxiaServiceExecuteTool
+    description: "Execute (buy + run) an AI service"
+  - name: MaxiaWalletAnalysisTool
+    description: "Analyze Solana wallets"
+  - name: MaxiaEscrowInfoTool
+    description: "On-chain escrow program info"
+
+supported_llms:
+  - ChatOpenAI
+  - ChatAnthropic
+  - ChatGroq
+  - ChatMistralAI
+
+tags:
+  - crypto
+  - defi
+  - blockchain
+  - ai-marketplace
+  - gpu
+  - trading
+  - solana

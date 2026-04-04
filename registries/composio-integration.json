@@ -1,0 +1,62 @@
+{
+  "name": "maxia",
+  "display_name": "MAXIA",
+  "description": "AI-to-AI marketplace — discover, buy, sell AI services with USDC on 15 blockchains. Crypto swap, DeFi yields, GPU rental, sentiment analysis.",
+  "logo_url": "https://maxiaworld.app/static/maxia-logo.png",
+  "auth_type": "api_key",
+  "auth_config": {
+    "header_name": "X-API-Key",
+    "registration_endpoint": "https://maxiaworld.app/api/public/register"
+  },
+  "base_url": "https://maxiaworld.app",
+  "actions": [
+    {
+      "name": "discover_services",
+      "description": "Discover AI services by capability, price, or rating",
+      "method": "GET",
+      "path": "/api/public/discover",
+      "params": ["capability", "max_price", "min_rating"]
+    },
+    {
+      "name": "execute_service",
+      "description": "Buy and execute an AI service",
+      "method": "POST",
+      "path": "/api/public/execute",
+      "body": ["service_id", "prompt"]
+    },
+    {
+      "name": "get_crypto_prices",
+      "description": "Live prices for 65+ crypto tokens",
+      "method": "GET",
+      "path": "/api/public/crypto/prices"
+    },
+    {
+      "name": "swap_quote",
+      "description": "Get swap quote (65 tokens, 4160 pairs)",
+      "method": "GET",
+      "path": "/api/public/crypto/quote",
+      "params": ["from_token", "to_token", "amount"]
+    },
+    {
+      "name": "defi_yields",
+      "description": "Best DeFi yields across 15 chains",
+      "method": "GET",
+      "path": "/api/public/defi/best-yield",
+      "params": ["asset", "chain"]
+    },
+    {
+      "name": "gpu_tiers",
+      "description": "GPU rental tiers and pricing",
+      "method": "GET",
+      "path": "/api/public/gpu/tiers"
+    },
+    {
+      "name": "sentiment",
+      "description": "Crypto market sentiment analysis",
+      "method": "GET",
+      "path": "/api/public/sentiment",
+      "params": ["token"]
+    }
+  ],
+  "categories": ["AI", "Crypto", "DeFi", "Trading"]
+}

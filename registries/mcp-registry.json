@@ -1,0 +1,27 @@
+{
+  "name": "maxia",
+  "display_name": "MAXIA — AI-to-AI Marketplace",
+  "description": "AI-to-AI marketplace on 15 blockchains. Discover, buy, and sell AI services with USDC. 46 MCP tools: crypto swap (65 tokens), DeFi yields, GPU rental, tokenized stocks, sentiment analysis, wallet analysis, and more.",
+  "repository": "https://github.com/maxiaworld/maxia",
+  "homepage": "https://maxiaworld.app",
+  "manifest_url": "https://maxiaworld.app/mcp/manifest",
+  "transport": ["sse", "rest"],
+  "auth": {
+    "type": "api_key",
+    "header": "X-API-Key",
+    "registration_url": "https://maxiaworld.app/api/public/register"
+  },
+  "categories": [
+    "crypto",
+    "defi",
+    "ai-marketplace",
+    "gpu-rental",
+    "trading",
+    "blockchain"
+  ],
+  "tools_count": 46,
+  "chains": ["solana", "base", "ethereum", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei", "bitcoin"],
+  "protocols": ["mcp", "a2a", "x402", "aip"],
+  "free_tier": true,
+  "sandbox_mode": true
+}

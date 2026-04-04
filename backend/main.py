@@ -304,13 +304,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Alert worker init error: %s", e)
 
-    # V12: Start task queue worker
-    try:
-        from agents.ceo_maxia import task_queue
-        t_taskq = asyncio.create_task(task_queue.worker())
-    except Exception as e:
-        logger.error("[MAXIA] Task queue init error: %s", e)
-        t_taskq = None
+    # CEO task queue — REMOVED (Plan CEO V4: CEO = local only)
 
     # Init file logger
     try:
@@ -348,6 +342,13 @@ async def lifespan(app: FastAPI):
         logger.info("[MAXIA] Streaming payments updater started (60s interval)")
     except Exception as e:
         logger.error("[MAXIA] Stream updater init error: %s", e)
+
+    # V12: WS Event Stream — periodic price + stats push to event subscribers
+    try:
+        from features.ws_events import start_periodic_events
+        await start_periodic_events()
+    except Exception as e:
+        logger.error("[MAXIA] WS events periodic init error: %s", e)
 
     # Telegram bot — REMOVED from lifespan: scheduler.py already starts run_telegram_bot()
     # as one of its tasks (line 75). Running it twice causes duplicate getUpdates polling,
@@ -387,20 +388,7 @@ async def lifespan(app: FastAPI):
         _flush_audit()
     except Exception:
         pass
-    # Save CEO memory
-    try:
-        from agents.ceo_maxia import ceo
-        ceo.memory.save()
-        logger.info("[MAXIA] CEO memory saved")
-    except Exception:
-        pass
-    # Stop task queue
-    try:
-        task_queue.stop()
-        if t_taskq:
-            t_taskq.cancel()
-    except Exception:
-        pass
+    # CEO memory + task queue — REMOVED (Plan CEO V4: CEO = local only)
     # Cancel all background tasks
     for t in [t1, t4]:
         try:
@@ -423,6 +411,12 @@ async def lifespan(app: FastAPI):
     try:
         t_alerts.cancel()
     except (NameError, Exception):
+        pass
+    # WS event stream periodic tasks
+    try:
+        from features.ws_events import stop_periodic_events
+        stop_periodic_events()
+    except Exception:
         pass
     # CEO VPS removed — no scheduler/scout to stop
     # Close connections
@@ -1078,13 +1072,7 @@ logger.info("[PagesInline] Pages + health + docs + versioning routes monte")
 # ── API Stats/Activity ──  (REMOVED — moved to admin_routes.py)
 # ── CEO API routes — kept as-is (already external) ──
 
-# ── CEO API routes (extracted to ceo_api.py) ──
-try:
-    from agents.ceo_api import router as ceo_api_router
-    app.include_router(ceo_api_router)
-    logger.info("[CEO-API] Routes montees")
-except Exception as e:
-    logger.error("[MAXIA] CEO API router error: %s", e)
+# CEO API routes — REMOVED (Plan CEO V4: CEO = local only, fichiers supprimes)
 
 # ── AI Forum (forum_api.py) ──
 from routes.forum_api import router as forum_api_router
@@ -1123,6 +1111,21 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Governance router error: %s", e)
 
+# ── Agent-to-Agent Messaging ──
+try:
+    from features.agent_messaging import router as messaging_router
+    app.include_router(messaging_router)
+    logger.info("[Messaging] Agent messaging routes monte (6 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Messaging router error: %s", e)
+
+# ── Webhooks (push notifications for agents) ──
+try:
+    from features.webhooks import router as webhooks_router
+    app.include_router(webhooks_router)
+    logger.info("[Webhooks] Webhook routes monte (4 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Webhooks router error: %s", e)
 
 
 
@@ -1131,6 +1134,14 @@ except Exception as e:
 # ═══════════════════════════════════════════════════════════
 app.include_router(ws_router)
 logger.info("[WS] 5 WebSocket endpoints monte (ws_handlers.py)")
+
+# ── WS Event Stream (real-time marketplace events for agents) ──
+try:
+    from features.ws_events import ws_events_endpoint
+    app.websocket("/ws/events")(ws_events_endpoint)
+    logger.info("[WS/events] Event stream endpoint monte (/ws/events)")
+except Exception as e:
+    logger.error("[MAXIA] WS events endpoint error: %s", e)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1178,3 +1189,19 @@ try:
     logger.info("[CHAIN-API] Routes montees")
 except Exception as e:
     logger.error("[MAXIA] Chain API router error: %s", e)
+
+# Empire V2 Sprint 1 — Auto-Discovery, Passport V2, Starter Templates
+try:
+    from marketplace.empire_v2 import router as empire_router
+    app.include_router(empire_router)
+    logger.info("[Empire] Sprint 1 (OpenAPI, Passport V2, Starter Templates) monte")
+except Exception as e:
+    logger.error("[MAXIA] Empire V2 router error: %s", e)
+
+# Empire V2 Sprint 2 — Reviews, Categories, Pioneer 100
+try:
+    from marketplace.empire_sprint2 import router as sprint2_router
+    app.include_router(sprint2_router)
+    logger.info("[Empire] Sprint 2 (Reviews, Categories, Pioneer 100) monte")
+except Exception as e:
+    logger.error("[MAXIA] Empire Sprint 2 router error: %s", e)

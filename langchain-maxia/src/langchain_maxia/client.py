@@ -21,14 +21,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 from typing import Any, Optional
 
 import httpx
 
 __all__ = ["MaxiaClient"]
 
+_log = logging.getLogger("langchain_maxia")
+
 _DEFAULT_BASE_URL = "https://maxiaworld.app"
 _DEFAULT_TIMEOUT = 30.0
+_MAX_RETRIES = 2
 
 
 class MaxiaClient:
@@ -37,14 +42,16 @@ class MaxiaClient:
     Parameters
     ----------
     api_key:
-        MAXIA API key (``maxia_...``). Required for authenticated
-        endpoints (execute, GPU rental, etc.). Free endpoints work
+        MAXIA API key (``maxia_...``). If empty, auto-detects from
+        ``MAXIA_API_KEY`` environment variable. Free endpoints work
         without a key.
     base_url:
         Base URL of the MAXIA instance. Defaults to the public
         production deployment at ``https://maxiaworld.app``.
     timeout:
         Request timeout in seconds. Defaults to 30.
+    max_retries:
+        Max retries on transient network errors. Defaults to 2.
     """
 
     def __init__(
@@ -52,10 +59,12 @@ class MaxiaClient:
         api_key: str = "",
         base_url: str = _DEFAULT_BASE_URL,
         timeout: float = _DEFAULT_TIMEOUT,
+        max_retries: int = _MAX_RETRIES,
     ) -> None:
-        self.api_key = api_key
+        self.api_key = api_key or os.getenv("MAXIA_API_KEY", "")
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_retries = max_retries
         self._client: Optional[httpx.AsyncClient] = None
 
     # ------------------------------------------------------------------
@@ -78,16 +87,32 @@ class MaxiaClient:
         return self._client
 
     async def _get(self, path: str, params: Optional[dict] = None) -> Any:
-        client = await self._get_client()
-        resp = await client.get(path, params=params)
-        resp.raise_for_status()
-        return resp.json()
+        last_err: Optional[Exception] = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                client = await self._get_client()
+                resp = await client.get(path, params=params)
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_err = e
+                if attempt < self.max_retries:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        raise last_err  # type: ignore[misc]
 
     async def _post(self, path: str, payload: Optional[dict] = None) -> Any:
-        client = await self._get_client()
-        resp = await client.post(path, json=payload or {})
-        resp.raise_for_status()
-        return resp.json()
+        last_err: Optional[Exception] = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                client = await self._get_client()
+                resp = await client.post(path, json=payload or {})
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.ConnectError, httpx.ReadTimeout) as e:
+                last_err = e
+                if attempt < self.max_retries:
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        raise last_err  # type: ignore[misc]
 
     async def close(self) -> None:
         """Close the underlying HTTP connection pool."""

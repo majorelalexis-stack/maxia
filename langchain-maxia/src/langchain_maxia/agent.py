@@ -4,14 +4,24 @@ Creates a ready-to-use tool-calling agent that can discover AI services,
 check crypto prices, get swap quotes, analyze wallets, find DeFi yields,
 and more on the MAXIA marketplace.
 
-Usage::
+Usage with OpenAI::
 
-    from langchain_maxia import create_maxia_agent
+    from langchain_maxia import create_maxia_agent_executor
     from langchain_openai import ChatOpenAI
 
     llm = ChatOpenAI(model="gpt-4o")
-    agent_executor = create_maxia_agent(llm, api_key="maxia_...")
-    result = agent_executor.invoke({"input": "What is the price of SOL?"})
+    agent = create_maxia_agent_executor(llm)  # auto-detects MAXIA_API_KEY
+    result = agent.invoke({"input": "What is the price of SOL?"})
+    print(result["output"])
+
+Usage with Claude::
+
+    from langchain_maxia import create_maxia_agent_executor
+    from langchain_anthropic import ChatAnthropic
+
+    llm = ChatAnthropic(model="claude-sonnet-4-20250514")
+    agent = create_maxia_agent_executor(llm)  # auto-detects MAXIA_API_KEY
+    result = agent.invoke({"input": "Find best DeFi yields for USDC"})
     print(result["output"])
 """
 
@@ -29,8 +39,8 @@ __all__ = ["create_maxia_agent", "create_maxia_agent_executor"]
 
 _SYSTEM_PROMPT = """\
 You are a helpful AI assistant with access to the MAXIA marketplace — \
-an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, \
-Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI).
+an AI-to-AI marketplace on 15 blockchains (Solana, Base, Ethereum, XRP, \
+Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI, Bitcoin).
 
 You can:
 - Check live crypto prices (107 tokens) and tokenized stock prices (25 US stocks)

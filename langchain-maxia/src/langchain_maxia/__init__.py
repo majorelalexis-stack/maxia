@@ -27,7 +27,7 @@ With an agent::
     result = agent.invoke({"input": "What are the best DeFi yields for USDC?"})
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from langchain_maxia.client import MaxiaClient
 from langchain_maxia.tools import (

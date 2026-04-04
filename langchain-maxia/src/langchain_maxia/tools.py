@@ -350,8 +350,8 @@ def get_all_tools(
     Parameters
     ----------
     api_key:
-        MAXIA API key. Required for authenticated tools (execute,
-        wallet analysis, etc.). Free tools work without a key.
+        MAXIA API key. Auto-detects ``MAXIA_API_KEY`` from env if empty.
+        Free tools work without a key.
     base_url:
         Base URL of the MAXIA instance.
 
@@ -359,6 +359,13 @@ def get_all_tools(
     -------
     list[BaseTool]
         All 10 MAXIA tools, ready to pass to a LangChain agent.
+
+    Example
+    -------
+    ::
+
+        # Zero-config — just set MAXIA_API_KEY in your environment
+        tools = get_all_tools()
     """
     client = MaxiaClient(api_key=api_key, base_url=base_url)
     return [
