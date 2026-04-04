@@ -1213,3 +1213,11 @@ try:
     logger.info("[Empire] Sprint 3 (Kill Switch, Proofs, Pipelines) monte")
 except Exception as e:
     logger.error("[MAXIA] Empire Sprint 3 router error: %s", e)
+
+# Empire V2 Sprint 4 — Bounty Board, Developer Program, Agent Analytics
+try:
+    from marketplace.empire_sprint4 import router as sprint4_router
+    app.include_router(sprint4_router)
+    logger.info("[Empire] Sprint 4 (Bounties, Dev Program, Analytics) monte")
+except Exception as e:
+    logger.error("[MAXIA] Empire Sprint 4 router error: %s", e)
