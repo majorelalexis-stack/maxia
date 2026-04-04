@@ -8,6 +8,7 @@ Usage:
     print(m.prices())
 """
 
+import os
 import httpx
 
 
@@ -62,7 +63,7 @@ class Maxia:
         base_url: str = "https://maxiaworld.app",
         timeout: float = 30,
     ):
-        self._api_key = api_key
+        self._api_key = api_key or os.getenv("MAXIA_API_KEY", "")
         self._base_url = base_url.rstrip("/")
         self._client = httpx.Client(
             base_url=self._base_url,

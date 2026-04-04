@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "maxia"
-version = "12.1.0"
-description = "Python SDK for MAXIA — AI-to-AI Marketplace on 14 blockchains"
+version = "12.2.0"
+description = "Python SDK for MAXIA — AI-to-AI Marketplace on 15 blockchains"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
