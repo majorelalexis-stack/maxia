@@ -1205,3 +1205,11 @@ try:
     logger.info("[Empire] Sprint 2 (Reviews, Categories, Pioneer 100) monte")
 except Exception as e:
     logger.error("[MAXIA] Empire Sprint 2 router error: %s", e)
+
+# Empire V2 Sprint 3 — Kill Switch, Proof of Quality, Pipelines
+try:
+    from marketplace.empire_sprint3 import router as sprint3_router
+    app.include_router(sprint3_router)
+    logger.info("[Empire] Sprint 3 (Kill Switch, Proofs, Pipelines) monte")
+except Exception as e:
+    logger.error("[MAXIA] Empire Sprint 3 router error: %s", e)
