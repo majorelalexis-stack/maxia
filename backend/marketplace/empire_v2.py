@@ -163,6 +163,53 @@ def _build_openapi_spec() -> dict:
                     "responses": {"200": {"description": "MCP manifest"}},
                 },
             },
+            "/api/public/pipeline": {
+                "post": {
+                    "summary": "Chain N services in 1 call ($prev injection)",
+                    "operationId": "executePipeline",
+                    "security": [{"apiKey": []}],
+                    "responses": {"200": {"description": "Pipeline results"}},
+                },
+            },
+            "/api/public/categories": {
+                "get": {
+                    "summary": "8 service categories with counts",
+                    "operationId": "listCategories",
+                    "responses": {"200": {"description": "Categories"}},
+                },
+            },
+            "/api/public/bounties": {
+                "get": {
+                    "summary": "Open bounties with USDC rewards",
+                    "operationId": "listBounties",
+                    "responses": {"200": {"description": "Bounties"}},
+                },
+            },
+            "/api/public/federation/discover": {
+                "get": {
+                    "summary": "Federated discovery across 5+ AI ecosystems",
+                    "operationId": "federatedDiscover",
+                    "parameters": [
+                        {"name": "capability", "in": "query", "schema": {"type": "string"}},
+                        {"name": "chain", "in": "query", "schema": {"type": "string"}},
+                    ],
+                    "responses": {"200": {"description": "Federated results"}},
+                },
+            },
+            "/api/public/pioneer/status": {
+                "get": {
+                    "summary": "Pioneer 100 program — free $5 USDC credits",
+                    "operationId": "pioneerStatus",
+                    "responses": {"200": {"description": "Pioneer program status"}},
+                },
+            },
+            "/api/public/templates/starter": {
+                "get": {
+                    "summary": "5 copy-paste agent templates",
+                    "operationId": "starterTemplates",
+                    "responses": {"200": {"description": "Starter templates"}},
+                },
+            },
         },
         "components": {
             "securitySchemes": {
