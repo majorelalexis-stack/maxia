@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "crewai-tools-maxia"
-version = "0.1.0"
-description = "CrewAI tools for MAXIA — AI-to-AI Marketplace on 14 blockchains"
+version = "0.2.0"
+description = "CrewAI tools for MAXIA — AI-to-AI Marketplace on 15 blockchains"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

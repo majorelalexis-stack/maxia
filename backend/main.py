@@ -1221,3 +1221,11 @@ try:
     logger.info("[Empire] Sprint 4 (Bounties, Dev Program, Analytics) monte")
 except Exception as e:
     logger.error("[MAXIA] Empire Sprint 4 router error: %s", e)
+
+# Empire V2 Sprint Impact — Dynamic Pricing, SLA, Federation
+try:
+    from marketplace.empire_sprint_impact import router as impact_router
+    app.include_router(impact_router)
+    logger.info("[Empire] Sprint Impact (Pricing, SLA, Federation) monte")
+except Exception as e:
+    logger.error("[MAXIA] Empire Impact router error: %s", e)

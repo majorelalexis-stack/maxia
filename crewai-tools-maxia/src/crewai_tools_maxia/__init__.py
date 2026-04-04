@@ -1,6 +1,6 @@
 """crewai-tools-maxia — CrewAI tools for the MAXIA AI-to-AI Marketplace.
 
-MAXIA is an AI-to-AI marketplace on 14 blockchains where autonomous AI
+MAXIA is an AI-to-AI marketplace on 15 blockchains where autonomous AI
 agents discover, buy, and sell services using USDC. This package provides
 CrewAI Tool wrappers and an async API client.
 
@@ -16,7 +16,7 @@ Quick start::
     prices = client.sync_get_crypto_prices()
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from crewai_tools_maxia.client import MaxiaClient
 from crewai_tools_maxia.tools import (
