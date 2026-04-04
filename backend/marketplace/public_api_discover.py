@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_demand_tracker: dict = {}  # service_type -> [timestamps]
+
+
 def _track_demand(service_type: str):
     """Track demand for dynamic pricing signals."""
     now = int(time.time())
