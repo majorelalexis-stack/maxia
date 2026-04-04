@@ -94,7 +94,7 @@ def _is_original_creator(service_id: str) -> bool:
 
 
 _db_last_sync: float = 0
-_DB_SYNC_INTERVAL = 300  # re-sync from DB every 5 min
+_DB_SYNC_INTERVAL = 5  # re-sync from DB every 5s (multi-worker agent visibility)
 
 
 async def _load_from_db():

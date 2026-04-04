@@ -187,15 +187,8 @@ async def get_activity(request: Request, limit: int = 30):
 
 @router.post("/api/admin/ceo-reset-emergency")
 async def ceo_reset_emergency(request: Request):
-    """Reset l'emergency stop du CEO."""
-    from core.security import require_admin
-    require_admin(request)
-    try:
-        from agents.ceo_maxia import ceo
-        ceo.reset_emergency()
-        return {"status": "ok", "emergency_stop": False}
-    except Exception as e:
-        return safe_error(e, "operation")
+    """Reset l'emergency stop du CEO — REMOVED (CEO = local only)."""
+    return {"status": "removed", "message": "CEO moved to local-only (Plan CEO V4)"}
 
 
 # ══════════════════════════════════════════
@@ -487,37 +480,19 @@ async def admin_disable_agent(request: Request):
     """Desactive un sous-agent specifique (kill switch granulaire)."""
     from core.security import require_admin
     require_admin(request)
-    body = await request.json()
-    agent_name = body.get("agent", "")
-    reason = body.get("reason", "manual")
-    if not agent_name:
-        return {"error": "agent name required"}
-    from agents.ceo_maxia import ceo
-    ceo.disable_agent(agent_name, reason)
-    return {"success": True, "disabled": agent_name, "reason": reason}
+    """Desactive un sous-agent — REMOVED (CEO = local only)."""
+    return {"status": "removed", "message": "CEO moved to local-only (Plan CEO V4)"}
 
 
 @router.post("/api/admin/ceo/enable-agent")
 async def admin_enable_agent(request: Request):
-    """Reactive un sous-agent."""
-    from core.security import require_admin
-    require_admin(request)
-    body = await request.json()
-    agent_name = body.get("agent", "")
-    if not agent_name:
-        return {"error": "agent name required"}
-    from agents.ceo_maxia import ceo
-    ceo.enable_agent(agent_name)
-    return {"success": True, "enabled": agent_name}
+    """Reactive un sous-agent — REMOVED (CEO = local only)."""
+    return {"status": "removed", "message": "CEO moved to local-only (Plan CEO V4)"}
 
 
 @router.get("/api/twitter/status")
 async def twitter_status():
-    try:
-        from integrations.twitter_bot import get_stats
-        return get_stats()
-    except Exception as e:
-        return {"error": "An error occurred", "configured": False}
+    return {"status": "removed", "message": "Twitter bot moved to CEO local (Plan CEO V4)"}
 
 
 @router.get("/api/reddit/status")
@@ -531,21 +506,12 @@ async def reddit_status():
 
 @router.get("/api/outreach/status")
 async def outreach_status():
-    """Get agent outreach bot statistics."""
-    try:
-        from agents.agent_outreach import get_stats
-        return get_stats()
-    except Exception as e:
-        return safe_error(e, "operation")
+    return {"status": "removed", "message": "Outreach moved to CEO local (Plan CEO V4)"}
 
 
 @router.post("/api/admin/outreach-now")
 async def admin_outreach_now(request: Request):
-    """Manually trigger an outreach cycle. Admin only."""
-    from core.security import require_admin
-    require_admin(request)
-    from agents.agent_outreach import run_outreach_cycle
-    return await run_outreach_cycle()
+    return {"status": "removed", "message": "Outreach moved to CEO local (Plan CEO V4)"}
 
 
 @router.get("/MAXIA_DOCS.md")
@@ -575,14 +541,8 @@ async def admin_reddit_post(request: Request):
 
 @router.get("/api/watchdog/health")
 async def watchdog_health(request: Request):
-    """Run health check on all endpoints. Admin only."""
-    from core.security import require_admin
-    require_admin(request)
-    try:
-        from agents.ceo_maxia import watchdog_health_check
-        return await watchdog_health_check()
-    except Exception as e:
-        return safe_error(e, "operation")
+    """Watchdog health check — REMOVED (CEO = local only)."""
+    return {"status": "removed", "message": "CEO moved to local-only (Plan CEO V4)"}
 
 
 @router.get("/api/admin/backups")
@@ -649,8 +609,7 @@ async def admin_post_tweet(request: Request):
         text = body.get("text", "")
         if not text:
             return {"error": "text required"}
-        from integrations.twitter_bot import post_tweet
-        return await post_tweet(text)
+        return {"status": "removed", "message": "Twitter bot moved to CEO local (Plan CEO V4)"}
     except Exception as e:
         return safe_error(e, "operation")
 

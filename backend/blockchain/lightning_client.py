@@ -1,27 +1,24 @@
-"""MAXIA Lightning Network Client — Bitcoin micropayments via OpenNode API.
+"""MAXIA Lightning Network Client — Bitcoin micropayments via ln.bot API.
 
 Handles invoice creation, payment verification, and withdrawals.
-OpenNode auto-converts BTC to USD (1% fee).
+ln.bot: zero monthly fee, pay-per-outbound-tx only, AI-agent native.
 
 Env vars:
-  OPENNODE_API_KEY  — API key from opennode.com
-  OPENNODE_ENV      — "live" or "dev" (default: live)
+  LNBOT_API_KEY    — Wallet key (wk_...) from ln.bot
+  LNBOT_WALLET_ID  — Wallet ID (wal_...) from ln.bot
 """
 import logging
 import time
-from typing import Optional
 
-import httpx
 from core.http_client import get_http_client
-from core.config import get_rpc_url
 
 logger = logging.getLogger(__name__)
 
 # ── Config ──
 import os
-OPENNODE_API_KEY = os.getenv("OPENNODE_API_KEY", "")
-OPENNODE_ENV = os.getenv("OPENNODE_ENV", "live")
-_BASE_URL = "https://api.opennode.com" if OPENNODE_ENV == "live" else "https://dev-api.opennode.com"
+LNBOT_API_KEY = os.getenv("LNBOT_API_KEY", "")
+LNBOT_WALLET_ID = os.getenv("LNBOT_WALLET_ID", "")
+_BASE_URL = "https://api.ln.bot"
 
 # ── BTC price cache ──
 _btc_price_cache: float = 0.0
@@ -85,52 +82,51 @@ async def create_invoice(
     callback_url: str = "",
     order_id: str = "",
 ) -> dict:
-    """Create a Lightning invoice via OpenNode.
+    """Create a Lightning invoice via ln.bot.
 
     Args:
         amount_sats: Amount in satoshis.
         description: Invoice description.
-        callback_url: Webhook URL for payment notification.
-        order_id: Optional order ID for idempotency.
+        callback_url: Unused (ln.bot uses webhooks configured per wallet).
+        order_id: Optional reference for tracking.
 
     Returns:
         Dict with id, lightning_invoice (bolt11), amount, status, expires_at.
     """
-    if not OPENNODE_API_KEY:
-        return {"success": False, "error": "OPENNODE_API_KEY not configured"}
+    if not LNBOT_API_KEY or not LNBOT_WALLET_ID:
+        return {"success": False, "error": "LNBOT_API_KEY or LNBOT_WALLET_ID not configured"}
 
     try:
         client = get_http_client()
         body = {
             "amount": amount_sats,
-            "description": description[:200],
-            "currency": "btc",
+            "memo": description[:200],
         }
-        if callback_url:
-            body["callback_url"] = callback_url
         if order_id:
-            body["order_id"] = order_id
+            body["reference"] = order_id
 
         resp = await client.post(
-            f"{_BASE_URL}/v1/charges",
+            f"{_BASE_URL}/v1/wallets/{LNBOT_WALLET_ID}/invoices",
             json=body,
-            headers={"Authorization": OPENNODE_API_KEY, "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {LNBOT_API_KEY}", "Content-Type": "application/json"},
             timeout=15,
         )
-        data = resp.json().get("data", {})
+        if resp.status_code >= 400:
+            return {"success": False, "error": resp.text[:200]}
 
-        if not data.get("id"):
+        data = resp.json()
+
+        if not data.get("bolt11"):
             return {"success": False, "error": resp.text[:200]}
 
         return {
             "success": True,
-            "id": data["id"],
-            "lightning_invoice": data.get("lightning_invoice", {}).get("payreq", ""),
+            "id": str(data.get("number", "")),
+            "lightning_invoice": data.get("bolt11", ""),
             "amount_sats": amount_sats,
-            "amount_btc": data.get("amount", 0),
-            "status": data.get("status", "unpaid"),
-            "expires_at": data.get("lightning_invoice", {}).get("expires_at", 0),
-            "chain_invoice": data.get("chain_invoice", {}).get("address", ""),
+            "amount_btc": amount_sats / 100_000_000,
+            "status": "unpaid" if data.get("status") == "pending" else data.get("status", "unpaid"),
+            "expires_at": data.get("expiresAt", ""),
         }
     except Exception as e:
         logger.error("[Lightning] Create invoice error: %s", e)
@@ -140,29 +136,40 @@ async def create_invoice(
 async def check_payment(charge_id: str) -> dict:
     """Check the status of a Lightning payment.
 
+    Args:
+        charge_id: Invoice number (from create_invoice id field).
+
     Returns:
         Dict with id, status ("paid", "unpaid", "expired"), amount, settled_at.
     """
-    if not OPENNODE_API_KEY:
-        return {"success": False, "error": "OPENNODE_API_KEY not configured"}
+    if not LNBOT_API_KEY or not LNBOT_WALLET_ID:
+        return {"success": False, "error": "LNBOT_API_KEY or LNBOT_WALLET_ID not configured"}
 
     try:
         client = get_http_client()
         resp = await client.get(
-            f"{_BASE_URL}/v1/charge/{charge_id}",
-            headers={"Authorization": OPENNODE_API_KEY},
+            f"{_BASE_URL}/v1/wallets/{LNBOT_WALLET_ID}/invoices/{charge_id}",
+            headers={"Authorization": f"Bearer {LNBOT_API_KEY}"},
             timeout=10,
         )
-        data = resp.json().get("data", {})
+        if resp.status_code >= 400:
+            return {"success": False, "error": resp.text[:200]}
+
+        data = resp.json()
+
+        # ln.bot status: "pending" or "settled"
+        lnbot_status = data.get("status", "unknown")
+        is_paid = lnbot_status == "settled"
+        normalized_status = "paid" if is_paid else "unpaid"
 
         return {
             "success": True,
-            "id": data.get("id", charge_id),
-            "status": data.get("status", "unknown"),
+            "id": str(data.get("number", charge_id)),
+            "status": normalized_status,
             "amount_sats": data.get("amount", 0),
-            "paid": data.get("status") == "paid",
-            "settled_at": data.get("settled_at"),
-            "fee_sats": data.get("fee", 0),
+            "paid": is_paid,
+            "settled_at": data.get("settledAt"),
+            "fee_sats": 0,
         }
     except Exception as e:
         logger.error("[Lightning] Check payment error: %s", e)
@@ -170,37 +177,37 @@ async def check_payment(charge_id: str) -> dict:
 
 
 async def withdraw(amount_sats: int, address: str, callback_url: str = "") -> dict:
-    """Withdraw sats to a Lightning address or invoice.
+    """Send sats to a Lightning address or invoice via ln.bot.
 
     Args:
-        amount_sats: Amount to withdraw in satoshis.
+        amount_sats: Amount to send in satoshis.
         address: Lightning invoice (bolt11) or Lightning address (user@domain).
-        callback_url: Optional webhook for withdrawal status.
+        callback_url: Unused (ln.bot uses webhooks configured per wallet).
     """
-    if not OPENNODE_API_KEY:
-        return {"success": False, "error": "OPENNODE_API_KEY not configured"}
+    if not LNBOT_API_KEY or not LNBOT_WALLET_ID:
+        return {"success": False, "error": "LNBOT_API_KEY or LNBOT_WALLET_ID not configured"}
 
     try:
         client = get_http_client()
         body = {
-            "type": "ln",
+            "target": address,
             "amount": amount_sats,
-            "address": address,
         }
-        if callback_url:
-            body["callback_url"] = callback_url
 
         resp = await client.post(
-            f"{_BASE_URL}/v2/withdrawals",
+            f"{_BASE_URL}/v1/wallets/{LNBOT_WALLET_ID}/payments",
             json=body,
-            headers={"Authorization": OPENNODE_API_KEY, "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {LNBOT_API_KEY}", "Content-Type": "application/json"},
             timeout=15,
         )
-        data = resp.json().get("data", {})
+        if resp.status_code >= 400:
+            return {"success": False, "error": resp.text[:200]}
+
+        data = resp.json()
 
         return {
-            "success": bool(data.get("id")),
-            "id": data.get("id", ""),
+            "success": data.get("status") == "settled",
+            "id": str(data.get("number", "")),
             "status": data.get("status", "unknown"),
             "amount_sats": amount_sats,
         }

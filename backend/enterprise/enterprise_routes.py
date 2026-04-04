@@ -22,59 +22,9 @@ async def event_stream(request: Request):
         raise HTTPException(403, "Unauthorized — provide X-Admin-Key header or valid session cookie")
     from starlette.responses import StreamingResponse
 
+    # CEO SSE stream — REMOVED (Plan CEO V4: CEO = local only)
     async def generate():
-        last_decision_count = 0
-        last_conversation_count = 0
-        last_bus_processed = 0
-        last_error_count = 0
-        while True:
-            try:
-                from agents.ceo_maxia import ceo, agent_bus
-                status = ceo.get_status()
-                stats = status.get("stats", {})
-                decisions = stats.get("decisions", 0)
-                conversations = stats.get("conversations", 0)
-                errors = stats.get("erreurs", 0)
-                bus_stats = agent_bus.get_stats()
-                bus_processed = bus_stats.get("processed", 0)
-
-                changed = (
-                    decisions != last_decision_count
-                    or conversations != last_conversation_count
-                    or bus_processed != last_bus_processed
-                    or errors != last_error_count
-                )
-
-                if changed:
-                    last_decision_count = decisions
-                    last_conversation_count = conversations
-                    last_bus_processed = bus_processed
-                    last_error_count = errors
-
-                    event_data = json.dumps({
-                        "type": "ceo_update",
-                        "ts": int(time.time()),
-                        "cycle": status.get("cycle", 0),
-                        "running": status.get("running", False),
-                        "emergency": status.get("emergency_stop", False),
-                        "health": status.get("agents", {}).get("ANALYTICS", {}).get("health_score", 0),
-                        "decisions": decisions,
-                        "conversations": conversations,
-                        "errors": errors,
-                        "revenue": stats.get("revenue", 0),
-                        "clients": stats.get("clients", 0),
-                        "bus": {"pending": bus_stats.get("pending", 0), "processed": bus_processed},
-                        "disabled_agents": list(status.get("disabled_agents", {}).keys()),
-                        "crises": len([c for c in status.get("agents", {}).values() if isinstance(c, dict) and c.get("status") == "pause_crise"]),
-                        "last_bus_messages": bus_stats.get("recent", [])[-2:],
-                    })
-                    yield f"data: {event_data}\n\n"
-                else:
-                    # Heartbeat every 30s even if no change
-                    yield f": heartbeat {int(time.time())}\n\n"
-            except Exception:
-                yield f": error {int(time.time())}\n\n"
-            await asyncio.sleep(5)
+        yield f"data: {json.dumps({'type': 'ceo_removed', 'message': 'CEO moved to local-only'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

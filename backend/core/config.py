@@ -409,6 +409,9 @@ TREASURY_ADDRESS_CARDANO = os.getenv("TREASURY_ADDRESS_CARDANO", "")
 SUBSCAN_API_KEY         = os.getenv("SUBSCAN_API_KEY", "")
 TREASURY_ADDRESS_POLKADOT = os.getenv("TREASURY_ADDRESS_POLKADOT", "")
 
+# ── Bitcoin (on-chain verification via Mempool.space + Lightning via ln.bot) ──
+TREASURY_ADDRESS_BITCOIN = os.getenv("TREASURY_ADDRESS_BITCOIN", "")
+
 # ── V12: TRON (10eme blockchain, non-EVM) ──
 TRON_API_URL = os.getenv("TRON_API_URL", "https://api.trongrid.io")
 TREASURY_ADDRESS_TRON = os.getenv("TREASURY_ADDRESS_TRON", "")

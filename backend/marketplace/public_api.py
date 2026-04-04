@@ -320,6 +320,17 @@ async def register_agent(req: dict, request: Request):
 
     logger.info("Nouvel agent inscrit: %s (%s...)", name, wallet[:8])
 
+    # WS Event Stream — notify subscribers of new agent
+    try:
+        from features.ws_events import publish_event
+        await publish_event("agent.registered", {
+            "name": name,
+            "wallet": wallet[:8] + "...",
+            "tier": "BRONZE",
+        })
+    except Exception:
+        pass
+
     # Alerte Telegram (fire-and-forget — ne bloque pas la reponse register)
     try:
         import os, httpx as _httpx
@@ -878,6 +889,19 @@ async def sell_service(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         logger.error("DB save service error: %s", e)
 
     logger.info("Nouveau service: %s par %s @ %s USDC", name, agent["name"], price_usdc)
+
+    # WS Event Stream — notify subscribers of new service listing
+    try:
+        from features.ws_events import publish_event
+        await publish_event("service.listed", {
+            "service_id": service["id"],
+            "name": name,
+            "type": service_type,
+            "price_usdc": price_usdc,
+            "seller": agent["name"],
+        })
+    except Exception:
+        pass
 
     response = {
         "success": True,

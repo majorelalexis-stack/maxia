@@ -60,7 +60,7 @@ async def chain_support():
             "defi_yields": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "near"], "method": "DeFiLlama + direct protocol APIs"},
             "bridge": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "optimism"], "method": "Li.Fi aggregator"},
             "wallet_analysis": {"chains": ["solana"], "method": "Helius DAS API"},
-            "lightning": {"chains": ["bitcoin"], "method": "OpenNode L402 — micropayments in sats"},
+            "lightning": {"chains": ["bitcoin"], "method": "ln.bot L402 — micropayments in sats"},
             "scout_scan": {"chains": ["solana", "ethereum", "base", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "near", "aptos", "sei", "xrp", "tron", "zksync", "linea", "scroll", "sonic", "cosmos", "hedera", "cardano", "polkadot"], "method": "RPC + registries"},
             "payments": {"chains": ["solana", "ethereum", "base", "xrp", "polygon", "arbitrum", "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei", "zksync", "linea", "scroll", "sonic", "cosmos", "hedera", "cardano", "polkadot", "bitcoin"], "method": "USDC/USDT on-chain + Lightning sats + IBC", "stablecoins": ["USDC", "USDT"]},
         },
@@ -541,6 +541,17 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
         except Exception:
             pass
 
+        # WS Event Stream — notify subscribers of service execution
+        try:
+            from features.ws_events import publish_event
+            await publish_event("service.executed", {
+                "service_id": service_id,
+                "price_usdc": price,
+                "execution": "native",
+            })
+        except Exception:
+            pass
+
         return {
             "success": True, "tx_id": tx["tx_id"],
             "service": service_id, "seller": "MAXIA",
@@ -751,6 +762,18 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     except Exception:
         pass
 
+    # WS Event Stream — notify subscribers of service execution (anonymized)
+    try:
+        from features.ws_events import publish_event
+        await publish_event("service.executed", {
+            "service_id": service_id,
+            "service_name": service["name"],
+            "price_usdc": price,
+            "execution": execution_method,
+        })
+    except Exception:
+        pass
+
     return {
         "success": True, "tx_id": tx["tx_id"],
         "service": service["name"], "seller": service["agent_name"],
@@ -792,23 +815,49 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
 
     try:
         from ai.llm_router import router as llm_router
-        result = await llm_router.call(prompt=prompt, system=sys_prompt, max_tokens=1500)
+        result = await asyncio.wait_for(
+            llm_router.call(prompt=prompt, system=sys_prompt, max_tokens=1500, timeout=25.0),
+            timeout=40,
+        )
         if result:
             return result
+    except asyncio.TimeoutError:
+        logger.warning("LLM Router timeout (40s)")
     except Exception as e:
         logger.error("LLM Router error: %s", e)
 
-    # Direct Groq fallback (legacy)
+    # Direct Groq httpx fallback (legacy)
     try:
-        if groq_client:
-            def _call():
-                resp = groq_client.chat.completions.create(
-                    model=GROQ_MODEL,
-                    messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": prompt}],
-                    max_tokens=1500, temperature=0.7,
-                )
-                return resp.choices[0].message.content.strip()
-            return await asyncio.to_thread(_call)
+        if GROQ_API_KEY:
+            from core.http_client import get_http_client
+            client = get_http_client()
+            resp = await asyncio.wait_for(
+                client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {GROQ_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": GROQ_MODEL,
+                        "messages": [
+                            {"role": "system", "content": sys_prompt},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "max_tokens": 1500,
+                        "temperature": 0.7,
+                    },
+                    timeout=25.0,
+                ),
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            choices = data.get("choices", [])
+            if choices:
+                return choices[0]["message"]["content"].strip()
+    except asyncio.TimeoutError:
+        logger.warning("Groq fallback timeout (30s)")
     except Exception as e:
         logger.error("Groq fallback error: %s", e)
 

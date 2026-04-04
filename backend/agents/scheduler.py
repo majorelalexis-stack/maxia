@@ -20,15 +20,8 @@ def _safe_task(coro, name: str):
 # Imports avec fallback si module absent
 async def _noop(): pass
 
-try:
-    from integrations.discord_bot import run_discord_bot
-except ImportError:
-    run_discord_bot = _noop
-
-try:
-    from integrations.telegram_bot import run_telegram_bot
-except ImportError:
-    run_telegram_bot = _noop
+# Bots removed (Plan CEO V4: CEO = local only)
+# telegram_bot, discord_bot, twitter_bot, agent_outreach: fichiers supprimes
 
 try:
     from features.wallet_monitor import run_monitor_loop
@@ -36,19 +29,9 @@ except ImportError:
     run_monitor_loop = _noop
 
 try:
-    from integrations.twitter_bot import run_twitter_bot
-except ImportError:
-    run_twitter_bot = _noop
-
-try:
     from integrations.reddit_bot import run_reddit_bot
 except ImportError:
     run_reddit_bot = _noop
-
-try:
-    from agents.agent_outreach import run_outreach_bot
-except ImportError:
-    run_outreach_bot = _noop
 
 
 class Scheduler:
@@ -61,31 +44,14 @@ class Scheduler:
         self._running = True
         logger.info("Demarrage de tous les agents V12...")
 
-        # Importer le CEO
-        try:
-            from agents.ceo_maxia import ceo
-            ceo_available = True
-            logger.info("CEO MAXIA charge")
-        except Exception as e:
-            ceo_available = False
-            logger.warning("CEO MAXIA non disponible: %s", e)
-
+        # CEO, growth_agent, discord, telegram, twitter, outreach: REMOVED (Plan CEO V4)
         tasks = [
             asyncio.create_task(_safe_task(brain.run(db), "brain")),
-            asyncio.create_task(_safe_task(growth_agent.run(), "growth_agent")),
             asyncio.create_task(_safe_task(agent_worker.run(), "agent_worker")),
-            asyncio.create_task(_safe_task(run_discord_bot(), "discord_bot")),
-            asyncio.create_task(_safe_task(run_telegram_bot(), "telegram_bot")),
-            asyncio.create_task(_safe_task(run_twitter_bot(), "twitter_bot")),
             asyncio.create_task(_safe_task(run_reddit_bot(), "reddit_bot")),
-            asyncio.create_task(_safe_task(run_outreach_bot(), "outreach_bot")),
             asyncio.create_task(_safe_task(run_monitor_loop(), "monitor_loop")),
-            asyncio.create_task(self._health_monitor(brain, growth_agent)),
+            asyncio.create_task(self._health_monitor(brain)),
         ]
-
-        # Ajouter le CEO si disponible
-        if ceo_available:
-            tasks.append(asyncio.create_task(_safe_task(ceo.run(), "ceo")))
 
         # V13: Background tasks (PoD liveness, leaderboard, SLA, auctions)
         tasks.append(asyncio.create_task(_safe_task(self._v13_background_loop(), "v13_background")))
@@ -93,16 +59,11 @@ class Scheduler:
         self._tasks = tasks
 
         startup_msg = (
-            "Tous les agents sont actifs :\n"
-            "🧠 Cerveau (pricing dynamique + scale-out)\n"
-            "🎯 Marketing ultra-cible (10/jour, 7 profils)\n"
-            "🤖 Worker IA (Groq LLaMA 3.3)\n"
+            "Agents VPS actifs :\n"
+            "Brain (pricing dynamique + scale-out)\n"
+            "Worker IA (Groq LLaMA 3.3)\n"
+            "CEO = local only (Plan CEO V4)\n"
         )
-        if ceo_available:
-            startup_msg += (
-                "👔 CEO MAXIA (4 boucles, 17 agents, 3 cerveaux)\n"
-                "   Objectif: 10 000 euros/mois | Moins cher partout"
-            )
 
         await alert_system("MAXIA V12 Systeme demarre", startup_msg)
 
@@ -116,33 +77,16 @@ class Scheduler:
         for t in self._tasks:
             t.cancel()
 
-    async def _health_monitor(self, brain, growth_agent):
+    async def _health_monitor(self, brain):
         while self._running:
             try:
                 bs = brain.get_stats()
-                gs = growth_agent.get_stats()
                 dp = bs.get("dynamic_pricing", {})
                 so = bs.get("scale_out", {})
-
-                # CEO status
-                ceo_status = ""
-                try:
-                    from agents.ceo_maxia import ceo
-                    cs = ceo.get_status()
-                    ceo_status = (
-                        f" | CEO:cycle#{cs['cycle']}"
-                        f" rev:${cs['stats']['revenue']}"
-                        f" clients:{cs['stats']['clients']}"
-                    )
-                except Exception:
-                    pass
-
                 logger.info(
-                    "Brain:%s | Prospects:%s/%s | Budget:%.0f$ | "
-                    "Pricing adj:%sbps | Workers:%s | Up:%s%s",
-                    bs['tier'], gs['prospects_today'], gs['max_per_day'],
-                    bs['budget_remaining'], dp.get('adjustment_bps', 0),
-                    so.get('active_workers', 0), bs['uptime_human'], ceo_status
+                    "Brain:%s | Budget:%.0f$ | Pricing adj:%sbps | Workers:%s | Up:%s",
+                    bs['tier'], bs['budget_remaining'], dp.get('adjustment_bps', 0),
+                    so.get('active_workers', 0), bs['uptime_human']
                 )
             except Exception as e:
                 logger.error("Health err: %s", e)
@@ -261,25 +205,7 @@ class Scheduler:
                         if "No module" not in str(e):
                             logger.error("[Newsletter] Digest error: %s", e)
 
-                # Toutes les semaines (2016 cycles) : CEO auto-blog (1 article/semaine)
-                if _cycle % 2016 == 100:  # Offset from newsletter to avoid collision
-                    try:
-                        from agents.ceo_maxia import deployer_blog_post, ceo
-                        if ceo and hasattr(ceo, 'memory'):
-                            topics = [
-                                ("How AI Agents Trade Services on Solana", "MAXIA escrow, USDC payments, 14 chains"),
-                                ("MCP Protocol: 46 Tools for AI Agents", "MCP server, tool discovery, agent integration"),
-                                ("GPU Rental via Akash: Cheaper Than AWS", "Akash 6 tiers, 15% markup, decentralized compute"),
-                                ("On-Chain Escrow: How MAXIA Protects Payments", "Solana PDA, Base L2, auto-refund 48h"),
-                                ("DeFi Yields for AI Agents", "yield scanning, lending, staking across Solana DeFi"),
-                                ("Token Swap on 7 Chains: Jupiter + 0x", "65 tokens, 4160 pairs, real-time oracle"),
-                            ]
-                            topic = topics[(_cycle // 2016) % len(topics)]
-                            result = await deployer_blog_post(topic[0], topic[1], ceo.memory)
-                            logger.info("[CEO Blog] Auto-post: %s -> %s", topic[0], result.get("success", False))
-                    except Exception as e:
-                        if "No module" not in str(e):
-                            logger.error("[CEO Blog] Auto-post error: %s", e)
+                # CEO auto-blog — REMOVED (Plan CEO V4)
 
                 # Toutes les 24h (288 cycles) : refresh fallback prices
                 if _cycle % 288 == 0:

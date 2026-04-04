@@ -8,7 +8,7 @@ Tiers :
 
 Fallback automatique : LOCAL -> FAST -> MID -> STRATEGIC
 """
-import asyncio, logging, time, json
+import asyncio, logging, time
 import httpx
 from enum import Enum
 from core.http_client import get_http_client
@@ -109,8 +109,8 @@ class LLMRouter:
         return best
 
     async def call(self, prompt: str, tier: Tier = None, system: str = "",
-                   max_tokens: int = 500) -> str:
-        """Appelle le bon LLM selon le tier. Fallback automatique."""
+                   max_tokens: int = 500, timeout: float = 30.0) -> str:
+        """Appelle le bon LLM selon le tier. Fallback automatique avec timeout par tier."""
         self._reset_if_new_day()
         if tier is None:
             tier = self.classify_complexity(prompt)
@@ -119,10 +119,16 @@ class LLMRouter:
         start_idx = self._fallback_chain.index(tier)
         for t in self._fallback_chain[start_idx:]:
             try:
-                result = await self._call_tier(t, system, prompt, max_tokens)
+                result = await asyncio.wait_for(
+                    self._call_tier(t, system, prompt, max_tokens),
+                    timeout=timeout,
+                )
                 if result:
                     self._track(t, len(prompt), len(result))
                     return result
+            except asyncio.TimeoutError:
+                logger.warning(f"[LLMRouter] {t.value} timeout ({timeout}s), trying next...")
+                continue
             except Exception as e:
                 logger.warning(f"[LLMRouter] {t.value} failed: {e}, trying next...")
                 continue
@@ -152,16 +158,16 @@ class LLMRouter:
                 "stream": False,
                 "options": {"num_predict": max_tokens, "temperature": 0.7},
             },
-            timeout=60,
+            timeout=20.0,
         )
         resp.raise_for_status()
         return resp.json().get("response", "")
 
     _groq_last_call: float = 0
-    _GROQ_MIN_INTERVAL: float = 10.0  # Max 1 req per 10s to avoid rate limits
+    _GROQ_MIN_INTERVAL: float = 2.0  # Rate limit buffer (Groq allows 30 req/min free, 6000 paid)
 
     async def _call_groq(self, system: str, prompt: str, max_tokens: int) -> str:
-        """Appel Groq (gratuit mais rate limited — 1 req/10s max)."""
+        """Appel Groq via httpx (async, proper timeout, no blocking thread)."""
         if not self._groq_key:
             raise RuntimeError("No Groq API key")
         # Rate limit: wait if too fast
@@ -171,21 +177,29 @@ class LLMRouter:
             await asyncio.sleep(self._GROQ_MIN_INTERVAL - elapsed)
         LLMRouter._groq_last_call = time.time()
 
-        from groq import Groq
-        c = Groq(api_key=self._groq_key)
-        def _c():
-            msgs = []
-            if system:
-                msgs.append({"role": "system", "content": system})
-            msgs.append({"role": "user", "content": prompt})
-            resp = c.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=msgs,
-                max_tokens=max_tokens,
-                temperature=0.7,
-            )
-            return resp.choices[0].message.content.strip()
-        return await asyncio.to_thread(_c)
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._groq_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": msgs,
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        return choices[0]["message"]["content"].strip() if choices else ""
 
     async def _call_mistral(self, system: str, prompt: str, max_tokens: int) -> str:
         """Appel Mistral API."""
@@ -208,7 +222,7 @@ class LLMRouter:
                 "max_tokens": max_tokens,
                 "temperature": 0.7,
             },
-            timeout=90,
+            timeout=25.0,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -233,7 +247,7 @@ class LLMRouter:
                 "system": system or "You are a helpful assistant.",
                 "messages": [{"role": "user", "content": prompt}],
             },
-            timeout=90,
+            timeout=30.0,
         )
         resp.raise_for_status()
         data = resp.json()

@@ -2,15 +2,18 @@
 
 Extracted from public_api.py (S34 split).
 """
-import asyncio, json, time
+import asyncio, json, logging, time, uuid
 
 from fastapi import APIRouter, HTTPException, Header
+
+logger = logging.getLogger(__name__)
 
 from marketplace.public_api_shared import (
     _registered_agents, _agent_services, _transactions,
     _load_from_db, _check_safety, _check_rate, _get_agent, _safe_float,
     _validate_solana_address,
 )
+from core.config import get_commission_bps, get_commission_tier_name
 
 router = APIRouter()
 
@@ -22,6 +25,10 @@ _sandbox_trades: list = []
 _sandbox_portfolios: dict = {}  # api_key -> {symbol: shares}
 _sandbox_locks: dict = {}  # api_key -> asyncio.Lock (prevents TOCTOU race conditions)
 SANDBOX_STARTING_BALANCE = 10000.0  # $10,000 fake USDC
+
+# LLM response cache for sandbox (avoid burning Groq quota on repeated prompts)
+_sandbox_llm_cache: dict = {}  # "service_id:prompt_hash" -> {"result": str, "ts": float}
+_SANDBOX_CACHE_TTL = 300  # 5 min cache
 
 
 def _get_sandbox_lock(api_key: str) -> "asyncio.Lock":
@@ -108,6 +115,9 @@ async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-
         "maxia-marketing": {"price": 0.99, "name": "Marketing Copy Generator"},
         "maxia-image": {"price": 0.10, "name": "AI Image Generator"},
         "maxia-scraper": {"price": 0.02, "name": "Web Scraper"},
+        "maxia-sentiment": {"price": 0.005, "name": "Sentiment Analysis"},
+        "maxia-transcription": {"price": 0.01, "name": "Audio Transcription"},
+        "maxia-embedding": {"price": 0.001, "name": "Text Embedding"},
     }
 
     # Try native service first, then external services
@@ -156,8 +166,30 @@ async def sandbox_execute(req: dict, x_api_key: str = Header(None, alias="X-API-
         "commission_usdc": commission, "seller_gets_usdc": seller_gets,
         "tier": tier, "commission_pct": f"{commission_bps/100}%",
         "balance_after": round(_sandbox_balances[x_api_key], 4),
-        "result": await _execute_native_service(service_id, prompt) if service_id.startswith("maxia-") else f"[SANDBOX] {service_name} — executed. Prompt: {prompt[:100]}",
+        "result": await _sandbox_cached_execute(service_id, prompt) if service_id.startswith("maxia-") else f"[SANDBOX] {service_name} — executed. Prompt: {prompt[:100]}",
     }
+
+
+async def _sandbox_cached_execute(service_id: str, prompt: str) -> str:
+    """Execute with cache to avoid burning LLM quota on repeated sandbox calls."""
+    import hashlib
+    from marketplace.public_api_discover import _execute_native_service
+
+    cache_key = f"{service_id}:{hashlib.md5(prompt[:200].encode()).hexdigest()}"
+    cached = _sandbox_llm_cache.get(cache_key)
+    if cached and time.time() - cached["ts"] < _SANDBOX_CACHE_TTL:
+        return cached["result"]
+
+    result = await _execute_native_service(service_id, prompt)
+    _sandbox_llm_cache[cache_key] = {"result": result, "ts": time.time()}
+
+    # Trim cache to prevent unbounded growth
+    if len(_sandbox_llm_cache) > 500:
+        oldest = sorted(_sandbox_llm_cache, key=lambda k: _sandbox_llm_cache[k]["ts"])
+        for k in oldest[:250]:
+            _sandbox_llm_cache.pop(k, None)
+
+    return result
 
 
 @router.post("/sandbox/swap")

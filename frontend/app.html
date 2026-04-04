@@ -6,14 +6,14 @@
 <!-- CSP is set via HTTP header in main.py security_headers_middleware -->
 <title>MAXIA — AI Trading Dashboard | Swap, GPU, DeFi, Stocks</title>
 <meta name="description" content="Trade 68 crypto tokens and 25 tokenized stocks. AI-powered swap, live charts, DeFi yields, GPU rental. All on MAXIA.">
-<meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 15 Blockchains">
 <meta property="og:description" content="68 tokens, 25 stocks, 6 GPU tiers, 46 MCP tools. Swap, trade, rent GPUs — all in USDC.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://maxiaworld.app/app">
 <meta property="og:image" content="https://maxiaworld.app/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@MAXIA_WORLD">
-<meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 14 Blockchains">
+<meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 15 Blockchains">
 <meta name="twitter:description" content="68 tokens, 25 stocks, 6 GPU tiers. Your AI agent earns USDC while you sleep.">
 <meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
 <link rel="canonical" href="https://maxiaworld.app/app">
@@ -342,7 +342,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- TOP NAV -->
 <div id="app-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s" onclick="toggleAppMenu()"></div>
 <div id="app-side-menu" style="position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column"><div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center"><span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span><button onclick="toggleAppMenu()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px">&times;</button></div><div style="padding:16px 20px;flex:1;overflow-y:auto"><button class="nav-link" onclick="showPage('home',this);toggleAppMenu()" style="margin-bottom:12px"><span class="icon">&#127968;</span> Home</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:4px 0 8px 8px">Trade</div><button class="nav-link" onclick="showPage('swap',this);toggleAppMenu()"><span class="icon">&#9889;</span> Swap</button><button class="nav-link" onclick="showPage('stocks',this);toggleAppMenu()"><span class="icon">&#128200;</span> Stocks</button><button class="nav-link" onclick="showPage('trading',this);toggleAppMenu()"><span class="icon">&#128202;</span> Trading</button><button class="nav-link" onclick="showPage('escrow',this);toggleAppMenu()"><span class="icon">&#128274;</span> Escrow</button><button class="nav-link" onclick="showPage('portfolio',this);toggleAppMenu()"><span class="icon">&#128176;</span> Portfolio</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Earn</div><button class="nav-link" onclick="showPage('yields',this);toggleAppMenu()"><span class="icon">&#127793;</span> DeFi Yields</button><button class="nav-link" onclick="showPage('gpu',this);toggleAppMenu()"><span class="icon">&#128421;</span> GPU Cloud</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Build</div><button class="nav-link" onclick="showPage('nfts',this);toggleAppMenu()"><span class="icon">&#127912;</span> NFT</button><button class="nav-link" onclick="showPage('agentid',this);toggleAppMenu()"><span class="icon">&#129302;</span> Agent ID</button><button class="nav-link" onclick="window.location='/enterprise'"><span class="icon">&#127970;</span> Enterprise</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Community</div><a class="nav-link" href="/forum" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a><a class="nav-link" href="/marketplace" style="text-decoration:none"><span class="icon">&#128269;</span> Marketplace</a></div></div>
-<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:center;gap:12px"><button onclick="toggleAppMenu()" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px"><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span></button><a href="/" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">BETA</span></a></div><div style="display:flex;gap:8px;align-items:center"><button onclick="showPage('swap')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Swap</button><button onclick="showPage('stocks')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Stocks</button><button onclick="showPage('trading')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Trading</button><a href="/forum" style="color:var(--muted);font-size:13px;padding:6px 12px;text-decoration:none">Forum</a><div style="position:relative"><button class="btn-connect" id="btn-wallet-top" onclick="toggleTopWalletMenu()" style="padding:8px 20px;font-size:13px;border-radius:10px">Connect Wallet</button><div id="wallet-menu-top" style="display:none;position:absolute;right:0;top:45px;background:rgba(6,10,20,.97);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:220px;z-index:2000;box-shadow:0 12px 40px rgba(0,0,0,.5);backdrop-filter:blur(20px)"><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div><button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button><button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button><button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div><button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button><button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button><button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div><button class="wallet-opt" onclick="connectSpecific('petra')">&#127800; Petra (Aptos)</button><button class="wallet-opt" onclick="connectSpecific('sui')">&#128167; SUI Wallet</button></div></div></div></nav>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:center;gap:12px"><button onclick="toggleAppMenu()" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px"><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span></button><a href="/" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">BETA</span></a></div><div style="display:flex;gap:8px;align-items:center"><button onclick="showPage('swap')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Swap</button><button onclick="showPage('stocks')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Stocks</button><button onclick="showPage('trading')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Trading</button><a href="/forum" style="color:var(--muted);font-size:13px;padding:6px 12px;text-decoration:none">Forum</a><div style="position:relative"><button class="btn-connect" id="btn-wallet-top" onclick="toggleTopWalletMenu()" style="padding:8px 20px;font-size:13px;border-radius:10px">Connect Wallet</button><div id="wallet-menu-top" style="display:none;position:absolute;right:0;top:45px;background:rgba(6,10,20,.97);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:220px;z-index:2000;box-shadow:0 12px 40px rgba(0,0,0,.5);backdrop-filter:blur(20px)"><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div><button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button><button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button><button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div><button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button><button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button><button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div><button class="wallet-opt" onclick="connectSpecific('petra')">&#127800; Petra (Aptos)</button><button class="wallet-opt" onclick="connectSpecific('sui')">&#128167; SUI Wallet</button><button class="wallet-opt" onclick="connectSpecific('tonkeeper')">&#128142; Tonkeeper (TON)</button><button class="wallet-opt" onclick="connectSpecific('tronlink')">&#9889; TronLink (TRON)</button></div></div></div></nav>
 <script>function toggleAppMenu(){var m=document.getElementById('app-side-menu'),o=document.getElementById('app-overlay');var op=m.style.left==='0px';m.style.left=op?'-320px':'0px';o.style.opacity=op?'0':'1';o.style.pointerEvents=op?'none':'auto';}</script>
 <!-- ========== MOBILE HEADER (hidden) ========== -->
 <div class="mobile-header">
@@ -399,10 +399,11 @@ select.input-field option{background:var(--bg2);color:var(--text)}
         <button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button>
         <button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button>
         <button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase Wallet</button>
-        <button class="wallet-opt" onclick="connectSpecific('walletconnect')">&#128279; WalletConnect</button>
         <div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Other</div>
         <button class="wallet-opt" onclick="connectSpecific('petra')">&#127800; Petra (Aptos)</button>
         <button class="wallet-opt" onclick="connectSpecific('sui')">&#128167; SUI Wallet</button>
+        <button class="wallet-opt" onclick="connectSpecific('tonkeeper')">&#128142; Tonkeeper (TON)</button>
+        <button class="wallet-opt" onclick="connectSpecific('tronlink')">&#9889; TronLink (TRON)</button>
       </div>
     </div>
   </div>
@@ -439,7 +440,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <!-- Hero section -->
   <div style="text-align:center;padding:20px 0 32px">
     <h1 style="font-family:'Syne',sans-serif;font-size:clamp(28px,4vw,40px);font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">MAXIA</h1>
-    <p style="color:var(--muted);font-size:14px" id="home-time">AI-to-AI Marketplace — 14 Blockchains</p>
+    <p style="color:var(--muted);font-size:14px" id="home-time">AI-to-AI Marketplace — 15 Blockchains</p>
   </div>
 
   <!-- Live prices — hero strip -->
@@ -528,12 +529,12 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <div style="width:7px;height:7px;background:#22c55e;border-radius:50%;animation:blink 1.5s ease infinite"></div>
       <span style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Live Activity</span>
     </div>
-    <div id="home-feed" style="font-size:13px;color:var(--muted)">Platform active — 68 tokens, 14 chains, 25 stocks</div>
+    <div id="home-feed" style="font-size:13px;color:var(--muted)">Platform active — 68 tokens, 15 chains, 25 stocks</div>
   </div>
 
   <!-- Stats -->
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
-    <div style="text-align:center;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#00e5ff">14</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">Chains</div></div>
+    <div style="text-align:center;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#00e5ff">15</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">Chains</div></div>
     <div style="text-align:center;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#a78bfa">68</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">Tokens</div></div>
     <div style="text-align:center;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#22c55e">25</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">Stocks</div></div>
     <div style="text-align:center;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px"><div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:700;color:#fbbf24">46</div><div style="font-size:11px;color:var(--muted2);margin-top:2px">MCP Tools</div></div>
@@ -679,7 +680,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <div class="empty-state">
       <div class="icon">&#128176;</div>
       <div class="msg">Connect your wallet to see your portfolio</div>
-      <div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet supported</div>
+      <div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet, Tonkeeper, TronLink supported</div>
     </div>
   </div>
 
@@ -746,7 +747,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- --- PAGE: BRIDGE --- -->
 <div class="page" id="page-bridge">
   <h2 class="page-title">Cross-Chain Bridge</h2>
-  <p class="page-sub">Transfer tokens between 14 chains — Zero MAXIA fee</p>
+  <p class="page-sub">Transfer tokens between 15 chains — Zero MAXIA fee</p>
 
   <div class="bridge-card">
     <div class="card">
@@ -921,7 +922,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <!-- --- PAGE: AGENT ID --- -->
 <div class="page" id="page-agentid">
   <h2 class="page-title">Agent Identity</h2>
-  <p class="page-sub">On-chain trust scores and verifiable identity for AI agents on 14 chains</p>
+  <p class="page-sub">On-chain trust scores and verifiable identity for AI agents on 15 chains</p>
 
   <div class="stats-row" id="agentid-stats">
     <div class="stat-card"><div class="val" id="aid-total">0</div><div class="lbl">Total Agents</div></div>
@@ -1649,11 +1650,15 @@ var PARASWAP_API = 'https://apiv5.paraswap.io';
 
 // -- Helper: detect if current wallet is EVM --
 function isEvmWallet() {
-  return walletType === 'metamask' || walletType === 'rabby' || walletType === 'coinbase' || walletType === 'walletconnect';
+  return walletType === 'metamask' || walletType === 'rabby' || walletType === 'coinbase';
 }
 
 function isSolanaWallet() {
   return walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
+}
+
+function isOtherWallet() {
+  return walletType === 'petra' || walletType === 'sui' || walletType === 'tonkeeper' || walletType === 'tronlink';
 }
 
 // -- Get current EVM chain ID (decimal) --
@@ -2806,27 +2811,31 @@ async function connectSpecific(type) {
       await window.solflare.connect();
       wallet = window.solflare.publicKey.toString(); walletType = 'solflare';
     }
-    // -- EVM wallets --
+    // -- EVM wallets (with proper detection) --
     else if (type === 'metamask') {
-      if (!window.ethereum) { window.open('https://metamask.io', '_blank'); toast('Install MetaMask first', 'info'); return; }
-      var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      var provider = null;
+      if (window.ethereum?.isMetaMask && !window.ethereum?.isRabby) { provider = window.ethereum; }
+      else if (window.ethereum?.providers) { provider = window.ethereum.providers.find(function(p) { return p.isMetaMask && !p.isRabby; }); }
+      if (!provider) { window.open('https://metamask.io', '_blank'); toast('Install MetaMask first', 'info'); return; }
+      var accounts = await provider.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'metamask'; }
     }
     else if (type === 'rabby') {
-      if (!window.ethereum) { window.open('https://rabby.io', '_blank'); toast('Install Rabby first', 'info'); return; }
-      var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      var provider = null;
+      if (window.ethereum?.isRabby) { provider = window.ethereum; }
+      else if (window.ethereum?.providers) { provider = window.ethereum.providers.find(function(p) { return p.isRabby; }); }
+      if (!provider) { window.open('https://rabby.io', '_blank'); toast('Install Rabby first', 'info'); return; }
+      var accounts = await provider.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'rabby'; }
     }
     else if (type === 'coinbase') {
-      if (!window.ethereum) { window.open('https://www.coinbase.com/wallet', '_blank'); toast('Install Coinbase Wallet first', 'info'); return; }
-      var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      var provider = null;
+      if (window.coinbaseWalletExtension) { provider = window.coinbaseWalletExtension; }
+      else if (window.ethereum?.isCoinbaseWallet) { provider = window.ethereum; }
+      else if (window.ethereum?.providers) { provider = window.ethereum.providers.find(function(p) { return p.isCoinbaseWallet; }); }
+      if (!provider) { window.open('https://www.coinbase.com/wallet', '_blank'); toast('Install Coinbase Wallet first', 'info'); return; }
+      var accounts = await provider.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'coinbase'; }
-    }
-    else if (type === 'walletconnect') {
-      // WalletConnect uses the injected EVM provider (MetaMask/Rabby/Coinbase)
-      if (!window.ethereum) { toast('Install an EVM wallet (MetaMask, Rabby, or Coinbase) first', 'error'); return; }
-      var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'walletconnect'; }
     }
     // -- Other chains --
     else if (type === 'petra') {
@@ -2835,10 +2844,31 @@ async function connectSpecific(type) {
       wallet = resp.address; walletType = 'petra';
     }
     else if (type === 'sui') {
-      if (!window.suiWallet) { window.open('https://suiwallet.com', '_blank'); toast('Install SUI Wallet first', 'info'); return; }
-      var resp = await window.suiWallet.requestPermissions();
-      var accounts = await window.suiWallet.getAccounts();
-      if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'sui'; }
+      // Try new Wallet Standard first, fallback to legacy
+      var suiProvider = null;
+      if (window.suiWallet) { suiProvider = window.suiWallet; }
+      else if (window.sui) { suiProvider = window.sui; }
+      if (!suiProvider) { window.open('https://chromewebstore.google.com/detail/sui-wallet/opcgpfmipidbgpenhmajoajpbobppdil', '_blank'); toast('Install SUI Wallet first', 'info'); return; }
+      if (suiProvider.requestPermissions) { await suiProvider.requestPermissions(); }
+      else if (suiProvider.connect) { await suiProvider.connect(); }
+      var accounts = suiProvider.getAccounts ? await suiProvider.getAccounts() : [];
+      if (accounts && accounts.length > 0) { wallet = accounts[0].address || accounts[0]; walletType = 'sui'; }
+    }
+    else if (type === 'tonkeeper') {
+      if (!window.tonkeeper && !window.ton) { window.open('https://tonkeeper.com', '_blank'); toast('Install Tonkeeper first', 'info'); return; }
+      var tonProvider = window.tonkeeper || window.ton;
+      var accounts = await tonProvider.send('ton_requestAccounts');
+      if (accounts && accounts.length > 0) { wallet = accounts[0]; walletType = 'tonkeeper'; }
+    }
+    else if (type === 'tronlink') {
+      if (!window.tronLink && !window.tronWeb) { window.open('https://www.tronlink.org', '_blank'); toast('Install TronLink first', 'info'); return; }
+      if (window.tronLink) {
+        var res = await window.tronLink.request({ method: 'tron_requestAccounts' });
+        if (res && res.code === 200) { wallet = window.tronWeb.defaultAddress.base58; walletType = 'tronlink'; }
+        else { toast('Connection rejected', 'error'); return; }
+      } else if (window.tronWeb && window.tronWeb.defaultAddress) {
+        wallet = window.tronWeb.defaultAddress.base58; walletType = 'tronlink';
+      }
     }
 
     if (wallet) {
@@ -2910,7 +2940,7 @@ async function connectSpecific(type) {
 async function loadPortfolio() {
   var content = document.getElementById('portfolio-content');
   if (!wallet) {
-    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet supported</div></div>';
+    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet, Tonkeeper, TronLink supported</div></div>';
     return;
   }
 
@@ -6399,7 +6429,7 @@ function showOnboarding() {
   var steps = [
     {
       title: 'Welcome to MAXIA',
-      desc: 'Your AI agent operates across 14 blockchains. Swap on 7 chains, escrow on 2, DeFi yields on 14. 68 tokens, 25 stocks, GPUs — all in USDC.',
+      desc: 'Your AI agent operates across 15 blockchains. Swap on 7 chains, escrow on 2, DeFi yields on 14. 68 tokens, 25 stocks, GPUs — all in USDC.',
       icon: '&#127758;'
     },
     {
@@ -7168,7 +7198,7 @@ updateHomePrices();setInterval(updateHomePrices,5000);
 
 (function(){
   var el=document.getElementById('home-feed');if(!el)return;
-  var msgs=['Platform active — 14 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
+  var msgs=['Platform active — 15 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
   var i=0;setInterval(function(){el.textContent=msgs[i%msgs.length];i++;},4000);
   fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
     if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');

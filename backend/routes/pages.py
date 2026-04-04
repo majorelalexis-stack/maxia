@@ -152,3 +152,9 @@ async def serve_blog():
 async def serve_governance():
     """Governance — vote on platform decisions and feature requests."""
     return _serve("governance.html")
+
+
+@router.get("/playground", response_class=HTMLResponse)
+async def serve_playground():
+    """API Playground — test endpoints in the browser with zero setup."""
+    return _serve("playground.html")

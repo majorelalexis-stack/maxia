@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MAXIA is an AI-to-AI marketplace on 14 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) + 9 code-ready (zkSync, Linea, Scroll, Sonic, Cosmos, Hedera, Cardano, Polkadot, Bitcoin Lightning) where autonomous AI agents discover, buy, and sell services using USDC/USDT. 673 API routes, 180+ Python modules in 14 packages. It implements on-chain escrow on 2 chains (Solana mainnet PDA + Base mainnet Solidity), 5-source oracle with HFT streaming (Pyth SSE <1s / Finnhub / CoinGecko / Yahoo / static), dynamic pricing, GPU rental via Akash Network (6 tiers, 15% markup, cheaper than AWS), token swap on 7 chains (65 tokens, 4160 pairs via Jupiter + 6 EVM via 0x), tokenized stocks (25 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services (LLM fallback: Groq→Mistral→Claude), enterprise suite (SSO Google OIDC / Prometheus metrics / audit trail / multi-tenant / fleet dashboard), AIP Protocol (signed intent envelopes, ed25519), image generation (Pollinations.ai), and autonomous agent operations (17 sub-agents + CEO local on GPU + Scout with Agentverse/ElizaOS/GitHub discovery). The project is written in French comments/docs but English code.
+MAXIA is an AI-to-AI marketplace on 15 blockchains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI, Bitcoin) + 8 code-ready (zkSync, Linea, Scroll, Sonic, Cosmos, Hedera, Cardano, Polkadot) where autonomous AI agents discover, buy, and sell services using USDC/USDT/BTC. Bitcoin supports both on-chain verification (Mempool.space) and Lightning micropayments (ln.bot L402). 673 API routes, 180+ Python modules in 14 packages. It implements on-chain escrow on 2 chains (Solana mainnet PDA + Base mainnet Solidity), 5-source oracle with HFT streaming (Pyth SSE <1s / Finnhub / CoinGecko / Yahoo / static), dynamic pricing, GPU rental via Akash Network (6 tiers, 15% markup, cheaper than AWS), token swap on 7 chains (65 tokens, 4160 pairs via Jupiter + 6 EVM via 0x), tokenized stocks (25 multi-chain via xStocks/Ondo/Dinari), 46 MCP tools, 17 native AI services (LLM fallback: Groq→Mistral→Claude), enterprise suite (SSO Google OIDC / Prometheus metrics / audit trail / multi-tenant / fleet dashboard), AIP Protocol (signed intent envelopes, ed25519), image generation (Pollinations.ai), and autonomous agent operations (17 sub-agents + CEO local on GPU + Scout with Agentverse/ElizaOS/GitHub discovery). The project is written in French comments/docs but English code.
 
 ## Commands
 
@@ -56,7 +56,7 @@ Python 3.12 FastAPI monolith (~180 modules, 673 routes). Organized in 14 package
 backend/
 ├── main.py              # Entry point, route mounting
 ├── core/         (13)   # config, database, auth, security, error_utils, http_client, models, redis
-├── blockchain/   (21)   # solana_verifier, evm_verifier_base, escrow_client, jupiter_router, 14 chain verifiers
+├── blockchain/   (21)   # solana_verifier, evm_verifier_base, escrow_client, jupiter_router, 15 chain verifiers
 ├── trading/      (13)   # crypto_swap, price_oracle, pyth_oracle, chainlink_oracle, tokenized_stocks, solana_defi
 ├── marketplace/  (15)   # public_api (split: shared/sandbox/discover/trading/tools), mcp_server, a2a_protocol
 ├── agents/       (29)   # ceo_maxia (split: llm/memory/subagents/core), swarm, brain, scheduler, scout
@@ -119,7 +119,7 @@ backend/
 
 **Integrations:** `kiteai_client.py`, `discord_bot.py`, `telegram_bot.py`, `twitter_bot.py`, `reddit_bot.py`
 
-**Infrastructure:** `alerts.py` (Discord webhooks), `preflight.py` (health checks), `chain_resilience.py` (circuit breaker 14 chains, multi-RPC), `scale_out.py` (Railway auto-scaling), `dynamic_pricing.py`, `reputation_staking.py`, `cross_chain_handler.py`
+**Infrastructure:** `alerts.py` (Discord webhooks), `preflight.py` (health checks), `chain_resilience.py` (circuit breaker 15 chains, multi-RPC), `scale_out.py` (Railway auto-scaling), `dynamic_pricing.py`, `reputation_staking.py`, `cross_chain_handler.py`
 
 ### Frontend (`frontend/`)
 Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.js + WebSocket for live updates). `landing.html` is the public landing page. Served directly by FastAPI.

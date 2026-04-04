@@ -85,7 +85,7 @@ async def verify_lightning_payment(charge_id: str, expected_usd: float = 0) -> d
     """Verify a Lightning payment was settled.
 
     Args:
-        charge_id: OpenNode charge ID from the L402 challenge.
+        charge_id: ln.bot invoice number from the L402 challenge.
         expected_usd: Expected USD amount (for tolerance check).
 
     Returns:

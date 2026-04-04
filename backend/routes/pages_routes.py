@@ -434,16 +434,8 @@ async def health(request: Request):
     except Exception:
         checks["price_oracle"] = "unavailable"
 
-    # CEO agent
-    try:
-        from agents.ceo_maxia import ceo
-        ceo_status = ceo.get_status()
-        checks["ceo"] = "running" if ceo_status.get("running") else "stopped"
-        if ceo_status.get("emergency_stop"):
-            checks["ceo"] = "emergency_stop"
-            overall = "degraded"
-    except Exception:
-        checks["ceo"] = "not_loaded"
+    # CEO agent — removed (Plan CEO V4: CEO = local only)
+    checks["ceo"] = "local_only"
 
     # Groq API (just check key exists)
     checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "missing"

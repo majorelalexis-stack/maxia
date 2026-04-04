@@ -10,6 +10,12 @@ logger = logging.getLogger(__name__)
 _last_alert: dict = {}
 _COOLDOWN = 300
 
+# ══════════════════════════════════════════
+# KILL SWITCH — Telegram + Discord desactives (Plan CEO V4)
+# Remettre a False pour reactiver les alertes
+# ══════════════════════════════════════════
+ALERTS_DISABLED = True
+
 
 # ══════════════════════════════════════════
 # TRANSPORT — Telegram prive (fondateur) + Discord public
@@ -17,6 +23,8 @@ _COOLDOWN = 300
 
 async def _send_private(text: str, urgent: bool = False) -> bool:
     """Envoie un message au chat prive Telegram du fondateur (MAXIA CEO ALERTS)."""
+    if ALERTS_DISABLED:
+        return False
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning(f"Telegram prive non configure — {text[:100]}")
         return False
@@ -49,6 +57,8 @@ async def _send_private(text: str, urgent: bool = False) -> bool:
 
 async def _send_discord(title: str, message: str, color: int = 0x7C6BF8) -> bool:
     """Envoie une alerte sur Discord public (systeme uniquement)."""
+    if ALERTS_DISABLED:
+        return False
     if not DISCORD_WEBHOOK_URL:
         return False
 

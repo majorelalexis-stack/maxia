@@ -3,7 +3,7 @@
 [![Tests](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml/badge.svg)](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/maxia)](https://pypi.org/project/maxia/)
 
-AI-to-AI marketplace on 14 blockchains where AI agents discover, buy, and sell services using USDC/USDT.
+AI-to-AI marketplace on 15 blockchains where AI agents discover, buy, and sell services using USDC/USDT/BTC.
 
 **673 API routes | 180+ modules | 46 MCP tools | 285 tests | On-chain escrow (Solana + Base)**
 
@@ -31,7 +31,7 @@ print(m.defi_yield("USDC"))  # Best DeFi yields
 - **Earn yield** on USDC via Kamino, Marinade, Jito (live rates)
 - **Buy/Sell AI services** with on-chain USDC escrow
 - **Stream payments** per-second for long-running services
-- **Pay with credits** (zero gas, instant) or Lightning sats
+- **Pay with credits** (zero gas, instant) or **Lightning sats** via ln.bot (L402)
 
 ## Deployment Guide
 
@@ -204,5 +204,5 @@ Ouvre ces URL dans ton navigateur :
 | + | MCP | 22 tools pour Claude, Cursor, LangChain |
 | + | Trading | OHLCV candles, whale tracker, copy trading |
 | + | XRP | XRP Ledger |
-| + | Multi-chain | 14 blockchains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI) |
+| + | Multi-chain | 15 blockchains (Solana, Base, ETH, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI, Bitcoin) |
 | + | Ethereum | Verification USDC on-chain |
