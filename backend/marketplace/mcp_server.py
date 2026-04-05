@@ -280,7 +280,7 @@ MCP_TOOLS = [
     },
     {
         "name": "maxia_bridge_quote",
-        "description": "Get a cross-chain bridge quote (Wormhole, LayerZero, Portal) between 14 chains.",
+        "description": "Get a cross-chain bridge quote via LI.FI (31 bridges aggregated) between 15 chains. Real-time fees and unsigned tx.",
         "inputSchema": {"type": "object", "properties": {"from_chain": {"type": "string"}, "to_chain": {"type": "string"}, "token": {"type": "string", "default": "USDC"}, "amount": {"type": "number"}}, "required": ["from_chain", "to_chain", "amount"]},
     },
     {
@@ -346,6 +346,29 @@ MCP_TOOLS = [
     },
     # ── Fine-Tuning, AWP, LLM tools removed from manifest (not yet implemented) ──
     # When ready, re-add: maxia_finetune_models/quote/start/status, maxia_awp_register/stake/discover/rewards, maxia_llm_models/chat
+    # ── Protocol Catalog tools (55 DeFi/Web3 protocols) ──
+    {
+        "name": "maxia_protocol_search",
+        "description": "Search 55+ DeFi/Web3 protocols across 15 chains. Filter by chain or type (dex, lending, staking, bridge, yield, nft, derivatives, launchpad, governance).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "chain": {"type": "string", "description": "Filter by chain: solana, ethereum, base, polygon, arbitrum, avalanche, bnb, ton, sui, tron, near, aptos, sei, xrp"},
+                "type": {"type": "string", "description": "Filter by type: dex, lending, staking, bridge, yield, nft, derivatives, launchpad, governance"},
+            },
+        },
+    },
+    {
+        "name": "maxia_protocol_info",
+        "description": "Get details about a specific DeFi protocol — URL, chain, type, description, and which MAXIA endpoints to use for execution.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "protocol": {"type": "string", "description": "Protocol ID: jupiter, aave, uniswap, orca, jito, marinade, raydium, drift, gmx, hyperliquid, lido, compound, etc."},
+            },
+            "required": ["protocol"],
+        },
+    },
 ]
 
 
@@ -669,6 +692,26 @@ async def _execute_tool(name: str, args: dict) -> dict:
             return r.json()
         elif name == "maxia_price_alert":
             r = await client.post("/api/trading/alerts", json=args)
+            return r.json()
+
+        # ── Protocol Catalog tools ──
+        elif name == "maxia_protocol_search":
+            chain = args.get("chain", "")
+            ptype = args.get("type", "")
+            params = {}
+            if chain:
+                params["chain"] = chain
+            if ptype:
+                params["type"] = ptype
+            r = await client.get("/api/goat/protocols", params=params or None)
+            return r.json()
+        elif name == "maxia_protocol_info":
+            protocol = args.get("protocol", "")
+            if not protocol:
+                return {"error": "Missing 'protocol' parameter"}
+            r = await client.get(f"/api/goat/protocols/{protocol}")
+            if r.status_code == 404:
+                return {"error": f"Protocol '{protocol}' not found. Use maxia_protocol_search to list available protocols."}
             return r.json()
 
         # ── Fine-Tuning, AWP, LLM tools removed (not yet implemented) ──
