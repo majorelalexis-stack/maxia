@@ -440,12 +440,26 @@ async def mcp_call_tool(request: Request):
             return {"content": [{"type": "text", "text": f"Tool '{tool_name}' requires {required_tier} tier (your tier: {agent_tier}). Upgrade by increasing trade volume."}], "isError": True}
 
     try:
+        _t0 = time.time()
         result = await _execute_tool(tool_name, args)
+        _dur = (time.time() - _t0) * 1000
+        # AgentOps tracking
+        try:
+            from agents.agentops_integration import record_mcp_tool_call
+            record_mcp_tool_call(tool_name, _dur, success=True)
+        except Exception:
+            pass
         return {
             "content": [{"type": "text", "text": json.dumps(result, indent=2)}],
             "isError": False,
         }
     except Exception as e:
+        try:
+            from agents.agentops_integration import record_mcp_tool_call, record_error
+            record_mcp_tool_call(tool_name, 0, success=False)
+            record_error(f"mcp:{tool_name}", e)
+        except Exception:
+            pass
         return {
             "content": [{"type": "text", "text": safe_error(e, f"mcp_call:{tool_name}")["error"]}],
             "isError": True,

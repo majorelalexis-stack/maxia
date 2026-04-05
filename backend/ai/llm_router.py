@@ -328,15 +328,36 @@ class LLMRouter:
         ct = data.get("content", [])
         return ct[0].get("text", "") if ct else ""
 
+    # Provider names by tier for observability
+    _TIER_PROVIDERS = {
+        Tier.LOCAL: "ollama", Tier.FAST: "cerebras", Tier.FAST2: "gemini",
+        Tier.FAST3: "groq", Tier.MID: "mistral", Tier.STRATEGIC: "anthropic",
+    }
+    _TIER_MODELS = {
+        Tier.LOCAL: "qwen2.5:14b", Tier.FAST: "gpt-oss-120b",
+        Tier.FAST2: "gemini-2.5-flash-lite", Tier.FAST3: "llama-3.3-70b",
+        Tier.MID: "mistral-small", Tier.STRATEGIC: "claude-sonnet",
+    }
+
     def _track(self, tier: Tier, input_len: int, output_len: int):
-        """Track les couts par tier."""
+        """Track les couts par tier + AgentOps."""
         self.costs_today[tier.value]["calls"] += 1
-        # Estimation grossiere : ~4 chars/token
         tokens_in = input_len // 4
         tokens_out = output_len // 4
         rates = _TIER_COSTS.get(tier, (0, 0))
         cost = (tokens_in / 1000 * rates[0]) + (tokens_out / 1000 * rates[1])
         self.costs_today[tier.value]["cost"] += cost
+        # AgentOps tracking
+        try:
+            from agents.agentops_integration import record_llm_call
+            record_llm_call(
+                provider=self._TIER_PROVIDERS.get(tier, tier.value),
+                model=self._TIER_MODELS.get(tier, "unknown"),
+                tokens_in=tokens_in, tokens_out=tokens_out,
+                duration_ms=0, cost_usd=cost,
+            )
+        except Exception:
+            pass
 
     def get_stats(self) -> dict:
         self._reset_if_new_day()

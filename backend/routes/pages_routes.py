@@ -441,6 +441,7 @@ async def health(request: Request):
     checks["cerebras"] = "configured" if os.getenv("CEREBRAS_API_KEY") else "missing"
     checks["gemini"] = "configured" if os.getenv("GOOGLE_AI_KEY") else "missing"
     checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "legacy_removed"
+    checks["agentops"] = "active" if os.getenv("AGENTOPS_API_KEY") else "disabled"
 
     # V-09: Public health returns minimal info. Detailed checks behind admin auth.
     admin_key = request.headers.get("X-Admin-Key", "") if hasattr(request, 'headers') else ""
