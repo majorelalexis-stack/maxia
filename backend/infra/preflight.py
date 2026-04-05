@@ -9,6 +9,7 @@ from core.config import (
     ESCROW_ADDRESS, ESCROW_PRIVKEY_B58, get_rpc_url,
     GROQ_API_KEY, GROQ_MODEL, MARKETING_WALLET_ADDRESS,
     DISCORD_WEBHOOK_URL, TREASURY_ADDRESS,
+    CEREBRAS_API_KEY, CEREBRAS_MODEL,
 )
 
 
@@ -50,25 +51,33 @@ async def check_system_ready() -> dict:
         rpc_detail = f"Connexion echouee: {e}"
     results["solana_rpc"] = {"ok": rpc_ok, "detail": rpc_detail}
 
-    # 3. Groq API
-    groq_ok = False
-    groq_detail = ""
-    if GROQ_API_KEY:
+    # 3. Cerebras API (remplace Groq — gratuit, 1M tok/jour)
+    cerebras_ok = False
+    cerebras_detail = ""
+    if CEREBRAS_API_KEY:
         try:
-            from groq import Groq
-            g = Groq(api_key=GROQ_API_KEY)
-            resp = g.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=5,
+            client = get_http_client()
+            resp = await client.post(
+                "https://api.cerebras.ai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {CEREBRAS_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": CEREBRAS_MODEL,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 5,
+                },
+                timeout=10.0,
             )
-            groq_ok = bool(resp.choices)
-            groq_detail = f"{GROQ_MODEL} -> OK"
+            resp.raise_for_status()
+            cerebras_ok = bool(resp.json().get("choices"))
+            cerebras_detail = f"{CEREBRAS_MODEL} -> OK"
         except Exception as e:
-            groq_detail = f"Erreur: {e}"
+            cerebras_detail = f"Erreur: {e}"
     else:
-        groq_detail = "GROQ_API_KEY manquant"
-    results["groq_api"] = {"ok": groq_ok, "detail": groq_detail}
+        cerebras_detail = "CEREBRAS_API_KEY manquant"
+    results["cerebras_api"] = {"ok": cerebras_ok, "detail": cerebras_detail}
 
     # 4. Marketing wallet
     mkt_ok = bool(MARKETING_WALLET_ADDRESS)
@@ -97,7 +106,9 @@ async def check_system_ready() -> dict:
     # 7. All env vars check
     env_vars = {
         "HELIUS_API_KEY": ("critical", "Prix live Helius"),
-        "GROQ_API_KEY": ("critical", "CEO + IA inference"),
+        "CEREBRAS_API_KEY": ("critical", "CEO + IA inference (Cerebras)"),
+        "GOOGLE_AI_KEY": ("recommended", "Gemini fallback IA"),
+        "GROQ_API_KEY": ("optional", "Legacy Groq (remplace par Cerebras)"),
         "ANTHROPIC_API_KEY": ("optional", "CEO strategique (Sonnet/Opus)"),
         "DISCORD_WEBHOOK_URL": ("recommended", "Alertes Discord"),
         "TWITTER_API_KEY": ("optional", "Twitter bot"),

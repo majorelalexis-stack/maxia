@@ -1,12 +1,14 @@
 """LLM Router — Route chaque requete vers le bon tier pour reduire les couts ~80%.
 
 Tiers :
-  LOCAL      — Ollama (Qwen2.5-7B) : classification, parsing, resumes, monitoring
-  FAST       — Groq llama-3.3-70b  : analyse marche, redaction tweets, negociation
+  LOCAL      — Ollama (Qwen2.5-14B) : classification, parsing, resumes, monitoring
+  FAST       — Cerebras gpt-oss-120b : analyse marche, redaction tweets, negociation (3000 tok/s, 1M tok/jour gratuit)
+  FAST2      — Gemini 2.5 Flash-Lite : fallback gratuit (1000 RPD, 250K TPM)
+  FAST3      — Groq llama-3.3-70b   : secours (rate-limite mais fonctionnel)
   MID        — Mistral Small       : raisonnement moyen, SWOT leger, multi-step
   STRATEGIC  — Claude Sonnet/Opus  : decisions critiques, vision, expansion, red teaming
 
-Fallback automatique : LOCAL -> FAST -> MID -> STRATEGIC
+Fallback automatique : LOCAL -> FAST (Cerebras) -> FAST2 (Gemini) -> FAST3 (Groq) -> MID -> STRATEGIC
 """
 import asyncio, logging, time
 import httpx
@@ -18,7 +20,9 @@ logger = logging.getLogger(__name__)
 
 class Tier(str, Enum):
     LOCAL = "local"
-    FAST = "fast"
+    FAST = "fast"        # Cerebras (gratuit, 1M tok/jour)
+    FAST2 = "fast2"      # Gemini Flash-Lite (gratuit, 1000 RPD)
+    FAST3 = "fast3"      # Groq (secours, rate-limite)
     MID = "mid"
     STRATEGIC = "strategic"
 
@@ -47,7 +51,9 @@ _TIER_KEYWORDS = {
 # Cout estime par 1K tokens (input, output)
 _TIER_COSTS = {
     Tier.LOCAL: (0.0, 0.0),
-    Tier.FAST: (0.0, 0.0),       # Groq free tier
+    Tier.FAST: (0.0, 0.0),       # Cerebras free tier
+    Tier.FAST2: (0.0, 0.0),      # Gemini free tier
+    Tier.FAST3: (0.0, 0.0),      # Groq free tier (secours)
     Tier.MID: (0.0002, 0.0006),  # Mistral Small
     Tier.STRATEGIC: (0.003, 0.015),  # Claude Sonnet (default)
 }
@@ -59,16 +65,22 @@ class LLMRouter:
     def __init__(self):
         self.costs_today = {t.value: {"calls": 0, "cost": 0.0} for t in Tier}
         self._date = time.strftime("%Y-%m-%d")
-        self._fallback_chain = [Tier.LOCAL, Tier.FAST, Tier.MID, Tier.STRATEGIC]
+        self._fallback_chain = [Tier.LOCAL, Tier.FAST, Tier.FAST2, Tier.FAST3, Tier.MID, Tier.STRATEGIC]
         # Config chargee depuis config.py
         try:
             from core.config import (
                 OLLAMA_URL, OLLAMA_MODEL,
+                CEREBRAS_API_KEY, CEREBRAS_MODEL,
+                GOOGLE_AI_KEY, GOOGLE_AI_MODEL,
                 MISTRAL_API_KEY, MISTRAL_MODEL,
                 GROQ_API_KEY, ANTHROPIC_API_KEY,
             )
             self._ollama_url = OLLAMA_URL
             self._ollama_model = OLLAMA_MODEL
+            self._cerebras_key = CEREBRAS_API_KEY
+            self._cerebras_model = CEREBRAS_MODEL
+            self._google_ai_key = GOOGLE_AI_KEY
+            self._google_ai_model = GOOGLE_AI_MODEL
             self._mistral_key = MISTRAL_API_KEY
             self._mistral_model = MISTRAL_MODEL
             self._groq_key = GROQ_API_KEY
@@ -76,7 +88,11 @@ class LLMRouter:
         except ImportError:
             import os
             self._ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
-            self._ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+            self._ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+            self._cerebras_key = os.getenv("CEREBRAS_API_KEY", "")
+            self._cerebras_model = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+            self._google_ai_key = os.getenv("GOOGLE_AI_KEY", "")
+            self._google_ai_model = os.getenv("GOOGLE_AI_MODEL", "gemini-2.5-flash-lite")
             self._mistral_key = os.getenv("MISTRAL_API_KEY", "")
             self._mistral_model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
             self._groq_key = os.getenv("GROQ_API_KEY", "")
@@ -139,6 +155,10 @@ class LLMRouter:
         if tier == Tier.LOCAL:
             return await self._call_ollama(system, prompt, max_tokens)
         elif tier == Tier.FAST:
+            return await self._call_cerebras(system, prompt, max_tokens)
+        elif tier == Tier.FAST2:
+            return await self._call_gemini(system, prompt, max_tokens)
+        elif tier == Tier.FAST3:
             return await self._call_groq(system, prompt, max_tokens)
         elif tier == Tier.MID:
             return await self._call_mistral(system, prompt, max_tokens)
@@ -163,20 +183,74 @@ class LLMRouter:
         resp.raise_for_status()
         return resp.json().get("response", "")
 
+    async def _call_cerebras(self, system: str, prompt: str, max_tokens: int) -> str:
+        """Appel Cerebras — gratuit, 30 RPM, 1M tok/jour, ~3000 tok/s."""
+        if not self._cerebras_key:
+            raise RuntimeError("No Cerebras API key")
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.cerebras.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._cerebras_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._cerebras_model,
+                "messages": msgs,
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        return choices[0]["message"]["content"].strip() if choices else ""
+
+    async def _call_gemini(self, system: str, prompt: str, max_tokens: int) -> str:
+        """Appel Google Gemini via endpoint OpenAI-compatible — gratuit, 1000 RPD."""
+        if not self._google_ai_key:
+            raise RuntimeError("No Google AI key")
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
+        client = get_http_client()
+        resp = await client.post(
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._google_ai_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._google_ai_model,
+                "messages": msgs,
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        return choices[0]["message"]["content"].strip() if choices else ""
+
     _groq_last_call: float = 0
-    _GROQ_MIN_INTERVAL: float = 2.0  # Rate limit buffer (Groq allows 30 req/min free, 6000 paid)
+    _GROQ_MIN_INTERVAL: float = 2.0
 
     async def _call_groq(self, system: str, prompt: str, max_tokens: int) -> str:
-        """Appel Groq via httpx (async, proper timeout, no blocking thread)."""
+        """Appel Groq — secours, rate-limite (30 RPM free)."""
         if not self._groq_key:
             raise RuntimeError("No Groq API key")
-        # Rate limit: wait if too fast
         now = time.time()
         elapsed = now - LLMRouter._groq_last_call
         if elapsed < self._GROQ_MIN_INTERVAL:
             await asyncio.sleep(self._GROQ_MIN_INTERVAL - elapsed)
         LLMRouter._groq_last_call = time.time()
-
         msgs = []
         if system:
             msgs.append({"role": "system", "content": system})

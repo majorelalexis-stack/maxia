@@ -1,21 +1,17 @@
-"""MAXIA AgentWorker V11 — Groq LLaMA 3.3 Multilingue"""
+"""MAXIA AgentWorker V12 — Cerebras gpt-oss-120b Multilingue"""
 import logging
 import asyncio, json, os, time, hashlib
 
 logger = logging.getLogger(__name__)
-from core.config import GROQ_API_KEY, GROQ_MODEL, AGENT_TIMEOUT_S
+from core.config import CEREBRAS_API_KEY, CEREBRAS_MODEL, AGENT_TIMEOUT_S
 from core.error_utils import safe_error
+from core.http_client import get_http_client
 
-groq_client = None
-if GROQ_API_KEY:
-    try:
-        from groq import Groq
-        groq_client = Groq(api_key=GROQ_API_KEY)
-        logger.info(f"Groq active ({GROQ_MODEL}) — multilingue")
-    except Exception as e:
-        logger.error(f"Groq init failed: {e}")
+_cerebras_ready = bool(CEREBRAS_API_KEY)
+if _cerebras_ready:
+    logger.info(f"Cerebras active ({CEREBRAS_MODEL}) — multilingue")
 else:
-    logger.warning("GROQ_API_KEY manquant")
+    logger.warning("CEREBRAS_API_KEY manquant")
 
 try:
     from core.database import db
@@ -88,14 +84,14 @@ class AgentWorker:
             rhash = hashlib.sha256(result.encode()).hexdigest()
             update = {
                 "status": "completed", "result": result, "resultHash": rhash,
-                "agent": f"groq/{GROQ_MODEL}", "completedAt": int(time.time()),
+                "agent": f"cerebras/{CEREBRAS_MODEL}", "completedAt": int(time.time()),
             }
             await self._save(cid, update)
             if self._broadcast_fn:
                 await self._broadcast_fn({
                     "type": "COMMAND_COMPLETED", "commandId": cid,
                     "buyer": cmd.get("buyerWallet", ""),
-                    "agent": f"groq/{GROQ_MODEL}", "result": result,
+                    "agent": f"cerebras/{CEREBRAS_MODEL}", "result": result,
                 })
         except Exception as e:
             logger.error(f"{cid[:8]}...: {e}")
@@ -105,21 +101,32 @@ class AgentWorker:
             self._active.discard(cid)
 
     async def _call_llm(self, stype: str, prompt: str, cmd: dict) -> str:
-        if groq_client is None:
-            raise RuntimeError("Groq API non disponible")
+        if not _cerebras_ready:
+            raise RuntimeError("Cerebras API non disponible")
         system = SERVICE_PROMPTS.get(stype, SERVICE_PROMPTS["default"])
         user_msg = f"[Service: {cmd.get('serviceId', 'N/A')}]\n[Buyer: {cmd.get('buyerWallet', '')[:8]}...]\n\n{prompt}"
-        def _call():
-            resp = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.cerebras.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {CEREBRAS_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": CEREBRAS_MODEL,
+                "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user_msg},
                 ],
-                max_tokens=4096, temperature=0.7,
-            )
-            return resp.choices[0].message.content
-        return await asyncio.to_thread(_call)
+                "max_tokens": 4096,
+                "temperature": 0.7,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        return choices[0]["message"]["content"].strip() if choices else ""
 
     def _detect(self, sid: str) -> str:
         s = sid.lower()

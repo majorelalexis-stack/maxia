@@ -10,6 +10,7 @@ from core.error_utils import safe_error
 from fastapi import APIRouter, HTTPException, Header, Request
 from core.config import (
     TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
+    CEREBRAS_API_KEY, CEREBRAS_MODEL,
     get_commission_bps, get_commission_tier_name, BLOCKED_WORDS, BLOCKED_PATTERNS,
 )
 from core.security import check_content_safety, check_ofac_wallet, require_ofac_clear, check_rate_limit_tiered, check_rate_limit
@@ -143,14 +144,12 @@ async def _load_from_db():
     except Exception as e:
         logger.error("DB load error: %s", e)
 
-# ── Groq client ──
+# ── Cerebras client (remplace Groq — gratuit, 1M tok/jour) ──
+cerebras_ready = bool(CEREBRAS_API_KEY)
+if cerebras_ready:
+    logger.info(f"Cerebras ready ({CEREBRAS_MODEL})")
+# Legacy groq_client kept as None for backward compat
 groq_client = None
-if GROQ_API_KEY:
-    try:
-        from groq import Groq
-        groq_client = Groq(api_key=GROQ_API_KEY)
-    except Exception:
-        pass
 
 # Rate limit par API key
 _rate_limits: dict = {}

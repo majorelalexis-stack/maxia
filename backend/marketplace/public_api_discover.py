@@ -7,13 +7,13 @@ import logging, json, time, asyncio, datetime
 from fastapi import APIRouter, HTTPException, Header, Request
 
 from core.config import (
-    TREASURY_ADDRESS, GROQ_API_KEY, GROQ_MODEL,
+    TREASURY_ADDRESS,
     get_commission_bps, get_commission_tier_name,
 )
 from marketplace.public_api_shared import (
     _registered_agents, _agent_services, _transactions,
     _load_from_db, _check_safety, _check_rate, _get_agent, _safe_float,
-    _validate_solana_address, groq_client,
+    _validate_solana_address,
     _agent_update_lock,
 )
 
@@ -829,20 +829,21 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
     except Exception as e:
         logger.error("LLM Router error: %s", e)
 
-    # Direct Groq httpx fallback (legacy)
+    # Direct Cerebras httpx fallback (replaces legacy Groq)
     try:
-        if GROQ_API_KEY:
+        cerebras_key = os.getenv("CEREBRAS_API_KEY", "")
+        if cerebras_key:
             from core.http_client import get_http_client
             client = get_http_client()
             resp = await asyncio.wait_for(
                 client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
+                    "https://api.cerebras.ai/v1/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {GROQ_API_KEY}",
+                        "Authorization": f"Bearer {cerebras_key}",
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": GROQ_MODEL,
+                        "model": os.getenv("CEREBRAS_MODEL", "gpt-oss-120b"),
                         "messages": [
                             {"role": "system", "content": sys_prompt},
                             {"role": "user", "content": prompt},
@@ -860,9 +861,9 @@ async def _execute_native_service(service_id: str, prompt: str) -> str:
             if choices:
                 return choices[0]["message"]["content"].strip()
     except asyncio.TimeoutError:
-        logger.warning("Groq fallback timeout (30s)")
+        logger.warning("Cerebras fallback timeout (30s)")
     except Exception as e:
-        logger.error("Groq fallback error: %s", e)
+        logger.error("Cerebras fallback error: %s", e)
 
     return "Service temporarily unavailable — please retry in a few seconds"
 

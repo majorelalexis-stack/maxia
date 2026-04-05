@@ -438,6 +438,10 @@ SEI_MIN_TX_USDC      = float(os.getenv("SEI_MIN_TX_USDC", "0.01"))
 # ── V12: LLM Router (CEO autonome) ──
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+GOOGLE_AI_KEY = os.getenv("GOOGLE_AI_KEY", "")
+GOOGLE_AI_MODEL = os.getenv("GOOGLE_AI_MODEL", "gemini-2.5-flash-lite")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-2503")
 CEO_LOCAL_MODE = os.getenv("CEO_LOCAL_MODE", "true").lower() == "true"

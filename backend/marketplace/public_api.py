@@ -33,7 +33,7 @@ from marketplace.public_api_shared import (  # noqa: F401, E402
     _load_from_db, _check_safety, _check_rate, _get_agent, _safe_float,
     _validate_solana_address, _db_loaded,
     _compute_service_hash, _check_clone, _register_service_hash, _is_original_creator,
-    groq_client, _rate_limits, RATE_LIMIT_FREE, RATE_LIMITS_BY_TIER,
+    groq_client, cerebras_ready, _rate_limits, RATE_LIMIT_FREE, RATE_LIMITS_BY_TIER,
     _agent_update_lock, _failed_lookups,
     _service_content_hashes, _db_last_sync, _DB_SYNC_INTERVAL,
     SANDBOX_MODE, SANDBOX_PREFIX,
@@ -542,8 +542,8 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
-    # Executer le service via Groq (only AFTER payment is verified)
-    if not groq_client:
+    # Executer le service via Cerebras (only AFTER payment is verified)
+    if not cerebras_ready:
         raise HTTPException(503, "Service IA temporairement indisponible")
 
     system_prompts = {
@@ -556,19 +556,30 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     system = system_prompts.get(service_type, system_prompts["text"])
 
     try:
-        def _call():
-            resp = groq_client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
+        from core.http_client import get_http_client
+        from core.config import CEREBRAS_API_KEY, CEREBRAS_MODEL
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.cerebras.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {CEREBRAS_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": CEREBRAS_MODEL,
+                "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=4096,
-                temperature=0.7,
-            )
-            return resp.choices[0].message.content
-
-        result = await asyncio.to_thread(_call)
+                "max_tokens": 4096,
+                "temperature": 0.7,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        result = choices[0]["message"]["content"].strip() if choices else ""
     except Exception as e:
         # Fix #12: Don't leak internal error details
         logger.error("AI service error: %s", e)

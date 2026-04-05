@@ -114,7 +114,7 @@ async def evaluate_dispute(delivery_id: str, reason: str, evidence_hash: str) ->
     )
 
     # Appeler Groq
-    ai_result = await _call_groq(prompt)
+    ai_result = await _call_ai(prompt)
 
     logger.info(f"Evaluation delivery={delivery_id[:8]}... -> "
                f"{ai_result['recommendation']} (confidence={ai_result['confidence']}%)")
@@ -192,11 +192,11 @@ CONTEXT: A buyer has disputed a service delivery on MAXIA marketplace. You must 
 Respond ONLY with valid JSON. No other text."""
 
 
-async def _call_groq(prompt: str) -> dict:
-    """Appelle Groq LLaMA 3.3 pour l'evaluation. Fallback si API indisponible."""
-    groq_api_key = os.getenv("GROQ_API_KEY", "")
-    if not groq_api_key:
-        logger.warning("GROQ_API_KEY manquant — fallback heuristique")
+async def _call_ai(prompt: str) -> dict:
+    """Appelle Cerebras pour l'evaluation. Fallback si API indisponible."""
+    cerebras_key = os.getenv("CEREBRAS_API_KEY", "")
+    if not cerebras_key:
+        logger.warning("CEREBRAS_API_KEY manquant — fallback heuristique")
         return {
             "recommendation": "split",
             "confidence": 30,
@@ -204,22 +204,29 @@ async def _call_groq(prompt: str) -> dict:
         }
 
     try:
-        from groq import Groq
-        client = Groq(api_key=groq_api_key)
-
-        def _call():
-            resp = client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
+        from core.http_client import get_http_client
+        client = get_http_client()
+        resp = await client.post(
+            "https://api.cerebras.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {cerebras_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": os.getenv("CEREBRAS_MODEL", "gpt-oss-120b"),
+                "messages": [
                     {"role": "system", "content": "You are an impartial dispute resolver. Respond only with valid JSON."},
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=1024,
-                temperature=0.3,  # Basse temperature pour coherence dans les jugements
-            )
-            return resp.choices[0].message.content
-
-        raw = await asyncio.to_thread(_call)
+                "max_tokens": 1024,
+                "temperature": 0.3,
+            },
+            timeout=25.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices", [])
+        raw = choices[0]["message"]["content"].strip() if choices else "{}"
 
         # Parser la reponse JSON
         # Nettoyer les eventuels backticks markdown

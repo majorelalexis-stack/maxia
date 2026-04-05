@@ -437,8 +437,10 @@ async def health(request: Request):
     # CEO agent — removed (Plan CEO V4: CEO = local only)
     checks["ceo"] = "local_only"
 
-    # Groq API (just check key exists)
-    checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "missing"
+    # LLM APIs
+    checks["cerebras"] = "configured" if os.getenv("CEREBRAS_API_KEY") else "missing"
+    checks["gemini"] = "configured" if os.getenv("GOOGLE_AI_KEY") else "missing"
+    checks["groq"] = "configured" if os.getenv("GROQ_API_KEY") else "legacy_removed"
 
     # V-09: Public health returns minimal info. Detailed checks behind admin auth.
     admin_key = request.headers.get("X-Admin-Key", "") if hasattr(request, 'headers') else ""
