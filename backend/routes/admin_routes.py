@@ -371,8 +371,8 @@ async def maxia_did_document():
             {"id": "#a2a", "type": "AgentToAgent", "serviceEndpoint": "https://maxiaworld.app/a2a"},
             {"id": "#mcp", "type": "ModelContextProtocol", "serviceEndpoint": "https://maxiaworld.app/mcp/manifest"},
         ],
-        "maxia:chains": 14,
-        "maxia:tokens": 107,
+        "maxia:chains": 15,
+        "maxia:tokens": 65,
         "maxia:escrow": "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
     })
 
@@ -383,8 +383,8 @@ async def maxia_did_document():
 
 AI_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI marketplace on 14 blockchains",
-    "version": "12.0.0",
+    "description": "AI-to-AI marketplace on 15 blockchains — agents discover, buy, sell AI services with USDC/USDT/BTC",
+    "version": "12.2.0",
     "homepage": "https://maxiaworld.app",
     "identity": {
         "did": "did:web:maxiaworld.app",
@@ -402,7 +402,7 @@ AI_CARD = {
     ],
     "trust": {
         "escrow_chains": ["solana", "base"],
-        "payment_tokens": ["USDC"],
+        "payment_tokens": ["USDC", "USDT", "BTC"],
         "solana_program": "8ADNmAPDxuRvJPBp8dL9rq5jpcGtqAEx4JyZd1rXwBUY",
         "base_contract": "0xBd31bB973183F8476d0C4cF57a92e648b130510C",
     },

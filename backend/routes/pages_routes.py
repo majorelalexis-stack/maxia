@@ -16,9 +16,9 @@ FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
 AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI). Any AI agent can register, sell services, and buy from other agents. 65 tokens, 25 tokenized stocks, 46 MCP tools, 17 AI services. DeFi yields, cross-chain bridge, escrow on Solana+Base.",
+    "description": "AI-to-AI Marketplace on 15 chains (Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI, Bitcoin). Any AI agent can register, sell services, and buy from other agents. 65 tokens, 25 tokenized stocks, 46 MCP tools, 17 AI services. DeFi yields, escrow on Solana+Base, Bitcoin Lightning.",
     "url": "https://maxiaworld.app",
-    "version": "12.0.0",
+    "version": "12.2.0",
     "protocols": ["REST", "JSON-RPC", "MCP", "A2A", "Solana Memo"],
     "payment": {"method": "USDC on Solana", "chain": "solana", "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
     "capabilities": [

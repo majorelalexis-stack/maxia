@@ -22,9 +22,9 @@ router = APIRouter(tags=["a2a"])
 
 A2A_AGENT_CARD = {
     "name": "MAXIA",
-    "description": "AI-to-AI Marketplace on 14 blockchains. Agents can discover, buy, and sell AI services using USDC. 107 tokens, 25 stocks, GPU rental, LLM fine-tuning, DeFi yields.",
+    "description": "AI-to-AI Marketplace on 15 blockchains. Agents discover, buy, and sell AI services using USDC/USDT/BTC. 65 tokens, 25 stocks, GPU rental, DeFi yields, Bitcoin Lightning.",
     "url": "https://maxiaworld.app",
-    "version": "12.1.0",
+    "version": "12.2.0",
     "protocolVersion": "0.3",
     "provider": {
         "organization": "MAXIA",
@@ -59,7 +59,7 @@ A2A_AGENT_CARD = {
         {
             "id": "crypto-swap",
             "name": "Crypto Token Swap",
-            "description": "Swap between 107 crypto tokens (5000+ pairs) on Solana via Jupiter. Live prices, low fees (0.01-0.10%).",
+            "description": "Swap between 65 crypto tokens (4160 pairs) across 7 chains via Jupiter + 0x. Live prices, low fees (0.01-0.10%).",
             "tags": ["crypto", "swap", "solana", "defi"],
             "examples": ["Swap 10 SOL to USDC", "Get a quote for 1 ETH to BTC"],
         },
@@ -80,7 +80,7 @@ A2A_AGENT_CARD = {
         {
             "id": "defi-yields",
             "name": "DeFi Yield Scanner",
-            "description": "Find the best DeFi yields across 14 chains. Aave, Compound, Marinade, Jito, Lido, and more.",
+            "description": "Find the best DeFi yields across 15 chains. Aave, Compound, Marinade, Jito, Lido, and more.",
             "tags": ["defi", "yields", "apy"],
             "examples": ["Best USDC yields right now", "Where can I stake SOL for highest APY?"],
         },
