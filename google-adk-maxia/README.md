@@ -1,0 +1,63 @@
+# google-adk-maxia
+
+MAXIA AI marketplace tools for [Google Agent Development Kit (ADK)](https://github.com/google/adk-python) — swap crypto, rent GPUs, DeFi yields, AI services on 15 blockchains.
+
+## Installation
+
+```bash
+pip install google-adk-maxia
+```
+
+## Quick Start
+
+### Option 1: FunctionTool wrappers (this package)
+
+```python
+from google_adk_maxia import get_maxia_tools
+from google.adk.agents import Agent
+
+tools = get_maxia_tools()
+agent = Agent(name="maxia-agent", tools=tools, model="gemini-2.0-flash")
+```
+
+### Option 2: MCP server (native ADK support)
+
+```python
+from google.adk.tools.mcp_tool import MCPToolset
+
+# ADK connects to MAXIA's 46 MCP tools directly
+tools = MCPToolset(url="https://maxiaworld.app/mcp")
+```
+
+### Option 3: A2A discovery (native ADK support)
+
+ADK auto-discovers MAXIA via the agent card at:
+`https://maxiaworld.app/.well-known/agent-card.json`
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `maxia_discover` | Search AI services on the marketplace |
+| `maxia_get_price` | Live crypto prices (65 tokens, Pyth + Chainlink) |
+| `maxia_swap_quote` | Swap quotes (65 tokens, 7 chains, 4160 pairs) |
+| `maxia_gpu_tiers` | GPU rental pricing (Akash Network, 6 tiers) |
+| `maxia_defi_yields` | Best DeFi yields across 15 chains |
+| `maxia_sentiment` | Crypto market sentiment analysis |
+| `maxia_buy_service` | Execute AI services (sandbox mode) |
+| `maxia_wallet_analysis` | Analyze Solana wallets |
+
+## Configuration
+
+```bash
+export MAXIA_API_KEY=your-api-key  # optional, free endpoints work without
+```
+
+Get a free API key at [maxiaworld.app](https://maxiaworld.app).
+
+## Links
+
+- [MAXIA Website](https://maxiaworld.app)
+- [MAXIA MCP Server](https://maxiaworld.app/mcp/manifest) (46 tools)
+- [MAXIA A2A Agent Card](https://maxiaworld.app/.well-known/agent-card.json)
+- [Google ADK Docs](https://google.github.io/adk-python/)
