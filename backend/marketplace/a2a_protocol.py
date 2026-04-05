@@ -25,7 +25,18 @@ A2A_AGENT_CARD = {
     "description": "AI-to-AI Marketplace on 15 blockchains. Agents discover, buy, and sell AI services using USDC/USDT/BTC. 65 tokens, 25 stocks, GPU rental, DeFi yields, Bitcoin Lightning.",
     "url": "https://maxiaworld.app",
     "version": "12.2.0",
-    "protocolVersion": "0.3",
+    "supportedInterfaces": [
+        {
+            "url": "https://maxiaworld.app/a2a",
+            "protocolBinding": "JSONRPC",
+            "protocolVersion": "1.0",
+        },
+        {
+            "url": "https://maxiaworld.app/api/public",
+            "protocolBinding": "HTTP+JSON",
+            "protocolVersion": "1.0",
+        },
+    ],
     "provider": {
         "organization": "MAXIA",
         "url": "https://maxiaworld.app",
@@ -35,9 +46,14 @@ A2A_AGENT_CARD = {
         "pushNotifications": False,
         "stateTransitionHistory": True,
     },
-    "authentication": {
-        "schemes": ["apiKey"],
-        "credentials": "X-API-Key header (free via POST /api/public/register)",
+    "securitySchemes": {
+        "apiKey": {
+            "apiKeySecurityScheme": {
+                "description": "Free API key via POST /api/public/register",
+                "location": "header",
+                "name": "X-API-Key",
+            }
+        }
     },
     "defaultInputModes": ["text/plain", "application/json"],
     "defaultOutputModes": ["text/plain", "application/json"],
@@ -464,6 +480,74 @@ async def a2a_agent_card():
 async def a2a_agent_card_legacy():
     """Legacy agent card endpoint (backward compat)."""
     return A2A_AGENT_CARD
+
+
+# ── MCP Server Card (SEP-1649 discovery) ──
+
+MCP_SERVER_CARD = {
+    "serverInfo": {
+        "name": "MAXIA MCP Server",
+        "version": "12.2.0",
+        "description": "AI-to-AI marketplace — 46 MCP tools for crypto swap, GPU rental, DeFi yields, wallet analysis, sentiment, tokenized stocks",
+        "homepage": "https://maxiaworld.app",
+    },
+    "transport": {
+        "type": "streamable-http",
+        "url": "https://maxiaworld.app/mcp",
+    },
+    "capabilities": {
+        "tools": True,
+        "resources": True,
+        "prompts": False,
+    },
+    "iconUrl": "https://maxiaworld.app/static/maxia-logo.png",
+    "documentationUrl": "https://maxiaworld.app/docs",
+    "authentication": {
+        "required": False,
+    },
+}
+
+
+@router.get("/.well-known/mcp/server-card.json")
+async def mcp_server_card():
+    """MCP Server Card for automated discovery (SEP-1649)."""
+    return MCP_SERVER_CARD
+
+
+@router.get("/.well-known/mcp")
+async def mcp_wellknown():
+    """MCP .well-known manifest for discovery (SEP-1960)."""
+    return {
+        "mcp_version": "2025-11-25",
+        "endpoints": [{
+            "url": "https://maxiaworld.app/mcp",
+            "transport": "streamable-http",
+            "capabilities": ["tools", "resources"],
+        }],
+    }
+
+
+# ── OpenAI Plugin Manifest (deprecated but still scanned) ──
+
+@router.get("/.well-known/ai-plugin.json")
+async def ai_plugin_manifest():
+    """OpenAI Plugin manifest (deprecated April 2024 but still recognized by tools)."""
+    return {
+        "schema_version": "v1",
+        "name_for_human": "MAXIA AI Marketplace",
+        "name_for_model": "maxia",
+        "description_for_human": "AI-to-AI marketplace on 15 blockchains. Swap crypto, rent GPUs, discover AI services.",
+        "description_for_model": "MAXIA is an AI-to-AI marketplace where autonomous agents discover, buy, and sell AI services using USDC on 15 blockchains. Use this to: swap 65 crypto tokens, rent GPUs, get DeFi yields, trade tokenized stocks, run sentiment analysis, analyze wallets, generate images, and execute AI services from other agents.",
+        "auth": {"type": "none"},
+        "api": {
+            "type": "openapi",
+            "url": "https://maxiaworld.app/openapi.json",
+            "has_user_authentication": False,
+        },
+        "logo_url": "https://maxiaworld.app/static/maxia-logo.png",
+        "contact_email": "ceo@maxiaworld.app",
+        "legal_info_url": "https://maxiaworld.app/legal",
+    }
 
 
 log.info("[A2A] Agent2Agent Protocol (Google/Linux Foundation) monte — JSON-RPC 2.0 + SSE")

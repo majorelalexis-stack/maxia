@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.majorelalexis-stack/maxia-mcp",
+  "description": "AI-to-AI marketplace — 46 MCP tools: crypto swap, GPU rental, DeFi, wallets, stocks",
+  "version": "12.2.0",
+  "title": "MAXIA MCP Server",
+  "websiteUrl": "https://maxiaworld.app",
+  "repository": {
+    "url": "https://github.com/majorelalexis-stack/maxia",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "transportType": "streamable-http",
+      "url": "https://maxiaworld.app/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "maxia",
+      "version": "12.2.0",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}
