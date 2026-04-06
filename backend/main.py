@@ -268,6 +268,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] DCA bot init error: %s", e)
 
+    # V12: Grid Bot — grid trading at fixed price intervals
+    try:
+        from trading.grid_bot import ensure_tables as ensure_grid_tables, grid_worker
+        await ensure_grid_tables()
+        asyncio.create_task(grid_worker())
+        logger.info("[GRID] Bot worker started")
+    except Exception as e:
+        logger.error("[MAXIA] Grid bot init error: %s", e)
+
+    # V12: Auto-Compound DeFi — automated yield compounding
+    try:
+        from features.auto_compound import ensure_tables as ensure_compound_tables, compound_worker
+        await ensure_compound_tables()
+        asyncio.create_task(compound_worker())
+        logger.info("[Compound] Auto-compound worker started")
+    except Exception as e:
+        logger.error("[MAXIA] Auto-compound init error: %s", e)
+
     try:
         from marketplace.marketplace_features import ensure_tables as ensure_mkt_tables
         await ensure_mkt_tables()
@@ -672,6 +690,18 @@ try:
     logger.info("[DCA] Router monte — /api/dca/*")
 except Exception as e:
     logger.error("[MAXIA] DCA router error: %s", e)
+try:
+    from trading.grid_bot import get_router as get_grid_router
+    app.include_router(get_grid_router())
+    logger.info("[GRID] Router monte — /api/grid/*")
+except Exception as e:
+    logger.error("[MAXIA] Grid router error: %s", e)
+try:
+    from features.auto_compound import get_router as get_compound_router
+    app.include_router(get_compound_router())
+    logger.info("[Compound] Router monte — /api/compound/*")
+except Exception as e:
+    logger.error("[MAXIA] Auto-compound router error: %s", e)
 try:
     from marketplace.marketplace_features import get_router as get_mkt_router
     app.include_router(get_mkt_router())
@@ -1267,6 +1297,14 @@ try:
     logger.info("[S5] Premium API Tier monte")
 except Exception as e:
     logger.error("[MAXIA] Premium API router error: %s", e)
+
+# ── Pricing Page API ──
+try:
+    from billing.pricing_page import router as pricing_page_router
+    app.include_router(pricing_page_router)
+    logger.info("[PRICING] Pricing Page API monte")
+except Exception as e:
+    logger.error("[MAXIA] Pricing Page router error: %s", e)
 
 # ── S8: AI Audit-as-a-Service ──
 try:
