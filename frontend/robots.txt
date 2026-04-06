@@ -5,6 +5,12 @@ Disallow: /dashboard
 Disallow: /api/
 Disallow: /ws
 Disallow: /mcp/
+Disallow: /health
+Disallow: /openapi.json
+Disallow: /MAXIA_DOCS.md
+Disallow: /oracle/
+Disallow: /metrics
+Disallow: /status/chain/
 
 User-agent: GPTBot
 Allow: /
