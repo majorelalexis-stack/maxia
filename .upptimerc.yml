@@ -1,0 +1,40 @@
+# MAXIA Upptime — Public status page + uptime monitoring
+# Docs: https://upptime.js.org/docs/configuration
+
+owner: MAXIA-AI
+repo: status
+
+sites:
+  - name: MAXIA Health
+    url: https://maxiaworld.app/health
+    expectedStatusCodes:
+      - 200
+
+  - name: API Discover
+    url: https://maxiaworld.app/api/public/discover
+    expectedStatusCodes:
+      - 200
+
+  - name: API Prices
+    url: https://maxiaworld.app/api/public/prices
+    expectedStatusCodes:
+      - 200
+
+  - name: MCP Manifest
+    url: https://maxiaworld.app/mcp/manifest
+    expectedStatusCodes:
+      - 200
+
+  - name: Landing Page
+    url: https://maxiaworld.app/
+    expectedStatusCodes:
+      - 200
+
+status-website:
+  cname: status.maxiaworld.app
+  logoUrl: https://maxiaworld.app/static/logo.png
+  name: MAXIA Status
+  theme: dark
+
+notifications:
+  - type: discord

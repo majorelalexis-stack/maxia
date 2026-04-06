@@ -6,5 +6,5 @@ set OLLAMA_MAX_LOADED_MODELS=1
 set OLLAMA_NUM_PARALLEL=1
 set OLLAMA_FLASH_ATTENTION=1
 
-python ceo_local_v2.py chat
+python ceo_main.py chat
 pause

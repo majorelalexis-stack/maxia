@@ -1229,3 +1229,59 @@ try:
     logger.info("[Empire] Sprint Impact (Pricing, SLA, Federation) monte")
 except Exception as e:
     logger.error("[MAXIA] Empire Impact router error: %s", e)
+
+# ── E35: Wallet Risk Scoring ──
+try:
+    from features.wallet_risk import router as wallet_risk_router
+    app.include_router(wallet_risk_router)
+    logger.info("[E35] Wallet Risk Scoring monte")
+except Exception as e:
+    logger.error("[MAXIA] Wallet Risk router error: %s", e)
+
+# ── E36: ML Trading Signals ──
+try:
+    from features.ml_signals import router as ml_signals_router
+    app.include_router(ml_signals_router)
+    logger.info("[E36] ML Trading Signals monte")
+except Exception as e:
+    logger.error("[MAXIA] ML Signals router error: %s", e)
+
+# ── S5: Premium API Tier ──
+try:
+    from billing.premium_api import router as premium_api_router
+    app.include_router(premium_api_router)
+    logger.info("[S5] Premium API Tier monte")
+except Exception as e:
+    logger.error("[MAXIA] Premium API router error: %s", e)
+
+# ── S8: AI Audit-as-a-Service ──
+try:
+    from features.audit_service import router as audit_service_router
+    app.include_router(audit_service_router)
+    logger.info("[S8] AI Audit-as-a-Service monte")
+except Exception as e:
+    logger.error("[MAXIA] Audit Service router error: %s", e)
+
+# ── E11: Web2 Gateway ──
+try:
+    from integrations.web2_gateway import router as web2_gateway_router
+    app.include_router(web2_gateway_router)
+    logger.info("[E11] Web2 Gateway monte")
+except Exception as e:
+    logger.error("[MAXIA] Web2 Gateway router error: %s", e)
+
+# ── E14: Cross-Chain Identity ──
+try:
+    from agents.cross_chain_identity import router as identity_router
+    app.include_router(identity_router)
+    logger.info("[E14] Cross-Chain Identity monte")
+except Exception as e:
+    logger.error("[MAXIA] Cross-Chain Identity router error: %s", e)
+
+# ── E16: Reputation Oracle ──
+try:
+    from features.reputation_oracle import router as rep_oracle_router
+    app.include_router(rep_oracle_router)
+    logger.info("[E16] Reputation Oracle monte")
+except Exception as e:
+    logger.error("[MAXIA] Reputation Oracle router error: %s", e)

@@ -1,4 +1,4 @@
-"""Config CEO Local V2 — Modele unique Qwen 2.5 VL 32B, 7 missions, zero spam.
+"""Config CEO Local V2 — Dual-model Qwen 3.5 27B + VL 7B, 14 missions, zero spam.
 
 Le CEO ne poste RIEN sauf 1 tweet/jour. Tout passe par mail a Alexis.
 """
@@ -15,15 +15,16 @@ CEO_API_KEY = os.getenv("CEO_API_KEY", "")
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 
 # ══════════════════════════════════════════
-# Ollama — modele unique (texte + vision)
+# Ollama — dual-model (texte: qwen3.5:27b + vision: qwen2.5vl:7b)
 # ══════════════════════════════════════════
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:32b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:27b")
+VISION_MODEL = os.getenv("VISION_MODEL", "qwen2.5vl:7b")
 
 # Backward compat
 OLLAMA_CEO_MODEL = OLLAMA_MODEL
 OLLAMA_EXECUTOR_MODEL = OLLAMA_MODEL
-OLLAMA_VISION_MODEL = OLLAMA_MODEL
+OLLAMA_VISION_MODEL = VISION_MODEL
 OLLAMA_BROWSER_MODEL = OLLAMA_MODEL
 OLLAMA_MAX_LOADED_MODELS = 1
 
@@ -57,7 +58,7 @@ MAX_REDDIT_COMMENTS_DAY = 0
 MAX_GITHUB_COMMENTS_DAY = 0
 MAX_DISCORD_MESSAGES_DAY = 0
 MAX_TELEGRAM_MESSAGES_DAY = 0
-OFF_DAYS_PER_WEEK = 0  # Pas de jour off — monitoring continu
+OFF_DAYS_PER_WEEK = 1  # 1 jour off aleatoire/semaine — anti-spam (Phase 6)
 
 # Backward compat pour browser_agent.py
 MIN_ACTION_SPACING_S = 3600
@@ -69,11 +70,18 @@ STRATEGY_FILE = os.path.join(os.path.dirname(__file__), "strategy.md")
 LEARNINGS_FILE = os.path.join(os.path.dirname(__file__), "learnings.json")
 RND_FINDINGS_FILE = os.path.join(os.path.dirname(__file__), "rnd_findings.md")
 PLATFORM_SCORES_FILE = os.path.join(os.path.dirname(__file__), "platform_scores.json")
+AUDIT_DB_PATH = os.path.join(os.path.dirname(__file__), "ceo_audit.db")
 
 # Intervalles
-HEALTH_CHECK_INTERVAL_S = 300   # 5 min
+HEALTH_CHECK_INTERVAL_S = 1800  # 30 min (2 GET x 48/jour = 96 req, dans la limite)
 MODERATION_INTERVAL_S = 3600    # 1h
 OODA_INTERVAL_S = 300           # 5 min (backward compat)
+
+# ══════════════════════════════════════════
+# Kaspa Mining — auto-switch avec CEO
+# ══════════════════════════════════════════
+KASPA_MINING_ENABLED = os.getenv("KASPA_MINING_ENABLED", "0") == "1"  # Desactive — GPU mining KAS non rentable (mars 2026)
+TEAMREDMINER_DIR = os.getenv("TEAMREDMINER_DIR", r"C:\Mining\TeamRedMiner")
 
 # Approbation (backward compat)
 APPROVAL_TIMEOUT_ORANGE_S = 120

@@ -36,7 +36,8 @@ from config_local import (
     VPS_URL, ADMIN_KEY, OLLAMA_URL, OLLAMA_MODEL,
     ALEXIS_EMAIL, BROWSER_PROFILE_DIR,
     HEALTH_CHECK_INTERVAL_S, MODERATION_INTERVAL_S,
-    GITHUB_REPOS, MAXIA_FEATURES,
+    GITHUB_REPOS, MAXIA_FEATURES, MAX_EMAILS_DAY,
+    OFF_DAYS_PER_WEEK,
 )
 from kaspa_miner import start_miner, stop_miner, is_mining, get_stats
 
@@ -217,6 +218,25 @@ async def send_mail(subject: str, body: str):
 
 
 # ══════════════════════════════════════════
+# Anti-spam — jour off aleatoire (Phase 6)
+# ══════════════════════════════════════════
+
+def _is_off_day() -> bool:
+    """1 random off day per week — deterministic via week seed."""
+    import hashlib
+    if OFF_DAYS_PER_WEEK <= 0:
+        return False
+    today = datetime.now().date()
+    week_seed = f"maxia_off_{today.isocalendar()[0]}_{today.isocalendar()[1]}"
+    rng = random.Random(hashlib.md5(week_seed.encode()).hexdigest())
+    off_days = sorted(rng.sample(range(7), min(OFF_DAYS_PER_WEEK, 7)))
+    is_off = today.weekday() in off_days
+    if is_off:
+        log.info("[OFF-DAY] Jour off (weekday=%d, off=%s) — pas de tweet", today.weekday(), off_days)
+    return is_off
+
+
+# ══════════════════════════════════════════
 # Mission 1 — Tweet feature du jour
 # ══════════════════════════════════════════
 
@@ -224,6 +244,9 @@ async def mission_tweet_feature(mem: dict, actions: dict):
     """Poste 1 tweet presentant une feature MAXIA."""
     if actions["counts"]["tweet_feature"] >= 1:
         log.info("Tweet deja poste aujourd'hui — skip")
+        return
+
+    if _is_off_day():
         return
 
     # Choisir la feature suivante (rotation)
@@ -949,19 +972,17 @@ _AUDIT_STATE_FILE = os.path.join(os.path.dirname(__file__), "audit_state.json")
 CODE_AUDIT_SYSTEM_PROMPT = (
     "You are a senior Python/FastAPI security & bug auditor. "
     "You are auditing MAXIA, a production AI-to-AI marketplace (FastAPI, 559 routes, 14 blockchains, USDC payments).\n\n"
-    "ONLY report REAL BUGS — things that WILL break in production:\n"
-    "- Variables/functions used but never defined or imported\n"
-    "- Async functions missing await (or await on non-coroutines)\n"
-    "- Unhandled exceptions that crash the endpoint (bare raise, missing try/except on I/O)\n"
+    "You will receive ONE FUNCTION at a time, along with its imports and callers.\n"
+    "Analyze the function DEEPLY — check every variable, every await, every SQL query.\n\n"
+    "ONLY report bugs you are 95%+ confident are REAL:\n"
+    "- Variables/functions used but never defined or imported in the provided context\n"
+    "- Async functions missing await (verify the function IS async before reporting)\n"
     "- SQL injection (string formatting in queries instead of parameterized)\n"
-    "- Race conditions in async code (shared mutable state without locks)\n"
     "- Security: secrets leaked in responses, missing auth on sensitive endpoints\n"
-    "- Logic errors: wrong comparison, off-by-one, unreachable code after return\n"
-    "- Type mismatches: str where int expected, None not handled\n"
-    "- Resource leaks: connections/files opened but never closed\n"
-    "- Dead code that shadows or conflicts with live code\n\n"
-    "DO NOT report: style issues, missing docstrings, import order, naming conventions, "
-    "suggestions for improvement, potential issues, or anything speculative.\n\n"
+    "- Logic errors: wrong comparison, off-by-one, division by zero\n"
+    "- Type mismatches that WILL crash: None not handled, str where int expected\n\n"
+    "DO NOT report: style issues, missing docstrings, potential issues, race conditions on asyncio globals, "
+    "suggestions for improvement, or anything speculative. If you are not 95% sure, do NOT report it.\n\n"
     "For each bug found, output EXACTLY this format (one per bug):\n"
     "BUG|severity|line_number|description\n"
     "Severity: CRITICAL, HIGH, MEDIUM\n"
@@ -994,11 +1015,39 @@ def _save_audit_state(state: dict):
         log.error("[AUDIT] State save error: %s", e)
 
 
-async def mission_code_audit(mem: dict, actions: dict) -> bool:
-    """Scan UN fichier .py du backend, append findings au rapport.
+def _extract_functions(code: str) -> list:
+    """Extract (name, start_line, end_line) for each top-level function/method."""
+    import re
+    functions = []
+    lines = code.split("\n")
+    func_pattern = re.compile(r"^(async\s+)?def\s+(\w+)\s*\(")
+    for i, line in enumerate(lines):
+        m = func_pattern.match(line)
+        if m:
+            functions.append({"name": m.group(2), "start": i})
+    # Set end_line for each function (start of next function or EOF)
+    for j in range(len(functions)):
+        if j + 1 < len(functions):
+            functions[j]["end"] = functions[j + 1]["start"] - 1
+        else:
+            functions[j]["end"] = len(lines) - 1
+    return functions
 
-    Returns True if audit complete (all files done), False if more to do.
-    Called repeatedly from main loop when GPU is idle.
+
+def _get_imports_section(code: str) -> str:
+    """Extract the import block at the top of a file (first N lines before first def/class)."""
+    lines = code.split("\n")
+    for i, line in enumerate(lines):
+        if line.startswith("def ") or line.startswith("async def ") or line.startswith("class "):
+            return "\n".join(lines[:i])
+    return "\n".join(lines[:50])
+
+
+async def mission_code_audit(mem: dict, actions: dict) -> bool:
+    """Audit UNE FONCTION en profondeur par jour (imports + function + callers).
+
+    Returns True if audit complete (all functions done for current file), False otherwise.
+    Strategy: 1 function/day, deep analysis with full context.
     """
     audit = _load_audit_state()
 
@@ -1008,7 +1057,7 @@ async def mission_code_audit(mem: dict, actions: dict) -> bool:
         log.warning("[AUDIT] No .py files found in %s", _BACKEND_DIR)
         return True
 
-    # Filtrer les fichiers deja scannes
+    # Filtrer les fichiers deja scannes entierement
     done_set = set(audit.get("files_done", []))
     remaining = [f for f in all_py if os.path.basename(f) not in done_set]
 
@@ -1017,10 +1066,9 @@ async def mission_code_audit(mem: dict, actions: dict) -> bool:
                  len(done_set), audit.get("total_bugs", 0))
         return True
 
-    # Prendre le prochain fichier
+    # Prendre le fichier en cours
     target = remaining[0]
     filename = os.path.basename(target)
-    log.info("[AUDIT] Scanning %s (%d/%d)...", filename, len(done_set) + 1, len(all_py))
 
     # Lire le fichier
     try:
@@ -1032,55 +1080,71 @@ async def mission_code_audit(mem: dict, actions: dict) -> bool:
         _save_audit_state(audit)
         return False
 
-    # Skip fichiers trop petits (< 10 lignes = probablement __init__.py ou vide)
-    line_count = code.count("\n") + 1
+    lines = code.split("\n")
+    line_count = len(lines)
+
+    # Skip fichiers trop petits
     if line_count < 10:
         log.info("[AUDIT] Skip %s (%d lines — too small)", filename, line_count)
         audit["files_done"].append(filename)
         _save_audit_state(audit)
         return False
 
-    # Chunking: si > 400 lignes, decoupe en chunks avec overlap
-    chunks = []
-    lines = code.split("\n")
-    chunk_size = 350
-    overlap = 30
+    # Extraire les fonctions du fichier
+    functions = _extract_functions(code)
+    if not functions:
+        log.info("[AUDIT] Skip %s (no functions found)", filename)
+        audit["files_done"].append(filename)
+        _save_audit_state(audit)
+        return False
 
-    if line_count <= chunk_size + 50:
-        chunks.append(("1-%d" % line_count, code))
-    else:
-        start = 0
-        while start < len(lines):
-            end = min(start + chunk_size, len(lines))
-            chunk_lines = lines[start:end]
-            # Ajouter les numeros de ligne pour aider le LLM
-            numbered = "\n".join(f"{start + i + 1}: {l}" for i, l in enumerate(chunk_lines))
-            chunks.append(("%d-%d" % (start + 1, end), numbered))
-            start += chunk_size - overlap
+    # Trouver la prochaine fonction non auditee dans ce fichier
+    funcs_done = set(audit.get("funcs_done_current", []))
+    remaining_funcs = [f for f in functions if f"{filename}:{f['name']}" not in funcs_done]
 
-    # Auditer chaque chunk
+    if not remaining_funcs:
+        # Toutes les fonctions de ce fichier sont auditees → fichier termine
+        log.info("[AUDIT] %s complete — all %d functions audited", filename, len(functions))
+        audit["files_done"].append(filename)
+        audit["funcs_done_current"] = []
+        _save_audit_state(audit)
+        return False
+
+    # Prendre UNE seule fonction
+    func = remaining_funcs[0]
+    func_code = "\n".join(lines[func["start"]:func["end"] + 1])
+    imports_section = _get_imports_section(code)
+
+    log.info("[AUDIT] Deep scan: %s → %s() (L%d-%d) [%d/%d funcs]",
+             filename, func["name"], func["start"] + 1, func["end"] + 1,
+             len(funcs_done) + 1, len(functions))
+
+    # Construire le prompt avec contexte complet
+    numbered_func = "\n".join(
+        f"{func['start'] + 1 + i}: {l}" for i, l in enumerate(lines[func["start"]:func["end"] + 1])
+    )
+
+    prompt = (
+        f"File: {filename}\n\n"
+        f"== IMPORTS (top of file) ==\n```python\n{imports_section}\n```\n\n"
+        f"== FUNCTION TO AUDIT: {func['name']}() (lines {func['start']+1}-{func['end']+1}) ==\n"
+        f"```python\n{numbered_func}\n```"
+    )
+
+    # Limiter la taille
+    if len(prompt) > 12000:
+        prompt = prompt[:12000] + "\n... (truncated)"
+
+    result = await llm(
+        prompt,
+        system=CODE_AUDIT_SYSTEM_PROMPT,
+        max_tokens=500,
+        timeout=600,
+    )
+
     file_bugs = []
-    for chunk_range, chunk_code in chunks:
-        # Limiter la taille envoyee au LLM (Qwen 32B context ~32K)
-        if len(chunk_code) > 15000:
-            chunk_code = chunk_code[:15000] + "\n... (truncated)"
-
-        prompt = (
-            f"File: {filename} (lines {chunk_range})\n"
-            f"```python\n{chunk_code}\n```"
-        )
-
-        result = await llm(
-            prompt,
-            system=CODE_AUDIT_SYSTEM_PROMPT,
-            max_tokens=800,
-            timeout=600,
-        )
-
-        if not result:
-            continue
-
-        # Parser les resultats — nettoyer le thinking Qwen3
+    if result:
+        # Nettoyer le thinking Qwen3
         if "<think>" in result and "</think>" in result:
             result = result.split("</think>")[-1].strip()
 
@@ -1095,73 +1159,53 @@ async def mission_code_audit(mem: dict, actions: dict) -> bool:
                         "desc": parts[3].strip(),
                     })
 
-        # Pause entre chunks pour ne pas surcharger le GPU
-        if len(chunks) > 1:
-            await asyncio.sleep(2)
-
-    # Init le rapport si premier fichier
+    # Init le rapport si premier function
     if not audit.get("started_at"):
         audit["started_at"] = datetime.now().isoformat()
         header = (
-            f"# MAXIA Code Audit Report\n"
+            f"# MAXIA Code Audit Report (Deep — 1 function/day)\n"
             f"**Date**: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
             f"**Model**: {OLLAMA_MODEL}\n"
             f"**Backend files**: {len(all_py)}\n"
-            f"**Auditor**: CEO Local (Mission 10)\n\n"
+            f"**Auditor**: CEO Local (Mission 10 v2)\n\n"
             f"---\n\n"
         )
         with open(_AUDIT_REPORT_FILE, "w", encoding="utf-8") as f:
             f.write(header)
 
     # Append au rapport
+    func_label = f"{filename}:{func['name']}()"
     with open(_AUDIT_REPORT_FILE, "a", encoding="utf-8") as f:
         if file_bugs:
-            f.write(f"## {filename} ({line_count} lines) — {len(file_bugs)} bug(s)\n\n")
+            f.write(f"### {func_label} (L{func['start']+1}-{func['end']+1}) — {len(file_bugs)} bug(s)\n\n")
             for bug in file_bugs:
-                icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡"}.get(bug["severity"], "⚪")
+                icon = {"CRITICAL": "\U0001f534", "HIGH": "\U0001f7e0", "MEDIUM": "\U0001f7e1"}.get(bug["severity"], "\u26aa")
                 f.write(f"- {icon} **{bug['severity']}** L{bug['line']}: {bug['desc']}\n")
             f.write("\n")
         else:
-            f.write(f"## {filename} ({line_count} lines) — CLEAN\n\n")
+            f.write(f"### {func_label} (L{func['start']+1}-{func['end']+1}) — CLEAN\n\n")
 
-    # Update state
-    audit["files_done"].append(filename)
+    # Update state — marquer cette fonction comme faite
+    audit.setdefault("funcs_done_current", []).append(f"{filename}:{func['name']}")
     audit["total_bugs"] = audit.get("total_bugs", 0) + len(file_bugs)
     _save_audit_state(audit)
 
-    progress = len(audit["files_done"])
-    log.info("[AUDIT] %s: %d bugs | Progress: %d/%d files",
-             filename, len(file_bugs), progress, len(all_py))
+    log.info("[AUDIT] %s: %d bugs | Function %d/%d in %s",
+             func_label, len(file_bugs), len(funcs_done) + 1, len(functions), filename)
 
-    # Si c'est le dernier fichier, envoyer le rapport par mail
-    if progress >= len(all_py):
-        # Ajouter le resume en fin de rapport
-        with open(_AUDIT_REPORT_FILE, "a", encoding="utf-8") as f:
-            f.write(f"\n---\n\n## Summary\n")
-            f.write(f"- **Files scanned**: {progress}\n")
-            f.write(f"- **Total bugs found**: {audit['total_bugs']}\n")
-            f.write(f"- **Started**: {audit['started_at']}\n")
-            f.write(f"- **Completed**: {datetime.now().isoformat()}\n")
-
-        # Lire le rapport pour le mail (tronquer si trop long)
-        try:
-            with open(_AUDIT_REPORT_FILE, "r", encoding="utf-8") as f:
-                report_content = f.read()
-            # Mail: max 10K chars, sinon tronquer
-            if len(report_content) > 10000:
-                mail_body = report_content[:9500] + "\n\n... (rapport tronqué — voir audit_report.md pour le complet)"
-            else:
-                mail_body = report_content
-            await send_mail(
-                f"[MAXIA CEO] 🔍 Code Audit Complete — {audit['total_bugs']} bugs in {progress} files",
-                mail_body,
-            )
-        except Exception as e:
-            log.error("[AUDIT] Mail send error: %s", e)
-
-        log.info("[AUDIT] ✅ Audit COMPLET — %d bugs dans %d fichiers. Rapport: %s",
-                 audit["total_bugs"], progress, _AUDIT_REPORT_FILE)
-        return True
+    # Envoyer mail quotidien avec le resultat de cette fonction
+    try:
+        if file_bugs:
+            bug_summary = "\n".join(f"  - {b['severity']} L{b['line']}: {b['desc']}" for b in file_bugs)
+            mail_body = f"Audit deep: {func_label}\n\n{bug_summary}"
+        else:
+            mail_body = f"Audit deep: {func_label} — CLEAN (aucun bug)"
+        await send_mail(
+            f"[MAXIA CEO] Audit: {func_label} — {len(file_bugs)} bug(s)",
+            mail_body,
+        )
+    except Exception as e:
+        log.error("[AUDIT] Mail send error: %s", e)
 
     return False
 
@@ -1175,10 +1219,27 @@ _SCOUT_PENDING_FILE = os.path.join(_DIR, "scout_pending_contacts.json")
 
 # Registries HTTP — pas de RPC blockchain, juste des APIs publiques
 _AI_REGISTRIES = [
-    {"name": "Virtuals Protocol", "url": "https://api.virtuals.io/api/virtuals?filters[isLaunched]=true&pagination[limit]=20", "chain": "base"},
-    {"name": "ElizaOS Registry", "url": "https://elizaos.github.io/registry/index.json", "chain": "solana"},
-    {"name": "HuggingFace Spaces", "url": "https://huggingface.co/api/spaces?limit=20&filter=agent&sort=likes", "chain": "multi"},
-    {"name": "HuggingFace Models", "url": "https://huggingface.co/api/models?filter=agent&limit=20&sort=likes", "chain": "multi"},
+    # ── LIVE: agents avec endpoints contactables ──
+    {"name": "Virtuals Protocol", "url": "https://api.virtuals.io/api/virtuals?filters[isLaunched]=true&pagination[limit]=20",
+     "chain": "base", "method": "GET", "tier": "live"},
+    {"name": "Agentverse (Fetch.ai)", "url": "https://agentverse.ai/v1/search/agents",
+     "chain": "fetchai", "method": "POST", "post_body": {"search_text": "autonomous trading DeFi data"},
+     "tier": "live"},
+    {"name": "Agentverse Finance", "url": "https://agentverse.ai/v1/search/agents",
+     "chain": "fetchai", "method": "POST", "post_body": {"search_text": "oracle price feed lending yield"},
+     "tier": "live"},
+    {"name": "Agentverse Infra", "url": "https://agentverse.ai/v1/search/agents",
+     "chain": "fetchai", "method": "POST", "post_body": {"search_text": "compute GPU infrastructure storage"},
+     "tier": "live"},
+    {"name": "Smithery MCP (Crypto)", "url": "https://registry.smithery.ai/servers?q=crypto+defi+trading&pageSize=20",
+     "chain": "multi", "method": "GET", "format": "smithery", "tier": "live"},
+    {"name": "Smithery MCP (AI)", "url": "https://registry.smithery.ai/servers?q=ai+agent+autonomous&pageSize=20",
+     "chain": "multi", "method": "GET", "format": "smithery", "tier": "live"},
+    # ── DISCOVERY: repos/plugins, veille marche (pas de contact API) ──
+    {"name": "ElizaOS Registry", "url": "https://elizaos.github.io/registry/index.json",
+     "chain": "solana", "method": "GET", "format": "elizaos", "tier": "discovery"},
+    {"name": "GitHub AI Agents", "url": "https://api.github.com/search/repositories?q=ai+agent+marketplace+autonomous&sort=stars&per_page=20",
+     "chain": "multi", "method": "GET", "format": "github", "tier": "discovery"},
 ]
 
 
@@ -1232,47 +1293,107 @@ async def mission_scout_scan(mem: dict, actions: dict):
     async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
         for registry in _AI_REGISTRIES:
             try:
-                resp = await client.get(registry["url"], headers={"User-Agent": "MAXIA-Scout/1.0"})
+                headers = {"User-Agent": "MAXIA-Scout/1.0"}
+                if registry.get("method") == "POST":
+                    resp = await client.post(registry["url"], json=registry.get("post_body", {}), headers=headers)
+                else:
+                    if "github.com" in registry["url"]:
+                        headers["Accept"] = "application/vnd.github.v3+json"
+                    resp = await client.get(registry["url"], headers=headers)
                 if resp.status_code != 200:
                     log.warning("[SCOUT] %s HTTP %d", registry["name"], resp.status_code)
                     continue
 
                 data = resp.json()
+                fmt = registry.get("format", "")
 
                 # Parser selon le format du registry
                 agents_list = []
-                if isinstance(data, list):
+                if fmt == "elizaos":
+                    # ElizaOS: dict {"@package-name": "github:owner/repo"}
+                    for pkg_name, pkg_ref in list(data.items())[:20]:
+                        if isinstance(pkg_ref, str) and "github:" in pkg_ref:
+                            owner_repo = pkg_ref.replace("github:", "")
+                            agents_list.append({
+                                "id": pkg_name,
+                                "name": pkg_name.split("/")[-1],
+                                "description": f"ElizaOS plugin: {pkg_name}",
+                                "url": f"https://github.com/{owner_repo}",
+                                "owner": owner_repo.split("/")[0] if "/" in owner_repo else "",
+                            })
+                elif fmt == "github":
+                    # GitHub search: {"items": [...]}
+                    for repo in data.get("items", [])[:20]:
+                        agents_list.append({
+                            "id": f"gh:{repo.get('full_name', '')}",
+                            "name": repo.get("name", ""),
+                            "description": (repo.get("description") or "")[:200],
+                            "url": repo.get("html_url", ""),
+                            "owner": repo.get("owner", {}).get("login", ""),
+                        })
+                elif fmt == "smithery":
+                    # Smithery: {"servers": [{displayName, description, homepage, qualifiedName, ...}]}
+                    srv_list = data.get("servers", []) if isinstance(data, dict) else data if isinstance(data, list) else []
+                    for srv in srv_list[:20]:
+                        if not isinstance(srv, dict):
+                            continue
+                        qname = srv.get("qualifiedName", srv.get("id", ""))
+                        agents_list.append({
+                            "id": f"smithery:{qname}",
+                            "name": srv.get("displayName", qname),
+                            "description": (srv.get("description") or "")[:200],
+                            "url": srv.get("homepage") or f"https://smithery.ai/server/{qname}",
+                            "owner": srv.get("namespace", ""),
+                        })
+                elif isinstance(data, list):
                     agents_list = data
                 elif isinstance(data, dict):
-                    # Chercher une liste dans les valeurs communes
                     for key in ("agents", "services", "results", "data", "items"):
                         if key in data and isinstance(data[key], list):
                             agents_list = data[key]
                             break
 
+                found_count = 0
                 for agent in agents_list[:20]:
-                    # Extraire un ID unique
-                    agent_id = str(
-                        agent.get("id", "") or agent.get("address", "") or
-                        agent.get("name", "") or agent.get("service_id", "")
-                    )
+                    if isinstance(agent, dict):
+                        # Extraire un ID unique
+                        agent_id = str(
+                            agent.get("id", "") or agent.get("address", "") or
+                            agent.get("name", "") or agent.get("service_id", "")
+                        )
+                    else:
+                        continue
                     if not agent_id or agent_id in known_ids or agent_id in contacted_ids:
                         continue
 
                     # Extraire les infos utiles
                     name = agent.get("name", agent.get("title", agent_id))
-                    description = agent.get("description", agent.get("desc", ""))[:200]
-                    url = agent.get("url", agent.get("homepage", agent.get("api_url", "")))
+                    description = (agent.get("description", agent.get("desc", "")) or "")[:200]
+                    url = agent.get("url", agent.get("homepage", agent.get("html_url", agent.get("api_url", ""))))
+                    # Construire l'URL si absente selon le registry
+                    if not url:
+                        reg_name = registry["name"]
+                        if "Virtuals" in reg_name:
+                            url = f"https://app.virtuals.io/virtuals/{agent.get('id', '')}"
+                        elif "Agentverse" in reg_name:
+                            addr = agent.get("address", "")
+                            url = f"https://agentverse.ai/agents/{addr}" if addr else ""
+                        elif "Smithery" in reg_name:
+                            qname = agent.get("qualifiedName", agent.get("id", ""))
+                            url = f"https://smithery.ai/server/{qname}"
                     owner = agent.get("owner", agent.get("author", agent.get("creator", "")))
+                    if isinstance(owner, dict):
+                        owner = owner.get("login", owner.get("name", ""))
 
                     new_agents.append({
                         "id": agent_id,
                         "name": name,
                         "description": description,
-                        "url": url,
-                        "owner": str(owner),
+                        "url": url or "",
+                        "owner": str(owner or ""),
                         "registry": registry["name"],
                         "chain": registry["chain"],
+                        "tier": registry.get("tier", "live"),
                         "discovered_at": datetime.now().isoformat(),
                     })
 
@@ -1281,8 +1402,9 @@ async def mission_scout_scan(mem: dict, actions: dict):
                         "name": name, "registry": registry["name"],
                         "chain": registry["chain"], "ts": time.time(),
                     }
+                    found_count += 1
 
-                log.info("[SCOUT] %s: %d agents scannes", registry["name"], len(agents_list[:20]))
+                log.info("[SCOUT] %s: %d new agents (scanned %d)", registry["name"], found_count, len(agents_list[:20]))
                 await asyncio.sleep(2)  # Politesse entre registries
 
             except Exception as e:
@@ -1296,23 +1418,40 @@ async def mission_scout_scan(mem: dict, actions: dict):
         actions["counts"]["scout_done"] = 1
         return
 
+    # Diversifier les sources — priorite aux agents live (contactables par API)
+    by_registry = {}
+    for a in new_agents:
+        by_registry.setdefault(a["registry"], []).append(a)
+    diversified = []
+    per_source = max(2, 10 // len(by_registry)) if by_registry else 10
+    for reg_agents in by_registry.values():
+        diversified.extend(reg_agents[:per_source])
+    live = [a for a in diversified if a.get("tier") == "live"]
+    discovery = [a for a in diversified if a.get("tier") != "live"]
+    candidates = (live + discovery)[:10]
+
     # Scorer et generer les messages de contact via LLM
     scored_agents = []
-    for agent in new_agents[:10]:
+    for agent in candidates:
         result = await llm(
-            f"Tu es le CEO de MAXIA (marketplace AI-to-AI, 14 blockchains, escrow USDC).\n\n"
+            f"Tu es le CEO de MAXIA (marketplace AI-to-AI, 14 blockchains, escrow USDC on-chain).\n\n"
             f"Agent IA decouvert:\n"
             f"  Nom: {agent['name']}\n"
             f"  Description: {agent['description']}\n"
             f"  Registry: {agent['registry']}\n"
             f"  Chain: {agent['chain']}\n"
             f"  URL: {agent['url']}\n\n"
-            f"1. Score de pertinence (1-10): cet agent beneficierait-il de MAXIA?\n"
-            f"2. Message d'invitation (max 500 chars): professionnel, explique ce que MAXIA apporte a CET agent specifiquement\n"
-            f"3. Methode de contact: api_post, email, ou manual\n\n"
-            f"Format STRICT:\n"
+            f"SCORING RULES (strict):\n"
+            f"- Score 8-10: Agent AUTONOME qui execute des taches (trading, data, code, DeFi, infra) et pourrait VENDRE ou ACHETER des services sur MAXIA\n"
+            f"- Score 5-7: Agent technique avec potentiel d'integration (SDK, framework, tool)\n"
+            f"- Score 1-4: Bot social, influenceur virtuel, personnalite IA, chatbot, mascotte — PAS pertinent pour un marketplace de SERVICES\n"
+            f"- Si la description mentionne 'influencer', 'sing', 'dance', 'personality', 'waifu', 'companion' → score MAX 3\n\n"
+            f"1. Score de pertinence (1-10)\n"
+            f"2. Message d'invitation EN ANGLAIS (max 500 chars): professionnel, explique ce que MAXIA apporte a CET agent specifiquement\n"
+            f"3. Methode de contact: api_post (si URL API), email, ou manual\n\n"
+            f"Format STRICT (pas d'autre texte):\n"
             f"SCORE|<nombre>\n"
-            f"MSG|<message d'invitation>\n"
+            f"MSG|<message en anglais>\n"
             f"METHOD|<methode>",
             system=CEO_SYSTEM_PROMPT,
             max_tokens=300,
@@ -1461,20 +1600,51 @@ async def _scout_contact_agent(agent: dict) -> bool:
     """Envoie le message d'invitation a un agent via son API."""
     url = agent.get("url", "")
     message = agent.get("contact_message", "")
+    name = agent.get("name", "?")
     if not url or not message:
-        log.warning("[SCOUT] Pas d'URL ou message pour %s", agent.get("name", "?"))
+        log.warning("[SCOUT] Pas d'URL ou message pour %s", name)
         return False
 
-    # Construire les endpoints possibles
+    # Discovery-only: pas de contact API possible
+    if agent.get("tier") == "discovery":
+        log.info("[SCOUT] %s est discovery-only, contact manuel requis: %s", name, url)
+        return False
+
+    # Endpoints specifiques selon le registry
+    registry = agent.get("registry", "")
     endpoints = []
-    if url.startswith("http"):
+
+    if "Agentverse" in registry:
+        # Fetch.ai: Almanac messaging + endpoints standard
+        addr = agent.get("id", "")
+        if addr.startswith("agent1q"):
+            endpoints.append(f"https://agentverse.ai/v1beta1/agents/{addr}/messages")
         base = url.rstrip("/")
-        endpoints.extend([
-            f"{base}/.well-known/agent.json",
-            f"{base}/api/register",
-            f"{base}/api/v1/agents",
-            base,
-        ])
+        endpoints.extend([f"{base}/api/register", f"{base}/.well-known/agent.json"])
+    elif "Virtuals" in registry:
+        base = url.rstrip("/")
+        endpoints.extend([f"{base}/api/register", f"{base}/.well-known/agent.json"])
+    elif "Smithery" in registry:
+        # MCP servers: essayer .well-known/agent.json sur le homepage
+        homepage = url.rstrip("/")
+        if homepage.startswith("http"):
+            endpoints.extend([
+                f"{homepage}/.well-known/agent.json",
+                f"{homepage}/api/register",
+            ])
+    else:
+        # Generic A2A protocol
+        if url.startswith("http"):
+            base = url.rstrip("/")
+            endpoints.extend([
+                f"{base}/.well-known/agent.json",
+                f"{base}/api/register",
+                f"{base}/api/v1/agents",
+            ])
+
+    if not endpoints:
+        log.warning("[SCOUT] Pas d'endpoint contact pour %s (%s)", name, url)
+        return False
 
     payload = {
         "jsonrpc": "2.0",
@@ -1490,26 +1660,20 @@ async def _scout_contact_agent(agent: dict) -> bool:
         "id": 1,
     }
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
         for ep in endpoints:
             try:
                 resp = await client.post(ep, json=payload)
                 if resp.status_code in (200, 201, 202):
-                    log.info("[SCOUT] Contact OK: %s via %s", agent.get("name", "?"), ep)
+                    log.info("[SCOUT] Contact OK: %s via %s", name, ep)
                     return True
+                # 307/308 redirect = pas un vrai endpoint, skip
+                if resp.status_code in (307, 308):
+                    continue
             except Exception:
                 continue
 
-        # Fallback: GET sur l'URL pour verifier que l'agent existe
-        try:
-            resp = await client.get(url, timeout=8)
-            if resp.status_code == 200:
-                log.info("[SCOUT] Agent %s existe (%s) mais pas d'API de contact", agent.get("name", "?"), url)
-                return True  # On considere le contact comme "tenté"
-        except Exception:
-            pass
-
-    log.warning("[SCOUT] Contact echoue: %s", agent.get("name", "?"))
+    log.warning("[SCOUT] Contact echoue: %s (tente %d endpoints)", name, len(endpoints))
     return False
 
 
@@ -1640,6 +1804,47 @@ async def mission_changelog_forum(mem: dict, actions: dict):
 
 
 # ══════════════════════════════════════════
+# Hooks Pipeline — before/after mission execution
+# ══════════════════════════════════════════
+
+_mission_stats: dict = {}  # {"mission_name": {"runs": 0, "errors": 0, "last_duration": 0, "last_error": ""}}
+
+async def run_mission(name: str, coro, mem: dict, actions: dict) -> bool:
+    """Execute a mission with before/after hooks. Returns True if success."""
+    # ── BEFORE HOOK ──
+    stats = _mission_stats.setdefault(name, {"runs": 0, "errors": 0, "last_duration": 0, "last_error": ""})
+
+    # Check email quota (max 5 mails/jour)
+    if "mail" in name or "report" in name or "opportunities" in name:
+        mail_count = (actions["counts"].get("health_report_sent", 0) +
+                      actions["counts"].get("report_sent", 0) +
+                      actions["counts"].get("opportunities_sent", 0))
+        if mail_count >= MAX_EMAILS_DAY:
+            log.debug("[HOOK] %s skipped — email quota %d/%d", name, mail_count, MAX_EMAILS_DAY)
+            return False
+
+    # ── EXECUTE ──
+    start = time.time()
+    success = True
+    try:
+        await coro
+        stats["runs"] += 1
+    except Exception as e:
+        success = False
+        stats["errors"] += 1
+        stats["last_error"] = str(e)[:100]
+        log.error("[HOOK] %s FAILED: %s", name, str(e)[:100])
+
+    # ── AFTER HOOK ──
+    duration = time.time() - start
+    stats["last_duration"] = round(duration, 1)
+    if duration > 300:
+        log.warning("[HOOK] %s took %.0fs (>5min)", name, duration)
+
+    return success
+
+
+# ══════════════════════════════════════════
 # Boucle principale
 # ══════════════════════════════════════════
 
@@ -1701,59 +1906,52 @@ async def run():
                     last_twitter_scan = now
                     actions["counts"]["scan_done"] = 1
 
-            # Mission 2b: Envoyer le best-of scoré par mail (19h30)
-            if hour == 19 and dt_now.minute >= 30 and actions["counts"].get("opportunities_sent", 0) == 0:
+            # Mission 2b: Envoyer le best-of scoré par mail (19h30+)
+            if hour >= 19 and (hour > 19 or dt_now.minute >= 30) and actions["counts"].get("opportunities_sent", 0) == 0:
                 if now - last_opportunities_mail >= 3600:
-                    await mission_send_best_opportunities(mem, actions)
+                    await run_mission("opportunities_mail", mission_send_best_opportunities(mem, actions), mem, actions)
                     last_opportunities_mail = now
 
             # Mission 3: Rapport quotidien GitHub+agents+annuaires (9h, mail separe)
             if hour == 9 and actions["counts"].get("report_sent", 0) == 0:
                 if now - last_report >= 3600:
-                    await mission_daily_report(mem, actions)
+                    await run_mission("daily_report", mission_daily_report(mem, actions), mem, actions)
                     last_report = now
 
             # Mission 16: Health report intelligent (8h, mail separe)
             if hour == 8 and actions["counts"].get("health_report_sent", 0) == 0:
-                await mission_health_report(mem, actions)
+                await run_mission("health_report", mission_health_report(mem, actions), mem, actions)
 
             # Mission 13: Changelog forum (dimanche 11h)
             if weekday == 6 and hour == 11 and actions["counts"].get("changelog_posted", 0) == 0:
-                await mission_changelog_forum(mem, actions)
+                await run_mission("changelog", mission_changelog_forum(mem, actions), mem, actions)
 
-            # Mission 1: Tweet feature (15h-16h — peak US EST 9:30 AM)
-            if 15 <= hour <= 16 and actions["counts"].get("tweet_feature", 0) == 0:
+            # Mission 1: Tweet feature (14h-17h — elargi pour ne pas rater la fenetre)
+            if 14 <= hour <= 17 and actions["counts"].get("tweet_feature", 0) == 0:
                 if now - last_tweet >= 3600:
-                    await mission_tweet_feature(mem, actions)
+                    log.info("[TWEET] Fenetre tweet active (hour=%d) — lancement mission_tweet_feature", hour)
+                    await run_mission("tweet", mission_tweet_feature(mem, actions), mem, actions)
                     last_tweet = now
 
             # Mission 6: Veille concurrentielle + memo strategique (19h, 1x/jour)
             if hour == 19 and actions["counts"].get("competitive_watch", 0) == 0:
                 if now - last_competitive >= 3600:
-                    await mission_competitive_watch(mem, actions)
+                    await run_mission("competitive_watch", mission_competitive_watch(mem, actions), mem, actions)
                     last_competitive = now
 
             # Mission 17: Scout AI — scan registries (17h, 1x/jour)
             if hour == 17 and actions["counts"].get("scout_done", 0) == 0:
-                await mission_scout_scan(mem, actions)
+                await run_mission("scout_scan", mission_scout_scan(mem, actions), mem, actions)
 
             # Mission 17b: Scout — execute les contacts approuves par Alexis (toutes les 5 min)
             if now - mem.get("_last_scout_check", 0) >= 300:
-                await mission_scout_execute_approved(mem)
+                await run_mission("scout_execute", mission_scout_execute_approved(mem), mem, actions)
                 mem["_last_scout_check"] = now
 
             # Mission 9: Check emails de Alexis (toutes les 5 min)
             if now - mem.get("_last_email_check", 0) >= 300:
                 await mission_check_alexis_emails(mem)
                 mem["_last_email_check"] = now
-
-            # Mission 10: Code Audit — demarre a 19h15 (mail separe automatique)
-            audit_done_today = actions["counts"].get("audit_complete", 0) >= 1
-            if not audit_done_today and hour >= 19 and dt_now.minute >= 15:
-                is_complete = await mission_code_audit(mem, actions)
-                if is_complete:
-                    actions["counts"]["audit_complete"] = 1
-                    log.info("[AUDIT] Audit quotidien termine — mail envoye")
 
             # Mining — relancer si GPU libre depuis 60s (pas d'appel LLM recent)
             if KASPA_MINING_ENABLED and not is_mining() and _last_llm_call > 0:
@@ -1769,6 +1967,14 @@ async def run():
                          stats["is_mining"], stats["total_mining_hours"],
                          stats["starts"], stats["stops"], stats["hashrate"])
                 last_mining_stats = now
+
+            # Mission 10: Code Audit — EN DERNIER (bloquant, ne doit pas empecher les autres missions)
+            audit_done_today = actions["counts"].get("audit_complete", 0) >= 1
+            if not audit_done_today and hour >= 19 and dt_now.minute >= 15:
+                is_complete = await mission_code_audit(mem, actions)
+                if is_complete:
+                    actions["counts"]["audit_complete"] = 1
+                    log.info("[AUDIT] Audit quotidien termine — mail envoye")
 
             # Sauvegarder
             _save_memory(mem)
