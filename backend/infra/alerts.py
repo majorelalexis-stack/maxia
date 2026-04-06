@@ -14,7 +14,7 @@ _COOLDOWN = 300
 # KILL SWITCH — Telegram + Discord desactives (Plan CEO V4)
 # Remettre a False pour reactiver les alertes
 # ══════════════════════════════════════════
-ALERTS_DISABLED = True
+ALERTS_DISABLED = False
 
 
 # ══════════════════════════════════════════

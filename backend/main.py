@@ -258,6 +258,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Trading features init error: %s", e)
         t6 = t7 = None
+
+    # V12: DCA Bot — dollar-cost averaging automated trading
+    try:
+        from trading.dca_bot import ensure_tables as ensure_dca_tables, dca_worker
+        await ensure_dca_tables()
+        asyncio.create_task(dca_worker())
+        logger.info("[DCA] Bot worker started")
+    except Exception as e:
+        logger.error("[MAXIA] DCA bot init error: %s", e)
+
     try:
         from marketplace.marketplace_features import ensure_tables as ensure_mkt_tables
         await ensure_mkt_tables()
@@ -656,6 +666,12 @@ try:
     app.include_router(get_trading_router())
 except Exception as e:
     logger.error("[MAXIA] Trading router error: %s", e)
+try:
+    from trading.dca_bot import get_router as get_dca_router
+    app.include_router(get_dca_router())
+    logger.info("[DCA] Router monte — /api/dca/*")
+except Exception as e:
+    logger.error("[MAXIA] DCA router error: %s", e)
 try:
     from marketplace.marketplace_features import get_router as get_mkt_router
     app.include_router(get_mkt_router())

@@ -68,7 +68,7 @@ class Maxia:
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
-            headers={"User-Agent": "maxia-python/12.3.0"},
+            headers={"User-Agent": "maxia-python/12.4.0"},
         )
 
     # ------------------------------------------------------------------
@@ -96,6 +96,17 @@ class Maxia:
     def _post(self, path: str, json: dict = None) -> dict:
         """Send a POST request and return parsed JSON."""
         resp = self._client.post(path, json=json or {}, headers=self._headers())
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json().get("detail", resp.text)
+            except Exception:
+                detail = resp.text
+            raise MaxiaError(resp.status_code, detail)
+        return resp.json()
+
+    def _delete(self, path: str, params: dict = None) -> dict:
+        """Send a DELETE request and return parsed JSON."""
+        resp = self._client.delete(path, params=params, headers=self._headers())
         if resp.status_code >= 400:
             try:
                 detail = resp.json().get("detail", resp.text)
@@ -999,3 +1010,107 @@ class Maxia:
             "chain": chain,
             "address": address,
         })
+
+    # ------------------------------------------------------------------
+    # DCA Bot (Dollar-Cost Averaging)
+    # ------------------------------------------------------------------
+
+    def dca_create(self, to_token: str, amount_usdc: float, frequency: str = "weekly", wallet: str = None) -> dict:
+        """Create a DCA order to buy a token automatically at regular intervals.
+
+        Args:
+            to_token: Token to buy (e.g. ``"SOL"``, ``"ETH"``, ``"BTC"``).
+            amount_usdc: Amount in USDC per execution (1-1000).
+            frequency: How often (``"daily"``, ``"weekly"``, ``"biweekly"``,
+                ``"monthly"``).
+            wallet: Wallet address to receive tokens.
+
+        Returns:
+            Dict with ``order_id``, ``next_run``, ``current_price``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            order = m.dca_create("SOL", 10.0, "weekly", "ABc...xyz")
+            print(order["order_id"])
+        """
+        self._require_key()
+        body = {"to_token": to_token, "amount_usdc": amount_usdc, "frequency": frequency}
+        if wallet is not None:
+            body["wallet"] = wallet
+        return self._post("/api/dca/create", json=body)
+
+    def dca_list(self, status: str = None) -> dict:
+        """List your DCA orders.
+
+        Args:
+            status: Filter by status (``"active"``, ``"paused"``,
+                ``"cancelled"``).
+
+        Returns:
+            Dict with ``orders`` list.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            orders = m.dca_list()
+            for o in orders["orders"]:
+                print(o["to_token"], o["amount_usdc"], o["frequency"])
+        """
+        self._require_key()
+        params = {}
+        if status is not None:
+            params["status"] = status
+        return self._get("/api/dca/my", params=params if params else None)
+
+    def dca_executions(self, order_id: str, limit: int = 20) -> dict:
+        """Get execution history for a DCA order.
+
+        Args:
+            order_id: The DCA order ID.
+            limit: Max executions to return (default 20).
+
+        Returns:
+            Dict with ``executions`` list showing price, amount, timestamp.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            execs = m.dca_executions("dca_abc123")
+            for e in execs["executions"]:
+                print(e["price_usdc"], e["received"])
+        """
+        self._require_key()
+        return self._get(f"/api/dca/executions/{order_id}", params={"limit": limit})
+
+    def dca_cancel(self, order_id: str) -> dict:
+        """Cancel a DCA order.
+
+        Args:
+            order_id: The DCA order ID to cancel.
+
+        Returns:
+            Dict with success status.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            m.dca_cancel("dca_abc123")
+        """
+        self._require_key()
+        return self._delete(f"/api/dca/{order_id}")
+
+    def dca_stats(self) -> dict:
+        """Get public DCA statistics.
+
+        Returns:
+            Dict with ``active_bots``, ``total_invested_usdc``,
+            ``supported_tokens``.
+
+        Example::
+
+            m = Maxia()
+            stats = m.dca_stats()
+            print(stats["active_bots"], stats["total_invested_usdc"])
+        """
+        return self._get("/api/dca/stats")

@@ -106,6 +106,7 @@ except MaxiaError as e:
 | `gateway_services()` | List Web2 gateway services |
 | `identity_profile(agent_id)` | Unified cross-chain identity profile |
 | `identity_resolve(address)` | Resolve wallet to agent identity |
+| `dca_stats()` | Public DCA bot statistics |
 
 ### Authenticated (API key required)
 
@@ -119,6 +120,10 @@ except MaxiaError as e:
 | `audit_history(limit, offset)` | Get audit history |
 | `gateway_execute(service_id, params)` | Execute a Web2 gateway service |
 | `identity_link(chain, address)` | Link wallet to agent identity |
+| `dca_create(to_token, amount, freq, wallet)` | Create a DCA bot |
+| `dca_list(status)` | List your DCA orders |
+| `dca_executions(order_id, limit)` | DCA execution history |
+| `dca_cancel(order_id)` | Cancel a DCA order |
 
 ## Links
 

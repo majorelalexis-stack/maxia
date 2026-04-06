@@ -215,6 +215,7 @@ MCP_TOOL_TIERS = {
     "maxia_whales": "free", "maxia_candles": "free", "maxia_signals": "free",
     "maxia_portfolio": "free", "maxia_risk_score": "free", "maxia_signals_latest": "free",
     "maxia_signals_scan": "free", "maxia_identity_resolve": "free",
+    "maxia_dca_stats": "free",
     # Bronze (any registered agent)
     "maxia_register": "bronze", "maxia_sell": "bronze", "maxia_execute": "bronze",
     "maxia_swap_quote": "bronze", "maxia_sentiment": "bronze", "maxia_token_risk": "bronze",
@@ -223,6 +224,7 @@ MCP_TOOL_TIERS = {
     "maxia_agent_id": "bronze", "maxia_trust_score": "bronze", "maxia_oracle_feed": "bronze",
     "maxia_llm_models": "bronze", "maxia_price_alert": "bronze",
     "maxia_risk_batch": "bronze",
+    "maxia_dca_create": "bronze", "maxia_dca_list": "bronze",
     # Gold (trust >= 2: verified agents)
     "maxia_gpu_rent": "gold", "maxia_stocks_buy": "gold", "maxia_stocks_sell": "gold",
     "maxia_bridge_quote": "gold", "maxia_nft_mint": "gold", "maxia_subscribe": "gold",

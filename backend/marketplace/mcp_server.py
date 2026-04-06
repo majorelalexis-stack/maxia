@@ -447,6 +447,35 @@ MCP_TOOLS = [
             "required": ["address"],
         },
     },
+    # ── DCA Bot tools ──
+    {
+        "name": "maxia_dca_create",
+        "description": "Create a Dollar-Cost Averaging bot to automatically buy a token at regular intervals using USDC.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "to_token": {"type": "string", "description": "Token to buy: SOL, ETH, BTC, etc."},
+                "amount_usdc": {"type": "number", "description": "Amount in USDC per execution (1-1000)"},
+                "frequency": {"type": "string", "enum": ["daily", "weekly", "biweekly", "monthly"], "default": "weekly", "description": "How often to execute"},
+            },
+            "required": ["to_token", "amount_usdc"],
+        },
+    },
+    {
+        "name": "maxia_dca_list",
+        "description": "List your active DCA bots and their execution statistics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "description": "Filter by status: active, paused, cancelled (optional)"},
+            },
+        },
+    },
+    {
+        "name": "maxia_dca_stats",
+        "description": "Get public DCA statistics — active bots, total invested, supported tokens.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -487,7 +516,7 @@ FREE_TOOLS = {"maxia_discover", "maxia_prices", "maxia_trending", "maxia_fear_gr
               "maxia_stocks_fees", "maxia_yield_best", "maxia_gpu_tiers", "maxia_defi_yield",
               "maxia_whales", "maxia_candles", "maxia_signals", "maxia_portfolio",
               "maxia_risk_score", "maxia_signals_latest", "maxia_signals_scan",
-              "maxia_identity_resolve"}
+              "maxia_identity_resolve", "maxia_dca_stats"}
 
 @router.post("/tools/call")
 async def mcp_call_tool(request: Request):
@@ -846,6 +875,27 @@ async def _execute_tool(name: str, args: dict) -> dict:
         elif name == "maxia_identity_resolve":
             addr = args.get("address", "")
             r = await client.get("/api/identity/resolve", params={"address": addr})
+            return r.json()
+
+        # ── DCA Bot tools ──
+        elif name == "maxia_dca_create":
+            api_key = args.get("api_key", request.headers.get("x-api-key", "") if hasattr(args, 'get') else "")
+            r = await client.post("/api/dca/create",
+                headers={"X-API-Key": api_key} if api_key else {},
+                json={
+                    "to_token": args.get("to_token", ""),
+                    "amount_usdc": args.get("amount_usdc", 0),
+                    "frequency": args.get("frequency", "weekly"),
+                })
+            return r.json()
+        elif name == "maxia_dca_list":
+            api_key = args.get("api_key", "")
+            r = await client.get("/api/dca/my",
+                headers={"X-API-Key": api_key} if api_key else {},
+                params={"status": args["status"]} if args.get("status") else None)
+            return r.json()
+        elif name == "maxia_dca_stats":
+            r = await client.get("/api/dca/stats")
             return r.json()
 
         # ── Fine-Tuning, AWP, LLM tools removed (not yet implemented) ──
