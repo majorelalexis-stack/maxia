@@ -124,14 +124,14 @@ async def llms_txt():
         return FileResponse(str(llms_path), media_type="text/plain")
     return HTMLResponse("Not found", status_code=404)
 
-@router.get("/robots.txt", include_in_schema=False)
+@router.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
 async def robots_txt():
     robots_path = FRONTEND_DIR / "robots.txt"
     if robots_path.exists():
         return FileResponse(str(robots_path), media_type="text/plain")
     return HTMLResponse("User-agent: *\nAllow: /\nSitemap: https://maxiaworld.app/sitemap.xml", media_type="text/plain")
 
-@router.get("/sitemap.xml", include_in_schema=False)
+@router.api_route("/sitemap.xml", methods=["GET", "HEAD"], include_in_schema=False)
 async def sitemap():
     sitemap_path = FRONTEND_DIR / "sitemap.xml"
     if sitemap_path.exists():
