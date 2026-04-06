@@ -136,6 +136,12 @@ async def serve_profile():
     return _serve("profile.html")
 
 
+@router.get("/referral", response_class=HTMLResponse)
+async def serve_referral():
+    """Referral program — earn 10% commission on referred agents."""
+    return _serve("referral.html")
+
+
 @router.get("/launch", response_class=HTMLResponse)
 async def serve_launch():
     """Product Hunt launch page (S41)."""

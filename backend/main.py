@@ -1337,3 +1337,35 @@ try:
     logger.info("[E16] Reputation Oracle monte")
 except Exception as e:
     logger.error("[MAXIA] Reputation Oracle router error: %s", e)
+
+# ── ONE-36: Seller Analytics Dashboard ──
+try:
+    from marketplace.seller_analytics import get_router as get_seller_analytics_router
+    app.include_router(get_seller_analytics_router())
+    logger.info("[ONE-36] Seller Analytics monte — /api/seller/analytics/*")
+except Exception as e:
+    logger.error("[MAXIA] Seller Analytics router error: %s", e)
+
+# ── ONE-33: Portfolio Tracker ──
+try:
+    from features.portfolio_tracker import get_router as get_portfolio_router
+    app.include_router(get_portfolio_router())
+    logger.info("[ONE-33] Portfolio Tracker monte — /api/portfolio/*")
+except Exception as e:
+    logger.error("[MAXIA] Portfolio Tracker router error: %s", e)
+
+# ── ONE-39: Whale Feed Public ──
+try:
+    from features.whale_feed import get_router as get_whale_feed_router
+    app.include_router(get_whale_feed_router())
+    logger.info("[ONE-39] Whale Feed monte — /api/whale/feed + subscribe")
+except Exception as e:
+    logger.error("[MAXIA] Whale Feed router error: %s", e)
+
+# ── ONE-3: PicoClaw CEO Gateway ──
+try:
+    from agents.picoclaw_gateway import get_router as get_picoclaw_router
+    app.include_router(get_picoclaw_router())
+    logger.info("[ONE-3] PicoClaw CEO Gateway monte — /api/ceo/*")
+except Exception as e:
+    logger.error("[MAXIA] PicoClaw Gateway router error: %s", e)
