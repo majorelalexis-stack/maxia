@@ -1,6 +1,6 @@
 """CEO Local V3 — Entry point. Refactored from ceo_local_v2.py.
 
-17 missions, dual-model (Qwen 3.5 27B + VL 7B), zero spam.
+18 missions, dual-model (Qwen 3.5 27B + VL 7B), zero spam.
 Usage:
   python ceo_main.py          # autonomous mode (all missions)
   python ceo_main.py chat     # interactive terminal mode
@@ -42,6 +42,7 @@ from missions.email_check import mission_check_alexis_emails, mission_changelog_
 from missions.email_outreach import mission_email_outreach
 from missions.strategy import mission_strategy_review
 from missions.telegram_chat import mission_telegram_chat
+from missions.blog import mission_blog_post
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
@@ -140,6 +141,10 @@ async def run():
             # Mission 16: Health report intelligent (8h, mail separe)
             if hour == 8 and actions["counts"].get("health_report_sent", 0) == 0:
                 await run_mission("health_report", mission_health_report(mem, actions), mem, actions)
+
+            # Mission 21: Blog article quotidien (8h, 1x/jour)
+            if hour == 8 and actions["counts"].get("blog_posted", 0) == 0:
+                await run_mission("blog_post", mission_blog_post(mem, actions), mem, actions)
 
             # Mission 13: Changelog forum (dimanche 11h)
             if weekday == 6 and hour == 11 and actions["counts"].get("changelog_posted", 0) == 0:
@@ -305,6 +310,14 @@ async def terminal_mode():
             print("[CEO] Audit complet!")
             continue
 
+        if cmd == "blog":
+            print("[CEO] Generation article blog...")
+            actions = load_actions_today()
+            await mission_blog_post(mem, actions)
+            save_memory(mem)
+            save_actions(actions)
+            continue
+
         if cmd == "tweet":
             print("[CEO] Redaction du tweet...")
             actions = load_actions_today()
@@ -324,6 +337,7 @@ async def terminal_mode():
         if cmd == "help":
             print("[CEO] Commandes disponibles:")
             print("  audit            — lancer l'audit code complet")
+            print("  blog             — generer et publier un article blog")
             print("  status           — voir les stats du jour")
             print("  scan twitter     — forcer un scan Twitter maintenant")
             print("  scan github      — forcer un scan GitHub + rapport")
@@ -364,7 +378,7 @@ def main():
         print("""
     +---------------------------------------+
     |    MAXIA CEO Local V3                 |
-    |    17 missions - 1 modele - 0 spam    |
+    |    18 missions - 1 modele - 0 spam    |
     +---------------------------------------+
         """)
         asyncio.run(run())

@@ -58,6 +58,7 @@ except ImportError:
 from core.config import AKASH_ENABLED
 from blockchain.solana_verifier import verify_transaction
 from core.security import check_content_safety, check_rate_limit, set_redis_client
+from core.geo_blocking import geo_block_middleware
 from core.redis_client import redis_client
 from core.config import (
     GPU_TIERS, COMMISSION_TIERS, get_commission_bps,
@@ -235,13 +236,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Health monitor init error: %s", e)
         t_health = None
-
-    # V12: Pyth SSE streaming (prix live <1s pour clients HFT)
-    try:
-        from trading.pyth_oracle import start_pyth_stream
-        await start_pyth_stream()
-    except Exception as e:
-        logger.error("[MAXIA] Pyth stream init error: %s — HTTP polling fallback", e)
 
     # Enterprise: billing flush loop (persiste usage toutes les 60s)
     try:
@@ -459,6 +453,10 @@ async def limit_body_size(request: Request, call_next):
     if content_length and int(content_length) > 5_000_000:
         return _JSONResponseGlobal(status_code=413, content={"error": "Request too large (max 5MB)"})
     return await call_next(request)
+
+
+# ── Geo-blocking: bloque les IPs US sur les routes stocks/trading (compliance) ──
+app.middleware("http")(geo_block_middleware)
 
 
 @app.middleware("http")

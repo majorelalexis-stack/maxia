@@ -17,7 +17,7 @@ async def dispute_auto_resolve_worker(db):
                 dispute = json.loads(row["data"])
                 if dispute.get("status") == "open" and dispute.get("auto_resolve_at", 0) <= now:
                     dispute["status"] = "auto_resolved"
-                    dispute["resolution"] = "Auto-resolved after 48h. Buyer refund initiated."
+                    dispute["resolution"] = "Auto-resolved after 48h. Buyer refund pending manual review."
                     await db.raw_execute("UPDATE disputes SET data=? WHERE id=?",
                         (json.dumps(dispute), row["id"]))
                     logger.info("[Disputes] Auto-resolved: %s", row['id'])

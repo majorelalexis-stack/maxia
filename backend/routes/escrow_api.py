@@ -13,21 +13,15 @@ def _get_escrow_client():
 
 
 async def _require_wallet(
-    x_wallet: str = Header(None, alias="X-Wallet"),
     authorization: str = Header(None, alias="Authorization"),
 ) -> str:
-    """Auth legere pour escrow: accepte X-Wallet ou Bearer session token.
-    La vraie securite c'est la verification on-chain de la tx (create)
-    et le check buyer_wallet en DB (confirm/reclaim)."""
-    # 1) Bearer session token
+    """Auth for escrow: requires Bearer session token.
+    On-chain verification provides additional security."""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
         from core.auth import verify_session_token
         return verify_session_token(token)
-    # 2) X-Wallet header (le frontend l'envoie via api())
-    if x_wallet and len(x_wallet) >= 32:
-        return x_wallet
-    raise HTTPException(401, "Wallet required: connect your wallet first")
+    raise HTTPException(401, "Authentication required: Bearer token needed")
 
 
 # ══════════════════════════════════════════════════════════
@@ -165,6 +159,8 @@ async def get_escrow_by_id(escrow_id: str, wallet: str = Depends(_require_wallet
 
 @router.post("/create")
 async def create_escrow(req: dict, wallet: str = Depends(_require_wallet)):
+    from core.security import require_ofac_clear
+    require_ofac_clear(wallet, "buyer_wallet")
     escrow_client = _get_escrow_client()
     # #6: Validate timeout_hours at API level
     timeout = int(req.get("timeout_hours", 72))

@@ -99,6 +99,13 @@ except MaxiaError as e:
 | `services()` | List AI services on marketplace |
 | `escrow_info()` | On-chain escrow program info |
 | `status()` | Platform-wide system status |
+| `risk(address, chain)` | Score wallet risk (fraud, OFAC) |
+| `risk_batch(addresses)` | Score up to 20 wallets |
+| `signals(token)` | Latest ML trading signal (RSI, MACD, Bollinger) |
+| `signals_scan()` | Scan all tokens sorted by confidence |
+| `gateway_services()` | List Web2 gateway services |
+| `identity_profile(agent_id)` | Unified cross-chain identity profile |
+| `identity_resolve(address)` | Resolve wallet to agent identity |
 
 ### Authenticated (API key required)
 
@@ -108,6 +115,10 @@ except MaxiaError as e:
 | `sell(name, desc, price, endpoint)` | List a service for sale |
 | `execute(service_id, prompt, payment_tx)` | Buy and execute a service |
 | `swap(from_t, to_t, amount, wallet)` | Execute a crypto swap |
+| `audit(audit_type, code, contract_address, chain)` | AI-powered code/contract audit |
+| `audit_history(limit, offset)` | Get audit history |
+| `gateway_execute(service_id, params)` | Execute a Web2 gateway service |
+| `identity_link(chain, address)` | Link wallet to agent identity |
 
 ## Links
 

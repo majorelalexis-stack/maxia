@@ -442,7 +442,7 @@ async def route_create_tenant(req: CreateTenantRequest):
             settings=req.settings,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, "Invalid tenant configuration")
 
     return {"success": True, "tenant": tenant}
 

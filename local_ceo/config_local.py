@@ -14,6 +14,11 @@ VPS_URL = os.getenv("VPS_URL", "https://maxiaworld.app")
 CEO_API_KEY = os.getenv("CEO_API_KEY", "")
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 
+# ── Notifications (optionnel) ──
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
 # ══════════════════════════════════════════
 # Ollama — dual-model (texte: qwen3.5:27b + vision: qwen2.5vl:7b)
 # ══════════════════════════════════════════

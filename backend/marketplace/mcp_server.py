@@ -369,6 +369,84 @@ MCP_TOOLS = [
             "required": ["protocol"],
         },
     },
+    # ── Risk & Identity tools ──
+    {
+        "name": "maxia_risk_score",
+        "description": "Score wallet risk across 7 EVM chains + Solana. Returns fraud score, OFAC status, and financial risk rating.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Wallet address to score"},
+                "chain": {"type": "string", "default": "ethereum", "description": "Chain: ethereum, base, polygon, arbitrum, avalanche, bnb, solana, etc."},
+            },
+            "required": ["address"],
+        },
+    },
+    {
+        "name": "maxia_risk_batch",
+        "description": "Batch score up to 20 wallets for risk analysis including OFAC sanctions check.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "addresses": {
+                    "type": "array",
+                    "description": "Array of wallet objects to score (max 20)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "address": {"type": "string"},
+                            "chain": {"type": "string", "default": "ethereum"},
+                        },
+                        "required": ["address"],
+                    },
+                },
+            },
+            "required": ["addresses"],
+        },
+    },
+    # ── ML Signals tools ──
+    {
+        "name": "maxia_signals_latest",
+        "description": "Get latest ML trading signals for a token — RSI-14, MACD, Bollinger Bands, volume analysis, momentum score.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "token": {"type": "string", "default": "BTC", "description": "Token symbol: BTC, ETH, SOL, etc."},
+            },
+        },
+    },
+    {
+        "name": "maxia_signals_scan",
+        "description": "Scan all 14 supported tokens and return ML trading signals sorted by confidence.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    # ── Audit tool ──
+    {
+        "name": "maxia_audit_submit",
+        "description": "Submit smart contract, token, or wallet for AI-powered security audit. Returns vulnerability analysis and risk score.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "audit_type": {"type": "string", "enum": ["smart_contract", "token_analysis", "wallet_security"], "description": "Type of audit to perform"},
+                "code": {"type": "string", "description": "Smart contract source code (for smart_contract audit)"},
+                "contract_address": {"type": "string", "description": "On-chain contract address (for smart_contract audit)"},
+                "chain": {"type": "string", "description": "Blockchain where the contract is deployed"},
+            },
+            "required": ["audit_type"],
+        },
+    },
+    # ── Identity tool ──
+    {
+        "name": "maxia_identity_resolve",
+        "description": "Resolve any wallet address to its unified cross-chain agent identity.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "address": {"type": "string", "description": "Wallet address to resolve"},
+            },
+            "required": ["address"],
+        },
+    },
 ]
 
 
@@ -407,7 +485,9 @@ _mcp_free_calls: dict = {}  # ip -> [timestamps]
 FREE_TOOLS = {"maxia_discover", "maxia_prices", "maxia_trending", "maxia_fear_greed",
               "maxia_marketplace_stats", "maxia_stocks_list", "maxia_stocks_price",
               "maxia_stocks_fees", "maxia_yield_best", "maxia_gpu_tiers", "maxia_defi_yield",
-              "maxia_whales", "maxia_candles", "maxia_signals", "maxia_portfolio"}
+              "maxia_whales", "maxia_candles", "maxia_signals", "maxia_portfolio",
+              "maxia_risk_score", "maxia_signals_latest", "maxia_signals_scan",
+              "maxia_identity_resolve"}
 
 @router.post("/tools/call")
 async def mcp_call_tool(request: Request):
@@ -726,6 +806,46 @@ async def _execute_tool(name: str, args: dict) -> dict:
             r = await client.get(f"/api/goat/protocols/{protocol}")
             if r.status_code == 404:
                 return {"error": f"Protocol '{protocol}' not found. Use maxia_protocol_search to list available protocols."}
+            return r.json()
+
+        # ── Risk & Identity tools ──
+        elif name == "maxia_risk_score":
+            addr = args.get("address", "")
+            chain = args.get("chain", "ethereum")
+            r = await client.get("/api/risk/wallet-score", params={"address": addr, "chain": chain})
+            return r.json()
+        elif name == "maxia_risk_batch":
+            addresses = args.get("addresses", [])
+            r = await client.post("/api/risk/batch", json={"addresses": addresses})
+            return r.json()
+
+        # ── ML Signals tools ──
+        elif name == "maxia_signals_latest":
+            token = args.get("token", "BTC")
+            r = await client.get("/api/signals/latest", params={"token": token})
+            return r.json()
+        elif name == "maxia_signals_scan":
+            r = await client.get("/api/signals/scan")
+            return r.json()
+
+        # ── Audit tool ──
+        elif name == "maxia_audit_submit":
+            headers = {}
+            api_key = args.get("api_key", "")
+            if api_key:
+                headers["X-API-Key"] = api_key
+            r = await client.post("/api/services/audit", headers=headers, json={
+                "audit_type": args.get("audit_type", ""),
+                "code": args.get("code", ""),
+                "contract_address": args.get("contract_address", ""),
+                "chain": args.get("chain", ""),
+            })
+            return r.json()
+
+        # ── Identity tool ──
+        elif name == "maxia_identity_resolve":
+            addr = args.get("address", "")
+            r = await client.get("/api/identity/resolve", params={"address": addr})
             return r.json()
 
         # ── Fine-Tuning, AWP, LLM tools removed (not yet implemented) ──

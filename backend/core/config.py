@@ -213,7 +213,8 @@ MCP_TOOL_TIERS = {
     "maxia_stocks_list": "free", "maxia_stocks_price": "free", "maxia_stocks_fees": "free",
     "maxia_yield_best": "free", "maxia_gpu_tiers": "free", "maxia_defi_yield": "free",
     "maxia_whales": "free", "maxia_candles": "free", "maxia_signals": "free",
-    "maxia_portfolio": "free",
+    "maxia_portfolio": "free", "maxia_risk_score": "free", "maxia_signals_latest": "free",
+    "maxia_signals_scan": "free", "maxia_identity_resolve": "free",
     # Bronze (any registered agent)
     "maxia_register": "bronze", "maxia_sell": "bronze", "maxia_execute": "bronze",
     "maxia_swap_quote": "bronze", "maxia_sentiment": "bronze", "maxia_token_risk": "bronze",
@@ -221,10 +222,12 @@ MCP_TOOL_TIERS = {
     "maxia_stocks_portfolio": "bronze", "maxia_datasets": "bronze",
     "maxia_agent_id": "bronze", "maxia_trust_score": "bronze", "maxia_oracle_feed": "bronze",
     "maxia_llm_models": "bronze", "maxia_price_alert": "bronze",
+    "maxia_risk_batch": "bronze",
     # Gold (trust >= 2: verified agents)
     "maxia_gpu_rent": "gold", "maxia_stocks_buy": "gold", "maxia_stocks_sell": "gold",
     "maxia_bridge_quote": "gold", "maxia_nft_mint": "gold", "maxia_subscribe": "gold",
     "maxia_llm_chat": "gold", "maxia_finetune_models": "gold", "maxia_finetune_quote": "gold",
+    "maxia_audit_submit": "gold",
     # Whale (trust >= 4: established agents)
     "maxia_rpc_call": "whale", "maxia_finetune_start": "whale", "maxia_finetune_status": "whale",
     "maxia_awp_register": "whale", "maxia_awp_stake": "whale",

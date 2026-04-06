@@ -28,5 +28,8 @@ local_ceo/learnings.json
 local_ceo/platform_scores.json
 local_ceo/rnd_findings.md
 
+# Demo API key (secret)
+.maxia_demo_key
+
 # Pip install artifacts
 backend/=*

@@ -355,7 +355,7 @@ async def create_checkout_session(tenant_id: str, plan: str, email: Optional[str
         }
     except stripe.error.StripeError as e:
         logger.error("Erreur Checkout: %s", e)
-        raise HTTPException(502, f"Erreur Stripe: {e.user_message or str(e)}")
+        raise HTTPException(502, "Payment processing error. Please try again.")
 
 
 async def create_portal_session(tenant_id: str) -> dict:
@@ -381,7 +381,7 @@ async def create_portal_session(tenant_id: str) -> dict:
         }
     except stripe.error.StripeError as e:
         logger.error("Erreur Portal: %s", e)
-        raise HTTPException(502, f"Erreur Stripe portal: {e.user_message or str(e)}")
+        raise HTTPException(502, "Payment processing error. Please try again.")
 
 
 async def get_subscription_status(tenant_id: str) -> dict:

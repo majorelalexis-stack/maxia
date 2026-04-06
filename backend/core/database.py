@@ -241,8 +241,35 @@ class Database:
         sql = sql.replace("strftime('%s','now')", "EXTRACT(EPOCH FROM NOW())::INTEGER")
         sql = re.sub(r"strftime\('[^']*',\s*'now'\)", "NOW()::TEXT", sql)
         sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
-        sql = sql.replace("INSERT OR REPLACE", "INSERT")
-        sql = sql.replace("INSERT OR IGNORE", "INSERT")
+        # INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
+        sql = re.sub(
+            r"INSERT\s+OR\s+IGNORE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)",
+            r"INSERT INTO \1 (\2) VALUES (\3) ON CONFLICT DO NOTHING",
+            sql
+        )
+        # INSERT OR REPLACE → INSERT ... ON CONFLICT DO UPDATE (upsert)
+        m_upsert = re.search(
+            r"INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)",
+            sql
+        )
+        if m_upsert:
+            cols = [c.strip() for c in m_upsert.group(2).split(",")]
+            pk = cols[0]  # first column is assumed to be the PK
+            update_cols = cols[1:]
+            if update_cols:
+                set_clause = ", ".join(f"{c}=EXCLUDED.{c}" for c in update_cols)
+                sql = re.sub(
+                    r"INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)",
+                    rf"INSERT INTO \1 (\2) VALUES (\3) ON CONFLICT ({pk}) DO UPDATE SET {set_clause}",
+                    sql
+                )
+            else:
+                # Single-column table — just ignore conflicts
+                sql = re.sub(
+                    r"INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)",
+                    r"INSERT INTO \1 (\2) VALUES (\3) ON CONFLICT DO NOTHING",
+                    sql
+                )
         # SQLite json_extract → PostgreSQL ->> operator
         sql = re.sub(r"json_extract\(([\w.]+),\s*'\$\.(\w+)'\)", r"\1::json->>'\2'", sql)
         # SQLite substr → PostgreSQL substring
@@ -345,34 +372,12 @@ class Database:
         4: ("Agent keypair — ed25519 public key for DID Document + signed intents", (
             "ALTER TABLE agent_permissions ADD COLUMN public_key TEXT DEFAULT '';"
         )),
-        6: ("Agent referral tracking — referred_by, agent_id, category columns", (
+        5: ("Agent referral tracking — referred_by, agent_id, category columns", (
             "ALTER TABLE agents ADD COLUMN referred_by TEXT DEFAULT '';"
             "ALTER TABLE agents ADD COLUMN agent_id TEXT DEFAULT '';"
             "ALTER TABLE agents ADD COLUMN category TEXT DEFAULT 'other';"
         )),
-        7: ("Analytics — page views and sessions tracking", (
-            "CREATE TABLE IF NOT EXISTS page_views ("
-            "id SERIAL PRIMARY KEY,"
-            "session_id TEXT NOT NULL,"
-            "page TEXT NOT NULL,"
-            "referrer TEXT DEFAULT '',"
-            "ip TEXT DEFAULT '',"
-            "user_agent TEXT DEFAULT '',"
-            "device TEXT DEFAULT 'desktop',"
-            "created_at INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER));"
-            "CREATE INDEX IF NOT EXISTS idx_pv_session ON page_views(session_id);"
-            "CREATE INDEX IF NOT EXISTS idx_pv_page ON page_views(page);"
-            "CREATE INDEX IF NOT EXISTS idx_pv_created ON page_views(created_at);"
-            "CREATE TABLE IF NOT EXISTS analytics_sessions ("
-            "session_id TEXT PRIMARY KEY,"
-            "ip TEXT DEFAULT '',"
-            "device TEXT DEFAULT 'desktop',"
-            "first_page TEXT DEFAULT '',"
-            "pages_count INTEGER DEFAULT 1,"
-            "first_seen INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER),"
-            "last_seen INTEGER DEFAULT (EXTRACT(EPOCH FROM NOW())::INTEGER));"
-        )),
-        5: ("Financial precision — REAL to NUMERIC(18,6) for all monetary columns (PostgreSQL only)", (
+        6: ("Financial precision — REAL to NUMERIC(18,6) for all monetary columns (PostgreSQL only)", (
             # PostgreSQL: ALTER COLUMN TYPE — SQLite ignores this (REAL is already 64-bit float)
             # exchange_tokens
             "ALTER TABLE exchange_tokens ALTER COLUMN price TYPE NUMERIC(18,6);"
@@ -419,7 +424,29 @@ class Database:
             "ALTER TABLE agent_permissions ALTER COLUMN max_single_tx_usd TYPE NUMERIC(18,6);"
             "ALTER TABLE agent_permissions ALTER COLUMN daily_spent_usd TYPE NUMERIC(18,6);"
         )),
-        6: ("Performance indexes for common queries", (
+        7: ("Analytics — page views and sessions tracking", (
+            "CREATE TABLE IF NOT EXISTS page_views ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "session_id TEXT NOT NULL,"
+            "page TEXT NOT NULL,"
+            "referrer TEXT DEFAULT '',"
+            "ip TEXT DEFAULT '',"
+            "user_agent TEXT DEFAULT '',"
+            "device TEXT DEFAULT 'desktop',"
+            "created_at INTEGER DEFAULT (strftime('%s','now')));"
+            "CREATE INDEX IF NOT EXISTS idx_pv_session ON page_views(session_id);"
+            "CREATE INDEX IF NOT EXISTS idx_pv_page ON page_views(page);"
+            "CREATE INDEX IF NOT EXISTS idx_pv_created ON page_views(created_at);"
+            "CREATE TABLE IF NOT EXISTS analytics_sessions ("
+            "session_id TEXT PRIMARY KEY,"
+            "ip TEXT DEFAULT '',"
+            "device TEXT DEFAULT 'desktop',"
+            "first_page TEXT DEFAULT '',"
+            "pages_count INTEGER DEFAULT 1,"
+            "first_seen INTEGER DEFAULT (strftime('%s','now')),"
+            "last_seen INTEGER DEFAULT (strftime('%s','now')));"
+        )),
+        8: ("Performance indexes for common queries", (
             "CREATE INDEX IF NOT EXISTS idx_tx_wallet_purpose ON transactions(wallet, purpose);"
         )),
     }
@@ -443,8 +470,8 @@ class Database:
             if version <= current:
                 continue
             desc, sql = self.MIGRATIONS[version]
-            # Migration v5 (REAL→NUMERIC) requires ALTER COLUMN — PostgreSQL only
-            if version == 5 and not is_pg:
+            # Migration v6 (REAL→NUMERIC) requires ALTER COLUMN — PostgreSQL only
+            if version == 6 and not is_pg:
                 logger.info("Migration %d skipped (SQLite — REAL is already 64-bit)", version)
                 sql = ""  # Skip SQL, still record version
             if sql:

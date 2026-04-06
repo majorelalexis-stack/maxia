@@ -68,7 +68,7 @@ class Maxia:
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
-            headers={"User-Agent": "maxia-python/12.1.0"},
+            headers={"User-Agent": "maxia-python/12.3.0"},
         )
 
     # ------------------------------------------------------------------
@@ -757,3 +757,245 @@ class Maxia:
             print(f"Earned so far: ${status['earned_usdc']}")
         """
         return self._get(f"/api/stream/{stream_id}")
+
+    # ------------------------------------------------------------------
+    # Wallet Risk (E35)
+    # ------------------------------------------------------------------
+
+    def risk(self, address: str, chain: str = "ethereum") -> dict:
+        """Score wallet risk (fraud, OFAC, financial).
+
+        Args:
+            address: Wallet address to analyze.
+            chain: Blockchain (e.g. ``"ethereum"``, ``"solana"``, ``"base"``).
+
+        Returns:
+            Dict with ``risk_score``, ``flags``, ``details``, etc.
+
+        Example::
+
+            m = Maxia()
+            r = m.risk("0xAbc...123", chain="ethereum")
+            print(r["risk_score"], r["flags"])
+        """
+        return self._get(
+            "/api/risk/wallet-score",
+            params={"address": address, "chain": chain},
+        )
+
+    def risk_batch(self, addresses: list) -> dict:
+        """Score up to 20 wallets in one call.
+
+        Args:
+            addresses: List of wallet addresses (max 20).
+
+        Returns:
+            Dict with ``results`` list, each containing ``address``,
+            ``risk_score``, ``flags``, etc.
+
+        Example::
+
+            m = Maxia()
+            data = m.risk_batch(["0xAbc...1", "0xDef...2"])
+            for r in data["results"]:
+                print(r["address"], r["risk_score"])
+        """
+        return self._post("/api/risk/batch", json={"addresses": addresses})
+
+    # ------------------------------------------------------------------
+    # ML Trading Signals (E36)
+    # ------------------------------------------------------------------
+
+    def signals(self, token: str = "BTC") -> dict:
+        """Get the latest trading signal for a token.
+
+        Includes RSI, MACD, Bollinger Bands, and a composite signal.
+
+        Args:
+            token: Token symbol (e.g. ``"BTC"``, ``"ETH"``, ``"SOL"``).
+
+        Returns:
+            Dict with ``signal``, ``confidence``, ``indicators``, etc.
+
+        Example::
+
+            m = Maxia()
+            s = m.signals("BTC")
+            print(s["signal"], s["confidence"])
+        """
+        return self._get("/api/signals/latest", params={"token": token})
+
+    def signals_scan(self) -> dict:
+        """Scan all tokens and return signals sorted by confidence.
+
+        Returns:
+            Dict with ``signals`` list sorted by confidence descending.
+
+        Example::
+
+            m = Maxia()
+            data = m.signals_scan()
+            for s in data["signals"]:
+                print(s["token"], s["signal"], s["confidence"])
+        """
+        return self._get("/api/signals/scan")
+
+    # ------------------------------------------------------------------
+    # AI Audit (S8)
+    # ------------------------------------------------------------------
+
+    def audit(self, audit_type: str, code: str = None,
+              contract_address: str = None, chain: str = None) -> dict:
+        """Run an AI-powered audit on code or a smart contract.
+
+        Args:
+            audit_type: Type of audit (e.g. ``"smart_contract"``,
+                ``"python"``, ``"solidity"``).
+            code: Source code to audit (provide this OR contract_address).
+            contract_address: On-chain contract address to audit.
+            chain: Blockchain of the contract (e.g. ``"ethereum"``).
+
+        Returns:
+            Dict with ``audit_id``, ``findings``, ``risk_level``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.audit("python", code="def transfer(to, amount): ...")
+            print(result["risk_level"], result["findings"])
+        """
+        self._require_key()
+        body = {"audit_type": audit_type}
+        if code is not None:
+            body["code"] = code
+        if contract_address is not None:
+            body["contract_address"] = contract_address
+        if chain is not None:
+            body["chain"] = chain
+        return self._post("/api/services/audit", json=body)
+
+    def audit_history(self, limit: int = 20, offset: int = 0) -> dict:
+        """Get your audit history.
+
+        Args:
+            limit: Max number of results (default 20).
+            offset: Pagination offset (default 0).
+
+        Returns:
+            Dict with ``audits`` list and ``total`` count.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            data = m.audit_history(limit=10)
+            for a in data["audits"]:
+                print(a["audit_id"], a["risk_level"])
+        """
+        self._require_key()
+        return self._get(
+            "/api/services/audit/history",
+            params={"limit": limit, "offset": offset},
+        )
+
+    # ------------------------------------------------------------------
+    # Web2 Gateway (E11)
+    # ------------------------------------------------------------------
+
+    def gateway_services(self) -> dict:
+        """List available Web2 gateway services.
+
+        Returns:
+            Dict with ``services`` list, each containing ``id``,
+            ``name``, ``description``, ``price_usdc``, etc.
+
+        Example::
+
+            m = Maxia()
+            data = m.gateway_services()
+            for svc in data["services"]:
+                print(svc["id"], svc["name"])
+        """
+        return self._get("/api/gateway/services")
+
+    def gateway_execute(self, service_id: str, params: dict) -> dict:
+        """Execute a Web2 gateway service.
+
+        Args:
+            service_id: Gateway service ID (from ``gateway_services()``).
+            params: Parameters for the service execution.
+
+        Returns:
+            Dict with ``result``, ``execution_time``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.gateway_execute("svc_weather", {"city": "Paris"})
+            print(result["result"])
+        """
+        self._require_key()
+        return self._post("/api/gateway/execute", json={
+            "service_id": service_id,
+            "params": params,
+        })
+
+    # ------------------------------------------------------------------
+    # Cross-Chain Identity (E14)
+    # ------------------------------------------------------------------
+
+    def identity_profile(self, agent_id: str) -> dict:
+        """Get a unified cross-chain identity profile for an agent.
+
+        Args:
+            agent_id: Agent ID to look up.
+
+        Returns:
+            Dict with ``agent_id``, ``wallets``, ``chains``,
+            ``reputation``, etc.
+
+        Example::
+
+            m = Maxia()
+            profile = m.identity_profile("agent_123")
+            print(profile["wallets"])
+        """
+        return self._get(f"/api/identity/profile/{agent_id}")
+
+    def identity_resolve(self, address: str) -> dict:
+        """Resolve a wallet address to its agent identity.
+
+        Args:
+            address: Wallet address (any chain).
+
+        Returns:
+            Dict with ``agent_id``, ``name``, ``chains``, etc.
+
+        Example::
+
+            m = Maxia()
+            agent = m.identity_resolve("0xAbc...123")
+            print(agent["agent_id"], agent["name"])
+        """
+        return self._get("/api/identity/resolve", params={"address": address})
+
+    def identity_link(self, chain: str, address: str) -> dict:
+        """Link a wallet address to your agent identity.
+
+        Args:
+            chain: Blockchain (e.g. ``"solana"``, ``"base"``, ``"ethereum"``).
+            address: Wallet address on that chain.
+
+        Returns:
+            Dict with ``linked``, ``chain``, ``address``, etc.
+
+        Example::
+
+            m = Maxia(api_key="maxia_abc...")
+            result = m.identity_link("base", "0xAbc...123")
+            print(result["linked"])
+        """
+        self._require_key()
+        return self._post("/api/identity/link", json={
+            "chain": chain,
+            "address": address,
+        })
