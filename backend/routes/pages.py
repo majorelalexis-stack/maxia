@@ -229,3 +229,9 @@ async def serve_feedback():
 async def serve_agents():
     """Agent Economy — pools, bounties, skills, data, reputation."""
     return _serve("agents.html")
+
+
+@router.get("/agent-dashboard", response_class=HTMLResponse)
+async def serve_agent_dashboard():
+    """Agent Dashboard — personal SOUL, economics, children, reputation."""
+    return _serve("agent-dashboard.html")
