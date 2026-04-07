@@ -1041,6 +1041,63 @@ async def crypto_stats():
 
 
 # ══════════════════════════════════════════
+#  ALIAS ROUTES — Standard paths (coherence API)
+# ══════════════════════════════════════════
+
+@router.get("/crypto/swap/quote")
+async def swap_quote_alias(request: Request, from_token: str = "", to_token: str = "",
+                           amount: float = 1, volume_30d: float = 0, wallet: str = "",
+                           **kwargs):
+    """Alias /crypto/swap/quote → /crypto/swap-quote pour compatibilite."""
+    return await crypto_swap_quote(request, from_token or kwargs.get("from", ""),
+                                   to_token or kwargs.get("to", ""), amount, volume_30d, wallet)
+
+
+@router.get("/crypto/swap/supported")
+async def swap_supported_alias():
+    """Liste des tokens et paires supportes pour le swap."""
+    from trading.crypto_swap import SUPPORTED_TOKENS
+    tokens = sorted(SUPPORTED_TOKENS.keys()) if hasattr(SUPPORTED_TOKENS, 'keys') else []
+    return {"tokens": tokens, "total": len(tokens), "chains": ["solana", "base", "ethereum", "polygon", "arbitrum", "avalanche", "bnb"]}
+
+
+@router.get("/defi/protocols")
+async def defi_protocols_alias():
+    """Liste des protocoles DeFi disponibles."""
+    return {"protocols": [
+        {"name": "Marinade", "chain": "solana", "type": "liquid_staking", "asset": "SOL"},
+        {"name": "Jito", "chain": "solana", "type": "liquid_staking", "asset": "SOL"},
+        {"name": "BlazeStake", "chain": "solana", "type": "liquid_staking", "asset": "SOL"},
+        {"name": "Kamino", "chain": "solana", "type": "lending", "asset": "USDC"},
+        {"name": "Aave V3", "chain": "ethereum", "type": "lending", "asset": "USDC"},
+        {"name": "Compound V3", "chain": "ethereum", "type": "lending", "asset": "USDC"},
+        {"name": "Orca", "chain": "solana", "type": "lp", "asset": "SOL/USDC"},
+        {"name": "Raydium", "chain": "solana", "type": "lp", "asset": "SOL/USDC"},
+    ], "total": 8, "note": "Use /defi/best-yield for live APY rates"}
+
+
+@router.get("/gpu/status")
+async def gpu_status_alias():
+    """Statut des GPUs disponibles."""
+    try:
+        from gpu.akash_client import get_availability
+        return await get_availability()
+    except Exception:
+        return {"status": "available", "provider": "akash", "note": "Use /gpu/tiers for pricing"}
+
+
+@router.get("/ai/models")
+async def ai_models_alias():
+    """Modeles AI disponibles sur MAXIA."""
+    return {"models": [
+        {"name": "Groq Llama 3.3 70B", "type": "llm", "speed": "fast", "price_per_1k": 0.0},
+        {"name": "Mistral Small", "type": "llm", "speed": "medium", "price_per_1k": 0.001},
+        {"name": "Claude Sonnet", "type": "llm", "speed": "quality", "price_per_1k": 0.003},
+        {"name": "Pollinations.ai", "type": "image", "speed": "fast", "price_per_1k": 0.0},
+    ], "fallback_chain": "Groq → Mistral → Claude", "total": 4}
+
+
+# ══════════════════════════════════════════
 #  WEB SCRAPER (Art.25)
 # ══════════════════════════════════════════
 

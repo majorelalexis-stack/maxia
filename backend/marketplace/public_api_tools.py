@@ -486,12 +486,14 @@ print(r.json())
 @router.get("/stocks/list")
 async def stocks_list_alias():
     """Alias for /stocks."""
+    from marketplace.public_api_trading import list_stocks
     return await list_stocks()
 
 
 @router.get("/wallet/analyze")
 async def wallet_analyze_alias(address: str = ""):
     """Alias for /wallet-analysis."""
+    from marketplace.public_api_trading import public_wallet_analysis
     return await public_wallet_analysis(address)
 
 
@@ -499,6 +501,7 @@ async def wallet_analyze_alias(address: str = ""):
 async def defi_yields_alias(asset: str = "USDC", chain: str = "", min_tvl: float = 100000,
                             limit: int = 10, type: str = ""):
     """Alias for /defi/best-yield."""
+    from marketplace.public_api_trading import defi_best_yield
     return await defi_best_yield(asset, chain, min_tvl, limit, type)
 
 
@@ -547,3 +550,39 @@ async def trading_portfolio_alias(x_api_key: str = Header(None, alias="X-API-Key
     except Exception:
         results["recent_swaps"] = 0
     return results
+
+
+@router.get("/info")
+async def public_info():
+    """Informations generales sur MAXIA."""
+    return {
+        "name": "MAXIA", "version": "12.0.0",
+        "description": "AI-to-AI Marketplace on 15 Blockchains",
+        "chains": 15, "chains_code_ready": 8, "tokens": 65, "mcp_tools": 47,
+        "ai_services": 17, "gpu_tiers": 13, "stocks": 25,
+        "protocols": ["REST", "MCP", "A2A", "AIP"],
+        "docs": "https://maxiaworld.app/architecture",
+        "api_base": "https://maxiaworld.app/api/public",
+    }
+
+
+@router.get("/pricing")
+async def public_pricing():
+    """Pricing des services MAXIA."""
+    from core.config import get_commission_bps
+    return {
+        "marketplace": {
+            "BRONZE": {"commission_pct": 1.5, "volume_under": 500},
+            "GOLD": {"commission_pct": 0.5, "volume_range": "500-5000"},
+            "WHALE": {"commission_pct": 0.1, "volume_over": 5000},
+        },
+        "swap": {
+            "BRONZE": {"commission_bps": 10, "pct": "0.10%"},
+            "SILVER": {"commission_bps": 5, "pct": "0.05%"},
+            "GOLD": {"commission_bps": 3, "pct": "0.03%"},
+            "WHALE": {"commission_bps": 1, "pct": "0.01%"},
+        },
+        "ai_services": {"code_gen": 3.99, "audit": 9.99, "sentiment": 1.99},
+        "gpu": "See /api/public/gpu/tiers",
+        "free_tier": {"requests_per_day": 100, "swap_commission": "0.10%"},
+    }
