@@ -96,12 +96,14 @@ async function loadTokens(){
       var mc_fmt=t.market_cap_usd>=1000?'$'+(t.market_cap_usd/1000).toFixed(1)+'K':'$'+t.market_cap_usd.toFixed(0);
       var age=Math.round((Date.now()/1000-t.detected_at)/60);
       var age_str=age<1?'just now':age+'m ago';
+      var link_url = t.url || (t.source==='dexscreener' ? 'https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint : 'https://pump.fun/'+t.mint);
+      var link_label = t.source==='dexscreener' ? 'DexScreener' : 'pump.fun';
       return '<div class="token-row">'+
-        '<div class="token-sym">'+esc(t.symbol)+'</div>'+
-        '<div class="token-name">'+esc(t.name)+'</div>'+
+        '<div class="token-sym">'+esc(t.symbol||t.mint.substring(0,8))+'</div>'+
+        '<div class="token-name">'+esc(t.name||'New token')+'</div>'+
         '<div class="token-mc">'+mc_fmt+'</div>'+
-        '<div class="token-replies">'+t.reply_count+' replies</div>'+
-        '<a href="https://pump.fun/'+t.mint+'" target="_blank" class="token-link">pump.fun</a>'+
+        '<div class="token-replies">'+(t.chain||'solana')+'</div>'+
+        '<a href="'+link_url+'" target="_blank" class="token-link">'+link_label+'</a>'+
       '</div>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty" style="color:var(--rose)">Error loading tokens</div>';}

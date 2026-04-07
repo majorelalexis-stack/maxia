@@ -123,19 +123,19 @@ function showTab(id){
   event.target.classList.add('active');
 }
 
-// Prices
+// Prices — fetch from /oracle/price/live/{symbol}
 async function loadPrices(){
   var el = document.getElementById('prices-list');
+  var tokens = ['SOL','ETH','BTC','USDC','JUP','BONK','WIF','RENDER','AVAX','MATIC'];
   try{
-    var tokens = ['SOL','ETH','BTC','USDC','JUP','BONK','WIF','RENDER','AVAX','MATIC'];
+    var fetches = tokens.map(function(t){
+      return fetch('/oracle/price/live/'+t).then(function(r){return r.json()}).then(function(d){return {symbol:t,price:d.price||0,source:d.source||'oracle'}}).catch(function(){return {symbol:t,price:0,source:'error'}});
+    });
+    var results = await Promise.all(fetches);
     var html = '';
-    var r = await fetch('/api/public/prices');
-    var d = await r.json();
-    var prices = d.prices || d;
-    tokens.forEach(function(t){
-      var p = prices[t];
-      if(p && p.price > 0){
-        html += '<div class="price-row"><div><div class="price-sym">'+t+'</div><div class="price-src">'+(p.source||'oracle')+'</div></div><div class="price-val">$'+p.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4})+'</div></div>';
+    results.forEach(function(r){
+      if(r.price > 0){
+        html += '<div class="price-row"><div><div class="price-sym">'+r.symbol+'</div><div class="price-src">'+r.source+'</div></div><div class="price-val">$'+r.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4})+'</div></div>';
       }
     });
     el.innerHTML = html || '<div class="empty">No prices available</div>';

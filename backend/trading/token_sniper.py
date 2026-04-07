@@ -60,34 +60,64 @@ class WatchRequest(BaseModel):
 # ── Scanner ──
 
 async def _fetch_new_tokens() -> list[dict]:
-    """Fetch latest tokens from pump.fun sorted by creation time."""
+    """Fetch latest tokens from pump.fun, fallback to DexScreener."""
+    client = get_http_client()
+
+    # Try pump.fun first
     try:
-        client = get_http_client()
-        # pump.fun API: latest coins sorted by creation
         resp = await client.get(
-            f"{_PUMP_API}/latest",
-            params={"limit": 50, "sort": "created_timestamp", "order": "desc"},
+            "https://frontend-api-v3.pump.fun/coins/trending",
             timeout=10,
         )
-        if resp.status_code != 200:
-            # Fallback: try trending endpoint
-            resp = await client.get(
-                "https://frontend-api-v3.pump.fun/coins/trending",
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                return []
+        if resp.status_code == 200 and resp.content:
+            data = resp.json()
+            items = data if isinstance(data, list) else data.get("coins", data.get("results", []))
+            if items:
+                return [{"_source": "pump.fun", **i} for i in items[:50]]
+    except Exception:
+        pass
 
-        data = resp.json()
-        items = data if isinstance(data, list) else data.get("coins", data.get("results", []))
-        return items[:50]
-    except Exception as e:
-        logger.warning("[Sniper] Fetch error: %s", e)
-        return []
+    # Fallback: DexScreener token boosts (new/trending tokens)
+    try:
+        resp = await client.get(
+            "https://api.dexscreener.com/token-boosts/latest/v1",
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list):
+                return [{"_source": "dexscreener", **i} for i in data[:50]]
+    except Exception:
+        pass
+
+    return []
 
 
 def _parse_token(raw: dict) -> dict:
-    """Normalize a pump.fun token into our format."""
+    """Normalize a token from pump.fun or DexScreener into our format."""
+    source = raw.get("_source", "unknown")
+
+    if source == "dexscreener":
+        return {
+            "mint": raw.get("tokenAddress", ""),
+            "name": raw.get("description", raw.get("tokenAddress", "")[:12]),
+            "symbol": raw.get("symbol", "?"),
+            "description": raw.get("description", "")[:200],
+            "market_cap_usd": 0,
+            "market_cap_sol": 0,
+            "reply_count": 0,
+            "creator": "",
+            "image_uri": raw.get("icon", raw.get("header", "")),
+            "created_timestamp": int(time.time()),
+            "complete": False,
+            "bonding_curve": "",
+            "detected_at": int(time.time()),
+            "source": "dexscreener",
+            "chain": raw.get("chainId", "solana"),
+            "url": raw.get("url", ""),
+        }
+
+    # pump.fun format
     mint = raw.get("mint", "")
     return {
         "mint": mint,
