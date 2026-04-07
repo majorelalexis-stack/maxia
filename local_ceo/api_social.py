@@ -4,6 +4,9 @@ Remplace l'approche Playwright/browser qui echoue regulierement.
 Chaque fonction retourne {"success": True/False, "detail": "...", ...}
 et ne crash jamais (gestion d'erreurs complete).
 
+IMPORTANT: When PROPOSE_DONT_POST is True, all social posting functions are blocked.
+The CEO proposes content, Alexis validates and posts manually.
+
 Tokens lus depuis les variables d'environnement (.env du CEO local).
 """
 import os
@@ -12,6 +15,19 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Import propose mode flag
+try:
+    from config_local import PROPOSE_DONT_POST
+except ImportError:
+    PROPOSE_DONT_POST = False
+
+
+def _check_propose_mode(action_name: str) -> dict | None:
+    """Return error dict if PROPOSE_DONT_POST is True, else None."""
+    if PROPOSE_DONT_POST:
+        return {"success": False, "detail": f"PROPOSE_DONT_POST is True — {action_name} blocked"}
+    return None
 
 # ══════════════════════════════════════════
 # Tokens et config — charges une seule fois
@@ -46,6 +62,9 @@ async def discord_send_message(channel_id: str, text: str) -> dict:
     Returns:
         {"success": True, "detail": "...", "message_id": "..."}
     """
+    blocked = _check_propose_mode("Discord message")
+    if blocked:
+        return blocked
     if not DISCORD_BOT_TOKEN:
         return {"success": False, "detail": "DISCORD_BOT_TOKEN absent dans .env"}
     if not channel_id:
@@ -183,6 +202,9 @@ async def telegram_send_group_message(chat_id: str, text: str) -> dict:
     Returns:
         {"success": True/False, "detail": "...", "message_id": ...}
     """
+    blocked = _check_propose_mode("Telegram group message")
+    if blocked:
+        return blocked
     if not TELEGRAM_BOT_TOKEN:
         return {"success": False, "detail": "TELEGRAM_BOT_TOKEN absent dans .env"}
     if not chat_id:
@@ -277,6 +299,9 @@ async def github_comment_issue(repo: str, issue_number: int, text: str) -> dict:
     Returns:
         {"success": True/False, "detail": "...", "comment_id": ..., "html_url": "..."}
     """
+    blocked = _check_propose_mode("GitHub comment")
+    if blocked:
+        return blocked
     if not GITHUB_TOKEN:
         return {"success": False, "detail": "GITHUB_TOKEN absent dans .env"}
     if not repo or not issue_number:
@@ -333,6 +358,9 @@ async def github_create_issue(repo: str, title: str, body: str) -> dict:
     Returns:
         {"success": True/False, "detail": "...", "issue_number": ..., "html_url": "..."}
     """
+    blocked = _check_propose_mode("GitHub create issue")
+    if blocked:
+        return blocked
     if not GITHUB_TOKEN:
         return {"success": False, "detail": "GITHUB_TOKEN absent dans .env"}
     if not repo or not title:
@@ -537,6 +565,9 @@ async def reddit_post_comment(post_id: str, text: str) -> dict:
     Returns:
         {"success": True/False, "detail": "...", "comment_id": "..."}
     """
+    blocked = _check_propose_mode("Reddit comment")
+    if blocked:
+        return blocked
     token = await _get_reddit_token()
     if not token:
         return {"success": False, "detail": "Reddit token unavailable (check REDDIT_* env vars)"}

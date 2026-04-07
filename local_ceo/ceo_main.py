@@ -1,6 +1,7 @@
 """CEO Local V3 — Entry point. Refactored from ceo_local_v2.py.
 
-18 missions, dual-model (Qwen 3.5 27B + VL 7B), zero spam.
+18 missions, single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx), zero spam.
+IMPORTANT: CEO proposes content, Alexis validates and posts manually.
 Usage:
   python ceo_main.py          # autonomous mode (all missions)
   python ceo_main.py chat     # interactive terminal mode
@@ -376,10 +377,11 @@ def main():
         asyncio.run(terminal_mode())
     else:
         print("""
-    +---------------------------------------+
-    |    MAXIA CEO Local V3                 |
-    |    18 missions - 1 modele - 0 spam    |
-    +---------------------------------------+
+    +--------------------------------------------------+
+    |    MAXIA CEO Local V3                            |
+    |    18 missions - 1 modele (qwen3.5:27b) - 0 spam |
+    |    Mode: PROPOSE -> Alexis valide -> poste       |
+    +--------------------------------------------------+
         """)
         asyncio.run(run())
 

@@ -1,6 +1,7 @@
-"""Config CEO Local V2 — Dual-model Qwen 3.5 27B + VL 7B, 14 missions, zero spam.
+"""Config CEO Local V3 — Single model Qwen 3.5 27B (dense, multimodal, 256K), 18 missions, zero spam.
 
-Le CEO ne poste RIEN sauf 1 tweet/jour. Tout passe par mail a Alexis.
+Le CEO ne poste JAMAIS directement. Il propose du contenu,
+Alexis valide et poste manuellement. Tout passe par Telegram (Go/No).
 """
 import os
 from dotenv import load_dotenv
@@ -20,18 +21,22 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ══════════════════════════════════════════
-# Ollama — dual-model (texte: qwen3.5:27b + vision: qwen2.5vl:7b)
+# Ollama — single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx)
+# Replaces the old 3-model setup (qwen3:14b + qwen3.5:9b + qwen2.5vl:7b)
+# qwen3.5:27b handles text + vision in one model = 17GB VRAM, no swapping
 # ══════════════════════════════════════════
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:27b")
-VISION_MODEL = os.getenv("VISION_MODEL", "qwen2.5vl:7b")
+VISION_MODEL = os.getenv("VISION_MODEL", "qwen3.5:27b")  # same model — native multimodal
 
-# Backward compat
+# Backward compat — all point to the single model
 OLLAMA_CEO_MODEL = OLLAMA_MODEL
 OLLAMA_EXECUTOR_MODEL = OLLAMA_MODEL
-OLLAMA_VISION_MODEL = VISION_MODEL
+OLLAMA_VISION_MODEL = OLLAMA_MODEL  # was qwen2.5vl:7b, now same model
 OLLAMA_BROWSER_MODEL = OLLAMA_MODEL
-OLLAMA_MAX_LOADED_MODELS = 1
+OLLAMA_MAX_LOADED_MODELS = 1  # single model, no swapping
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))  # save VRAM (default 8K, increase if needed)
+OLLAMA_FLASH_ATTENTION = os.getenv("OLLAMA_FLASH_ATTENTION", "1") == "1"  # faster inference, less VRAM
 
 # Mistral (fallback cloud — rarement utilise)
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
@@ -54,6 +59,11 @@ BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.ma
 MAX_TWEETS_DAY = 1  # 1 seul tweet feature/jour
 MAX_EMAILS_DAY = 5  # opportunites + rapport + alertes
 MAX_ACTIONS_DAY = 50  # scans + moderation + health checks
+
+# ── PROPOSE, DON'T POST ──
+# IMPORTANT: CEO never posts directly. It proposes content,
+# sends it to Alexis via Telegram for approval, and Alexis posts manually.
+PROPOSE_DONT_POST = True
 
 # Tout le reste est ZERO
 MAX_COMMENTS_TWITTER_DAY = 0
@@ -105,9 +115,10 @@ PERSONALITY = {
         "better than", "kills", "destroys", "rip", "dead project",
     ],
     "positive_rules": [
-        "1 tweet/jour max — presenter une feature MAXIA",
-        "Ne JAMAIS commenter, liker, DM, ou poster ailleurs",
-        "Tout passe par mail a Alexis sauf le tweet quotidien",
+        "Le CEO ne poste JAMAIS directement — il propose du contenu",
+        "Alexis valide via Telegram (Go/No) puis poste manuellement",
+        "Ne JAMAIS commenter, liker, DM, ou poster nulle part",
+        "Tout passe par Telegram a Alexis pour validation",
     ],
 }
 

@@ -1461,3 +1461,11 @@ try:
     logger.info("[ONE-3] PicoClaw CEO Gateway monte — /api/ceo/*")
 except Exception as e:
     logger.error("[MAXIA] PicoClaw Gateway router error: %s", e)
+
+# ── CEO Analytics (feedback loop) ──
+try:
+    from agents.ceo_analytics import get_router as get_ceo_analytics_router
+    app.include_router(get_ceo_analytics_router())
+    logger.info("[CEO] CEO Analytics feedback loop monte — /api/ceo/analytics/*")
+except Exception as e:
+    logger.error("[MAXIA] CEO Analytics router error: %s", e)

@@ -14,7 +14,7 @@ from typing import Optional
 
 import httpx
 
-from config_local import OLLAMA_URL, OLLAMA_MODEL
+from config_local import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_NUM_CTX
 from agents import AgentConfig, MAXIA_KNOWLEDGE
 
 log = logging.getLogger("ceo")
@@ -107,6 +107,7 @@ async def ask(
                     "options": {
                         "num_predict": agent.max_tokens,
                         "temperature": agent.temperature,
+                        "num_ctx": OLLAMA_NUM_CTX,
                     },
                 })
                 resp.raise_for_status()
@@ -152,7 +153,7 @@ async def llm(
                     "prompt": full,
                     "stream": False,
                     "think": False,
-                    "options": {"num_predict": max_tokens, "temperature": 0.7},
+                    "options": {"num_predict": max_tokens, "temperature": 0.7, "num_ctx": OLLAMA_NUM_CTX},
                 })
                 resp.raise_for_status()
                 result = resp.json().get("response", "").strip()

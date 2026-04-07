@@ -1,9 +1,12 @@
 """Browser Agent — Hybride Playwright + browser-use (LLM vision local).
 
 Mode 1 (Playwright) : Selectors CSS pour les actions rapides et fiables (search, like, star, get_mentions).
-Mode 2 (browser-use) : LLM vision local (Qwen 3.5 9B via Ollama) pour les actions complexes
-    qui echouent avec les selectors (send_discord, send_telegram, dm_twitter, reply_tweet).
+Mode 2 (browser-use) : LLM vision local (qwen3.5:27b via Ollama) pour les actions complexes.
     Le LLM voit le screenshot et decide ou cliquer — resilient aux changements de DOM.
+
+IMPORTANT: When PROPOSE_DONT_POST is True (default), ALL posting methods are blocked.
+The CEO proposes content via Telegram, Alexis validates and posts manually.
+Read-only operations (search, scan, screenshot) remain functional.
 """
 import asyncio
 import base64
@@ -810,7 +813,19 @@ class BrowserAgent:
     # ── Actions principales ──
 
     async def post_tweet(self, text: str, media: str = None) -> dict:
-        """Poste un tweet sur X avec multi-selectors robustes."""
+        """Poste un tweet sur X avec multi-selectors robustes.
+
+        IMPORTANT: When PROPOSE_DONT_POST is True, this method is blocked.
+        The CEO should use missions/tweet.py which proposes via Telegram instead.
+        """
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — use Telegram proposal instead of direct posting"}
+        except ImportError:
+            pass
+
         err = self._check_rate("tweet")
         if err:
             return {"success": False, "error": err}
@@ -880,6 +895,14 @@ class BrowserAgent:
 
     async def reply_tweet(self, tweet_url: str, text: str) -> dict:
         """Repond a un tweet specifique."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — reply blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("reply")
         if err:
             return {"success": False, "error": err}
@@ -1046,6 +1069,14 @@ class BrowserAgent:
 
     async def quote_tweet(self, tweet_url: str, text: str) -> dict:
         """Quote tweet une URL avec un commentaire."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — quote tweet blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("tweet")
         if err:
             return {"success": False, "error": err}
@@ -1107,6 +1138,14 @@ class BrowserAgent:
 
     async def post_reddit(self, subreddit: str, title: str, body: str) -> dict:
         """Poste sur un subreddit avec multi-selectors."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — Reddit post blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("reddit_post")
         if err:
             return {"success": False, "error": err}
@@ -1313,6 +1352,7 @@ class BrowserAgent:
                     if text:
                         results.append({
                             "username": username,
+                            "author": username,
                             "text": text[:300],
                             "url": tweet_url,
                         })
@@ -1661,6 +1701,14 @@ class BrowserAgent:
 
     async def comment_reddit(self, post_url: str, text: str) -> dict:
         """Commente sur un post Reddit (new Reddit UI 2026)."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — Reddit comment blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("reddit_comment")
         if err:
             return {"success": False, "error": err}
@@ -1887,6 +1935,14 @@ class BrowserAgent:
     async def dm_twitter(self, username: str, text: str) -> dict:
         """Envoie un DM sur X. Methode 1: cliquer sur conversation existante.
         Methode 2: naviguer direct a /messages/compose (pas de bouton a chercher)."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — DM blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}
@@ -1987,6 +2043,14 @@ class BrowserAgent:
 
     async def send_telegram(self, group_or_user: str, text: str) -> dict:
         """Envoie un message sur Telegram Web (groupe ou user)."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — Telegram group message blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}
@@ -2358,6 +2422,14 @@ class BrowserAgent:
 
     async def send_discord(self, server_or_channel_url: str, text: str) -> dict:
         """Envoie un message sur Discord Web. Accepte invite URL ou channel URL."""
+        # Safety gate: block direct posting when in propose mode
+        try:
+            from config_local import PROPOSE_DONT_POST
+            if PROPOSE_DONT_POST:
+                return {"success": False, "error": "PROPOSE_DONT_POST is True — Discord message blocked"}
+        except ImportError:
+            pass
+
         err = self._check_rate("dm")
         if err:
             return {"success": False, "error": err}

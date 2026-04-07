@@ -462,6 +462,18 @@ class Database:
             "expires_at INTEGER,"
             "active INTEGER DEFAULT 1);"
         )),
+        11: ("CEO actions — feedback loop for CEO agent decision tracking", (
+            "CREATE TABLE IF NOT EXISTS ceo_actions ("
+            "action_id TEXT PRIMARY KEY,"
+            "action_type TEXT NOT NULL,"
+            "content TEXT DEFAULT '',"
+            "platform TEXT DEFAULT 'twitter',"
+            "status TEXT DEFAULT 'proposed',"
+            "engagement TEXT DEFAULT '{}',"
+            "created_at INTEGER DEFAULT (strftime('%s','now')));"
+            "CREATE INDEX IF NOT EXISTS idx_ceo_actions_type ON ceo_actions(action_type, created_at);"
+            "CREATE INDEX IF NOT EXISTS idx_ceo_actions_status ON ceo_actions(status, created_at);"
+        )),
     }
 
     async def _run_migrations(self):
