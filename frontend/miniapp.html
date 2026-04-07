@@ -72,7 +72,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <!-- DEFI -->
 <div class="panel" id="p-defi">
-  <div class="section-title">Top USDC Yields</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+    <div class="section-title" style="margin:0">Top Yields</div>
+    <select id="defi-asset" onchange="loadYields()" style="padding:6px 12px;background:#0c1222;border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:13px"><option>USDC</option><option>SOL</option><option>ETH</option><option>BTC</option><option>USDT</option></select>
+  </div>
   <div id="yields-list"><div class="empty">Loading yields...</div></div>
 </div>
 
@@ -175,13 +178,15 @@ async function getQuote(){
 // ── DEFI YIELDS ──
 async function loadYields(){
   var el = document.getElementById('yields-list');
+  var asset = document.getElementById('defi-asset').value;
   try{
-    var r = await fetch('/api/public/defi/best-yield?asset=USDC&limit=8');
+    var r = await fetch('/api/public/defi/best-yield?asset='+asset+'&limit=30');
     var d = await r.json();
     var yields = d.yields || d.opportunities || [];
-    if(!yields.length){el.innerHTML='<div class="empty">No yields available</div>';return;}
+    if(!yields.length){el.innerHTML='<div class="empty">No yields for '+esc(asset)+'</div>';return;}
     el.innerHTML = yields.map(function(y){
-      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+'</div></div><div class="row-val green">'+((y.apy||0).toFixed(2))+'%</div></div>';
+      var tvl = y.tvl_usd >= 1000000 ? '$'+(y.tvl_usd/1000000).toFixed(1)+'M' : y.tvl_usd >= 1000 ? '$'+(y.tvl_usd/1000).toFixed(0)+'K' : '';
+      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+(tvl?' — TVL '+tvl:'')+'</div></div><div class="row-val green">'+((y.apy||0).toFixed(2))+'%</div></div>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading yields</div>';}
 }
