@@ -602,16 +602,6 @@ app.middleware("http")(x402_middleware)
 # ── Security Headers (PRO-J3: CSP with nonce) ──
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    # Generate per-request nonce for CSP (PRO-J3)
-    import base64
-    nonce = base64.b64encode(os.urandom(16)).decode("ascii")
-    request.state.csp_nonce = nonce
-    try:
-        from routes.pages import set_csp_nonce
-        set_csp_nonce(nonce)
-    except ImportError:
-        pass
-
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -621,11 +611,11 @@ async def security_headers_middleware(request: Request, call_next):
     if os.getenv("FORCE_HTTPS", "false").lower() == "true":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-    # CSP with nonce for scripts only — styles keep 'unsafe-inline' (inline style="" attributes need it)
-    # Note: nonce in style-src would disable 'unsafe-inline' in modern browsers, breaking all style="" attrs
+    # CSP — 'unsafe-inline' required for onclick/style attributes used across all pages
+    # Nonces not used: would require refactoring all inline onclick/onmouseenter handlers
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "

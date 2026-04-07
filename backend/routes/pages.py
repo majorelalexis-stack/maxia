@@ -1,37 +1,19 @@
-"""MAXIA HTML page routes — extracted from main.py. CSP nonce injection (PRO-J3)."""
-import re
+"""MAXIA HTML page routes — extracted from main.py."""
 from pathlib import Path
-from contextvars import ContextVar
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter(include_in_schema=False)
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
-# Regex to match <script> tags without existing nonce attribute (scripts only, not styles)
-_SCRIPT_RE = re.compile(r"<script(?![^>]*\bnonce=)", re.IGNORECASE)
-
-# Context var set by middleware, read by _serve()
-_csp_nonce: ContextVar[str] = ContextVar("csp_nonce", default="")
-
-
-def set_csp_nonce(nonce: str):
-    """Called by security middleware to set per-request nonce."""
-    _csp_nonce.set(nonce)
-
 
 def _serve(filename: str) -> HTMLResponse:
-    """Serve an HTML file from frontend directory with CSP nonce injection."""
+    """Serve an HTML file from frontend directory."""
     path = FRONTEND_DIR / filename
     if not path.exists():
         return HTMLResponse("Page not found", status_code=404)
-    html = path.read_text(encoding="utf-8")
-    # Inject CSP nonce into <script> tags only (not styles — inline style="" needs 'unsafe-inline')
-    nonce = _csp_nonce.get("")
-    if nonce:
-        html = _SCRIPT_RE.sub(f'<script nonce="{nonce}"', html)
-    return HTMLResponse(html)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
 # ═══════════════════════════════════════════════════════════
