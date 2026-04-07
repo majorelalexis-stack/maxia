@@ -334,6 +334,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Sniper worker init error: %s", e)
 
+    # Telegram bot (long polling + Mini App menu button)
+    try:
+        from integrations.telegram_bot import run_telegram_bot
+        asyncio.create_task(run_telegram_bot())
+        logger.info("[MAXIA] Telegram bot started (long polling + Mini App)")
+    except Exception as e:
+        logger.error("[MAXIA] Telegram bot init error: %s", e)
+
     # CEO task queue — REMOVED (Plan CEO V4: CEO = local only)
 
     # Init file logger

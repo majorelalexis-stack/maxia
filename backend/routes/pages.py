@@ -176,3 +176,9 @@ async def serve_buy():
 async def serve_sniper():
     """Token sniper — real-time new token detection from pump.fun."""
     return _serve("sniper.html")
+
+
+@router.get("/miniapp", response_class=HTMLResponse)
+async def serve_miniapp():
+    """Telegram Mini App — trading UI inside Telegram."""
+    return _serve("miniapp.html")
