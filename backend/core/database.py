@@ -194,6 +194,10 @@ class Database:
         rows = await self.raw_execute_fetchall(sql, params)
         return rows[0] if rows else None
 
+    async def _fetchall(self, sql, params=()):
+        """Compat alias for raw_execute_fetchall."""
+        return await self.raw_execute_fetchall(sql, params)
+
     # ── Public raw DB access helpers (avoids direct _db usage) ──
 
     def _pg_params(self, sql: str, params: tuple) -> tuple:
