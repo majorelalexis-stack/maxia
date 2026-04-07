@@ -505,6 +505,7 @@ async def defi_yields_alias(asset: str = "USDC", chain: str = "", min_tvl: float
 @router.get("/chains")
 async def chains_alias():
     """Alias for /chain-support."""
+    from marketplace.public_api_discover import chain_support
     return await chain_support()
 
 

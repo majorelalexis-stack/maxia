@@ -95,6 +95,11 @@ _LEADERBOARD_KEYWORDS = {"leaderboard", "top", "classement", "ranking"}
 _STOCK_KEYWORDS = {"stocks", "actions", "equity", "equities", "bourse"}
 _GPU_KEYWORDS = {"gpu", "gpus", "compute", "rental", "location"}
 _YIELD_KEYWORDS = {"yield", "yields", "defi", "apy", "rendement", "rendements", "staking"}
+_ALERT_KEYWORDS = {"alert", "alerte", "notify", "notif", "notification", "remind"}
+_DCA_KEYWORDS = {"dca", "recurring", "auto-buy", "autobuy", "regulier"}
+_PORTFOLIO_KEYWORDS = {"portfolio", "portefeuille", "holdings", "balance", "solde", "wallet"}
+_BRIDGE_KEYWORDS = {"bridge", "transfer", "cross-chain", "crosschain", "envoyer"}
+_BUY_CRYPTO_KEYWORDS = {"buy", "acheter", "card", "carte", "fiat", "onramp"}
 
 
 def _detect_intent(message: str) -> ParsedIntent:
@@ -121,7 +126,15 @@ def _detect_intent(message: str) -> ParsedIntent:
             raw_message=msg,
         )
 
-    # 3. Swap keyword without parseable format
+    # 3. Buy crypto with card — check BEFORE swap_help (buy/acheter overlap)
+    if words & _BUY_CRYPTO_KEYWORDS and (words & {"card", "carte", "fiat", "onramp", "credit"} or not swap_match):
+        # Only match buy_crypto if card/fiat keywords present, or no swap pattern
+        if words & {"card", "carte", "fiat", "onramp", "credit"}:
+            sym_match = _PRICE_SYMBOL_PATTERN.search(msg)
+            symbol = sym_match.group(1).upper() if sym_match else None
+            return ParsedIntent(intent="buy_crypto", symbol=symbol, raw_message=msg)
+
+    # 3b. Swap keyword without parseable format
     if words & _SWAP_KEYWORDS and not swap_match:
         return ParsedIntent(intent="swap_help", raw_message=msg)
 
@@ -153,7 +166,27 @@ def _detect_intent(message: str) -> ParsedIntent:
     if words & _YIELD_KEYWORDS:
         return ParsedIntent(intent="yield", raw_message=msg)
 
-    # 10. Fallback — LLM
+    # 10. Alert — "alert SOL above 100" or "alerte ETH 5%"
+    if words & _ALERT_KEYWORDS:
+        sym_match = _PRICE_SYMBOL_PATTERN.search(msg)
+        symbol = sym_match.group(1).upper() if sym_match else None
+        return ParsedIntent(intent="alert", symbol=symbol, raw_message=msg)
+
+    # 11. DCA
+    if words & _DCA_KEYWORDS:
+        return ParsedIntent(intent="dca", raw_message=msg)
+
+    # 12. Portfolio / Balance
+    if words & _PORTFOLIO_KEYWORDS:
+        addr_match = _SOLANA_ADDR_PATTERN.search(msg)
+        address = addr_match.group(0) if addr_match else None
+        return ParsedIntent(intent="portfolio", address=address, raw_message=msg)
+
+    # 13. Bridge
+    if words & _BRIDGE_KEYWORDS:
+        return ParsedIntent(intent="bridge", raw_message=msg)
+
+    # 14. Fallback — LLM
     return ParsedIntent(intent="llm", raw_message=msg)
 
 
@@ -165,6 +198,11 @@ async def _handle_help() -> dict:
         "Available commands:\n"
         "  price <SYMBOL>           — Get live price (e.g. price SOL)\n"
         "  swap <AMT> <FROM> to <TO> — Get swap quote (e.g. swap 10 USDC to SOL)\n"
+        "  buy <SYMBOL>             — Buy crypto with credit card\n"
+        "  alert <SYMBOL>           — Set up price alerts\n"
+        "  dca                      — DCA bot (auto-buy recurring)\n"
+        "  portfolio <ADDRESS>      — Wallet portfolio & balances\n"
+        "  bridge                   — Cross-chain transfers\n"
         "  check risk <ADDRESS>     — Token rug pull risk analysis\n"
         "  leaderboard              — Top 5 agents by volume\n"
         "  stocks                   — Live stock prices\n"
@@ -468,6 +506,132 @@ async def _handle_yield() -> dict:
         return {"response": "Failed to fetch DeFi yields.", "type": "error", "data": err}
 
 
+async def _handle_alert(intent: ParsedIntent) -> dict:
+    """Guide user to create a price alert."""
+    symbol = intent.symbol
+    if not symbol:
+        return {
+            "response": (
+                "To create a price alert, use the API:\n"
+                "  POST /api/trading/alerts\n"
+                "  {\"token\": \"SOL\", \"condition\": \"above\", \"target_price\": 100, \"wallet\": \"YOUR_WALLET\"}\n\n"
+                "Conditions: above, below, pct_up, pct_down\n"
+                "For percentage: {\"condition\": \"pct_up\", \"pct_change\": 5.0}\n"
+                "Add \"repeat\": true to get notified every time (not just once)"
+            ),
+            "type": "help",
+            "data": None,
+        }
+
+    return {
+        "response": (
+            f"To set an alert for {symbol}:\n"
+            f"  POST /api/trading/alerts\n"
+            f"  {{\"token\": \"{symbol}\", \"condition\": \"above\", \"target_price\": <PRICE>, \"wallet\": \"YOUR_WALLET\"}}\n\n"
+            f"Or for percentage change:\n"
+            f"  {{\"token\": \"{symbol}\", \"condition\": \"pct_up\", \"pct_change\": 5.0, \"wallet\": \"YOUR_WALLET\"}}"
+        ),
+        "type": "alert",
+        "data": {"token": symbol, "endpoint": "/api/trading/alerts"},
+    }
+
+
+async def _handle_dca() -> dict:
+    """Info about DCA bot."""
+    return {
+        "response": (
+            "DCA Bot — Dollar Cost Averaging:\n"
+            "  POST /api/trading/dca/create — Create a DCA order\n"
+            "  GET  /api/trading/dca/list   — List active orders\n"
+            "  POST /api/trading/dca/cancel — Cancel an order\n\n"
+            "Example: Buy $10 of SOL every day:\n"
+            "  {\"token\": \"SOL\", \"amount_usdc\": 10, \"interval\": \"daily\", \"wallet\": \"YOUR_WALLET\"}\n\n"
+            "Intervals: hourly, daily, weekly, monthly\n"
+            "37 tokens supported."
+        ),
+        "type": "dca",
+        "data": {"endpoint": "/api/trading/dca/create"},
+    }
+
+
+async def _handle_portfolio(intent: ParsedIntent) -> dict:
+    """Fetch portfolio for a wallet address."""
+    address = intent.address
+    if not address:
+        return {
+            "response": (
+                "Portfolio tracker — provide your wallet address:\n"
+                "  GET /api/trading/portfolio?wallet=YOUR_WALLET\n"
+                "Or say: portfolio <YOUR_SOLANA_ADDRESS>"
+            ),
+            "type": "help",
+            "data": None,
+        }
+
+    try:
+        from features.web3_services import analyze_wallet
+
+        result = await analyze_wallet(address)
+        if "error" in result:
+            return {"response": result["error"], "type": "error", "data": None}
+
+        total = result.get("total_value_usd", 0)
+        tokens = result.get("tokens", [])
+        lines = [f"Portfolio for {address[:8]}...{address[-4:]}:", f"  Total: ${total:,.2f}"]
+        for t in tokens[:10]:
+            name = t.get("symbol", "?")
+            val = t.get("value_usd", 0)
+            amt = t.get("amount", 0)
+            if val > 0.01:
+                lines.append(f"  {name}: {amt:,.4f} (${val:,.2f})")
+
+        return {
+            "response": "\n".join(lines),
+            "type": "portfolio",
+            "data": result,
+        }
+    except Exception as exc:
+        logger.warning("Portfolio lookup failed: %s", exc)
+        return {
+            "response": f"Could not fetch portfolio for {address[:8]}... Try the API: GET /api/trading/portfolio?wallet={address}",
+            "type": "error",
+            "data": None,
+        }
+
+
+async def _handle_bridge() -> dict:
+    """Info about cross-chain bridge."""
+    return {
+        "response": (
+            "Cross-chain Bridge (Li.Fi):\n"
+            "  POST /api/public/bridge/quote — Get bridge quote\n"
+            "  {\"from_chain\": \"solana\", \"to_chain\": \"base\", \"token\": \"USDC\", \"amount\": 100}\n\n"
+            "Supported chains: Solana, Ethereum, Base, Polygon, Arbitrum, Avalanche, BNB, Optimism"
+        ),
+        "type": "bridge",
+        "data": {"endpoint": "/api/public/bridge/quote"},
+    }
+
+
+async def _handle_buy_crypto(intent: ParsedIntent) -> dict:
+    """Guide user to buy crypto with card."""
+    symbol = intent.symbol or "SOL"
+    return {
+        "response": (
+            f"Buy {symbol} with credit card:\n"
+            f"  POST /api/fiat/onramp\n"
+            f"  {{\"crypto\": \"{symbol}\", \"fiat_amount\": 50, \"fiat_currency\": \"USD\", \"wallet_address\": \"YOUR_WALLET\"}}\n\n"
+            f"  GET /api/fiat/providers — See available providers\n"
+            f"  GET /api/fiat/supported — See all supported tokens\n\n"
+            f"Providers: Transak (1-3%), Moonpay (1.5-4.5%)\n"
+            f"Supports: SOL, ETH, BTC, USDC, MATIC, AVAX, BNB\n"
+            f"Payment: Card, bank transfer, Apple Pay, Google Pay"
+        ),
+        "type": "buy_crypto",
+        "data": {"token": symbol, "endpoint": "/api/fiat/onramp"},
+    }
+
+
 async def _handle_llm(message: str) -> dict:
     """Route general questions to LLM (Groq -> Mistral fallback via LLMRouter)."""
     try:
@@ -517,6 +681,11 @@ _INTENT_HANDLERS = {
     "stocks": lambda _: _handle_stocks(),
     "gpu": lambda _: _handle_gpu(),
     "yield": lambda _: _handle_yield(),
+    "alert": _handle_alert,
+    "dca": lambda _: _handle_dca(),
+    "portfolio": _handle_portfolio,
+    "bridge": lambda _: _handle_bridge(),
+    "buy_crypto": _handle_buy_crypto,
 }
 
 

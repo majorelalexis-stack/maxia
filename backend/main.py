@@ -326,6 +326,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Alert worker init error: %s", e)
 
+    # Token sniper worker (pump.fun scan every 30s)
+    try:
+        from trading.token_sniper import sniper_worker
+        asyncio.create_task(sniper_worker())
+        logger.info("[MAXIA] Token sniper worker started (30s interval)")
+    except Exception as e:
+        logger.error("[MAXIA] Sniper worker init error: %s", e)
+
     # CEO task queue — REMOVED (Plan CEO V4: CEO = local only)
 
     # Init file logger
@@ -718,6 +726,24 @@ try:
     logger.info("[Email] Service ceo@maxiaworld.app monte")
 except Exception as e:
     logger.error("[MAXIA] Email router error: %s", e)
+try:
+    from integrations.fiat_onramp import router as fiat_router
+    app.include_router(fiat_router)
+    logger.info("[Fiat] On-ramp Transak/Moonpay monte (3 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Fiat router error: %s", e)
+try:
+    from trading.token_sniper import router as sniper_router
+    app.include_router(sniper_router)
+    logger.info("[Sniper] Token sniper pump.fun monte (5 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Sniper router error: %s", e)
+try:
+    from integrations.telegram_miniapp import router as tg_miniapp_router
+    app.include_router(tg_miniapp_router)
+    logger.info("[TG MiniApp] Telegram Mini App monte (9 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] TG MiniApp router error: %s", e)
 try:
     from trading.yield_aggregator import router as yield_router
     app.include_router(yield_router)

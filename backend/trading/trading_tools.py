@@ -744,11 +744,13 @@ def _determine_signal(rsi: Optional[float], sma_20: Optional[float],
 
 class AlertCreate(BaseModel):
     token: str
-    condition: str  # "above" ou "below"
-    target_price: float
+    condition: str  # "above", "below", "pct_up", "pct_down"
+    target_price: Optional[float] = None  # requis pour above/below
+    pct_change: Optional[float] = None  # requis pour pct_up/pct_down (ex: 5.0 = 5%)
     wallet: str
     webhook_url: Optional[str] = None
     telegram_chat_id: Optional[str] = None  # Client's own Telegram chat ID for notifications
+    repeat: bool = False  # True = re-arm after trigger (notifie a chaque check)
 
 
 class FollowWallet(BaseModel):
@@ -1047,10 +1049,22 @@ async def follow_wallet(req: FollowWallet):
 
 @router.post("/alerts")
 async def create_alert(req: AlertCreate):
-    """Cree une alerte de prix pour un token."""
+    """Cree une alerte de prix pour un token.
+
+    Conditions supportees:
+    - above/below: alerte quand le prix passe au-dessus/en-dessous de target_price
+    - pct_up/pct_down: alerte quand le prix change de +/-X% depuis la creation
+    """
     token = req.token.upper()
-    if req.condition not in ("above", "below"):
-        raise HTTPException(400, "Condition doit etre 'above' ou 'below'")
+    valid_conditions = ("above", "below", "pct_up", "pct_down")
+    if req.condition not in valid_conditions:
+        raise HTTPException(400, f"Condition doit etre l'un de: {valid_conditions}")
+
+    # Validate params per condition type
+    if req.condition in ("above", "below") and req.target_price is None:
+        raise HTTPException(400, "target_price requis pour condition above/below")
+    if req.condition in ("pct_up", "pct_down") and req.pct_change is None:
+        raise HTTPException(400, "pct_change requis pour condition pct_up/pct_down (ex: 5.0 = 5%)")
 
     # Verifier que le token existe
     try:
@@ -1065,22 +1079,33 @@ async def create_alert(req: AlertCreate):
 
     alert_id = str(uuid.uuid4())[:12]
     now = time.time()
-    triggered = (
-        (req.condition == "above" and current_price >= req.target_price) or
-        (req.condition == "below" and current_price <= req.target_price)
-    )
+
+    # Check if already triggered
+    if req.condition == "above":
+        triggered = current_price >= req.target_price
+    elif req.condition == "below":
+        triggered = current_price <= req.target_price
+    elif req.condition == "pct_up":
+        triggered = False  # Never triggered at creation (baseline = now)
+    elif req.condition == "pct_down":
+        triggered = False
+    else:
+        triggered = False
 
     alert = {
         "alert_id": alert_id,
         "token": token,
         "condition": req.condition,
         "target_price": req.target_price,
+        "pct_change": req.pct_change,
+        "baseline_price": current_price,  # prix au moment de la creation
         "current_price": current_price,
         "wallet": req.wallet,
         "webhook_url": req.webhook_url,
         "telegram_chat_id": req.telegram_chat_id,
         "triggered": triggered,
         "notified": False,
+        "repeat": req.repeat,
         "created_at": int(now),
         "updated_at": int(now),
     }
@@ -1248,8 +1273,15 @@ async def _notify_alert(alert: dict):
     token = alert["token"]
     price = alert["current_price"]
     condition = alert["condition"]
-    target = alert["target_price"]
-    msg = f"MAXIA Price Alert: {token} is now ${price:,.4f} ({condition} ${target:,.4f})"
+
+    if condition in ("pct_up", "pct_down"):
+        baseline = alert.get("baseline_price", price)
+        pct = ((price - baseline) / baseline) * 100 if baseline else 0
+        direction = "up" if pct >= 0 else "down"
+        msg = f"MAXIA Price Alert: {token} moved {direction} {abs(pct):.2f}% — now ${price:,.4f} (was ${baseline:,.4f})"
+    else:
+        target = alert.get("target_price", 0)
+        msg = f"MAXIA Price Alert: {token} is now ${price:,.4f} ({condition} ${target:,.4f})"
 
     # Telegram notification to CLIENT's chat_id (NOT the founder's)
     chat_id = alert.get("telegram_chat_id")
@@ -1317,14 +1349,29 @@ async def alert_checker_worker():
                 alert["updated_at"] = int(time.time())
 
                 was_triggered = alert.get("triggered", False)
-                triggered = (
-                    (alert["condition"] == "above" and current >= alert["target_price"]) or
-                    (alert["condition"] == "below" and current <= alert["target_price"])
-                )
+                condition = alert["condition"]
+
+                # Evaluate trigger
+                if condition == "above":
+                    triggered = current >= alert["target_price"]
+                elif condition == "below":
+                    triggered = current <= alert["target_price"]
+                elif condition == "pct_up":
+                    baseline = alert.get("baseline_price", current)
+                    pct = ((current - baseline) / baseline) * 100 if baseline else 0
+                    triggered = pct >= alert.get("pct_change", 999)
+                elif condition == "pct_down":
+                    baseline = alert.get("baseline_price", current)
+                    pct = ((baseline - current) / baseline) * 100 if baseline else 0
+                    triggered = pct >= alert.get("pct_change", 999)
+                else:
+                    triggered = False
+
                 alert["triggered"] = triggered
 
-                # Notify on new trigger only
-                if triggered and not was_triggered:
+                # Notify on new trigger, or every check if repeat mode
+                if triggered and (not was_triggered or alert.get("repeat")):
+                    alert["notified"] = False  # reset for repeat
                     await _notify_alert(alert)
 
         except Exception as e:

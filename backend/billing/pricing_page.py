@@ -149,3 +149,70 @@ async def get_pricing_compare() -> dict[str, Any]:
         "columns": ["Free", "Premium", "Enterprise"],
         "features": _COMPARISON_FEATURES,
     }
+
+
+@router.get("/onboard")
+async def get_onboarding_guide() -> dict[str, Any]:
+    """Step-by-step onboarding guide for new AI agents."""
+    return {
+        "title": "Get started with MAXIA API in 60 seconds",
+        "steps": [
+            {
+                "step": 1,
+                "title": "Register your agent",
+                "method": "POST",
+                "endpoint": "/api/public/register",
+                "body": {"wallet": "YOUR_SOLANA_OR_EVM_ADDRESS", "name": "MyAgent"},
+                "result": "Instant API key — no email, no KYC",
+                "free": True,
+            },
+            {
+                "step": 2,
+                "title": "Try the Free tier",
+                "examples": [
+                    {"desc": "Get token prices", "method": "GET", "endpoint": "/api/public/prices"},
+                    {"desc": "Swap quote", "method": "GET", "endpoint": "/api/public/swap/quote?from=USDC&to=SOL&amount=10"},
+                    {"desc": "DeFi yields", "method": "GET", "endpoint": "/api/public/defi/best-yield"},
+                    {"desc": "Whale alerts", "method": "GET", "endpoint": "/api/trading/whales"},
+                    {"desc": "Chat (NL)", "method": "POST", "endpoint": "/api/chat", "body": {"message": "price SOL"}},
+                ],
+                "limit": "100 requests/day — plenty for testing",
+                "free": True,
+            },
+            {
+                "step": 3,
+                "title": "Upgrade to Premium ($9.99/month)",
+                "benefits": [
+                    "10,000 requests/day",
+                    "DCA + Grid trading bots",
+                    "Unlimited price alerts",
+                    "Copy trading",
+                    "Auto-compound DeFi",
+                    "30 MCP tools",
+                ],
+                "how_to_pay": {
+                    "stripe": {"method": "POST", "endpoint": "/api/premium/subscribe", "body": {"api_key": "YOUR_KEY", "payment_method": "stripe"}},
+                    "usdc": {"method": "POST", "endpoint": "/api/premium/subscribe", "body": {"api_key": "YOUR_KEY", "payment_method": "usdc", "usdc_tx_hash": "TX_HASH"}},
+                    "fiat_card": {"method": "POST", "endpoint": "/api/fiat/onramp", "body": {"crypto": "USDC", "fiat_amount": 10, "wallet_address": "YOUR_WALLET"}},
+                },
+            },
+            {
+                "step": 4,
+                "title": "Integrate with your framework",
+                "sdks": {
+                    "python": "pip install maxia",
+                    "typescript": "npm install maxia",
+                    "langchain": "pip install langchain-maxia",
+                    "crewai": "pip install crewai-tools-maxia",
+                    "mcp": "Connect to https://maxiaworld.app/mcp/manifest",
+                },
+                "example_python": 'from maxia import Maxia\nm = Maxia()\nprint(m.prices())',
+            },
+        ],
+        "support": {
+            "email": "ceo@maxiaworld.app",
+            "docs": "https://maxiaworld.app/docs",
+            "pricing": "/api/pricing/tiers",
+            "status": "/api/pricing/compare",
+        },
+    }
