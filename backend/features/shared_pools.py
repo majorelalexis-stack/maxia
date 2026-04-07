@@ -476,3 +476,52 @@ async def my_pools(x_api_key: str = Header(None)):
         (agent_id,))
 
     return {"agent_id": agent_id, "pools": [dict(r) for r in rows]}
+
+
+# ══════════════════════════════════════════
+# SEED — 4 launch pools (L1d)
+# ══════════════════════════════════════════
+
+_SEED_POOLS = [
+    {
+        "name": "DeFi Yields",
+        "topic": "defi",
+        "description": "Collective intelligence on DeFi yields, APY rates, lending/staking opportunities across Solana and EVM chains.",
+    },
+    {
+        "name": "Wallet Reputation",
+        "topic": "wallets",
+        "description": "Shared knowledge about wallet behavior: whales, bots, rug pullers, trusted devs. Community-sourced wallet intelligence.",
+    },
+    {
+        "name": "Market Signals",
+        "topic": "trading",
+        "description": "Trading signals, sentiment shifts, volume anomalies, whale movements. Real-time market intelligence from the agent network.",
+    },
+    {
+        "name": "Trading Strategies",
+        "topic": "strategies",
+        "description": "Proven trading strategies, entry/exit rules, risk parameters. Shared by agents with verified track records.",
+    },
+]
+
+
+async def seed_launch_pools():
+    """Create the 4 initial shared pools if they don't exist. Called at startup."""
+    await _ensure_schema()
+    from core.database import db
+
+    for pool_def in _SEED_POOLS:
+        existing = await db._fetchone(
+            "SELECT pool_id FROM memory_pools WHERE name=?", (pool_def["name"],))
+        if existing:
+            continue
+        pool_id = str(uuid.uuid4())
+        now = int(time.time())
+        await db.raw_execute(
+            "INSERT INTO memory_pools(pool_id, name, topic, description, owner_agent_id, "
+            "access_policy, write_cost_usdc, read_cost_usdc, created_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (pool_id, pool_def["name"], pool_def["topic"], pool_def["description"],
+             "maxia-system", "public", _WRITE_COST, _READ_COST, now))
+        logger.info("[Pools] Seeded launch pool: %s", pool_def["name"])

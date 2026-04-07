@@ -410,9 +410,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Chainlink init error: %s", e)
 
-    logger.info("[MAXIA] V12 demarre — Art.1-15 + 10 new features + Health monitor + DB backup | 14 chains: Solana + Base + Ethereum + XRP + Polygon + Arbitrum + Avalanche + BNB + TON + SUI + TRON + NEAR + Aptos + SEI")
+    # Phase L1d: Seed 4 launch pools
+    try:
+        from features.shared_pools import seed_launch_pools
+        await seed_launch_pools()
+    except Exception as e:
+        logger.error("[Pools] Seed error: %s", e)
+
+    logger.info("[MAXIA] V12 demarre — Art.1-15 + Phase L Agent Economy | 15 chains | %d+ endpoints",
+                len([r for r in app.routes if hasattr(r, 'path')]))
     logger.info("[MAXIA] DB: %s | Redis: %s", 'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite', 'connected' if redis_client.is_connected else 'in-memory fallback')
-    logger.info("[MAXIA] CORS: %s", _ALLOWED_ORIGINS)
     yield
 
     # ── Graceful shutdown ──
@@ -1184,6 +1191,13 @@ try:
     logger.info("[Datasets] Data Marketplace V2 monte (Phase L4)")
 except Exception as e:
     logger.error("[MAXIA] Data Marketplace V2 router error: %s", e)
+
+try:
+    from agents.agent_reputation import router as reputation_router
+    app.include_router(reputation_router)
+    logger.info("[Reputation] Agent Reputation Proofs monte (Phase L6)")
+except Exception as e:
+    logger.error("[MAXIA] Reputation router error: %s", e)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
