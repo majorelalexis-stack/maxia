@@ -325,12 +325,12 @@ async def reputation_leaderboard(limit: int = 20):
     await _ensure_schema()
     from core.database import db
 
-    # Get latest proof per agent
+    # Get latest proof per agent (PG-compatible: use DISTINCT ON or subquery)
     rows = await db._fetchall(
-        "SELECT agent_id, score, issued_at FROM reputation_proofs "
-        "WHERE proof_id IN (SELECT proof_id FROM reputation_proofs "
-        "GROUP BY agent_id HAVING issued_at = MAX(issued_at)) "
-        "ORDER BY score DESC LIMIT ?",
+        "SELECT r.agent_id, r.score, r.issued_at FROM reputation_proofs r "
+        "INNER JOIN (SELECT agent_id, MAX(issued_at) as max_ts FROM reputation_proofs GROUP BY agent_id) latest "
+        "ON r.agent_id = latest.agent_id AND r.issued_at = latest.max_ts "
+        "ORDER BY r.score DESC LIMIT ?",
         (min(limit, 50),))
 
     agents = []
