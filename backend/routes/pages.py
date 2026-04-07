@@ -223,3 +223,9 @@ async def serve_pricing():
 async def serve_feedback():
     """Feedback and bug report form."""
     return _serve("feedback.html")
+
+
+@router.get("/agents", response_class=HTMLResponse)
+async def serve_agents():
+    """Agent Economy — pools, bounties, skills, data, reputation."""
+    return _serve("agents.html")
