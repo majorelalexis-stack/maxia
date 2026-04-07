@@ -73,9 +73,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <!-- DEFI -->
 <div class="panel" id="p-defi">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-    <div class="section-title" style="margin:0">Top Yields</div>
+    <div class="section-title" style="margin:0">DeFi Yields</div>
     <select id="defi-asset" onchange="loadYields()" style="padding:6px 12px;background:#0c1222;border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:13px"><option>USDC</option><option>SOL</option><option>ETH</option><option>BTC</option><option>USDT</option></select>
   </div>
+  <div style="display:flex;gap:4px;margin:10px 0">
+    <button class="tab defi-tab active" data-type="staking" onclick="switchDefiTab(this)">Staking</button>
+    <button class="tab defi-tab" data-type="lending" onclick="switchDefiTab(this)">Lending</button>
+    <button class="tab defi-tab" data-type="lp" onclick="switchDefiTab(this)">LP Pools</button>
+  </div>
+  <div id="defi-risk" style="font-size:11px;color:var(--green);margin-bottom:8px;padding:6px 10px;background:rgba(34,197,94,.08);border-radius:8px">Low risk — stable returns</div>
   <div id="yields-list"><div class="empty">Loading yields...</div></div>
 </div>
 
@@ -176,17 +182,31 @@ async function getQuote(){
 }
 
 // ── DEFI YIELDS ──
+var _defiType = 'staking';
+
+function switchDefiTab(btn){
+  _defiType = btn.dataset.type;
+  document.querySelectorAll('.defi-tab').forEach(function(t){t.classList.remove('active')});
+  btn.classList.add('active');
+  var riskEl = document.getElementById('defi-risk');
+  if(_defiType==='staking'){riskEl.style.color='var(--green)';riskEl.style.background='rgba(34,197,94,.08)';riskEl.textContent='Low risk — stable staking returns';}
+  else if(_defiType==='lending'){riskEl.style.color='var(--cyan)';riskEl.style.background='rgba(0,229,255,.08)';riskEl.textContent='Medium risk — lending with protocol risk';}
+  else{riskEl.style.color='var(--gold)';riskEl.style.background='rgba(245,158,11,.08)';riskEl.textContent='High risk — LP pools with impermanent loss';}
+  loadYields();
+}
+
 async function loadYields(){
   var el = document.getElementById('yields-list');
   var asset = document.getElementById('defi-asset').value;
   try{
-    var r = await fetch('/api/public/defi/best-yield?asset='+asset+'&limit=30');
+    var r = await fetch('/api/public/defi/best-yield?asset='+asset+'&limit=20&type='+_defiType);
     var d = await r.json();
     var yields = d.yields || d.opportunities || [];
-    if(!yields.length){el.innerHTML='<div class="empty">No yields for '+esc(asset)+'</div>';return;}
+    if(!yields.length){el.innerHTML='<div class="empty">No '+_defiType+' yields for '+esc(asset)+'</div>';return;}
     el.innerHTML = yields.map(function(y){
       var tvl = y.tvl_usd >= 1000000 ? '$'+(y.tvl_usd/1000000).toFixed(1)+'M' : y.tvl_usd >= 1000 ? '$'+(y.tvl_usd/1000).toFixed(0)+'K' : '';
-      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+(tvl?' — TVL '+tvl:'')+'</div></div><div class="row-val green">'+((y.apy||0).toFixed(2))+'%</div></div>';
+      var apyColor = y.apy > 50 ? 'gold' : 'green';
+      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+(tvl?' — TVL '+tvl:'')+'</div></div><div class="row-val '+apyColor+'">'+((y.apy||0).toFixed(2))+'%</div></div>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading yields</div>';}
 }
