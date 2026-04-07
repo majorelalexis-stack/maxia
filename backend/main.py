@@ -621,12 +621,12 @@ async def security_headers_middleware(request: Request, call_next):
     if os.getenv("FORCE_HTTPS", "false").lower() == "true":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-    # CSP with nonce — 'unsafe-inline' kept as fallback for older browsers
-    # Modern browsers that support nonces will ignore 'unsafe-inline' when nonce is present
+    # CSP with nonce for scripts only — styles keep 'unsafe-inline' (inline style="" attributes need it)
+    # Note: nonce in style-src would disable 'unsafe-inline' in modern browsers, breaking all style="" attrs
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
-        f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' wss: ws: https:; "

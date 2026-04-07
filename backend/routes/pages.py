@@ -9,9 +9,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 router = APIRouter(include_in_schema=False)
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
-# Regex to match <script> and <style> tags without existing nonce attribute
+# Regex to match <script> tags without existing nonce attribute (scripts only, not styles)
 _SCRIPT_RE = re.compile(r"<script(?![^>]*\bnonce=)", re.IGNORECASE)
-_STYLE_RE = re.compile(r"<style(?![^>]*\bnonce=)", re.IGNORECASE)
 
 # Context var set by middleware, read by _serve()
 _csp_nonce: ContextVar[str] = ContextVar("csp_nonce", default="")
@@ -28,11 +27,10 @@ def _serve(filename: str) -> HTMLResponse:
     if not path.exists():
         return HTMLResponse("Page not found", status_code=404)
     html = path.read_text(encoding="utf-8")
-    # Inject CSP nonce into <script> and <style> tags
+    # Inject CSP nonce into <script> tags only (not styles — inline style="" needs 'unsafe-inline')
     nonce = _csp_nonce.get("")
     if nonce:
         html = _SCRIPT_RE.sub(f'<script nonce="{nonce}"', html)
-        html = _STYLE_RE.sub(f'<style nonce="{nonce}"', html)
     return HTMLResponse(html)
 
 
