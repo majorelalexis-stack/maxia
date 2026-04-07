@@ -62,8 +62,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <!-- SWAP -->
 <div class="panel" id="p-swap">
-  <div class="input-group"><label>From</label><select id="sw-from"><option>USDC</option><option>SOL</option><option>ETH</option><option>USDT</option><option>BTC</option><option>BONK</option><option>JUP</option><option>TRUMP</option><option>WIF</option><option>RENDER</option><option>PYTH</option><option>RAY</option><option>MATIC</option><option>AVAX</option><option>BNB</option></select></div>
-  <div class="input-group"><label>To</label><select id="sw-to"><option>SOL</option><option>USDC</option><option>ETH</option><option>USDT</option><option>BTC</option><option>BONK</option><option>JUP</option><option>TRUMP</option><option>WIF</option><option>RENDER</option><option>PYTH</option><option>RAY</option><option>MATIC</option><option>AVAX</option><option>BNB</option></select></div>
+  <div class="input-group"><label>From</label><select id="sw-from"></select></div>
+  <div class="input-group"><label>To</label><select id="sw-to"></select></div>
   <div class="input-group"><label>Amount</label><input type="number" id="sw-amt" value="10" min="0.01"></div>
   <button class="btn" onclick="getQuote()">Get Quote</button>
   <div id="swap-result"></div>
@@ -84,8 +84,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <!-- BUY -->
 <div class="panel" id="p-buy">
   <div class="section-title">Buy Crypto with Card</div>
-  <div class="input-group"><label>Token</label><select id="buy-token"><option>SOL</option><option>ETH</option><option>BTC</option><option>USDC</option></select></div>
-  <div class="input-group"><label>Amount (EUR)</label><input type="number" id="buy-amt" value="50" min="10"></div>
+  <div class="input-group"><label>Token</label><select id="buy-token"><option>SOL</option><option>ETH</option><option>BTC</option><option>USDC</option><option>MATIC</option><option>AVAX</option><option>BNB</option><option value="ARB">ETH (Arbitrum)</option><option value="BASE_ETH">ETH (Base)</option></select></div>
+  <div class="input-group"><label>Amount</label><div style="display:flex;gap:8px"><input type="number" id="buy-amt" value="50" min="10" style="flex:1"><select id="buy-fiat" style="width:80px"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>CAD</option></select></div></div>
   <div class="input-group"><label>Your Wallet</label><input type="text" id="buy-wallet" placeholder="Solana or EVM address"></div>
   <button class="btn" onclick="buyNow()">Buy Now</button>
   <div id="buy-result"></div>
@@ -121,7 +121,12 @@ document.getElementById('tabs').addEventListener('click', function(e){
 // ── PRICES ──
 async function loadPrices(){
   var el = document.getElementById('prices-list');
-  var tokens = ['SOL','ETH','BTC','USDC','JUP','BONK','WIF','AVAX','MATIC','BNB'];
+  var ALL_TOKENS = ['SOL','ETH','BTC','USDC','USDT','TRUMP','JUP','BONK','WIF','RENDER','PYTH','RAY','W','ORCA','HNT','JTO','TNSR','MEW','POPCAT','MOBILE','MNDE','MSOL','JITOSOL','BSOL','DRIFT','KMNO','PENGU','AI16Z','FARTCOIN','GRASS','ZEUS','NOSOL','SAMO','STEP','BOME','SLERF','MPLX','INF','PNUT','GOAT','LINK','UNI','AAVE','LDO','VIRTUAL','OLAS','FET','PEPE','DOGE','SHIB','TAO','AKT','AIOZ','ARB','OP','TIA','INJ','STX','SUI','APT','SEI','NEAR','FIL','AR','ONDO','XRP','AVAX','MATIC','BNB'];
+  // Populate swap selects
+  var swFrom=document.getElementById('sw-from'), swTo=document.getElementById('sw-to');
+  ALL_TOKENS.forEach(function(t){swFrom.innerHTML+='<option>'+t+'</option>';swTo.innerHTML+='<option>'+t+'</option>';});
+  swFrom.value='USDC';swTo.value='SOL';
+  var tokens = ALL_TOKENS.slice(0, 15); // Top 15 for prices
   try{
     var fetches = tokens.map(function(t){
       return fetch('/oracle/price/live/'+t)
@@ -202,7 +207,8 @@ async function buyNow(){
   if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 EUR</div>';return;}
   el.innerHTML='<div class="msg msg-ok">Finding provider...</div>';
   try{
-    var r = await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:token,fiat_amount:amt,fiat_currency:'EUR',wallet_address:wallet})});
+    var fiat = document.getElementById('buy-fiat').value;
+    var r = await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:token,fiat_amount:amt,fiat_currency:fiat,wallet_address:wallet})});
     var d = await r.json();
     if(d.url){
       el.innerHTML='<a href="'+d.url+'" target="_blank" class="btn" style="margin-top:12px">Buy '+token+' via '+esc(d.provider)+' &rarr;</a><div style="font-size:12px;color:var(--muted);margin-top:8px">Fees: '+(d.estimated_fees||'?')+'</div>';
