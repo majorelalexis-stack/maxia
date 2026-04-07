@@ -6,7 +6,7 @@
 <title>MAXIA Trading</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.05);--text:#e4e4e7;--muted:#a1a1aa;--cyan:#00e5ff;--green:#22c55e;--rose:#f43f5e;--purple:#7c3aed}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.05);--text:#e4e4e7;--muted:#a1a1aa;--cyan:#00e5ff;--green:#22c55e;--rose:#f43f5e;--purple:#7c3aed;--gold:#f59e0b}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 16px 80px}
 .header{padding:16px 0;text-align:center;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -22,22 +22,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .price-val{font-size:16px;font-weight:600;color:var(--cyan)}
 .price-src{font-size:11px;color:var(--muted)}
 .section-title{font-size:15px;font-weight:700;margin:20px 0 10px;color:var(--muted)}
-.yield-row{display:flex;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-radius:12px;margin-bottom:6px;border:1px solid rgba(255,255,255,.04)}
-.yield-proto{font-weight:600;font-size:14px}
-.yield-apy{color:var(--green);font-weight:700}
-.yield-chain{font-size:12px;color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg2);border-radius:12px;margin-bottom:6px;border:1px solid rgba(255,255,255,.04)}
+.row:active{border-color:rgba(0,229,255,.2)}
+.row-title{font-weight:600;font-size:14px}
+.row-sub{font-size:12px;color:var(--muted)}
+.row-val{font-weight:700;text-align:right}
+.row-val.green{color:var(--green)}
+.row-val.gold{color:var(--gold)}
 .btn{display:block;width:100%;padding:14px;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;text-align:center;margin-top:12px;font-family:inherit}
 .btn:active{opacity:.8}
-.btn-outline{background:transparent;border:1px solid var(--cyan);color:var(--cyan)}
 .input-group{margin-bottom:12px}
 .input-group label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
 .input-group select,.input-group input{width:100%;padding:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text);font-size:15px;font-family:inherit}
 .msg{padding:14px;border-radius:12px;margin-top:12px;font-size:14px}
 .msg-ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green)}
 .msg-err{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.2);color:var(--rose)}
-.trending-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg2);border-radius:10px;margin-bottom:6px;border:1px solid rgba(255,255,255,.04)}
-.trending-sym{font-weight:600;font-size:14px;color:var(--cyan)}
-.trending-mc{font-size:13px;color:var(--muted)}
 .empty{text-align:center;padding:32px;color:var(--muted)}
 </style>
 </head>
@@ -48,12 +47,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <p id="user-greeting">Loading...</p>
 </div>
 
-<div class="tabs">
-  <button class="tab active" onclick="showTab('prices')">Prices</button>
-  <button class="tab" onclick="showTab('swap')">Swap</button>
-  <button class="tab" onclick="showTab('yields')">DeFi</button>
-  <button class="tab" onclick="showTab('trending')">Trending</button>
-  <button class="tab" onclick="showTab('buy')">Buy</button>
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="prices">Prices</button>
+  <button class="tab" data-tab="swap">Swap</button>
+  <button class="tab" data-tab="defi">DeFi</button>
+  <button class="tab" data-tab="trending">Trending</button>
+  <button class="tab" data-tab="buy">Buy</button>
 </div>
 
 <!-- PRICES -->
@@ -70,15 +69,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div id="swap-result"></div>
 </div>
 
-<!-- YIELDS -->
-<div class="panel" id="p-yields">
+<!-- DEFI -->
+<div class="panel" id="p-defi">
   <div class="section-title">Top USDC Yields</div>
   <div id="yields-list"><div class="empty">Loading yields...</div></div>
 </div>
 
 <!-- TRENDING -->
 <div class="panel" id="p-trending">
-  <div class="section-title">Trending on pump.fun</div>
+  <div class="section-title">Trending Tokens</div>
   <div id="trending-list"><div class="empty">Loading...</div></div>
 </div>
 
@@ -94,74 +93,76 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <script>
 var tg = window.Telegram && window.Telegram.WebApp;
-var BASE = '';
 
-// Init Telegram WebApp
 if(tg){
   tg.ready();
   tg.expand();
   var user = tg.initDataUnsafe && tg.initDataUnsafe.user;
-  if(user){
-    document.getElementById('user-greeting').textContent = 'Hello, ' + (user.first_name || 'trader') + '!';
-  }
-  // Apply Telegram theme
+  if(user) document.getElementById('user-greeting').textContent = 'Hello, ' + (user.first_name || 'trader') + '!';
   if(tg.themeParams){
     document.body.style.background = tg.themeParams.bg_color || '#060a14';
     document.body.style.color = tg.themeParams.text_color || '#e4e4e7';
   }
 } else {
-  document.getElementById('user-greeting').textContent = 'MAXIA Trading — Open in Telegram for full experience';
+  document.getElementById('user-greeting').textContent = 'Open in Telegram for full experience';
 }
 
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
 
 // Tabs
-function showTab(id){
+document.getElementById('tabs').addEventListener('click', function(e){
+  if(!e.target.dataset.tab) return;
   document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('active')});
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
-  document.getElementById('p-'+id).classList.add('active');
-  event.target.classList.add('active');
-}
+  document.getElementById('p-'+e.target.dataset.tab).classList.add('active');
+  e.target.classList.add('active');
+});
 
-// Prices — fetch from /oracle/price/live/{symbol}
+// ── PRICES ──
 async function loadPrices(){
   var el = document.getElementById('prices-list');
-  var tokens = ['SOL','ETH','BTC','USDC','JUP','BONK','WIF','RENDER','AVAX','MATIC'];
+  var tokens = ['SOL','ETH','BTC','USDC','JUP','BONK','WIF','AVAX','MATIC','BNB'];
   try{
     var fetches = tokens.map(function(t){
-      return fetch('/oracle/price/live/'+t).then(function(r){return r.json()}).then(function(d){return {symbol:t,price:d.price||0,source:d.source||'oracle'}}).catch(function(){return {symbol:t,price:0,source:'error'}});
+      return fetch('/oracle/price/live/'+t)
+        .then(function(r){return r.ok ? r.json() : null})
+        .then(function(d){return d && d.price > 0 ? {symbol:t, price:d.price, source:d.source||'oracle'} : null})
+        .catch(function(){return null});
     });
     var results = await Promise.all(fetches);
     var html = '';
     results.forEach(function(r){
-      if(r.price > 0){
-        html += '<div class="price-row"><div><div class="price-sym">'+r.symbol+'</div><div class="price-src">'+r.source+'</div></div><div class="price-val">$'+r.price.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:4})+'</div></div>';
+      if(r){
+        var decimals = r.price >= 100 ? 2 : r.price >= 1 ? 4 : 6;
+        html += '<div class="price-row"><div><div class="price-sym">'+r.symbol+'</div><div class="price-src">'+r.source+'</div></div><div class="price-val">$'+r.price.toFixed(decimals)+'</div></div>';
       }
     });
     el.innerHTML = html || '<div class="empty">No prices available</div>';
   }catch(e){el.innerHTML='<div class="empty">Error loading prices</div>';}
 }
 
-// Swap quote
+// ── SWAP ──
 async function getQuote(){
   var from = document.getElementById('sw-from').value;
   var to = document.getElementById('sw-to').value;
   var amt = parseFloat(document.getElementById('sw-amt').value);
   var el = document.getElementById('swap-result');
   if(from===to){el.innerHTML='<div class="msg msg-err">Select different tokens</div>';return;}
+  if(!amt||amt<=0){el.innerHTML='<div class="msg msg-err">Enter a valid amount</div>';return;}
   el.innerHTML='<div class="msg msg-ok">Getting quote...</div>';
   try{
-    var r = await fetch('/api/public/swap/quote?from='+from+'&to='+to+'&amount='+amt);
+    var r = await fetch('/api/public/crypto/quote?from_token='+from+'&to_token='+to+'&amount='+amt);
     var d = await r.json();
     if(d.output_amount){
-      el.innerHTML='<div class="msg msg-ok"><b>'+amt+' '+from+' → '+d.output_amount.toFixed(6)+' '+to+'</b><br>Rate: 1 '+from+' = '+d.rate.toFixed(6)+' '+to+'<br>Fee: '+(d.commission_pct||0)+'%</div>';
+      var outDec = d.output_amount >= 1 ? 4 : 8;
+      el.innerHTML='<div class="msg msg-ok"><b>'+amt+' '+from+' &rarr; '+d.output_amount.toFixed(outDec)+' '+to+'</b><br>Rate: 1 '+from+' = '+(d.rate||0).toFixed(6)+' '+to+'<br>Fee: '+(d.commission_pct||'0%')+'</div>';
     } else {
       el.innerHTML='<div class="msg msg-err">'+(d.error||d.detail||'Quote unavailable')+'</div>';
     }
   }catch(e){el.innerHTML='<div class="msg msg-err">Connection error</div>';}
 }
 
-// Yields
+// ── DEFI YIELDS ──
 async function loadYields(){
   var el = document.getElementById('yields-list');
   try{
@@ -170,41 +171,41 @@ async function loadYields(){
     var yields = d.yields || d.opportunities || [];
     if(!yields.length){el.innerHTML='<div class="empty">No yields available</div>';return;}
     el.innerHTML = yields.map(function(y){
-      return '<div class="yield-row"><div><div class="yield-proto">'+esc(y.project||y.protocol||'?')+'</div><div class="yield-chain">'+esc(y.chain||'?')+'</div></div><div class="yield-apy">'+((y.apy||0).toFixed(2))+'%</div></div>';
+      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+'</div></div><div class="row-val green">'+((y.apy||0).toFixed(2))+'%</div></div>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading yields</div>';}
 }
 
-// Trending
+// ── TRENDING ──
 async function loadTrending(){
   var el = document.getElementById('trending-list');
   try{
     var r = await fetch('/api/sniper/new-tokens?limit=15');
     var d = await r.json();
     var tokens = d.tokens || [];
-    if(!tokens.length){el.innerHTML='<div class="empty">No trending tokens yet — scanner runs every 30s</div>';return;}
+    if(!tokens.length){el.innerHTML='<div class="empty">No tokens detected yet</div>';return;}
     el.innerHTML = tokens.map(function(t){
-      var mc = t.market_cap_usd>=1000?'$'+(t.market_cap_usd/1000).toFixed(1)+'K':'$'+(t.market_cap_usd||0).toFixed(0);
-      var name = t.symbol || t.name || (t.mint||'').substring(0,8);
-      var link = t.url || 'https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint;
-      return '<a href="'+link+'" target="_blank" class="trending-row"><div class="trending-sym">'+esc(name)+'</div><div class="trending-mc">'+mc+' '+(t.chain||'')+'</div></a>';
+      var link = t.url || ('https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint);
+      var boosts = t.boosts > 0 ? t.boosts + ' boosts' : 'new';
+      return '<a href="'+esc(link)+'" target="_blank" style="text-decoration:none;color:inherit"><div class="row"><div><div class="row-title" style="color:var(--cyan)">'+esc(t.name||t.symbol||t.mint.substring(0,10))+'</div><div class="row-sub">'+esc(t.chain||'solana')+'</div></div><div class="row-val gold">'+boosts+'</div></div></a>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading trending</div>';}
 }
 
-// Buy
+// ── BUY ──
 async function buyNow(){
   var token = document.getElementById('buy-token').value;
   var amt = parseFloat(document.getElementById('buy-amt').value);
   var wallet = document.getElementById('buy-wallet').value.trim();
   var el = document.getElementById('buy-result');
-  if(!wallet||wallet.length<10){el.innerHTML='<div class="msg msg-err">Enter your wallet address</div>';return;}
+  if(!wallet||wallet.length<20){el.innerHTML='<div class="msg msg-err">Enter a valid wallet address (20+ chars)</div>';return;}
+  if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 EUR</div>';return;}
   el.innerHTML='<div class="msg msg-ok">Finding provider...</div>';
   try{
     var r = await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:token,fiat_amount:amt,fiat_currency:'EUR',wallet_address:wallet})});
     var d = await r.json();
     if(d.url){
-      el.innerHTML='<a href="'+d.url+'" target="_blank" class="btn" style="margin-top:12px">Buy '+token+' via '+d.provider+' →</a><div style="font-size:12px;color:var(--muted);margin-top:8px">Fees: '+d.estimated_fees+'</div>';
+      el.innerHTML='<a href="'+d.url+'" target="_blank" class="btn" style="margin-top:12px">Buy '+token+' via '+esc(d.provider)+' &rarr;</a><div style="font-size:12px;color:var(--muted);margin-top:8px">Fees: '+(d.estimated_fees||'?')+'</div>';
       if(tg) tg.openLink(d.url);
     } else {
       el.innerHTML='<div class="msg msg-err">'+(d.detail||'Error')+'</div>';
@@ -217,6 +218,7 @@ loadPrices();
 loadYields();
 loadTrending();
 setInterval(loadPrices, 10000);
+setInterval(function(){loadYields();loadTrending();}, 60000);
 </script>
 </body>
 </html>

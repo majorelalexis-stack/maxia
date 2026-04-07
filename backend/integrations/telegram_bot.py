@@ -183,8 +183,8 @@ async def run_telegram_bot():
     """Long polling loop — runs as a background task."""
     global _last_update_id, _running
 
-    if not BOT_TOKEN:
-        print("[TG Bot] TELEGRAM_BOT_TOKEN not set — bot disabled")
+    if not BOT_TOKEN or len(BOT_TOKEN) < 20:
+        print("[TG Bot] TELEGRAM_BOT_TOKEN not set or invalid — bot disabled")
         return
 
     if _running:
@@ -193,20 +193,47 @@ async def run_telegram_bot():
 
     _running = True
 
+    # Verify token works
+    me = await _tg_api("getMe")
+    if not me.get("ok"):
+        print(f"[TG Bot] Invalid token: {me.get('description', 'unknown error')}")
+        _running = False
+        return
+
+    bot_name = me.get("result", {}).get("username", "?")
+    print(f"[TG Bot] Bot verified: @{bot_name}")
+
     # Configure menu button on startup
     await setup_bot_menu()
 
     print("[TG Bot] Starting long polling...")
 
+    consecutive_errors = 0
     while True:
         try:
             client = await _get_client()
             resp = await client.get(
                 f"{_BASE}/getUpdates",
                 params={"offset": _last_update_id + 1, "timeout": 30, "limit": 20},
-                timeout=35,
+                timeout=40,
             )
             data = resp.json()
+
+            if not data.get("ok"):
+                err = data.get("description", "")
+                if "terminated by other" in err:
+                    print("[TG Bot] Conflict: another instance polling. Retrying in 5s...")
+                    await asyncio.sleep(5)
+                    continue
+                print(f"[TG Bot] API error: {err}")
+                consecutive_errors += 1
+                if consecutive_errors > 10:
+                    print("[TG Bot] Too many errors, pausing 60s")
+                    await asyncio.sleep(60)
+                    consecutive_errors = 0
+                continue
+
+            consecutive_errors = 0
             updates = data.get("result", [])
 
             for update in updates:
@@ -216,8 +243,11 @@ async def run_telegram_bot():
                 try:
                     await _process_update(update)
                 except Exception as e:
-                    print(f"[TG Bot] Update processing error: {e}")
+                    print(f"[TG Bot] Update error: {e}")
 
+        except asyncio.CancelledError:
+            print("[TG Bot] Shutting down")
+            break
         except Exception as e:
             print(f"[TG Bot] Polling error: {e}")
             await asyncio.sleep(5)

@@ -58,6 +58,11 @@ select{cursor:pointer;appearance:none;-webkit-appearance:none}
       <option value="GBP">GBP</option>
       <option value="CHF">CHF</option>
       <option value="CAD">CAD</option>
+      <option value="AUD">AUD</option>
+      <option value="JPY">JPY</option>
+      <option value="BRL">BRL</option>
+      <option value="MXN">MXN</option>
+      <option value="KRW">KRW</option>
     </select>
   </div>
 
@@ -91,7 +96,7 @@ async function buyNow(){
   var wallet=document.getElementById('wallet').value.trim();
   var res=document.getElementById('result');
 
-  if(!wallet||wallet.length<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Enter your wallet address</span>';return;}
+  if(!wallet||wallet.length<20){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Enter a valid wallet address (Solana: 32-44 chars, EVM: 42 chars starting with 0x)</span>';return;}
   if(amount<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Minimum amount is 10</span>';return;}
 
   res.style.display='block';

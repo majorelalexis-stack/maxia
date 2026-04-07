@@ -21,40 +21,39 @@ h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8p
 .stat-lbl{font-size:11px;color:var(--muted);margin-top:2px}
 .filters{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:end}
 .filters label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
-.filters input,.filters select{padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit}
+.filters input{padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit}
 .filters button{padding:8px 20px;background:var(--cyan);color:#060a14;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit}
 .token-list{display:flex;flex-direction:column;gap:8px}
-.token-row{display:flex;align-items:center;gap:16px;padding:14px 18px;background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:12px;transition:border-color .2s}
+.token-row{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:12px;transition:border-color .2s;text-decoration:none;color:var(--text)}
 .token-row:hover{border-color:rgba(0,229,255,.3)}
-.token-sym{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px;min-width:80px;color:var(--cyan)}
-.token-name{flex:1;font-size:14px;color:var(--muted)}
-.token-mc{font-size:14px;font-weight:500;min-width:100px;text-align:right}
-.token-replies{font-size:13px;color:var(--muted);min-width:70px;text-align:right}
-.token-link{font-size:13px;padding:6px 14px;border:1px solid rgba(0,229,255,.3);border-radius:8px;color:var(--cyan)}
-.token-link:hover{background:rgba(0,229,255,.1)}
+.token-name{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.token-name strong{color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:13px}
+.token-meta{display:flex;gap:16px;align-items:center;flex-shrink:0}
+.token-boosts{font-size:13px;color:var(--gold);font-weight:600}
+.token-chain{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);padding:3px 8px;border-radius:6px}
+.token-link{font-size:13px;padding:6px 14px;border:1px solid rgba(0,229,255,.3);border-radius:8px;color:var(--cyan);flex-shrink:0}
 .empty{text-align:center;padding:40px;color:var(--muted)}
 .live-dot{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;margin-right:6px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-@media(max-width:600px){.token-name{display:none}.filters{flex-direction:column}}
+@media(max-width:600px){.token-meta{flex-direction:column;gap:4px;align-items:end}}
 </style>
 </head>
 <body>
 <a href="/" class="back">&larr; Back to MAXIA</a>
 <div class="container">
 <h1><span class="live-dot"></span>Token Sniper</h1>
-<p class="sub">New tokens on pump.fun — detected in real-time every 30 seconds.</p>
+<p class="sub" id="sub-text">New tokens detected in real-time every 30 seconds.</p>
 
-<div class="stats" id="stats">
+<div class="stats">
   <div class="stat-box"><div class="stat-val" id="s-detected">-</div><div class="stat-lbl">Detected</div></div>
   <div class="stat-box"><div class="stat-val" id="s-scans">-</div><div class="stat-lbl">Scans</div></div>
-  <div class="stat-box"><div class="stat-val" id="s-watches">-</div><div class="stat-lbl">Active Watches</div></div>
+  <div class="stat-box"><div class="stat-val" id="s-source">-</div><div class="stat-lbl">Source</div></div>
   <div class="stat-box"><div class="stat-val" id="s-status">-</div><div class="stat-lbl">Status</div></div>
 </div>
 
 <div class="filters">
-  <div><label>Max Market Cap</label><input type="number" id="f-mc" value="100000" style="width:120px"></div>
-  <div><label>Min Replies</label><input type="number" id="f-replies" value="0" style="width:80px"></div>
-  <div><label>Keyword</label><input type="text" id="f-kw" placeholder="e.g. pepe" style="width:120px"></div>
+  <div><label>Min Boosts</label><input type="number" id="f-boosts" value="0" style="width:80px"></div>
+  <div><label>Keyword</label><input type="text" id="f-kw" placeholder="e.g. trump" style="width:140px"></div>
   <div><label>&nbsp;</label><button onclick="loadTokens()">Filter</button></div>
 </div>
 
@@ -64,52 +63,51 @@ h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8p
 </div>
 
 <script>
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
+
 async function loadStats(){
   try{
     var r=await fetch('/api/sniper/stats');var d=await r.json();
     document.getElementById('s-detected').textContent=d.total_detected||0;
     document.getElementById('s-scans').textContent=d.total_scans||0;
-    document.getElementById('s-watches').textContent=d.active_watches||0;
-    document.getElementById('s-status').textContent=d.status||'?';
-    document.getElementById('s-status').style.color=d.status==='active'?'var(--green)':'var(--gold)';
+    document.getElementById('s-source').textContent=d.source||'?';
+    var statusEl=document.getElementById('s-status');
+    statusEl.textContent=d.status||'?';
+    statusEl.style.color=d.status==='active'?'var(--green)':'var(--gold)';
+    document.getElementById('sub-text').textContent='Source: '+(d.source||'scanning')+' — every '+d.scan_interval_s+'s';
   }catch(e){}
 }
 
 async function loadTokens(){
-  var mc=document.getElementById('f-mc').value||1000000;
-  var replies=document.getElementById('f-replies').value||0;
+  var boosts=document.getElementById('f-boosts').value||0;
   var kw=document.getElementById('f-kw').value||'';
   var el=document.getElementById('tokens');
 
   try{
-    var url='/api/sniper/new-tokens?max_market_cap='+mc+'&min_replies='+replies+'&limit=30';
+    var url='/api/sniper/new-tokens?min_boosts='+boosts+'&limit=30';
     if(kw)url+='&keyword='+encodeURIComponent(kw);
     var r=await fetch(url);var d=await r.json();
     var tokens=d.tokens||[];
 
     if(!tokens.length){
-      el.innerHTML='<div class="empty">No tokens found matching your filters. The sniper scans pump.fun every 30s — new tokens will appear automatically.</div>';
+      el.innerHTML='<div class="empty">No tokens found. The scanner runs every 30s — new tokens will appear automatically.</div>';
       return;
     }
 
     el.innerHTML=tokens.map(function(t){
-      var mc_fmt=t.market_cap_usd>=1000?'$'+(t.market_cap_usd/1000).toFixed(1)+'K':'$'+t.market_cap_usd.toFixed(0);
-      var age=Math.round((Date.now()/1000-t.detected_at)/60);
-      var age_str=age<1?'just now':age+'m ago';
-      var link_url = t.url || (t.source==='dexscreener' ? 'https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint : 'https://pump.fun/'+t.mint);
-      var link_label = t.source==='dexscreener' ? 'DexScreener' : 'pump.fun';
-      return '<div class="token-row">'+
-        '<div class="token-sym">'+esc(t.symbol||t.mint.substring(0,6).toUpperCase())+'</div>'+
-        '<div class="token-name">'+esc(t.name||t.description||'New token')+'</div>'+
-        '<div class="token-mc">'+(mc_fmt==='$0'&&t.reply_count>0?t.reply_count+' boosts':mc_fmt)+'</div>'+
-        '<div class="token-replies">'+(t.chain||'solana')+'</div>'+
-        '<a href="'+link_url+'" target="_blank" class="token-link">'+link_label+'</a>'+
-      '</div>';
+      var link=t.url||('https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint);
+      var boostsTxt=t.boosts>0?t.boosts+' boosts':'new';
+      return '<a href="'+esc(link)+'" target="_blank" class="token-row">'+
+        '<div class="token-name"><strong>'+esc(t.symbol)+'</strong> '+esc(t.name)+'</div>'+
+        '<div class="token-meta">'+
+          '<div class="token-boosts">'+boostsTxt+'</div>'+
+          '<div class="token-chain">'+esc(t.chain||'solana')+'</div>'+
+          (t.market_cap_usd>0?'<div style="font-size:13px">$'+(t.market_cap_usd/1000).toFixed(1)+'K</div>':'')+
+        '</div>'+
+      '</a>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty" style="color:var(--rose)">Error loading tokens</div>';}
 }
-
-function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
 
 loadStats();
 loadTokens();
