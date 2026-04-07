@@ -170,7 +170,7 @@ async function loadYields(){
     var yields = d.yields || d.opportunities || [];
     if(!yields.length){el.innerHTML='<div class="empty">No yields available</div>';return;}
     el.innerHTML = yields.map(function(y){
-      return '<div class="yield-row"><div><div class="yield-proto">'+esc(y.protocol||'?')+'</div><div class="yield-chain">'+esc(y.chain||'?')+'</div></div><div class="yield-apy">'+((y.apy||0).toFixed(2))+'%</div></div>';
+      return '<div class="yield-row"><div><div class="yield-proto">'+esc(y.project||y.protocol||'?')+'</div><div class="yield-chain">'+esc(y.chain||'?')+'</div></div><div class="yield-apy">'+((y.apy||0).toFixed(2))+'%</div></div>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading yields</div>';}
 }
@@ -184,8 +184,10 @@ async function loadTrending(){
     var tokens = d.tokens || [];
     if(!tokens.length){el.innerHTML='<div class="empty">No trending tokens yet — scanner runs every 30s</div>';return;}
     el.innerHTML = tokens.map(function(t){
-      var mc = t.market_cap_usd>=1000?'$'+(t.market_cap_usd/1000).toFixed(1)+'K':'$'+t.market_cap_usd.toFixed(0);
-      return '<a href="https://pump.fun/'+t.mint+'" target="_blank" class="trending-row"><div class="trending-sym">'+esc(t.symbol)+'</div><div class="trending-mc">'+mc+'</div></a>';
+      var mc = t.market_cap_usd>=1000?'$'+(t.market_cap_usd/1000).toFixed(1)+'K':'$'+(t.market_cap_usd||0).toFixed(0);
+      var name = t.symbol || t.name || (t.mint||'').substring(0,8);
+      var link = t.url || 'https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint;
+      return '<a href="'+link+'" target="_blank" class="trending-row"><div class="trending-sym">'+esc(name)+'</div><div class="trending-mc">'+mc+' '+(t.chain||'')+'</div></a>';
     }).join('');
   }catch(e){el.innerHTML='<div class="empty">Error loading trending</div>';}
 }

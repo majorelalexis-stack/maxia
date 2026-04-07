@@ -98,14 +98,20 @@ def _parse_token(raw: dict) -> dict:
     source = raw.get("_source", "unknown")
 
     if source == "dexscreener":
+        addr = raw.get("tokenAddress", "")
+        desc = raw.get("description", "")
+        # Extract a readable name from description or address
+        name = desc[:40] if desc else addr[:12] + "..."
+        # Try to extract symbol-like text from description (first word if short)
+        symbol = desc.split()[0][:10] if desc and len(desc.split()[0]) <= 10 else addr[:6].upper()
         return {
-            "mint": raw.get("tokenAddress", ""),
-            "name": raw.get("description", raw.get("tokenAddress", "")[:12]),
-            "symbol": raw.get("symbol", "?"),
-            "description": raw.get("description", "")[:200],
+            "mint": addr,
+            "name": name,
+            "symbol": symbol,
+            "description": desc[:200],
             "market_cap_usd": 0,
             "market_cap_sol": 0,
-            "reply_count": 0,
+            "reply_count": int(raw.get("totalAmount", 0)),
             "creator": "",
             "image_uri": raw.get("icon", raw.get("header", "")),
             "created_timestamp": int(time.time()),

@@ -99,9 +99,9 @@ async function loadTokens(){
       var link_url = t.url || (t.source==='dexscreener' ? 'https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint : 'https://pump.fun/'+t.mint);
       var link_label = t.source==='dexscreener' ? 'DexScreener' : 'pump.fun';
       return '<div class="token-row">'+
-        '<div class="token-sym">'+esc(t.symbol||t.mint.substring(0,8))+'</div>'+
-        '<div class="token-name">'+esc(t.name||'New token')+'</div>'+
-        '<div class="token-mc">'+mc_fmt+'</div>'+
+        '<div class="token-sym">'+esc(t.symbol||t.mint.substring(0,6).toUpperCase())+'</div>'+
+        '<div class="token-name">'+esc(t.name||t.description||'New token')+'</div>'+
+        '<div class="token-mc">'+(mc_fmt==='$0'&&t.reply_count>0?t.reply_count+' boosts':mc_fmt)+'</div>'+
         '<div class="token-replies">'+(t.chain||'solana')+'</div>'+
         '<a href="'+link_url+'" target="_blank" class="token-link">'+link_label+'</a>'+
       '</div>';
