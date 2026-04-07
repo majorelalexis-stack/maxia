@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from core.auth import require_auth
 from core.error_utils import safe_error
+from core.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,20 +21,50 @@ FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 _ADMIN_SESSIONS_MAX = 1000  # Cap to prevent unbounded growth
 
-# PRO-A3: Sessions in-memory only (no disk persistence — avoids file-based tampering)
+# PRO-A3: Sessions in-memory + Redis (survives restart if Redis available)
 _ADMIN_SESSIONS: dict = {}  # {token: expiry_timestamp}
 
 
-def _verify_admin(request: Request) -> bool:
-    """Verifie l'auth admin via header X-Admin-Key OU cookie session opaque."""
+async def _session_set(token: str, expiry: float) -> None:
+    """Store admin session in both Redis and in-memory dict."""
+    _ADMIN_SESSIONS[token] = expiry
+    try:
+        await redis_client.cache_set(f"maxia:admin_session:{token}", expiry, ttl=86400)
+    except Exception:
+        pass  # Redis unavailable — in-memory fallback still works
+
+
+async def _session_get(token: str) -> float | None:
+    """Read admin session expiry, trying Redis first then in-memory."""
+    try:
+        val = await redis_client.cache_get(f"maxia:admin_session:{token}")
+        if val is not None:
+            return float(val)
+    except Exception:
+        pass
+    return _ADMIN_SESSIONS.get(token)
+
+
+async def _session_delete(token: str) -> None:
+    """Remove admin session from both Redis and in-memory dict."""
+    _ADMIN_SESSIONS.pop(token, None)
+    try:
+        await redis_client.cache_delete(f"maxia:admin_session:{token}")
+    except Exception:
+        pass
+
+
+async def _verify_admin(request: Request) -> bool:
+    """Verifie l'auth admin via header X-Admin-Key OU cookie session opaque (Redis + in-memory)."""
     # 1) Header direct (pour API calls)
     header_key = request.headers.get("X-Admin-Key", "")
     if header_key and ADMIN_KEY and hmac.compare_digest(header_key, ADMIN_KEY):
         return True
-    # 2) Cookie session opaque (pour dashboard browser) — in-memory only
+    # 2) Cookie session opaque (pour dashboard browser) — Redis first, then in-memory
     cookie_token = request.cookies.get("maxia_admin", "")
     if cookie_token:
-        if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > time.time():
+        expiry = await _session_get(cookie_token)
+        if expiry is not None and expiry > time.time():
             return True
     return False
 
@@ -101,7 +132,7 @@ async def admin_login(req: Request):
     if len(_ADMIN_SESSIONS) >= _ADMIN_SESSIONS_MAX:
         oldest = min(_ADMIN_SESSIONS, key=_ADMIN_SESSIONS.get)
         _ADMIN_SESSIONS.pop(oldest, None)
-    _ADMIN_SESSIONS[token] = now + 86400  # 24h
+    await _session_set(token, now + 86400)  # 24h, Redis + in-memory
     resp = JSONResponse({"ok": True, "redirect": "/dashboard"})
     resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp
@@ -110,7 +141,7 @@ async def admin_login(req: Request):
 @router.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
 async def serve_dashboard(request: Request):
     """Dashboard admin — authentification via header X-Admin-Key ou cookie session opaque."""
-    if not _verify_admin(request):
+    if not await _verify_admin(request):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/admin", status_code=302)
     if FRONTEND_INDEX.exists():

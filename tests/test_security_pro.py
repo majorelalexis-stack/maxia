@@ -270,7 +270,7 @@ class TestAdminSessions:
         mock_request.headers = {"X-Admin-Key": ""}
         mock_request.cookies = {"maxia_admin": expired_token}
 
-        assert _verify_admin(mock_request) is False
+        assert asyncio.run(_verify_admin(mock_request)) is False
         _ADMIN_SESSIONS.pop(expired_token, None)
 
     def test_valid_session_accepted(self):
@@ -283,7 +283,7 @@ class TestAdminSessions:
         mock_request.headers = {"X-Admin-Key": ""}
         mock_request.cookies = {"maxia_admin": valid_token}
 
-        assert _verify_admin(mock_request) is True
+        assert asyncio.run(_verify_admin(mock_request)) is True
         _ADMIN_SESSIONS.pop(valid_token, None)
 
     def test_session_cap_enforced(self):

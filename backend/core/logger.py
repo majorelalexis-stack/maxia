@@ -14,7 +14,12 @@ class JSONFormatter(logging.Formatter):
         }
         if record.exc_info:
             log["error"] = self.formatException(record.exc_info)
-        return json.dumps(log)
+        # Add request context if available
+        for key in ("request_id", "user_id", "route", "method", "status", "duration_ms"):
+            val = getattr(record, key, None)
+            if val is not None:
+                log[key] = val
+        return json.dumps(log, default=str)
 
 
 # Log directory

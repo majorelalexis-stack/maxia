@@ -40,40 +40,41 @@ async def ensure_tables():
 @router.get("/leaderboard")
 async def leaderboard(period: str = "30d", sort_by: str = "volume", limit: int = 20):
     """Top agents by volume, trades, or earnings. Free, no auth."""
-    db = await _get_db()
-    days = {"7d": 7, "30d": 30, "90d": 90, "all": 3650}.get(period, 30)
-    cutoff = int(time.time()) - days * 86400
-    limit = min(limit, 100)
+    try:
+        db = await _get_db()
+        days = {"7d": 7, "30d": 30, "90d": 90, "all": 3650}.get(period, 30)
+        cutoff = int(time.time()) - days * 86400
+        limit = min(limit, 100)
 
-    # SECURITY: order is safe — only whitelisted column names from the dict above
-    # can be injected. Unknown sort_by values default to "volume".
-    order = {"volume": "volume", "trades": "tx_count", "earnings": "earned",
-             "rating": "avg_rating"}.get(sort_by, "volume")
-    assert order in ("volume", "tx_count", "earned", "avg_rating"), "Invalid order column"
+        order = {"volume": "volume", "trades": "tx_count", "earnings": "earned",
+                 "rating": "avg_rating"}.get(sort_by, "volume")
+        assert order in ("volume", "tx_count", "earned", "avg_rating"), "Invalid order column"
 
-    rows = await db.raw_execute_fetchall(f"""
-        SELECT a.name, a.wallet, a.tier, a.services_listed,
-            COALESCE(SUM(t.amount_usdc), 0) AS volume,
-            COUNT(t.tx_signature) AS tx_count,
-            COALESCE(a.total_earned, 0) AS earned,
-            5.0 AS avg_rating
-        FROM agents a
-        LEFT JOIN transactions t ON t.wallet = a.wallet AND t.created_at >= ?
-        GROUP BY a.api_key
-        ORDER BY {order} DESC LIMIT ?
-    """, (cutoff, limit))
+        rows = await db.raw_execute_fetchall(f"""
+            SELECT a.name, a.wallet, a.tier, a.services_listed,
+                COALESCE(SUM(t.amount_usdc), 0) AS volume,
+                COUNT(t.tx_signature) AS tx_count,
+                COALESCE(a.total_earned, 0) AS earned,
+                5.0 AS avg_rating
+            FROM agents a
+            LEFT JOIN transactions t ON t.wallet = a.wallet AND t.created_at >= ?
+            GROUP BY a.api_key
+            ORDER BY {order} DESC LIMIT ?
+        """, (cutoff, limit))
 
-    agents = []
-    for i, r in enumerate(rows):
-        agents.append({
-            "rank": i + 1, "name": r["name"], "tier": r["tier"],
-            "volume_usdc": round(float(r["volume"]), 2),
-            "total_trades": r["tx_count"],
-            "services_listed": r["services_listed"],
-            "total_earned_usdc": round(float(r["earned"]), 2),
-        })
+        agents = []
+        for i, r in enumerate(rows):
+            agents.append({
+                "rank": i + 1, "name": r["name"], "tier": r["tier"],
+                "volume_usdc": round(float(r["volume"]), 2),
+                "total_trades": r["tx_count"],
+                "services_listed": r["services_listed"],
+                "total_earned_usdc": round(float(r["earned"]), 2),
+            })
 
-    return {"leaderboard": agents, "period": period, "sort_by": sort_by, "total": len(agents)}
+        return {"leaderboard": agents, "period": period, "sort_by": sort_by, "total": len(agents)}
+    except Exception:
+        return {"leaderboard": [], "period": period, "sort_by": sort_by, "total": 0}
 
 
 @router.get("/leaderboard/services")

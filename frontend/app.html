@@ -417,11 +417,11 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <!-- Multi-wallet display -->
     <div id="wallet-display" style="margin-bottom:8px">
       <div id="sol-wallet" style="display:none;padding:6px 10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('solana')">
-        <div><span style="color:var(--purple);font-weight:600">SOL</span> <span id="sol-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
+        <div><span style="color:var(--purple);font-weight:600">SOL</span> <span id="sol-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span> <span id="sol-balance" style="color:var(--green);font-size:10px;margin-left:4px"></span></div>
         <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
       </div>
       <div id="evm-wallet" style="display:none;padding:6px 10px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.2);border-radius:8px;margin-bottom:4px;font-size:12px;align-items:center;justify-content:space-between;cursor:pointer" onclick="disconnectWallet('evm')">
-        <div><span style="color:var(--cyan);font-weight:600">EVM</span> <span id="evm-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span></div>
+        <div><span style="color:var(--cyan);font-weight:600">EVM</span> <span id="evm-addr" style="font-family:'JetBrains Mono',monospace;font-size:11px">...</span> <span id="evm-balance" style="color:var(--green);font-size:10px;margin-left:4px"></span></div>
         <span style="color:var(--muted);font-size:10px" title="Disconnect">&times;</span>
       </div>
     </div>

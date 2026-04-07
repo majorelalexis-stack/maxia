@@ -511,11 +511,27 @@ app.middleware("http")(geo_block_middleware)
 
 @app.middleware("http")
 async def correlation_id_middleware(request: Request, call_next):
-    """S37: Inject request_id into every response header for tracing."""
+    """S37: Inject request_id + log request context (duration, route, method)."""
     req_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:8])
     request.state.request_id = req_id
+    start = time.time()
     response = await call_next(request)
+    duration_ms = round((time.time() - start) * 1000, 1)
     response.headers["X-Request-ID"] = req_id
+    # Log request with context (skip static files and health checks to reduce noise)
+    path = request.url.path
+    if not path.startswith(("/static/", "/favicon")) and path != "/health":
+        logger.info(
+            "%s %s %s %.0fms",
+            request.method, path, response.status_code, duration_ms,
+            extra={
+                "request_id": req_id,
+                "route": path,
+                "method": request.method,
+                "status": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
     return response
 
 
@@ -1373,6 +1389,14 @@ try:
     logger.info("[PRICING] Pricing Page API monte")
 except Exception as e:
     logger.error("[MAXIA] Pricing Page router error: %s", e)
+
+# ── ONE-56: Fiscal Export ──
+try:
+    from billing.fiscal_export import router as fiscal_router
+    app.include_router(fiscal_router)
+    logger.info("[FISCAL] Export fiscal CSV monte")
+except Exception as e:
+    logger.error("[MAXIA] Fiscal export router error: %s", e)
 
 # ── S8: AI Audit-as-a-Service ──
 try:

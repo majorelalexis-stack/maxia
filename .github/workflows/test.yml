@@ -89,7 +89,7 @@ jobs:
 
       - name: Run ALL test suites (285+ tests)
         run: |
-          PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=3
+          PYTHONPATH=backend python -m pytest tests/ -v --tb=short --cov=backend --cov-report=term-missing --cov-fail-under=20
 
       - name: Load FastAPI app (670+ routes)
         run: |
@@ -148,7 +148,6 @@ jobs:
       - name: Security scan (bandit)
         run: |
           bandit -r backend/ -ll -q --exclude backend/tests_smoke.py 2>&1 | head -50
-        continue-on-error: true
 
       - name: Dependency audit (pip-audit)
         run: |

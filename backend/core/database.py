@@ -453,6 +453,15 @@ class Database:
             "ALTER TABLE agents ADD COLUMN referral_code TEXT DEFAULT '';"
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_referral_code ON agents(referral_code) WHERE referral_code != '';"
         )),
+        10: ("Alert subscriptions — persist Telegram alert subscribers to DB", (
+            "CREATE TABLE IF NOT EXISTS alert_subscriptions ("
+            "wallet TEXT PRIMARY KEY,"
+            "chat_id TEXT NOT NULL,"
+            "alert_types TEXT DEFAULT '[\"price\",\"whale\",\"yield\",\"transaction\"]',"
+            "subscribed_at INTEGER,"
+            "expires_at INTEGER,"
+            "active INTEGER DEFAULT 1);"
+        )),
     }
 
     async def _run_migrations(self):

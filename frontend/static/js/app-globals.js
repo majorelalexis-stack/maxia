@@ -61,6 +61,53 @@ function updateWalletDisplay() {
   } else {
     buttons.forEach(function(b) { b.textContent = 'Connect Wallet'; b.classList.remove('connected'); });
   }
+  // Fetch balances after display update
+  fetchWalletBalances();
+}
+
+// Fetch and display wallet balances after connection
+async function fetchWalletBalances() {
+  // SOL balance
+  if (connectedWallets.solana) {
+    var balEl = document.getElementById('sol-balance');
+    if (balEl) {
+      try {
+        var conn = new solanaWeb3.Connection(SOLANA_RPC || 'https://api.mainnet-beta.solana.com', 'confirmed');
+        var pubkey = new solanaWeb3.PublicKey(connectedWallets.solana.address);
+        var lamports = await conn.getBalance(pubkey);
+        var sol = (lamports / 1e9).toFixed(4);
+        balEl.textContent = sol + ' SOL';
+        if (parseFloat(sol) < 0.01) balEl.style.color = 'var(--orange)';
+        else balEl.style.color = 'var(--green)';
+      } catch (e) {
+        balEl.textContent = '';
+      }
+    }
+  } else {
+    var balEl = document.getElementById('sol-balance');
+    if (balEl) balEl.textContent = '';
+  }
+  // EVM balance
+  if (connectedWallets.evm && window.ethereum) {
+    var balEl = document.getElementById('evm-balance');
+    if (balEl) {
+      try {
+        var hexBal = await window.ethereum.request({
+          method: 'eth_getBalance',
+          params: [connectedWallets.evm.address, 'latest']
+        });
+        var eth = (parseInt(hexBal, 16) / 1e18).toFixed(4);
+        balEl.textContent = eth + ' ETH';
+        if (parseFloat(eth) < 0.001) balEl.style.color = 'var(--orange)';
+        else balEl.style.color = 'var(--green)';
+      } catch (e) {
+        balEl.textContent = '';
+      }
+    }
+  } else {
+    var balEl = document.getElementById('evm-balance');
+    if (balEl) balEl.textContent = '';
+  }
 }
 
 function disconnectWallet(type) {
@@ -365,16 +412,27 @@ function esc(s) {
 
 async function api(path, opts) {
   opts = opts || {};
+  var showErrors = opts.showErrors !== false;
   var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (wallet) headers['X-Wallet'] = wallet;
   try {
     var res = await fetch(path, Object.assign({}, opts, { headers: headers }));
     if (!res.ok) {
       var err = await res.json().catch(function() { return { detail: 'Request failed (' + res.status + ')' }; });
-      throw new Error(err.detail || err.error || 'Request failed');
+      var msg = err.detail || err.error || 'Request failed';
+      if (res.status === 429) msg = 'Rate limited — please wait a moment';
+      else if (res.status === 401) msg = 'Authentication required — connect your wallet';
+      else if (res.status === 403) msg = 'Access denied';
+      else if (res.status === 451) msg = 'This service is not available in your region';
+      else if (res.status >= 500) msg = 'Server error — please try again later';
+      if (showErrors) toast(msg, 'error');
+      throw new Error(msg);
     }
     return await res.json();
   } catch(e) {
+    if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+      if (showErrors) toast('Network error — check your connection', 'error');
+    }
     console.warn('API error:', path, e.message);
     return null;
   }

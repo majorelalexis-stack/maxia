@@ -7,6 +7,8 @@ Types d'alertes :
 - Yield : notification quand un nouveau yield >10% APY apparait
 - Transaction : notification quand une tx de l'user est confirmee
 """
+import json
+import logging
 import time
 import asyncio
 import os
@@ -16,20 +18,58 @@ from core.http_client import get_http_client
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 ALERT_PRICE_MONTHLY_USDC = 0.99
 
-# Subscribers en memoire (persiste dans DB en prod)
+# Subscribers en memoire + DB persistence
 _subscribers = {}  # wallet -> {chat_id, alerts: [...], subscribed_at, expires_at}
+_db_loaded = False
+
+
+async def _load_subscribers_from_db() -> None:
+    """Lazy-load subscribers from DB on first use. Idempotent."""
+    global _db_loaded
+    if _db_loaded:
+        return
+    try:
+        from core.database import db
+        rows = await db.raw_execute_fetchall(
+            "SELECT wallet, chat_id, alert_types, subscribed_at, expires_at, active FROM alert_subscriptions"
+        )
+        for row in (rows or []):
+            _subscribers[row["wallet"]] = {
+                "chat_id": row["chat_id"],
+                "alerts": json.loads(row.get("alert_types", '["price","whale","yield","transaction"]')),
+                "subscribed_at": row["subscribed_at"],
+                "expires_at": row["expires_at"],
+                "active": bool(row.get("active", 1)),
+            }
+        _db_loaded = True
+    except Exception as e:
+        logging.getLogger(__name__).warning("alert_service: DB load failed: %s", e)
 
 async def subscribe(wallet: str, chat_id: str, alert_types: list = None) -> dict:
     """Abonne un user aux alertes. Retourne les details de l'abonnement."""
     if not alert_types:
         alert_types = ["price", "whale", "yield", "transaction"]
+    now_ts = int(time.time())
+    expires_ts = now_ts + 30 * 86400  # 30 jours
     _subscribers[wallet] = {
         "chat_id": chat_id,
         "alerts": alert_types,
-        "subscribed_at": int(time.time()),
-        "expires_at": int(time.time()) + 30 * 86400,  # 30 jours
+        "subscribed_at": now_ts,
+        "expires_at": expires_ts,
         "active": True,
     }
+    # Persist to DB
+    try:
+        from core.database import db
+        await db.raw_execute(
+            "INSERT INTO alert_subscriptions (wallet, chat_id, alert_types, subscribed_at, expires_at, active) "
+            "VALUES (?, ?, ?, ?, ?, 1) "
+            "ON CONFLICT(wallet) DO UPDATE SET chat_id=excluded.chat_id, alert_types=excluded.alert_types, "
+            "subscribed_at=excluded.subscribed_at, expires_at=excluded.expires_at, active=1",
+            (wallet, chat_id, json.dumps(alert_types), now_ts, expires_ts)
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("alert_service: DB save failed: %s", e)
     # Envoyer confirmation
     await _send_telegram(chat_id,
         "MAXIA Alerts activated!\n\n"
@@ -43,6 +83,11 @@ async def subscribe(wallet: str, chat_id: str, alert_types: list = None) -> dict
 async def unsubscribe(wallet: str) -> dict:
     if wallet in _subscribers:
         _subscribers[wallet]["active"] = False
+        try:
+            from core.database import db
+            await db.raw_execute("UPDATE alert_subscriptions SET active=0 WHERE wallet=?", (wallet,))
+        except Exception:
+            pass
         return {"success": True}
     return {"success": False, "error": "Not subscribed"}
 
@@ -51,6 +96,7 @@ def get_subscribers() -> dict:
 
 async def check_and_send_alerts(prices: dict, yields: list = None):
     """Verifie les conditions et envoie les alertes aux subscribers."""
+    await _load_subscribers_from_db()
     for wallet, sub in _subscribers.items():
         if not sub.get("active"):
             continue
