@@ -40,18 +40,7 @@ select{cursor:pointer;appearance:none;-webkit-appearance:none}
 
 <div class="form-box">
   <label>Token</label>
-  <select id="crypto">
-    <option value="SOL">SOL (Solana)</option>
-    <option value="ETH">ETH (Ethereum)</option>
-    <option value="BTC">BTC (Bitcoin)</option>
-    <option value="USDC">USDC (Stablecoin)</option>
-    <option value="USDT">USDT (Tether)</option>
-    <option value="MATIC">MATIC (Polygon)</option>
-    <option value="AVAX">AVAX (Avalanche)</option>
-    <option value="BNB">BNB (BNB Chain)</option>
-    <option value="ARB">ETH on Arbitrum</option>
-    <option value="BASE_ETH">ETH on Base</option>
-  </select>
+  <select id="crypto"></select>
 
   <label>Amount</label>
   <div style="display:flex;gap:10px">
@@ -82,6 +71,11 @@ select{cursor:pointer;appearance:none;-webkit-appearance:none}
 
 <script>
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
+
+var ALL_TOKENS=['SOL','ETH','BTC','USDC','USDT','TRUMP','JUP','BONK','WIF','RENDER','PYTH','RAY','W','ORCA','HNT','JTO','TNSR','MEW','POPCAT','MOBILE','MNDE','MSOL','JITOSOL','BSOL','DRIFT','KMNO','PENGU','AI16Z','FARTCOIN','GRASS','ZEUS','NOSOL','SAMO','STEP','BOME','SLERF','MPLX','INF','PNUT','GOAT','LINK','UNI','AAVE','LDO','VIRTUAL','OLAS','FET','PEPE','DOGE','SHIB','TAO','AKT','AIOZ','ARB','OP','TIA','INJ','STX','SUI','APT','SEI','NEAR','FIL','AR','ONDO','XRP','AVAX','MATIC','BNB'];
+var cryptoSel=document.getElementById('crypto');
+ALL_TOKENS.forEach(function(t){cryptoSel.innerHTML+='<option value="'+t+'">'+t+'</option>';});
+cryptoSel.value='SOL';
 
 async function loadProviders(){
   try{
@@ -123,6 +117,8 @@ async function buyNow(){
         html+='</div>';
       }
       res.innerHTML=html;
+    }else if(d.mode==='two_step'){
+      res.innerHTML='<div style="padding:16px;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.15);border-radius:12px"><div style="font-size:14px;margin-bottom:8px">'+esc(crypto)+' is not available for direct card purchase.</div><div style="color:var(--muted);font-size:13px;margin-bottom:12px"><b>Solution:</b> Buy USDC with card, then swap USDC &rarr; '+esc(crypto)+' (0.10% fee)</div><a href="javascript:void(0)" onclick="document.getElementById(\'crypto\').value=\'USDC\';buyNow()" class="result a" style="display:block;padding:12px;background:var(--cyan);color:#060a14;border-radius:10px;text-align:center;font-weight:600">Buy USDC instead &rarr;</a></div>';
     }else{
       res.innerHTML='<span style="color:var(--rose)">'+esc(d.detail||'Error')+'</span>';
     }

@@ -237,7 +237,26 @@ async def create_onramp_link(req: OnrampRequest):
         raise HTTPException(400, "Minimum amount is $10")
 
     if crypto not in SUPPORTED_TOKENS:
-        raise HTTPException(400, f"Unsupported token: {crypto}. Supported: {sorted(SUPPORTED_TOKENS.keys())}")
+        # Token not directly supported by fiat providers — suggest buy USDC then swap
+        return {
+            "provider": "maxia",
+            "mode": "two_step",
+            "crypto": crypto,
+            "fiat_amount": req.fiat_amount,
+            "fiat_currency": fiat,
+            "wallet_address": req.wallet_address,
+            "instructions": [
+                f"1. {crypto} is not available for direct card purchase",
+                f"2. Buy USDC with your card (link below)",
+                f"3. Then swap USDC to {crypto} on MAXIA (fee: 0.10%)",
+            ],
+            "step1_buy_usdc": f"/api/fiat/onramp",
+            "step1_body": {"crypto": "USDC", "fiat_amount": req.fiat_amount, "fiat_currency": fiat, "wallet_address": req.wallet_address},
+            "step2_swap": f"/api/public/crypto/quote?from_token=USDC&to_token={crypto}&amount={req.fiat_amount}",
+            "url": None,
+            "alternatives": [],
+            "timestamp": int(time.time()),
+        }
 
     # Build URLs for all providers (or selected one)
     if req.provider == "auto":
