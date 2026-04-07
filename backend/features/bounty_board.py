@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bounties", tags=["bounty-board"])
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS bounties (
+CREATE TABLE IF NOT EXISTS task_bounties (
     bounty_id TEXT PRIMARY KEY,
     poster_agent_id TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -44,10 +44,10 @@ CREATE TABLE IF NOT EXISTS bounties (
     deadline_at INTEGER NOT NULL,
     completed_at INTEGER DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_bounty_status ON bounties(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bounty_poster ON bounties(poster_agent_id);
-CREATE INDEX IF NOT EXISTS idx_bounty_winner ON bounties(winner_agent_id);
-CREATE INDEX IF NOT EXISTS idx_bounty_cat ON bounties(category, status);
+CREATE INDEX IF NOT EXISTS idx_tbounty_status ON task_bounties(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tbounty_poster ON task_bounties(poster_agent_id);
+CREATE INDEX IF NOT EXISTS idx_tbounty_winner ON task_bounties(winner_agent_id);
+CREATE INDEX IF NOT EXISTS idx_tbounty_cat ON task_bounties(category, status);
 
 CREATE TABLE IF NOT EXISTS bounty_bids (
     bid_id TEXT PRIMARY KEY,
@@ -144,7 +144,7 @@ async def create_bounty(req: CreateBountyRequest, x_api_key: str = Header(None))
 
     # Limit active bounties
     count = await db._fetchone(
-        "SELECT COUNT(*) as cnt FROM bounties WHERE poster_agent_id=? AND status IN ('open','assigned')",
+        "SELECT COUNT(*) as cnt FROM task_bounties WHERE poster_agent_id=? AND status IN ('open','assigned')",
         (agent_id,))
     if count and count["cnt"] >= _MAX_BOUNTIES_PER_AGENT:
         raise HTTPException(400, f"Max {_MAX_BOUNTIES_PER_AGENT} active bounties per agent")
@@ -160,7 +160,7 @@ async def create_bounty(req: CreateBountyRequest, x_api_key: str = Header(None))
     deadline_at = now + req.deadline_seconds
 
     await db.raw_execute(
-        "INSERT INTO bounties(bounty_id, poster_agent_id, title, description, "
+        "INSERT INTO task_bounties(bounty_id, poster_agent_id, title, description, "
         "budget_usdc, deadline_seconds, auto_assign, category, status, created_at, deadline_at) "
         "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
         (bounty_id, agent_id, req.title, req.description,
@@ -206,7 +206,7 @@ async def browse_bounties(category: str = "", status: str = "open", limit: int =
     rows = await db._fetchall(
         f"SELECT bounty_id, poster_agent_id, title, description, budget_usdc, "
         f"category, deadline_at, auto_assign, created_at "
-        f"FROM bounties WHERE {where} ORDER BY budget_usdc DESC, created_at DESC LIMIT ?",
+        f"FROM task_bounties WHERE {where} ORDER BY budget_usdc DESC, created_at DESC LIMIT ?",
         tuple(params))
 
     # Add bid counts
@@ -237,7 +237,7 @@ async def bid_on_bounty(bounty_id: str, req: BidRequest, x_api_key: str = Header
 
     bounty = await db._fetchone(
         "SELECT poster_agent_id, title, budget_usdc, auto_assign, max_bids, "
-        "status, deadline_at FROM bounties WHERE bounty_id=?", (bounty_id,))
+        "status, deadline_at FROM task_bounties WHERE bounty_id=?", (bounty_id,))
     if not bounty:
         raise HTTPException(404, "Bounty not found")
     if bounty["status"] != "open":
@@ -271,7 +271,7 @@ async def bid_on_bounty(bounty_id: str, req: BidRequest, x_api_key: str = Header
     # Auto-assign: first bidder wins
     if bounty["auto_assign"]:
         await db.raw_execute(
-            "UPDATE bounties SET status='assigned', winner_agent_id=? WHERE bounty_id=?",
+            "UPDATE task_bounties SET status='assigned', winner_agent_id=? WHERE bounty_id=?",
             (agent_id, bounty_id))
         await db.raw_execute(
             "UPDATE bounty_bids SET status='awarded' WHERE bid_id=?", (bid_id,))
@@ -298,7 +298,7 @@ async def award_bounty(bounty_id: str, bidder_agent_id: str, x_api_key: str = He
     from core.database import db
 
     bounty = await db._fetchone(
-        "SELECT poster_agent_id, status FROM bounties WHERE bounty_id=?", (bounty_id,))
+        "SELECT poster_agent_id, status FROM task_bounties WHERE bounty_id=?", (bounty_id,))
     if not bounty:
         raise HTTPException(404, "Bounty not found")
     if bounty["poster_agent_id"] != agent_id:
@@ -313,7 +313,7 @@ async def award_bounty(bounty_id: str, bidder_agent_id: str, x_api_key: str = He
         raise HTTPException(404, "Bid not found from this agent")
 
     await db.raw_execute(
-        "UPDATE bounties SET status='assigned', winner_agent_id=? WHERE bounty_id=?",
+        "UPDATE task_bounties SET status='assigned', winner_agent_id=? WHERE bounty_id=?",
         (bidder_agent_id, bounty_id))
     await db.raw_execute(
         "UPDATE bounty_bids SET status='awarded' WHERE bid_id=?", (bid["bid_id"],))
@@ -337,7 +337,7 @@ async def deliver_bounty(bounty_id: str, req: DeliverRequest, x_api_key: str = H
 
     bounty = await db._fetchone(
         "SELECT poster_agent_id, winner_agent_id, status, budget_usdc "
-        "FROM bounties WHERE bounty_id=?", (bounty_id,))
+        "FROM task_bounties WHERE bounty_id=?", (bounty_id,))
     if not bounty:
         raise HTTPException(404, "Bounty not found")
     if bounty["winner_agent_id"] != agent_id:
@@ -351,7 +351,7 @@ async def deliver_bounty(bounty_id: str, req: DeliverRequest, x_api_key: str = H
         raise HTTPException(400, "Content flagged by safety filter")
 
     await db.raw_execute(
-        "UPDATE bounties SET status='delivered', result=? WHERE bounty_id=?",
+        "UPDATE task_bounties SET status='delivered', result=? WHERE bounty_id=?",
         (req.result[:10000], bounty_id))
 
     return {"status": "ok", "message": "Delivered. Poster will confirm or dispute within 24h."}
@@ -370,7 +370,7 @@ async def confirm_bounty(bounty_id: str, x_api_key: str = Header(None)):
 
     bounty = await db._fetchone(
         "SELECT poster_agent_id, winner_agent_id, status, budget_usdc "
-        "FROM bounties WHERE bounty_id=?", (bounty_id,))
+        "FROM task_bounties WHERE bounty_id=?", (bounty_id,))
     if not bounty:
         raise HTTPException(404, "Bounty not found")
     if bounty["poster_agent_id"] != agent_id:
@@ -395,7 +395,7 @@ async def confirm_bounty(bounty_id: str, x_api_key: str = Header(None)):
 
     now = int(time.time())
     await db.raw_execute(
-        "UPDATE bounties SET status='completed', commission_usdc=?, completed_at=? WHERE bounty_id=?",
+        "UPDATE task_bounties SET status='completed', commission_usdc=?, completed_at=? WHERE bounty_id=?",
         (commission, now, bounty_id))
 
     logger.info("[Bounty] Completed %s: $%.2f to %s (commission $%.2f)",
@@ -428,7 +428,7 @@ async def dispute_bounty(bounty_id: str, x_api_key: str = Header(None)):
     from core.database import db
 
     bounty = await db._fetchone(
-        "SELECT poster_agent_id, status, budget_usdc FROM bounties WHERE bounty_id=?",
+        "SELECT poster_agent_id, status, budget_usdc FROM task_bounties WHERE bounty_id=?",
         (bounty_id,))
     if not bounty:
         raise HTTPException(404, "Bounty not found")
@@ -449,7 +449,7 @@ async def dispute_bounty(bounty_id: str, x_api_key: str = Header(None)):
                       description=f"Bounty dispute refund: {bounty_id[:8]}")
 
     await db.raw_execute(
-        "UPDATE bounties SET status='disputed' WHERE bounty_id=?", (bounty_id,))
+        "UPDATE task_bounties SET status='disputed' WHERE bounty_id=?", (bounty_id,))
 
     return {"status": "ok", "refunded_usdc": budget, "message": "Bounty disputed. Funds returned."}
 
@@ -476,7 +476,7 @@ async def my_bounties(role: str = "poster", x_api_key: str = Header(None)):
         rows = await db._fetchall(
             "SELECT bounty_id, title, budget_usdc, status, category, "
             "deadline_at, winner_agent_id, commission_usdc "
-            "FROM bounties WHERE poster_agent_id=? ORDER BY created_at DESC LIMIT 50",
+            "FROM task_bounties WHERE poster_agent_id=? ORDER BY created_at DESC LIMIT 50",
             (agent_id,))
 
     return {"role": role, "count": len(rows), "bounties": [dict(r) for r in rows]}
