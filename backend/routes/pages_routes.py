@@ -122,6 +122,15 @@ async def service_worker_js():
     return HTMLResponse("", status_code=404)
 
 
+@router.get("/offline.html", include_in_schema=False)
+async def offline_page():
+    """Page offline PWA (cachee par le Service Worker)."""
+    path = FRONTEND_DIR / "offline.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html")
+    return HTMLResponse("<h1>Offline</h1>", status_code=200)
+
+
 @router.get("/favicon.ico", include_in_schema=False)
 async def favicon_ico():
     """Redirect .ico to .svg for browsers that request favicon.ico."""
