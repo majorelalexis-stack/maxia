@@ -1046,11 +1046,11 @@ async def crypto_stats():
 
 @router.get("/crypto/swap/quote")
 async def swap_quote_alias(request: Request, from_token: str = "", to_token: str = "",
-                           amount: float = 1, volume_30d: float = 0, wallet: str = "",
-                           **kwargs):
+                           amount: float = 1, volume_30d: float = 0, wallet: str = ""):
     """Alias /crypto/swap/quote → /crypto/swap-quote pour compatibilite."""
-    return await crypto_swap_quote(request, from_token or kwargs.get("from", ""),
-                                   to_token or kwargs.get("to", ""), amount, volume_30d, wallet)
+    ft = from_token or request.query_params.get("from", "")
+    tt = to_token or request.query_params.get("to", "")
+    return await crypto_swap_quote(request, ft, tt, amount, volume_30d, wallet)
 
 
 @router.get("/crypto/swap/supported")
