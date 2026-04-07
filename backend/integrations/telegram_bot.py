@@ -14,7 +14,7 @@ import logging
 import os
 import time
 
-from core.http_client import get_http_client
+import httpx
 
 logger = logging.getLogger("telegram_bot")
 
@@ -23,11 +23,20 @@ MINIAPP_URL = "https://maxiaworld.app/miniapp"
 _BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 _last_update_id = 0
 _running = False
+_client: httpx.AsyncClient = None
+
+
+async def _get_client() -> httpx.AsyncClient:
+    """Get or create a dedicated httpx client for the bot."""
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=40)
+    return _client
 
 
 async def _tg_api(method: str, data: dict = None) -> dict:
     """Call Telegram Bot API."""
-    client = get_http_client()
+    client = await _get_client()
     try:
         if data:
             resp = await client.post(f"{_BASE}/{method}", json=data, timeout=15)
@@ -35,7 +44,7 @@ async def _tg_api(method: str, data: dict = None) -> dict:
             resp = await client.get(f"{_BASE}/{method}", timeout=15)
         return resp.json()
     except Exception as e:
-        logger.warning("[TG Bot] API error %s: %s", method, e)
+        print(f"[TG Bot] API error {method}: {e}")
         return {}
 
 
@@ -73,7 +82,7 @@ async def _handle_price(chat_id: int, args: str):
     """Handle /price command."""
     symbol = args.strip().upper() if args else "SOL"
     try:
-        client = get_http_client()
+        client = await _get_client()
         resp = await client.get(f"http://127.0.0.1:8000/oracle/price/live/{symbol}", timeout=5)
         d = resp.json()
         if d.get("price", 0) > 0:
@@ -83,7 +92,7 @@ async def _handle_price(chat_id: int, args: str):
         else:
             await _send_message(chat_id, f"Could not fetch price for {symbol}")
     except Exception as e:
-        logger.warning("[TG Bot] Price error: %s", e)
+        print(f"[TG Bot] Price error: {e}")
         await _send_message(chat_id, f"Error fetching price for {symbol}")
 
 
@@ -113,6 +122,8 @@ async def _process_update(update: dict):
     chat_id = msg.get("chat", {}).get("id")
     first_name = msg.get("from", {}).get("first_name", "there")
 
+    print(f"[TG Bot] Update: chat_id={chat_id} text={text[:50] if text else 'none'}")
+
     if not chat_id or not text:
         return
 
@@ -128,7 +139,7 @@ async def _process_update(update: dict):
     else:
         # Forward to chat handler for NL processing
         try:
-            client = get_http_client()
+            client = await _get_client()
             resp = await client.post(
                 "http://127.0.0.1:8000/api/chat",
                 json={"message": text},
@@ -165,7 +176,7 @@ async def setup_bot_menu():
         ]
     })
 
-    logger.info("[TG Bot] Menu button + commands configured")
+    print("[TG Bot] Menu button + commands configured")
 
 
 async def run_telegram_bot():
@@ -173,11 +184,11 @@ async def run_telegram_bot():
     global _last_update_id, _running
 
     if not BOT_TOKEN:
-        logger.warning("[TG Bot] TELEGRAM_BOT_TOKEN not set — bot disabled")
+        print("[TG Bot] TELEGRAM_BOT_TOKEN not set — bot disabled")
         return
 
     if _running:
-        logger.warning("[TG Bot] Already running — skipping")
+        print("[TG Bot] Already running — skipping")
         return
 
     _running = True
@@ -185,11 +196,11 @@ async def run_telegram_bot():
     # Configure menu button on startup
     await setup_bot_menu()
 
-    logger.info("[TG Bot] Starting long polling...")
+    print("[TG Bot] Starting long polling...")
 
     while True:
         try:
-            client = get_http_client()
+            client = await _get_client()
             resp = await client.get(
                 f"{_BASE}/getUpdates",
                 params={"offset": _last_update_id + 1, "timeout": 30, "limit": 20},
@@ -205,8 +216,8 @@ async def run_telegram_bot():
                 try:
                     await _process_update(update)
                 except Exception as e:
-                    logger.error("[TG Bot] Update processing error: %s", e)
+                    print(f"[TG Bot] Update processing error: {e}")
 
         except Exception as e:
-            logger.warning("[TG Bot] Polling error: %s", e)
+            print(f"[TG Bot] Polling error: {e}")
             await asyncio.sleep(5)
