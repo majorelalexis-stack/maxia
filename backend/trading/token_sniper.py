@@ -214,7 +214,7 @@ async def sniper_worker():
             new_count = 0
 
             for raw in raw_tokens:
-                mint = raw.get("mint", "")
+                mint = raw.get("mint", "") or raw.get("tokenAddress", "")
                 if not mint or mint in _detected_mints:
                     continue
 
@@ -260,7 +260,7 @@ async def get_new_tokens(
     if not _detected_tokens:
         raw_tokens = await _fetch_new_tokens()
         for raw in raw_tokens:
-            mint = raw.get("mint", "")
+            mint = raw.get("mint", "") or raw.get("tokenAddress", "")
             if mint and mint not in _detected_mints:
                 token = _parse_token(raw)
                 _detected_mints.add(mint)
