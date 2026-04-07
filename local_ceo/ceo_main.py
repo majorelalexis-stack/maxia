@@ -37,7 +37,7 @@ from missions.opportunities import (
 from missions.report import mission_daily_report
 from missions.moderation import mission_moderate_forum
 from missions.competitive import mission_competitive_watch
-from missions.code_audit import mission_code_audit
+# from missions.code_audit import mission_code_audit  # PRO-K11: desactive (98.8% faux positifs)
 from missions.scout import mission_scout_scan, mission_scout_execute_approved
 from missions.email_check import mission_check_alexis_emails, mission_changelog_forum
 from missions.email_outreach import mission_email_outreach
@@ -211,13 +211,13 @@ async def run():
                 except ImportError:
                     pass
 
-            # Mission 10: Code Audit — EN DERNIER (bloquant, ne doit pas empecher les autres missions)
-            audit_done_today = actions["counts"].get("audit_complete", 0) >= 1
-            if not audit_done_today and hour >= 19 and dt_now.minute >= 15:
-                is_complete = await mission_code_audit(mem, actions)
-                if is_complete:
-                    actions["counts"]["audit_complete"] = 1
-                    log.info("[AUDIT] Audit quotidien termine — mail envoye")
+            # Mission 10: Code Audit — DESACTIVE PRO-K11 (98.8% faux positifs, spam emails)
+            # audit_done_today = actions["counts"].get("audit_complete", 0) >= 1
+            # if not audit_done_today and hour >= 19 and dt_now.minute >= 15:
+            #     is_complete = await mission_code_audit(mem, actions)
+            #     if is_complete:
+            #         actions["counts"]["audit_complete"] = 1
+            #         log.info("[AUDIT] Audit quotidien termine — mail envoye")
 
             # Sauvegarder
             save_memory(mem)

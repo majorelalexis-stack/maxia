@@ -599,9 +599,19 @@ app.add_middleware(
 app.middleware("http")(x402_middleware)
 
 
-# ── Security Headers ──
+# ── Security Headers (PRO-J3: CSP with nonce) ──
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
+    # Generate per-request nonce for CSP (PRO-J3)
+    import base64
+    nonce = base64.b64encode(os.urandom(16)).decode("ascii")
+    request.state.csp_nonce = nonce
+    try:
+        from routes.pages import set_csp_nonce
+        set_csp_nonce(nonce)
+    except ImportError:
+        pass
+
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -611,10 +621,12 @@ async def security_headers_middleware(request: Request, call_next):
     if os.getenv("FORCE_HTTPS", "false").lower() == "true":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
+    # CSP with nonce — 'unsafe-inline' kept as fallback for older browsers
+    # Modern browsers that support nonces will ignore 'unsafe-inline' when nonce is present
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        f"script-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://s3.tradingview.com; "
+        f"style-src 'self' 'nonce-{nonce}' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' wss: ws: https:; "
@@ -1140,6 +1152,27 @@ try:
     logger.info("[AgentBuilder] Composable Agent Builder monte")
 except Exception as e:
     logger.error("[MAXIA] Agent Builder router error: %s", e)
+
+try:
+    from agents.agent_autonomy import router as agent_autonomy_router
+    app.include_router(agent_autonomy_router)
+    logger.info("[Autonomy] Agent Autonomy (SOUL + Self-Fund + Spawn) monte")
+except Exception as e:
+    logger.error("[MAXIA] Agent Autonomy router error: %s", e)
+
+try:
+    from core.admin_2fa import router as admin_2fa_router
+    app.include_router(admin_2fa_router)
+    logger.info("[2FA] Admin TOTP 2FA monte")
+except Exception as e:
+    logger.error("[MAXIA] Admin 2FA router error: %s", e)
+
+try:
+    from features.memory_service import router as memory_router
+    app.include_router(memory_router)
+    logger.info("[Memory] Memory-as-a-Service monte")
+except Exception as e:
+    logger.error("[MAXIA] Memory Service router error: %s", e)
 
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"

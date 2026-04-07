@@ -170,6 +170,71 @@ async def alert_swarm_clone(name: str, niche: str, price: float):
 
 
 # ══════════════════════════════════════════
+# ALERTES ENRICHIES (PRO-I3) — Swap fail, inscription, volume, spawn
+# ══════════════════════════════════════════
+
+async def alert_swap_failed(symbol_from: str, symbol_to: str, amount: float, error: str):
+    """Alerte quand un swap echoue (perte potentielle de revenu)."""
+    await _send_private(
+        f"\u26a0\ufe0f <b>Swap ECHEC</b>\n\n"
+        f"Paire : <b>{symbol_from} \u2192 {symbol_to}</b>\n"
+        f"Montant : <b>{amount:.4f} {symbol_from}</b>\n"
+        f"Erreur : <code>{error[:300]}</code>",
+    )
+
+
+async def alert_new_agent_registered(name: str, wallet: str, api_key_prefix: str):
+    """Alerte quand un nouvel agent s'inscrit (acquisition client)."""
+    await _send_private(
+        f"\U0001f389 <b>Nouvel agent inscrit !</b>\n\n"
+        f"Nom : <b>{name}</b>\n"
+        f"Wallet : <code>{wallet[:12]}...</code>\n"
+        f"API Key : <code>{api_key_prefix[:12]}...</code>",
+    )
+
+
+async def alert_volume_threshold(volume_24h: float, threshold: float):
+    """Alerte quand le volume 24h depasse un seuil (milestone)."""
+    await _send_private(
+        f"\U0001f4c8 <b>Seuil de volume atteint !</b>\n\n"
+        f"Volume 24h : <b>${volume_24h:,.2f}</b>\n"
+        f"Seuil : <b>${threshold:,.2f}</b>\n"
+        f"Le volume marketplace augmente !",
+    )
+
+
+async def alert_agent_spawned(parent_id: str, child_name: str, credits: float):
+    """Alerte quand un agent spawn un enfant (autonomie en action)."""
+    await _send_private(
+        f"\U0001f423 <b>Agent Spawn !</b>\n\n"
+        f"Parent : <code>{parent_id[:8]}...</code>\n"
+        f"Enfant : <b>{child_name}</b>\n"
+        f"Credits transferes : <b>${credits:.2f}</b>\n"
+        f"L'ecosysteme grandit organiquement.",
+    )
+
+
+async def alert_self_fund(agent_id: str, amount: float, new_balance: float):
+    """Alerte quand un agent se self-fund (boucle economique fermee)."""
+    await _send_private(
+        f"\U0001f504 <b>Agent Self-Fund</b>\n\n"
+        f"Agent : <code>{agent_id[:8]}...</code>\n"
+        f"Reinvesti : <b>${amount:.2f}</b>\n"
+        f"Nouveau solde : <b>${new_balance:.2f}</b>\n"
+        f"L'agent paie pour son propre cerveau.",
+    )
+
+
+async def alert_feedback_received(category: str, message_preview: str):
+    """Alerte quand un feedback/bug report est soumis."""
+    await _send_private(
+        f"\U0001f4dd <b>Feedback recu</b>\n\n"
+        f"Type : <b>{category}</b>\n"
+        f"Message : {message_preview[:200]}",
+    )
+
+
+# ══════════════════════════════════════════
 # ALERTES SYSTEME — Discord public (pas de donnees sensibles)
 # ══════════════════════════════════════════
 

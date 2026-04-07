@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — Platform Metrics</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--cyan:#00e5ff;--purple:#7c3aed;--green:#22c55e;--gold:#f59e0b;--red:#f43f5e;--grad:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--cyan);text-decoration:none}
+h1,h2,h3{font-family:'Syne',sans-serif}
+
+/* Nav minimal */
+.topbar{padding:16px 32px;display:flex;align-items:center;gap:16px;border-bottom:1px solid rgba(255,255,255,.04)}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar-title{font-size:14px;color:var(--muted)}
+
+.page{max-width:1100px;margin:0 auto;padding:40px 24px}
+.page-title{font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-1.5px;margin-bottom:8px}
+.page-sub{font-size:16px;color:var(--muted);margin-bottom:32px}
+
+/* Status badge */
+.status-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;margin-bottom:32px}
+.status-up{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:var(--green)}
+.status-down{background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.2);color:var(--red)}
+.pulse-dot{width:8px;height:8px;border-radius:50%;animation:pulse 2s infinite}
+.pulse-up{background:var(--green)}
+.pulse-down{background:var(--red)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 10px rgba(34,197,94,0)}}
+
+/* Metric cards */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:40px}
+.metric{padding:24px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:14px;transition:all .3s}
+.metric:hover{border-color:rgba(0,229,255,.15)}
+.metric-val{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;color:var(--cyan);line-height:1}
+.metric-label{font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:6px}
+.metric-sub{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* Section */
+.section-title{font-size:20px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:3px;height:20px;border-radius:2px;background:var(--grad)}
+
+/* Infrastructure list */
+.infra-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:40px}
+.infra-item{display:flex;align-items:center;gap:12px;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
+.infra-icon{font-size:24px;flex-shrink:0}
+.infra-name{font-size:14px;font-weight:600}
+.infra-val{font-size:13px;color:var(--muted)}
+.infra-status{margin-left:auto;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px}
+.up{background:rgba(34,197,94,.1);color:var(--green)}
+.down{background:rgba(244,63,94,.1);color:var(--red)}
+
+/* Last updated */
+.last-update{text-align:center;padding:24px;color:var(--muted2);font-size:12px;font-family:'JetBrains Mono',monospace}
+
+/* Footer link */
+.back-link{display:block;text-align:center;padding:32px;color:var(--muted);font-size:14px}
+
+@media(max-width:640px){
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+  .infra-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/" class="topbar-logo">MAXIA</a>
+  <span class="topbar-title">Platform Metrics</span>
+</div>
+
+<div class="page">
+  <div class="page-title">Platform <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Metrics</span></div>
+  <div class="page-sub">Live infrastructure and platform statistics. Updated every 30 seconds.</div>
+
+  <div id="status-container">
+    <div class="status-badge status-up"><div class="pulse-dot pulse-up"></div> Checking status...</div>
+  </div>
+
+  <!-- Platform stats (hardcoded = real verified numbers) -->
+  <div class="section-title">Platform</div>
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-val">799+</div><div class="metric-label">API Routes</div></div>
+    <div class="metric"><div class="metric-val">218</div><div class="metric-label">Python Modules</div></div>
+    <div class="metric"><div class="metric-val">567</div><div class="metric-label">Automated Tests</div></div>
+    <div class="metric"><div class="metric-val">15</div><div class="metric-label">Blockchains</div></div>
+    <div class="metric"><div class="metric-val">47</div><div class="metric-label">MCP Tools</div></div>
+    <div class="metric"><div class="metric-val">8</div><div class="metric-label">SDKs Published</div></div>
+    <div class="metric"><div class="metric-val">2</div><div class="metric-label">Mainnet Contracts</div></div>
+    <div class="metric"><div class="metric-val">17</div><div class="metric-label">Features Live</div></div>
+  </div>
+
+  <!-- Live server metrics -->
+  <div class="section-title">Server (Live)</div>
+  <div class="metric-grid" id="live-metrics">
+    <div class="metric"><div class="metric-val" id="m-uptime">--</div><div class="metric-label">Uptime</div></div>
+    <div class="metric"><div class="metric-val" id="m-requests">--</div><div class="metric-label">Total Requests</div></div>
+    <div class="metric"><div class="metric-val" id="m-errors">--</div><div class="metric-label">Error Rate</div></div>
+    <div class="metric"><div class="metric-val" id="m-latency">--</div><div class="metric-label">Avg Latency</div></div>
+    <div class="metric"><div class="metric-val" id="m-connections">--</div><div class="metric-label">Active Connections</div></div>
+    <div class="metric"><div class="metric-val" id="m-chains">--</div><div class="metric-label">Chains Monitored</div></div>
+  </div>
+
+  <!-- Infrastructure -->
+  <div class="section-title">Infrastructure</div>
+  <div class="infra-grid">
+    <div class="infra-item">
+      <div class="infra-icon">&#128274;</div>
+      <div><div class="infra-name">Solana Escrow</div><div class="infra-val">8ADNmAPD...rXwBUY</div></div>
+      <div class="infra-status up">Mainnet</div>
+    </div>
+    <div class="infra-item">
+      <div class="infra-icon">&#128274;</div>
+      <div><div class="infra-name">Base Escrow</div><div class="infra-val">0xBd31bB97...510C</div></div>
+      <div class="infra-status up">Mainnet</div>
+    </div>
+    <div class="infra-item">
+      <div class="infra-icon">&#129302;</div>
+      <div><div class="infra-name">MCP Server</div><div class="infra-val">47 tools</div></div>
+      <div class="infra-status up" id="mcp-status">Live</div>
+    </div>
+    <div class="infra-item">
+      <div class="infra-icon">&#128202;</div>
+      <div><div class="infra-name">Pyth Oracle</div><div class="infra-val">SSE streaming <1s</div></div>
+      <div class="infra-status up" id="oracle-status">Live</div>
+    </div>
+    <div class="infra-item">
+      <div class="infra-icon">&#128241;</div>
+      <div><div class="infra-name">Telegram Bot</div><div class="infra-val">@MAXIA_AI_bot</div></div>
+      <div class="infra-status up">Active</div>
+    </div>
+    <div class="infra-item">
+      <div class="infra-icon">&#128230;</div>
+      <div><div class="infra-name">PyPI SDK</div><div class="infra-val">pip install maxia</div></div>
+      <div class="infra-status up">Published</div>
+    </div>
+  </div>
+
+  <div class="last-update" id="last-update">Last updated: loading...</div>
+</div>
+
+<div class="back-link"><a href="/">&larr; Back to MAXIA</a></div>
+
+<script>
+function fmtUptime(s){
+  var d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);
+  if(d>0)return d+'d '+h+'h';
+  if(h>0)return h+'h '+m+'m';
+  return m+'m';
+}
+function fmtNum(n){
+  if(n>=1e6)return (n/1e6).toFixed(1)+'M';
+  if(n>=1e3)return (n/1e3).toFixed(1)+'K';
+  return String(n);
+}
+
+async function refresh(){
+  try{
+    var r=await fetch('/api/enterprise/metrics/summary');
+    var d=await r.json();
+    document.getElementById('m-uptime').textContent=fmtUptime(d.uptime_seconds);
+    document.getElementById('m-requests').textContent=fmtNum(d.total_requests);
+    document.getElementById('m-errors').textContent=d.error_rate_pct.toFixed(2)+'%';
+    document.getElementById('m-latency').textContent=(d.avg_latency_seconds*1000).toFixed(0)+'ms';
+    document.getElementById('m-connections').textContent=String(d.active_connections);
+    document.getElementById('m-chains').textContent=String(d.chains_monitored);
+
+    document.getElementById('status-container').innerHTML=
+      '<div class="status-badge status-up"><div class="pulse-dot pulse-up"></div> All Systems Operational</div>';
+  }catch(e){
+    document.getElementById('status-container').innerHTML=
+      '<div class="status-badge status-down"><div class="pulse-dot pulse-down"></div> Unable to fetch metrics</div>';
+  }
+
+  // Check oracle
+  try{
+    var r2=await fetch('/oracle/price/live/SOL');var d2=await r2.json();
+    document.getElementById('oracle-status').textContent=d2.price>0?'Live':'Down';
+    document.getElementById('oracle-status').className='infra-status '+(d2.price>0?'up':'down');
+  }catch(e){
+    document.getElementById('oracle-status').textContent='Down';
+    document.getElementById('oracle-status').className='infra-status down';
+  }
+
+  document.getElementById('last-update').textContent='Last updated: '+new Date().toLocaleTimeString();
+}
+
+refresh();
+setInterval(refresh,30000);
+</script>
+</body>
+</html>

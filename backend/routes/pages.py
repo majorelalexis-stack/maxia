@@ -1,19 +1,39 @@
-"""MAXIA HTML page routes — extracted from main.py."""
+"""MAXIA HTML page routes — extracted from main.py. CSP nonce injection (PRO-J3)."""
+import re
 from pathlib import Path
+from contextvars import ContextVar
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 router = APIRouter(include_in_schema=False)
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
+# Regex to match <script> and <style> tags without existing nonce attribute
+_SCRIPT_RE = re.compile(r"<script(?![^>]*\bnonce=)", re.IGNORECASE)
+_STYLE_RE = re.compile(r"<style(?![^>]*\bnonce=)", re.IGNORECASE)
+
+# Context var set by middleware, read by _serve()
+_csp_nonce: ContextVar[str] = ContextVar("csp_nonce", default="")
+
+
+def set_csp_nonce(nonce: str):
+    """Called by security middleware to set per-request nonce."""
+    _csp_nonce.set(nonce)
+
 
 def _serve(filename: str) -> HTMLResponse:
-    """Serve an HTML file from frontend directory."""
+    """Serve an HTML file from frontend directory with CSP nonce injection."""
     path = FRONTEND_DIR / filename
-    if path.exists():
-        return HTMLResponse(path.read_text(encoding="utf-8"))
-    return HTMLResponse("Page not found", status_code=404)
+    if not path.exists():
+        return HTMLResponse("Page not found", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    # Inject CSP nonce into <script> and <style> tags
+    nonce = _csp_nonce.get("")
+    if nonce:
+        html = _SCRIPT_RE.sub(f'<script nonce="{nonce}"', html)
+        html = _STYLE_RE.sub(f'<style nonce="{nonce}"', html)
+    return HTMLResponse(html)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -23,22 +43,15 @@ def _serve(filename: str) -> HTMLResponse:
 
 @router.get("/", response_class=HTMLResponse)
 async def serve_landing():
-    path = FRONTEND_DIR / "landing.html"
-    if path.exists():
-        return HTMLResponse(path.read_text(encoding="utf-8"))
-    index = FRONTEND_DIR / "index.html"
-    if index.exists():
-        return HTMLResponse(index.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>MAXIA</h1><p>Page introuvable.</p>")
+    if (FRONTEND_DIR / "landing.html").exists():
+        return _serve("landing.html")
+    return _serve("index.html")
 
 
 @router.get("/landing", response_class=HTMLResponse)
 async def serve_landing_alias():
     """Alias /landing -> meme page que /."""
-    path = FRONTEND_DIR / "landing.html"
-    if path.exists():
-        return HTMLResponse(path.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>MAXIA</h1>")
+    return _serve("landing.html")
 
 
 @router.get("/v2")
@@ -200,3 +213,33 @@ async def serve_faq():
 async def serve_miniapp():
     """Telegram Mini App — trading UI inside Telegram."""
     return _serve("miniapp.html")
+
+
+@router.get("/pitch", response_class=HTMLResponse)
+async def serve_pitch():
+    """Investor pitch deck — 10 slides HTML."""
+    return _serve("pitch.html")
+
+
+@router.get("/exec-summary", response_class=HTMLResponse)
+async def serve_exec_summary():
+    """Executive summary — 1 page investor overview."""
+    return _serve("exec-summary.html")
+
+
+@router.get("/metrics-public", response_class=HTMLResponse)
+async def serve_metrics_public():
+    """Public metrics dashboard — live platform stats."""
+    return _serve("metrics.html")
+
+
+@router.get("/pricing", response_class=HTMLResponse)
+async def serve_pricing():
+    """Pricing page — all fee tiers (swap, marketplace, GPU, API)."""
+    return _serve("pricing.html")
+
+
+@router.get("/feedback", response_class=HTMLResponse)
+async def serve_feedback():
+    """Feedback and bug report form."""
+    return _serve("feedback.html")

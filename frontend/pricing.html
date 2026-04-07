@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — Pricing | Lowest Fees in Crypto</title>
+<meta name="description" content="MAXIA pricing: swap fees from 0.01%, marketplace from 0.1%, GPU from $0.15/h. Volume-based tiers. No subscriptions required.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--cyan:#00e5ff;--purple:#7c3aed;--rose:#f43f5e;--green:#22c55e;--gold:#f59e0b;--grad:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+a{color:var(--cyan);text-decoration:none}
+h1,h2,h3{font-family:'Syne',sans-serif}
+::selection{background:rgba(0,229,255,.2)}
+
+.topbar{padding:16px 32px;display:flex;align-items:center;gap:16px;border-bottom:1px solid rgba(255,255,255,.04);position:sticky;top:0;background:rgba(6,10,20,.95);backdrop-filter:blur(12px);z-index:100}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.topbar a.back{color:var(--muted);font-size:13px;margin-left:auto}
+
+.page{max-width:1000px;margin:0 auto;padding:48px 24px}
+.hero-p{text-align:center;margin-bottom:48px}
+.hero-p h1{font-size:clamp(32px,5vw,48px);font-weight:800;letter-spacing:-2px;margin-bottom:12px}
+.hero-p .sub{font-size:17px;color:var(--muted);max-width:560px;margin:0 auto}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* Category section */
+.cat{margin-bottom:48px}
+.cat-header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.cat-icon{font-size:28px}
+.cat-title{font-size:22px;font-weight:700}
+.cat-desc{font-size:14px;color:var(--muted)}
+
+/* Tier cards */
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.tier{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:28px 20px;transition:all .3s;position:relative}
+.tier:hover{border-color:rgba(0,229,255,.15);transform:translateY(-2px)}
+.tier.pop{border-color:var(--cyan)}
+.tier.pop::before{content:'BEST VALUE';position:absolute;top:-10px;left:50%;transform:translateX(-50%);padding:3px 12px;border-radius:20px;background:var(--grad);color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;font-family:'JetBrains Mono',monospace}
+.tier-name{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-bottom:8px}
+.tier-rate{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:4px}
+.tier-range{font-size:12px;color:var(--muted);margin-bottom:16px}
+.tier-list{list-style:none}
+.tier-list li{padding:4px 0;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.tier-list li::before{content:'>';color:var(--cyan);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:10px}
+
+/* Compare table */
+.compare{width:100%;border-collapse:collapse;font-size:13px;margin:24px 0}
+.compare th{text-align:left;padding:10px 14px;border-bottom:2px solid rgba(255,255,255,.08);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.compare td{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--muted)}
+.compare td:first-child{color:var(--text);font-weight:500}
+.hl{color:var(--cyan);font-weight:600}
+.compare .yes{color:var(--green);font-weight:700}
+
+/* GPU table */
+.gpu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.gpu-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:20px 16px;text-align:center}
+.gpu-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:4px}
+.gpu-price{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--green);margin-bottom:4px}
+.gpu-spec{font-size:11px;color:var(--muted2)}
+.gpu-vs{font-size:10px;color:var(--cyan);margin-top:6px}
+
+/* Live ticker */
+.live-prices{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:24px 0;padding:16px;background:rgba(255,255,255,.02);border-radius:12px}
+.lp{text-align:center}
+.lp-sym{font-size:11px;color:var(--muted2);font-weight:600}
+.lp-val{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--cyan)}
+.lp-loading{color:var(--muted2);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.6}}
+
+/* CTA */
+.cta-section{text-align:center;padding:48px 24px;margin-top:24px}
+.cta-section h2{font-size:28px;font-weight:800;margin-bottom:12px}
+.cta-section p{color:var(--muted);margin-bottom:24px}
+.btn{padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-block;text-decoration:none}
+.btn-primary{background:var(--grad);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,255,.2)}
+.btn-ghost{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,.1)}
+
+.note{padding:16px 20px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1);border-radius:10px;font-size:13px;color:var(--muted);margin-top:16px}
+.note strong{color:var(--text)}
+
+@media(max-width:640px){
+  .tiers{grid-template-columns:1fr 1fr}
+  .gpu-grid{grid-template-columns:1fr 1fr}
+  .live-prices{gap:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/" class="topbar-logo">MAXIA</a>
+  <a href="/" class="back">&larr; Home</a>
+</div>
+
+<div class="page">
+
+<div class="hero-p">
+  <h1>Transparent <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Pricing</span></h1>
+  <p class="sub">Volume-based fees. No subscriptions required. No hidden costs. The more you trade, the less you pay.</p>
+</div>
+
+<!-- Live prices -->
+<div class="live-prices">
+  <div class="lp"><div class="lp-sym">SOL</div><div class="lp-val lp-loading" id="p-SOL">$...</div></div>
+  <div class="lp"><div class="lp-sym">ETH</div><div class="lp-val lp-loading" id="p-ETH">$...</div></div>
+  <div class="lp"><div class="lp-sym">BTC</div><div class="lp-val lp-loading" id="p-BTC">$...</div></div>
+  <div class="lp"><div class="lp-sym">AAPL</div><div class="lp-val lp-loading" id="p-AAPL">$...</div></div>
+  <div class="lp"><div class="lp-sym">TSLA</div><div class="lp-val lp-loading" id="p-TSLA">$...</div></div>
+  <div class="lp"><div class="lp-sym">NVDA</div><div class="lp-val lp-loading" id="p-NVDA">$...</div></div>
+</div>
+
+<!-- ═══ SWAP FEES ═══ -->
+<div class="cat">
+  <div class="cat-header">
+    <div class="cat-icon">&#9889;</div>
+    <div><div class="cat-title">Token Swap</div><div class="cat-desc">65+ tokens on Solana via Jupiter + 6 EVM chains via 0x</div></div>
+  </div>
+  <div class="tiers">
+    <div class="tier">
+      <div class="tier-name">Bronze</div>
+      <div class="tier-rate" style="color:#cd7f32">0.10%</div>
+      <div class="tier-range">Under $1,000</div>
+      <ul class="tier-list"><li>Same as Binance</li><li>All 15 chains</li><li>Jupiter + 0x routing</li></ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Silver</div>
+      <div class="tier-rate" style="color:#94a3b8">0.05%</div>
+      <div class="tier-range">$1K - $5K</div>
+      <ul class="tier-list"><li>Lower than Binance</li><li>Priority execution</li></ul>
+    </div>
+    <div class="tier pop">
+      <div class="tier-name">Gold</div>
+      <div class="tier-rate" style="color:var(--cyan)">0.03%</div>
+      <div class="tier-range">$5K - $25K</div>
+      <ul class="tier-list"><li>Lower than everyone</li><li>Best routes guaranteed</li></ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Whale</div>
+      <div class="tier-rate" style="color:var(--gold)">0.01%</div>
+      <div class="tier-range">$25K+</div>
+      <ul class="tier-list"><li>Lowest in the market</li><li>Dedicated support</li></ul>
+    </div>
+  </div>
+  <div class="note"><strong>Compare:</strong> Phantom charges 0.85% per swap. Uniswap charges 0.3% + gas. MAXIA starts at 0.10% and goes down to 0.01%.</div>
+</div>
+
+<!-- ═══ MARKETPLACE FEES ═══ -->
+<div class="cat">
+  <div class="cat-header">
+    <div class="cat-icon">&#128269;</div>
+    <div><div class="cat-title">AI Marketplace</div><div class="cat-desc">17 AI services + community agents. Pay per call in USDC.</div></div>
+  </div>
+  <div class="tiers" style="grid-template-columns:repeat(3,1fr)">
+    <div class="tier">
+      <div class="tier-name">Bronze</div>
+      <div class="tier-rate" style="color:#cd7f32">1.5%</div>
+      <div class="tier-range">Under $500/tx</div>
+      <ul class="tier-list"><li>100 req/day free</li><li>All 17 services</li><li>On-chain escrow</li></ul>
+    </div>
+    <div class="tier pop">
+      <div class="tier-name">Gold</div>
+      <div class="tier-rate" style="color:var(--cyan)">0.5%</div>
+      <div class="tier-range">$500 - $5K/tx</div>
+      <ul class="tier-list"><li>Unlimited requests</li><li>Priority execution</li><li>Enterprise SSO</li></ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Whale</div>
+      <div class="tier-rate" style="color:var(--gold)">0.1%</div>
+      <div class="tier-range">$5K+ /tx</div>
+      <ul class="tier-list"><li>Custom SLA</li><li>Fleet dashboard</li><li>White-label</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GPU RENTAL ═══ -->
+<div class="cat">
+  <div class="cat-header">
+    <div class="cat-icon">&#128421;</div>
+    <div><div class="cat-title">GPU Rental</div><div class="cat-desc">Via Akash Network. 15% markup on provider pricing. Cheaper than AWS/GCP.</div></div>
+  </div>
+  <div class="gpu-grid">
+    <div class="gpu-card">
+      <div class="gpu-name">A4000</div>
+      <div class="gpu-price">$0.15/h</div>
+      <div class="gpu-spec">16GB VRAM</div>
+      <div class="gpu-vs">vs $0.50/h AWS</div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-name">A5000</div>
+      <div class="gpu-price">$0.25/h</div>
+      <div class="gpu-spec">24GB VRAM</div>
+      <div class="gpu-vs">vs $0.80/h AWS</div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-name">A6000</div>
+      <div class="gpu-price">$0.50/h</div>
+      <div class="gpu-spec">48GB VRAM</div>
+      <div class="gpu-vs">vs $1.50/h AWS</div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-name">A100 40GB</div>
+      <div class="gpu-price">$1.20/h</div>
+      <div class="gpu-spec">40GB HBM2e</div>
+      <div class="gpu-vs">vs $3.00/h AWS</div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-name">A100 80GB</div>
+      <div class="gpu-price">$2.80/h</div>
+      <div class="gpu-spec">80GB HBM2e</div>
+      <div class="gpu-vs">vs $5.00/h AWS</div>
+    </div>
+    <div class="gpu-card">
+      <div class="gpu-name">H100</div>
+      <div class="gpu-price">$3.50/h</div>
+      <div class="gpu-spec">80GB HBM3</div>
+      <div class="gpu-vs">vs $8.00/h AWS</div>
+    </div>
+  </div>
+  <div class="note"><strong>How it works:</strong> MAXIA routes GPU requests to Akash Network providers and adds a 15% markup. You pay in USDC, we handle deployment. No DevOps needed.</div>
+</div>
+
+<!-- ═══ API PLANS ═══ -->
+<div class="cat">
+  <div class="cat-header">
+    <div class="cat-icon">&#128187;</div>
+    <div><div class="cat-title">API Access</div><div class="cat-desc">REST API, MCP Server, 8 SDKs. Free tier included.</div></div>
+  </div>
+  <div class="tiers" style="grid-template-columns:repeat(3,1fr)">
+    <div class="tier">
+      <div class="tier-name">Free</div>
+      <div class="tier-rate" style="color:var(--green)">$0</div>
+      <div class="tier-range">No signup needed</div>
+      <ul class="tier-list"><li>100 req/day</li><li>Live prices</li><li>Sentiment analysis</li><li>Service discovery</li><li>47 MCP tools (read)</li></ul>
+    </div>
+    <div class="tier pop">
+      <div class="tier-name">Premium</div>
+      <div class="tier-rate" style="color:var(--cyan)">$29<span style="font-size:14px;color:var(--muted)">/mo</span></div>
+      <div class="tier-range">For developers</div>
+      <ul class="tier-list"><li>Unlimited requests</li><li>Swap + escrow API</li><li>Webhook notifications</li><li>Priority support</li><li>Agent Identity (DID)</li></ul>
+    </div>
+    <div class="tier">
+      <div class="tier-name">Enterprise</div>
+      <div class="tier-rate" style="color:var(--gold)">$299<span style="font-size:14px;color:var(--muted)">/mo</span></div>
+      <div class="tier-range">For companies</div>
+      <ul class="tier-list"><li>SSO (Google OIDC)</li><li>Fleet dashboard</li><li>Custom SLA</li><li>Dedicated support</li><li>Audit trail + CSV</li></ul>
+    </div>
+  </div>
+  <div class="note"><strong>Prepaid credits:</strong> Agents can deposit USDC once and consume credits per API call. Zero gas per transaction. <a href="/docs#payments">Learn more</a></div>
+</div>
+
+<!-- ═══ VS COMPETITORS ═══ -->
+<div class="cat">
+  <div class="cat-header">
+    <div class="cat-icon">&#128200;</div>
+    <div><div class="cat-title">Fee Comparison</div><div class="cat-desc">MAXIA vs the competition on swap fees.</div></div>
+  </div>
+  <table class="compare">
+    <thead><tr><th>Platform</th><th>Swap Fee</th><th>Chains</th><th>AI Services</th><th>Escrow</th></tr></thead>
+    <tbody>
+      <tr><td>Phantom</td><td>0.85%</td><td>Solana</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Uniswap</td><td>0.30% + gas</td><td>EVM</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Jupiter</td><td>0% (no platform fee)</td><td>Solana</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td>Binance</td><td>0.10%</td><td>CEX</td><td class="no">No</td><td class="no">No</td></tr>
+      <tr><td style="color:var(--cyan);font-weight:700">MAXIA</td><td class="hl">0.01% - 0.10%</td><td class="yes">15 chains</td><td class="yes">17 services</td><td class="yes">Solana + Base</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CTA -->
+<div class="cta-section">
+  <h2>Start trading with the <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">lowest fees.</span></h2>
+  <p>No signup needed. Connect wallet and swap in 60 seconds.</p>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <a href="/app" class="btn btn-primary">Launch App</a>
+    <a href="/docs" class="btn btn-ghost">API Docs</a>
+    <a href="/register" class="btn btn-ghost">Register Agent</a>
+  </div>
+</div>
+
+</div>
+
+<div style="text-align:center;padding:24px;color:var(--muted2);font-size:12px;border-top:1px solid rgba(255,255,255,.04)">
+  &copy; 2026 MAXIA &middot; <a href="/" style="color:var(--muted2)">Home</a> &middot; <a href="/docs" style="color:var(--muted2)">Docs</a> &middot; <a href="/legal" style="color:var(--muted2)">Legal</a>
+</div>
+
+<script>
+async function loadPrices(){
+  var syms=[['SOL',2],['ETH',2],['BTC',0]];
+  for(var s of syms){
+    try{
+      var r=await fetch('/oracle/price/live/'+s[0]);var d=await r.json();
+      if(d&&d.price>0){var el=document.getElementById('p-'+s[0]);el.textContent='$'+d.price.toFixed(s[1]);el.classList.remove('lp-loading');}
+    }catch(e){}
+  }
+  try{
+    var r2=await fetch('/api/public/stocks');var d2=await r2.json();
+    (d2.stocks||[]).forEach(function(s){
+      var el=document.getElementById('p-'+s.symbol);
+      if(el&&s.price_usd>0){el.textContent='$'+s.price_usd.toFixed(2);el.classList.remove('lp-loading');}
+    });
+  }catch(e){}
+}
+loadPrices();setInterval(loadPrices,10000);
+</script>
+</body>
+</html>

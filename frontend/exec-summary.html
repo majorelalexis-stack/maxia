@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAXIA — Executive Summary</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--cyan:#00e5ff;--purple:#7c3aed;--green:#22c55e;--gold:#f59e0b;--grad:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e)}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;padding:48px 24px}
+a{color:var(--cyan);text-decoration:none}
+h1,h2,h3{font-family:'Syne',sans-serif}
+.page{max-width:800px;margin:0 auto}
+.header{text-align:center;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid rgba(255,255,255,.06)}
+.logo{font-family:'Syne',sans-serif;font-size:48px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px}
+.subtitle{font-size:18px;color:var(--muted);margin-top:8px}
+.date{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted2);margin-top:12px;letter-spacing:1px}
+.section{margin-bottom:36px}
+.section h2{font-size:20px;font-weight:700;margin-bottom:12px;color:var(--cyan);letter-spacing:-.5px}
+.section p{color:var(--muted);font-size:15px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
+.kpi{text-align:center;padding:16px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
+.kpi-val{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--cyan)}
+.kpi-label{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:4px}
+.rev-table{width:100%;border-collapse:collapse;font-size:14px;margin:16px 0}
+.rev-table th{text-align:left;padding:10px 14px;border-bottom:2px solid rgba(255,255,255,.08);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+.rev-table td{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--muted)}
+.rev-table td:first-child{color:var(--text);font-weight:500}
+.hl{color:var(--cyan);font-weight:600}
+.highlight{padding:16px 20px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1);border-radius:10px;font-size:14px;color:var(--muted);margin:16px 0}
+.highlight strong{color:var(--text)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.col-card{padding:16px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
+.col-card h3{font-size:15px;font-weight:700;margin-bottom:8px}
+.col-card ul{list-style:none;padding:0}
+.col-card li{padding:3px 0;font-size:13px;color:var(--muted)}
+.col-card li::before{content:'> ';color:var(--cyan);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px}
+.footer-exec{text-align:center;padding-top:32px;border-top:1px solid rgba(255,255,255,.06);margin-top:48px;font-size:13px;color:var(--muted2)}
+@media(max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+@media print{body{background:#fff;color:#222}.kpi-val{color:#0891b2}h2{color:#0891b2}.muted,.muted2{color:#666}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="header">
+  <div class="logo">MAXIA</div>
+  <div class="subtitle">The Payment Infrastructure for Autonomous AI Agents</div>
+  <div class="date">EXECUTIVE SUMMARY &mdash; APRIL 2026 &mdash; CONFIDENTIAL</div>
+</div>
+
+<div class="section">
+  <h2>The Opportunity</h2>
+  <p>500,000+ AI agents are deployed worldwide (LangChain, CrewAI, AutoGPT, ElizaOS) but no standard infrastructure exists for agent-to-agent payments. MAXIA is the first platform where AI agents can discover services, pay via on-chain escrow, and settle in USDC &mdash; autonomously, across 15 blockchains.</p>
+  <div class="highlight"><strong>Market size:</strong> Autonomous AI agents represent a $65B market by 2030 (Grand View Research). MAXIA's serviceable addressable market for agent payment infrastructure is $500M-$2B.</div>
+</div>
+
+<div class="section">
+  <h2>Product (Live Today)</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val">799+</div><div class="kpi-label">API Routes</div></div>
+    <div class="kpi"><div class="kpi-val">15</div><div class="kpi-label">Blockchains</div></div>
+    <div class="kpi"><div class="kpi-val">47</div><div class="kpi-label">MCP Tools</div></div>
+    <div class="kpi"><div class="kpi-val">8</div><div class="kpi-label">Published SDKs</div></div>
+  </div>
+  <div class="two-col">
+    <div class="col-card">
+      <h3>Core Features</h3>
+      <ul>
+        <li>Token swap: 65+ tokens via Jupiter + 0x</li>
+        <li>On-chain escrow: Solana + Base mainnet</li>
+        <li>AI marketplace: 17 native services</li>
+        <li>GPU rental: 13 tiers via Akash Network</li>
+        <li>Card purchase: Guardarian/Transak/Moonpay</li>
+        <li>Trading bots: DCA, Grid, Sniper</li>
+      </ul>
+    </div>
+    <div class="col-card">
+      <h3>For AI Agents</h3>
+      <ul>
+        <li>MCP Server: 47 tools for Claude/Cursor</li>
+        <li>8 SDKs: Python, LangChain, CrewAI, etc.</li>
+        <li>Agent Identity: W3C DID + ed25519</li>
+        <li>Prepaid credits: zero gas per API call</li>
+        <li>AIP Protocol: signed intent envelopes</li>
+        <li>567 automated tests, 218 modules</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Revenue Model</h2>
+  <table class="rev-table">
+    <thead><tr><th>Source</th><th>Rate</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr><td>Token Swap</td><td class="hl">0.01% - 0.10%</td><td>Per trade (volume tiers)</td></tr>
+      <tr><td>Marketplace</td><td class="hl">0.5% - 1.5%</td><td>Per transaction</td></tr>
+      <tr><td>GPU Rental</td><td class="hl">15% markup</td><td>On Akash pricing</td></tr>
+      <tr><td>API Plans</td><td class="hl">$29 - $299/mo</td><td>SaaS (Premium/Enterprise)</td></tr>
+      <tr><td>Prepaid Credits</td><td class="hl">USDC float</td><td>Deposit + per-call</td></tr>
+    </tbody>
+  </table>
+  <table class="rev-table">
+    <thead><tr><th>Period</th><th>Agents</th><th>Volume/mo</th><th>Revenue/mo</th></tr></thead>
+    <tbody>
+      <tr><td>Months 1-6</td><td>10-50</td><td>$5K-50K</td><td class="hl">$50-500</td></tr>
+      <tr><td>Year 1</td><td>50-500</td><td>$50K-500K</td><td class="hl">$500-5K</td></tr>
+      <tr><td>Year 2</td><td>500-5K</td><td>$500K-5M</td><td class="hl">$5K-50K</td></tr>
+      <tr><td>Year 3</td><td>5K-50K</td><td>$5M-50M</td><td class="hl">$50K-500K</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Competitive Advantage</h2>
+  <div class="two-col">
+    <div class="col-card">
+      <h3>What We Have</h3>
+      <ul>
+        <li>First mover: agent-to-agent payments</li>
+        <li>Live product: 17 features on mainnet</li>
+        <li>Multi-chain: 15 blockchains (vs 1-2)</li>
+        <li>MCP standard: 47 tools, any AI connects</li>
+        <li>Lowest fees: 0.01% whale tier</li>
+        <li>Zero burn rate: solo founder, local GPU</li>
+      </ul>
+    </div>
+    <div class="col-card">
+      <h3>Verifiable On-Chain</h3>
+      <ul>
+        <li>Solana escrow: 8ADNmAPD...rXwBUY</li>
+        <li>Base escrow: 0xBd31bB97...510C</li>
+        <li>Python SDK: pip install maxia</li>
+        <li>MCP: maxiaworld.app/mcp</li>
+        <li>GitHub: github.com/MAXIAWORLD</li>
+        <li>Live: maxiaworld.app</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>The Ask</h2>
+  <div class="highlight">
+    <strong>Seeking &euro;50,000 - &euro;200,000 seed round.</strong> Pre-money valuation: &euro;500K - &euro;1M. Founder retains 51%+ control. Up to 20% equity available.
+  </div>
+  <table class="rev-table">
+    <thead><tr><th>Allocation</th><th>%</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>Legal &amp; Compliance</td><td class="hl">15%</td><td>ToS, GDPR, KYC (Synaps), crypto lawyer</td></tr>
+      <tr><td>Client Acquisition</td><td class="hl">30%</td><td>Marketing, partnerships, community</td></tr>
+      <tr><td>Infrastructure</td><td class="hl">20%</td><td>WAF, security audit, monitoring, CDN</td></tr>
+      <tr><td>Hiring</td><td class="hl">35%</td><td>1 senior full-stack developer</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Team</h2>
+  <p><strong>Alexis Majorel</strong> &mdash; Founder &amp; CTO. Full-stack developer specialized in blockchain and AI. Built the entire platform solo (191 modules, 2 smart contracts, 8 SDKs) using AI-assisted development (Claude Code). This is the MAXIA thesis in action: AI amplifying human capability.</p>
+</div>
+
+<div class="footer-exec">
+  <strong style="color:var(--text)">Contact:</strong> majorel.alexis@gmail.com &middot; maxiaworld.app &middot; @MAXIA_WORLD<br>
+  <span style="margin-top:8px;display:inline-block">Pitch deck: <a href="/pitch">maxiaworld.app/pitch</a></span>
+</div>
+
+</div>
+</body>
+</html>

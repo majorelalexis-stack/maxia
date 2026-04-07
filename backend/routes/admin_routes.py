@@ -735,3 +735,69 @@ async def preflight(request: Request):
     from infra.preflight import check_system_ready
     results = await check_system_ready()
     return results
+
+
+# ══════════════════════════════════════════
+# Feedback / Bug Report (PRO-H3)
+# ══════════════════════════════════════════
+
+_FEEDBACK_FILE = Path(__file__).parent.parent / "feedback.jsonl"
+_FEEDBACK_RATE: dict[str, float] = {}  # IP -> last submission timestamp
+
+
+@router.post("/api/feedback")
+async def submit_feedback(request: Request):
+    """Public feedback/bug report endpoint. Rate-limited to 1 per minute per IP."""
+    from core.security import check_content_safety
+
+    ip = request.client.host if request.client else "unknown"
+
+    # Rate limit: 1 per minute per IP
+    now = time.time()
+    last = _FEEDBACK_RATE.get(ip, 0)
+    if now - last < 60:
+        raise HTTPException(429, "Please wait before submitting another report.")
+    _FEEDBACK_RATE[ip] = now
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    category = str(body.get("category", "general"))[:50]
+    message = str(body.get("message", ""))[:2000]
+    contact = str(body.get("contact", ""))[:200]
+
+    if not message or len(message.strip()) < 10:
+        raise HTTPException(400, "Message must be at least 10 characters.")
+
+    # Content safety check
+    safety = check_content_safety(message)
+    if not safety.get("safe", True):
+        raise HTTPException(400, "Content flagged by safety filter.")
+
+    entry = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "ip": ip[:45],
+        "category": category,
+        "message": message.strip(),
+        "contact": contact.strip(),
+    }
+
+    try:
+        with open(_FEEDBACK_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError as e:
+        logger.error("Failed to write feedback: %s", e)
+        raise HTTPException(500, "Failed to save feedback.")
+
+    logger.info("[FEEDBACK] New %s from %s: %s", category, ip, message[:80])
+
+    # Alert Telegram (PRO-I3)
+    try:
+        from infra.alerts import alert_feedback_received
+        await alert_feedback_received(category, message)
+    except Exception:
+        pass
+
+    return {"status": "ok", "message": "Thank you for your feedback!"}

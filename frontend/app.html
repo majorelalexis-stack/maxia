@@ -1629,5 +1629,85 @@ function pwaDismiss() {
 </script>
 
 <a href="/forum?community=bugs" id="bug-badge" style="position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:10px 18px;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;text-decoration:none;backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.3);transition:all .2s" onmouseenter="this.style.background='rgba(245,158,11,.25)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='rgba(245,158,11,.15)';this.style.transform=''"><span style="font-size:20px">&#128027;</span> Report Bug</a>
+
+<!-- ═══ ONBOARDING WIZARD (3 steps, first visit only) ═══ -->
+<div id="onboarding-overlay" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);align-items:center;justify-content:center">
+<div id="onboarding-modal" style="background:#0c1222;border:1px solid rgba(255,255,255,.08);border-radius:20px;max-width:520px;width:90%;padding:40px 32px;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.5)">
+  <button onclick="onboardClose()" style="position:absolute;top:16px;right:16px;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:#a1a1aa;cursor:pointer;font-size:16px">&times;</button>
+  <div style="text-align:center;margin-bottom:24px">
+    <div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Welcome to MAXIA</div>
+    <div style="font-size:14px;color:#a1a1aa;margin-top:8px">Get started in 3 steps</div>
+  </div>
+  <!-- Progress -->
+  <div style="display:flex;gap:8px;margin-bottom:28px">
+    <div id="ob-dot-1" style="flex:1;height:3px;border-radius:2px;background:#00e5ff;transition:background .3s"></div>
+    <div id="ob-dot-2" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.1);transition:background .3s"></div>
+    <div id="ob-dot-3" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.1);transition:background .3s"></div>
+  </div>
+  <!-- Step 1 -->
+  <div id="ob-step-1">
+    <div style="text-align:center;font-size:48px;margin-bottom:16px">&#9889;</div>
+    <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:700;text-align:center;margin-bottom:8px">Explore Freely</div>
+    <div style="font-size:14px;color:#a1a1aa;text-align:center;line-height:1.6;margin-bottom:24px">Browse prices, charts, AI services, and DeFi yields without signing up. Everything is open to explore.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px">
+      <a href="#swap" onclick="onboardClose()" style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid rgba(0,229,255,.2);background:rgba(0,229,255,.04);color:#67e8f9;font-size:13px;font-weight:600;text-decoration:none">&#9889; Swap</a>
+      <a href="#trading" onclick="onboardClose()" style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid rgba(124,58,237,.2);background:rgba(124,58,237,.04);color:#a78bfa;font-size:13px;font-weight:600;text-decoration:none">&#128202; Trading</a>
+      <a href="#gpu" onclick="onboardClose()" style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid rgba(34,197,94,.2);background:rgba(34,197,94,.04);color:#86efac;font-size:13px;font-weight:600;text-decoration:none">&#128421; GPU</a>
+      <a href="#yields" onclick="onboardClose()" style="display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.04);color:#fcd34d;font-size:13px;font-weight:600;text-decoration:none">&#127793; DeFi</a>
+    </div>
+    <button onclick="onboardNext(2)" style="width:100%;padding:14px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;font-weight:600;font-size:15px;border:none;cursor:pointer;font-family:DM Sans,sans-serif;transition:all .3s">Next: Connect Wallet &#8594;</button>
+  </div>
+  <!-- Step 2 -->
+  <div id="ob-step-2" style="display:none">
+    <div style="text-align:center;font-size:48px;margin-bottom:16px">&#128274;</div>
+    <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:700;text-align:center;margin-bottom:8px">Connect Your Wallet</div>
+    <div style="font-size:14px;color:#a1a1aa;text-align:center;line-height:1.6;margin-bottom:24px">To swap tokens or use services, connect a wallet. We support 10 wallets including Phantom and MetaMask.</div>
+    <div style="padding:16px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:8px;height:8px;border-radius:50%;background:#22c55e"></div><div style="font-size:13px"><strong style="color:#e4e4e7">Solana:</strong> <span style="color:#a1a1aa">Phantom, Solflare, Backpack, Torus</span></div></div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></div><div style="font-size:13px"><strong style="color:#e4e4e7">EVM:</strong> <span style="color:#a1a1aa">MetaMask, Coinbase Wallet, WalletConnect</span></div></div>
+      <div style="display:flex;align-items:center;gap:12px"><div style="width:8px;height:8px;border-radius:50%;background:#f59e0b"></div><div style="font-size:13px"><strong style="color:#e4e4e7">Other:</strong> <span style="color:#a1a1aa">Xverse (BTC), Petra (Aptos), Sui Wallet</span></div></div>
+    </div>
+    <div style="font-size:12px;color:#52525b;text-align:center;margin-bottom:16px">No signup needed. Your wallet is your identity.</div>
+    <div style="display:flex;gap:8px">
+      <button onclick="onboardNext(1)" style="flex:1;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#a1a1aa;font-size:14px;cursor:pointer;font-family:DM Sans,sans-serif">&#8592; Back</button>
+      <button onclick="onboardNext(3)" style="flex:2;padding:12px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:DM Sans,sans-serif">Next: Take Action &#8594;</button>
+    </div>
+  </div>
+  <!-- Step 3 -->
+  <div id="ob-step-3" style="display:none">
+    <div style="text-align:center;font-size:48px;margin-bottom:16px">&#128640;</div>
+    <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:700;text-align:center;margin-bottom:8px">Start Using MAXIA</div>
+    <div style="font-size:14px;color:#a1a1aa;text-align:center;line-height:1.6;margin-bottom:24px">You're ready. Pick your first action below, or ask the AI chat anything.</div>
+    <div style="display:grid;gap:8px;margin-bottom:24px">
+      <a href="#swap" onclick="onboardClose()" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);text-decoration:none;transition:all .2s" onmouseenter="this.style.borderColor='rgba(0,229,255,.2)'" onmouseleave="this.style.borderColor='rgba(255,255,255,.06)'"><span style="font-size:24px">&#9889;</span><div><div style="font-size:14px;font-weight:600;color:#e4e4e7">Swap tokens</div><div style="font-size:12px;color:#a1a1aa">65+ tokens on Solana via Jupiter</div></div></a>
+      <a href="#" onclick="event.preventDefault();onboardClose();var c=document.querySelector('[data-chat-toggle]');if(c)c.click()" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);text-decoration:none;transition:all .2s" onmouseenter="this.style.borderColor='rgba(124,58,237,.2)'" onmouseleave="this.style.borderColor='rgba(255,255,255,.06)'"><span style="font-size:24px">&#129302;</span><div><div style="font-size:14px;font-weight:600;color:#e4e4e7">Ask AI anything</div><div style="font-size:12px;color:#a1a1aa">"price SOL", "analyze wallet", "best yields"</div></div></a>
+      <a href="/marketplace" onclick="onboardClose()" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);text-decoration:none;transition:all .2s" onmouseenter="this.style.borderColor='rgba(245,158,11,.2)'" onmouseleave="this.style.borderColor='rgba(255,255,255,.06)'"><span style="font-size:24px">&#128269;</span><div><div style="font-size:14px;font-weight:600;color:#e4e4e7">Browse marketplace</div><div style="font-size:12px;color:#a1a1aa">17 AI services, pay per call in USDC</div></div></a>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="onboardNext(2)" style="flex:1;padding:12px;border-radius:12px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#a1a1aa;font-size:14px;cursor:pointer;font-family:DM Sans,sans-serif">&#8592; Back</button>
+      <button onclick="onboardClose()" style="flex:2;padding:12px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;font-weight:600;font-size:14px;border:none;cursor:pointer;font-family:DM Sans,sans-serif">Let's Go &#128640;</button>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+function onboardNext(step){
+  for(var i=1;i<=3;i++){
+    var s=document.getElementById('ob-step-'+i);if(s)s.style.display=i===step?'block':'none';
+    var d=document.getElementById('ob-dot-'+i);if(d)d.style.background=i<=step?'#00e5ff':'rgba(255,255,255,.1)';
+  }
+}
+function onboardClose(){
+  var ov=document.getElementById('onboarding-overlay');if(ov)ov.style.display='none';
+  localStorage.setItem('maxia_onboarded','1');
+}
+(function(){
+  if(!localStorage.getItem('maxia_onboarded')){
+    var ov=document.getElementById('onboarding-overlay');
+    if(ov)ov.style.display='flex';
+  }
+})();
+</script>
+
 </body>
 </html>

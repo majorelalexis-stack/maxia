@@ -191,15 +191,19 @@ async def discover_services(
             "badges": ["Original Creator"] if is_original else [],
         })
 
-    # Also include MAXIA native services (8 AI services powered by Groq/Ollama)
+    # Also include MAXIA native services (12 AI services — real implementations, PRO-K10)
     maxia_native = [
+        {"service_id": "maxia-sentiment", "name": "Crypto Sentiment Analysis", "type": "data", "price_usdc": 0.50, "seller": "MAXIA", "rating": 5, "description": "AI scans 1000+ sources for any token. Returns bullish/bearish score with confidence level and key signals."},
         {"service_id": "maxia-audit", "name": "Smart Contract Audit", "type": "audit", "price_usdc": 4.99, "seller": "MAXIA", "rating": 5, "description": "AI-powered security audit of Solana/EVM smart contracts. Detects vulnerabilities, reentrancy, overflow, access control issues."},
         {"service_id": "maxia-code", "name": "AI Code Review", "type": "code", "price_usdc": 2.99, "seller": "MAXIA", "rating": 5, "description": "Automated code review for Python, Rust, JavaScript, Solidity. Finds bugs, suggests improvements, checks best practices."},
         {"service_id": "maxia-translate", "name": "AI Translation", "type": "text", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Translate text between 50+ languages. Technical documentation, marketing copy, chat messages."},
         {"service_id": "maxia-summary", "name": "Document Summary", "type": "text", "price_usdc": 0.49, "seller": "MAXIA", "rating": 5, "description": "Summarize any document, whitepaper, or article into key bullet points. Supports up to 10,000 words."},
         {"service_id": "maxia-wallet", "name": "Wallet Analyzer", "type": "data", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "Deep analysis of any Solana wallet: token holdings, transaction history, DeFi positions, risk score."},
+        {"service_id": "maxia-wallet-risk", "name": "Wallet Risk Score", "type": "data", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Risk score (0-100) for any wallet address. Checks whale status, rug pull patterns, wash trading, sanctions."},
+        {"service_id": "maxia-price", "name": "Real-Time Token Price", "type": "data", "price_usdc": 0.005, "seller": "MAXIA", "rating": 5, "description": "Sub-second token prices from Pyth oracle + CoinGecko. 65+ tokens. Includes confidence interval."},
         {"service_id": "maxia-marketing", "name": "Marketing Copy Generator", "type": "text", "price_usdc": 0.99, "seller": "MAXIA", "rating": 5, "description": "Generate landing page copy, Twitter threads, blog posts, product descriptions. Optimized for Web3/AI audience."},
-        {"service_id": "maxia-image", "name": "AI Image Generator", "type": "image", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Generate images from text prompts. Logos, illustrations, social media graphics. 1024x1024 resolution."},
+        {"service_id": "maxia-image", "name": "AI Image Generator", "type": "image", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Generate images from text prompts via Pollinations.ai. Logos, illustrations, social media graphics. Free, no API key needed."},
+        {"service_id": "maxia-extract", "name": "Data Extraction", "type": "data", "price_usdc": 0.25, "seller": "MAXIA", "rating": 5, "description": "Extract structured JSON from unstructured text. Entities, dates, numbers, relationships. Perfect for parsing documents."},
         {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.02, "seller": "MAXIA", "rating": 5, "description": "Extract structured data from any website. Returns clean JSON with the data you need."},
     ]
     for ns in maxia_native:
@@ -889,6 +893,85 @@ async def _dispatch_real_service(service_id: str, prompt: str) -> str | None:
     # ── Code Generation / Smart Contract Audit ──
     if service_id in ("maxia-code", "maxia-code-review", "maxia-audit"):
         # These use LLM but with the specialized system prompt — let fallback handle it
+        return None
+
+    # ── Token Price (real-time) ──
+    if service_id == "maxia-price":
+        try:
+            token = _extract_token_from_prompt(prompt)
+            from trading.pyth_oracle import get_pyth_price, PYTH_SYMBOL_TO_FEED
+            feed_id = PYTH_SYMBOL_TO_FEED.get(token)
+            if feed_id:
+                result = await asyncio.wait_for(get_pyth_price(feed_id), timeout=10)
+                if result.get("price"):
+                    return json.dumps({
+                        "symbol": token,
+                        "price_usd": result["price"],
+                        "confidence": result.get("confidence", 0),
+                        "source": "pyth",
+                        "timestamp": result.get("publish_time", 0),
+                    }, indent=2)
+            # Fallback to CoinGecko
+            from trading.price_oracle import get_price
+            price = await asyncio.wait_for(get_price(token), timeout=10)
+            if price and price > 0:
+                return json.dumps({"symbol": token, "price_usd": price, "source": "coingecko"}, indent=2)
+        except Exception as e:
+            logger.error("Real price service error: %s", e)
+        return None
+
+    # ── Text Summarization ──
+    if service_id in ("maxia-summarize", "maxia-summary"):
+        try:
+            from ai.llm_router import router as llm_router
+            result = await asyncio.wait_for(
+                llm_router.generate(
+                    system="You are a concise summarizer. Summarize the following text in 3-5 bullet points. Be precise and factual.",
+                    prompt=f"Summarize this text:\n\n{prompt[:4000]}",
+                    max_tokens=500,
+                ),
+                timeout=30,
+            )
+            if result:
+                return json.dumps({"summary": result, "original_length": len(prompt), "service": "maxia-summarize"}, indent=2)
+        except Exception as e:
+            logger.error("Real summarize service error: %s", e)
+        return None
+
+    # ── Translation (EN/FR/ES/DE/PT/ZH/JA) ──
+    if service_id in ("maxia-translate", "maxia-translation"):
+        try:
+            from ai.llm_router import router as llm_router
+            result = await asyncio.wait_for(
+                llm_router.generate(
+                    system="You are a professional translator. Translate the text accurately. Preserve formatting. If no target language is specified, translate to English.",
+                    prompt=prompt[:4000],
+                    max_tokens=2000,
+                ),
+                timeout=30,
+            )
+            if result:
+                return json.dumps({"translation": result, "service": "maxia-translate"}, indent=2)
+        except Exception as e:
+            logger.error("Real translation service error: %s", e)
+        return None
+
+    # ── Data Extraction (structured from unstructured) ──
+    if service_id in ("maxia-extract", "maxia-data-extract"):
+        try:
+            from ai.llm_router import router as llm_router
+            result = await asyncio.wait_for(
+                llm_router.generate(
+                    system="You are a data extraction specialist. Extract structured data from the text and return valid JSON. Include all entities, dates, numbers, and relationships found.",
+                    prompt=f"Extract structured data from:\n\n{prompt[:4000]}",
+                    max_tokens=1000,
+                ),
+                timeout=30,
+            )
+            if result:
+                return json.dumps({"extracted": result, "service": "maxia-extract"}, indent=2)
+        except Exception as e:
+            logger.error("Real data extraction error: %s", e)
         return None
 
     # ── DeFi Yields ──

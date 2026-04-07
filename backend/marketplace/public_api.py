@@ -311,10 +311,11 @@ async def register_agent(req: dict, request: Request):
         except Exception as e:
             logger.error("Referral error: %s", e)
 
-    # Alerte Discord
+    # Alerte Telegram enrichie (PRO-I3)
     try:
-        from infra.alerts import alert_new_client
+        from infra.alerts import alert_new_client, alert_new_agent_registered
         await alert_new_client(wallet, f"Agent IA: {name}" + (f" (ref: {referral_code})" if referral_code else ""), 0)
+        await alert_new_agent_registered(name, wallet, api_key)
     except Exception:
         pass
 

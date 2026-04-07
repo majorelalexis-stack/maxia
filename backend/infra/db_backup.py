@@ -1,4 +1,4 @@
-"""MAXIA DB Backup — Automated SQLite backup"""
+"""MAXIA DB Backup — Automated SQLite/PG backup + offsite copy (PRO-I4)"""
 import logging
 import asyncio, shutil, time, os
 from pathlib import Path
@@ -77,10 +77,78 @@ async def backup_db():
 
 
 async def run_backup_scheduler():
-    """Backup every 6 hours."""
+    """Backup every 6 hours + offsite copy."""
     while True:
-        await backup_db()
+        result = await backup_db()
+        if result.get("success") and result.get("file"):
+            await offsite_copy(result["file"])
         await asyncio.sleep(21600)  # 6 hours
+
+
+# ══════════════════════════════════════════
+# OFFSITE BACKUP (PRO-I4)
+# ══════════════════════════════════════════
+
+OFFSITE_DIR = Path(os.getenv("BACKUP_OFFSITE_DIR", ""))
+OFFSITE_SCP_TARGET = os.getenv("BACKUP_OFFSITE_SCP", "")  # user@host:/path/
+
+
+async def offsite_copy(backup_path: str) -> dict:
+    """Copy latest backup to offsite location (local dir or SCP).
+
+    Configure via env vars:
+    - BACKUP_OFFSITE_DIR=/mnt/external/maxia-backups  (local/NFS mount)
+    - BACKUP_OFFSITE_SCP=user@backup-server:/backups/maxia/  (remote SCP)
+    """
+    src = Path(backup_path)
+    if not src.exists():
+        return {"success": False, "error": "Source file not found"}
+
+    # Method 1: Local/NFS directory copy
+    if OFFSITE_DIR and OFFSITE_DIR != Path(""):
+        try:
+            OFFSITE_DIR.mkdir(parents=True, exist_ok=True)
+            dest = OFFSITE_DIR / src.name
+            shutil.copy2(str(src), str(dest))
+            # Cleanup old offsite backups (keep 14)
+            offsite_files = sorted(OFFSITE_DIR.glob("maxia_*"), key=lambda p: p.stat().st_mtime)
+            while len(offsite_files) > 14:
+                offsite_files.pop(0).unlink()
+            size_kb = dest.stat().st_size / 1024
+            logger.info("[Backup] Offsite copy: %s -> %s (%.0f KB)", src.name, OFFSITE_DIR, size_kb)
+            return {"success": True, "method": "local", "dest": str(dest), "size_kb": round(size_kb)}
+        except Exception as e:
+            logger.error("[Backup] Offsite local copy failed: %s", e)
+            return {"success": False, "error": str(e)[:200]}
+
+    # Method 2: SCP to remote server
+    if OFFSITE_SCP_TARGET:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "scp", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=30",
+                str(src), OFFSITE_SCP_TARGET,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            if proc.returncode == 0:
+                logger.info("[Backup] Offsite SCP: %s -> %s", src.name, OFFSITE_SCP_TARGET)
+                return {"success": True, "method": "scp", "target": OFFSITE_SCP_TARGET}
+            err = stderr.decode()[:200] if stderr else "unknown"
+            logger.error("[Backup] Offsite SCP failed: %s", err)
+            return {"success": False, "error": f"SCP failed: {err}"}
+        except asyncio.TimeoutError:
+            logger.error("[Backup] Offsite SCP timeout (120s)")
+            return {"success": False, "error": "SCP timeout"}
+        except FileNotFoundError:
+            logger.warning("[Backup] scp not found — install openssh-client")
+            return {"success": False, "error": "scp not installed"}
+        except Exception as e:
+            logger.error("[Backup] Offsite SCP error: %s", e)
+            return {"success": False, "error": str(e)[:200]}
+
+    # No offsite configured
+    return {"success": False, "error": "No offsite target configured (set BACKUP_OFFSITE_DIR or BACKUP_OFFSITE_SCP)"}
 
 
 def get_backup_list():

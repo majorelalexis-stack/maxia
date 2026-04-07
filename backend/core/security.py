@@ -103,29 +103,56 @@ async def get_audit_log_async(limit: int = 50) -> list:
 # ── Admin auth helper ──
 
 def require_admin(request: Request) -> str:
-    """Verifie l'admin via header X-Admin-Key OU cookie session opaque."""
+    """Verifie l'admin via header X-Admin-Key OU cookie session opaque.
+
+    Si 2FA TOTP est active, le header X-Admin-TOTP est aussi requis (sauf pour /2fa/ routes).
+    """
     admin_key = os.getenv("ADMIN_KEY", "")
     if not admin_key:
         raise HTTPException(500, "ADMIN_KEY not configured")
     ip = get_real_ip(request)
     import hmac
+    authenticated = False
+    auth_method = ""
+
     # 1) Header (API calls)
     key = request.headers.get("X-Admin-Key", "")
     if key and hmac.compare_digest(key, admin_key):
-        audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")
-        return key
+        authenticated = True
+        auth_method = "header"
+
     # 2) Cookie session opaque (dashboard browser) — in-memory only (PRO-A3)
-    import time as _t
-    cookie_token = request.cookies.get("maxia_admin", "")
-    if cookie_token:
+    if not authenticated:
+        import time as _t
+        cookie_token = request.cookies.get("maxia_admin", "")
+        if cookie_token:
+            try:
+                from routes.admin_routes import _ADMIN_SESSIONS
+                if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > _t.time():
+                    authenticated = True
+                    auth_method = "cookie"
+            except Exception as e:
+                logger.debug("In-memory admin session check failed: %s", e)
+
+    if not authenticated:
+        audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
+        raise HTTPException(403, "Unauthorized")
+
+    # 3) 2FA TOTP check (PRO-J1) — skip for /2fa/ setup routes
+    path = request.url.path
+    if "/2fa/" not in path:
         try:
-            from routes.admin_routes import _ADMIN_SESSIONS
-            if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > _t.time():
-                return "cookie"
-        except Exception as e:
-            logger.debug("In-memory admin session check failed: %s", e)
-    audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
-    raise HTTPException(403, "Unauthorized")
+            from core.admin_2fa import is_2fa_enabled, verify_totp
+            if is_2fa_enabled():
+                totp_code = request.headers.get("X-Admin-TOTP", "")
+                if not verify_totp(totp_code):
+                    audit_log("admin_2fa_failed", ip, f"path={path}")
+                    raise HTTPException(401, "2FA required. Provide X-Admin-TOTP header with 6-digit TOTP code.")
+        except ImportError:
+            pass  # admin_2fa module not available — skip
+
+    audit_log("admin_auth_ok", ip, f"method={auth_method} path={path}")
+    return key if auth_method == "header" else "cookie"
 
 
 # ── JWT secret validation ──
