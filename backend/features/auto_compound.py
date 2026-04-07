@@ -74,6 +74,7 @@ async def ensure_tables():
             created_at INTEGER DEFAULT (strftime('%s','now')));
         CREATE INDEX IF NOT EXISTS idx_vault_api_key ON compound_vaults(api_key);
         CREATE INDEX IF NOT EXISTS idx_vault_status ON compound_vaults(status);
+        CREATE INDEX IF NOT EXISTS idx_vault_wallet ON compound_vaults(wallet);
     """)
 
 
@@ -296,6 +297,139 @@ async def compound_worker():
             logger.info("[Compound] Cycle done — %d vaults", len(active))
         except Exception as e:
             logger.error("[Compound] Worker error: %s", e)
+
+
+# ── Wallet-based Endpoints (frontend dashboard) ──
+
+def _validate_wallet(wallet: str) -> str:
+    """Valide et retourne l'adresse wallet Solana."""
+    if not wallet or len(wallet) < 32 or len(wallet) > 44:
+        raise HTTPException(400, "Valid Solana wallet address required (32-44 chars)")
+    return wallet
+
+
+@router.post("/w/deposit")
+async def compound_wallet_deposit(req: dict, x_wallet: str = Header(None, alias="X-Wallet")):
+    """Creer un vault auto-compound via wallet (dashboard)."""
+    wallet = _validate_wallet(x_wallet or req.get("wallet", ""))
+    protocol = (req.get("protocol") or "").lower()
+    amount_usdc = float(req.get("amount_usdc", 0))
+    if protocol not in COMPOUND_PROTOCOLS:
+        raise HTTPException(400, f"Invalid protocol. Supported: {sorted(COMPOUND_PROTOCOLS.keys())}")
+    proto = COMPOUND_PROTOCOLS[protocol]
+    if amount_usdc < MIN_DEPOSIT:
+        raise HTTPException(400, f"Minimum deposit: {MIN_DEPOSIT} USDC")
+    if amount_usdc > MAX_DEPOSIT:
+        raise HTTPException(400, f"Maximum deposit: {MAX_DEPOSIT} USDC")
+
+    vault_id, now = str(uuid.uuid4()), int(time.time())
+    synthetic_key = f"wallet:{wallet[:16]}"
+    db = await _get_db()
+    await db.raw_execute(
+        "INSERT INTO compound_vaults(vault_id,api_key,wallet,protocol,asset,"
+        "deposited_usdc,current_value_usdc,performance_fee_pct,last_compound) "
+        "VALUES(?,?,?,?,?,?,?,?,?)",
+        (vault_id, synthetic_key, wallet, protocol, proto["asset"],
+         amount_usdc, amount_usdc, PERFORMANCE_FEE_PCT, now))
+    rates = await _refresh_apy_rates()
+    apy = rates.get(protocol, proto["default_apy"])
+    logger.info("[Compound] Wallet vault %s: %.2f USDC in %s for %s", vault_id[:8], amount_usdc, proto["name"], wallet[:8])
+    return {"success": True, "vault_id": vault_id, "protocol": proto["name"],
+            "asset": proto["asset"], "deposited_usdc": amount_usdc, "current_value_usdc": amount_usdc,
+            "current_apy_percent": apy, "performance_fee_percent": PERFORMANCE_FEE_PCT,
+            "net_apy_percent": _net_apy(apy), "compound_interval": "hourly", "status": "active", "wallet": wallet}
+
+
+@router.get("/w/my")
+async def compound_wallet_my_vaults(x_wallet: str = Header(None, alias="X-Wallet")):
+    """Lister mes vaults auto-compound (auth wallet)."""
+    wallet = _validate_wallet(x_wallet or "")
+    db = await _get_db()
+    rows = await db.raw_execute_fetchall(
+        "SELECT vault_id,api_key,wallet,protocol,asset,deposited_usdc,current_value_usdc,"
+        "total_yield_usdc,total_compounds,performance_fee_pct,status,last_compound,created_at "
+        "FROM compound_vaults WHERE wallet=? ORDER BY created_at DESC", (wallet,))
+    vaults, rates = [], await _refresh_apy_rates()
+    for r in rows:
+        row = dict(r)
+        pid = row.get("protocol", "")
+        apy = rates.get(pid, COMPOUND_PROTOCOLS.get(pid, {}).get("default_apy", 0))
+        dep = float(row.get("deposited_usdc", 0) or 0)
+        val = float(row.get("current_value_usdc", 0) or 0)
+        row.update({"current_apy_percent": apy, "net_apy_percent": _net_apy(apy),
+                     "gain_usdc": round(val - dep, 6) if val > dep else 0.0,
+                     "protocol_name": COMPOUND_PROTOCOLS.get(pid, {}).get("name", pid)})
+        vaults.append(row)
+    return {"vaults": vaults, "total": len(vaults)}
+
+
+@router.delete("/w/{vault_id}")
+async def compound_wallet_withdraw(vault_id: str, x_wallet: str = Header(None, alias="X-Wallet")):
+    """Fermer un vault auto-compound (auth wallet)."""
+    wallet = _validate_wallet(x_wallet or "")
+    db = await _get_db()
+    rows = await db.raw_execute_fetchall(
+        "SELECT vault_id,wallet,status,current_value_usdc,deposited_usdc,total_yield_usdc "
+        "FROM compound_vaults WHERE vault_id=? AND wallet=?", (vault_id, wallet))
+    if not rows:
+        raise HTTPException(404, "Vault not found or not owned by this wallet")
+    vault = dict(rows[0])
+    if vault.get("status") == "closed":
+        raise HTTPException(400, "Vault already closed")
+    await db.raw_execute("UPDATE compound_vaults SET status='closed' WHERE vault_id=? AND wallet=?",
+                         (vault_id, wallet))
+    final = float(vault.get("current_value_usdc", 0) or 0)
+    dep = float(vault.get("deposited_usdc", 0) or 0)
+    yld = float(vault.get("total_yield_usdc", 0) or 0)
+    logger.info("[Compound] Wallet closed %s — dep %.2f, final %.2f", vault_id[:8], dep, final)
+    return {"success": True, "vault_id": vault_id, "status": "closed",
+            "deposited_usdc": dep, "final_value_usdc": final,
+            "total_yield_usdc": yld, "net_profit_usdc": round(final - dep, 6)}
+
+
+@router.get("/w/tx/{vault_id}")
+async def compound_wallet_build_tx(vault_id: str, x_wallet: str = Header(None, alias="X-Wallet")):
+    """Construire une transaction Solana non-signee pour le depot initial du vault."""
+    wallet = _validate_wallet(x_wallet or "")
+    db = await _get_db()
+    rows = await db.raw_execute_fetchall(
+        "SELECT vault_id,wallet,protocol,asset,deposited_usdc,status "
+        "FROM compound_vaults WHERE vault_id=? AND wallet=?", (vault_id, wallet))
+    if not rows:
+        raise HTTPException(404, "Vault not found or not owned by this wallet")
+    vault = dict(rows[0])
+    if vault.get("status") == "closed":
+        raise HTTPException(400, "Vault is closed")
+    protocol = vault["protocol"]
+    amount = float(vault.get("deposited_usdc", 0))
+
+    try:
+        from trading.solana_defi import (
+            _marinade_build_stake_tx, _build_staking_via_jupiter,
+            _build_kamino_lend_tx, JITOSOL_MINT, BSOL_MINT,
+        )
+        if protocol == "marinade":
+            result = await _marinade_build_stake_tx(amount, wallet)
+        elif protocol == "jito":
+            result = await _build_staking_via_jupiter(amount, wallet, JITOSOL_MINT, "Jito")
+        elif protocol == "blazestake":
+            result = await _build_staking_via_jupiter(amount, wallet, BSOL_MINT, "BlazeStake")
+        elif protocol == "kamino":
+            result = await _build_kamino_lend_tx("USDC", amount, wallet, "lend")
+        else:
+            raise HTTPException(400, f"No tx builder for protocol: {protocol}")
+        return {"success": True, "vault_id": vault_id, "protocol": protocol, **result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from core.error_utils import safe_error
+        logger.error("[Compound] TX build error for %s: %s", vault_id[:8], e)
+        # Fallback : instructions manuelles
+        proto = COMPOUND_PROTOCOLS[protocol]
+        return {"success": True, "vault_id": vault_id, "protocol": protocol,
+                "method": "manual", "transaction_b64": None,
+                "steps": [f"1. Go to {proto['url']}", f"2. Connect wallet {wallet[:8]}...",
+                          f"3. Deposit {amount} {proto['asset']}", "4. Confirm in your wallet"]}
 
 
 def get_router():

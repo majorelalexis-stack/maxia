@@ -594,6 +594,7 @@ async def security_headers_middleware(request: Request, call_next):
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https:; "
         "connect-src 'self' wss: ws: https:; "
+        "worker-src 'self'; "
         "frame-src 'self' https://s.tradingview.com https://s3.tradingview.com; "
         "frame-ancestors 'none'"
     )

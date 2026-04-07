@@ -20,7 +20,10 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#3B82F6">
+<meta name="theme-color" content="#060a14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -331,8 +334,27 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js" integrity="sha384-1/Ll6ABlJDlMx1URcif2stL9Fxod/1rg71YHzGqTl6Bwzi0Vq993Jt/oVLFXfUgQ" crossorigin="anonymous" defer></script>
 <script src="/static/lightweight-charts.min.js" defer></script>
 <script src="/static/js/track.js"></script>
+<script src="/static/js/icons.js"></script>
 </head>
 <body>
+<!-- Crypto SVG Sprite (hidden) -->
+<div style="display:none" id="crypto-sprite-container"></div>
+<script>
+(function(){
+  var x=new XMLHttpRequest();
+  x.open('GET','/static/icons/crypto-sprite.svg',true);
+  x.onload=function(){if(x.status===200){
+    document.getElementById('crypto-sprite-container').innerHTML=x.responseText;
+    /* Injecter icones dans les boutons chain EVM */
+    var chainMap={'1':'ethereum','8453':'base','137':'polygon','42161':'arbitrum','43114':'avalanche','56':'bnb'};
+    document.querySelectorAll('.evm-chain-btn').forEach(function(b){
+      var ch=chainMap[b.dataset.chain];
+      if(ch && typeof getChainIcon==='function') b.innerHTML=getChainIcon(ch,14)+' '+b.textContent.trim();
+    });
+  }};
+  x.send();
+})();
+</script>
 <!-- HEX BG + BLOBS -->
 <div style="position:fixed;inset:0;z-index:0;pointer-events:none"><canvas id="hexc"></canvas></div>
 <div style="position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div>
@@ -730,9 +752,42 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <button class="btn-outline yield-type" onclick="setYieldType('lending',this)">Lending</button>
     <button class="btn-outline yield-type" onclick="setYieldType('lp',this)">LP</button>
     <button class="btn-outline yield-type" onclick="setYieldType('farming',this)">Farming</button>
+    <button class="btn-outline yield-type" onclick="setYieldType('compound',this)" style="background:linear-gradient(135deg,#00e5ff22,#7c3aed22);border-color:#7c3aed55">&#x267B; Auto-Compound</button>
   </div>
 
-  <div class="tw">
+  <!-- Section Auto-Compound (cachee par defaut) -->
+  <div id="compound-section" style="display:none">
+    <div class="stats-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0">
+      <div class="stat-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+        <div style="color:var(--muted);font-size:12px">Active Vaults</div>
+        <div id="compound-stat-vaults" style="font-size:24px;font-weight:700;color:var(--cyan)">—</div>
+      </div>
+      <div class="stat-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+        <div style="color:var(--muted);font-size:12px">Total TVL</div>
+        <div id="compound-stat-tvl" style="font-size:24px;font-weight:700;color:var(--green)">—</div>
+      </div>
+      <div class="stat-card" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+        <div style="color:var(--muted);font-size:12px">Yield Generated</div>
+        <div id="compound-stat-yield" style="font-size:24px;font-weight:700;color:var(--purple)">—</div>
+      </div>
+    </div>
+
+    <h3 style="margin:20px 0 12px;font-size:16px;font-weight:600">Protocols</h3>
+    <div id="compound-protocols" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:24px"></div>
+
+    <h3 style="margin:20px 0 12px;font-size:16px;font-weight:600">My Vaults</h3>
+    <div id="compound-no-wallet" style="display:none;text-align:center;color:var(--muted);padding:24px;border:1px dashed var(--border);border-radius:12px">
+      Connect your wallet to see your vaults
+    </div>
+    <div class="tw">
+      <table class="ct" id="compound-vaults-table" style="display:none">
+        <thead><tr><th>Protocol</th><th>Deposited</th><th>Value</th><th>Gain</th><th>APY</th><th>Compounds</th><th></th></tr></thead>
+        <tbody id="compound-vaults-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tw" id="yields-table-wrap">
     <table class="ct" id="yields-table">
       <thead>
         <tr><th>Protocol</th><th>Chain</th><th>APY</th><th>TVL</th><th>Risk</th><th>Type</th><th></th></tr>
@@ -3350,7 +3405,7 @@ function updatePriceTicker(prices) {
     var changeColor = change >= 0 ? 'var(--green)' : 'var(--red, #ef4444)';
     var changeSign = change >= 0 ? '+' : '';
     html += '<div class="ticker-chip">';
-    html += '<span class="sym">' + sym + '</span>';
+    html += (typeof getTokenIcon==='function'?getTokenIcon(sym,16):'') + '<span class="sym">' + sym + '</span>';
     html += '<span class="price">$' + (typeof price === 'number' ? price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: price > 100 ? 0 : 2 }) : price) + '</span>';
     if (change !== 0) html += '<span style="font-size:10px;color:' + changeColor + '">' + changeSign + change.toFixed(1) + '%</span>';
     html += '</div>';
@@ -4585,7 +4640,17 @@ function setYieldType(type, btn) {
   _yieldType = type || '';
   document.querySelectorAll('.yield-type').forEach(function(b) { b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
-  loadYields();
+  var compSec = document.getElementById('compound-section');
+  var yieldWrap = document.getElementById('yields-table-wrap');
+  if (type === 'compound') {
+    if (compSec) compSec.style.display = '';
+    if (yieldWrap) yieldWrap.style.display = 'none';
+    loadCompoundSection();
+  } else {
+    if (compSec) compSec.style.display = 'none';
+    if (yieldWrap) yieldWrap.style.display = '';
+    loadYields();
+  }
 }
 
 async function loadYields(asset, btnEl) {
@@ -4620,7 +4685,7 @@ async function loadYields(asset, btnEl) {
           : '<span style="padding:4px 12px;background:var(--surface2);color:var(--muted);border-radius:6px;font-size:11px">No link</span>';
         return '<tr>' +
           '<td style="font-weight:600">' + esc(proto) + '</td>' +
-          '<td><span class="badge badge-purple" style="font-size:11px">' + esc((p.chain || 'solana').charAt(0).toUpperCase() + (p.chain || 'solana').slice(1)) + '</span></td>' +
+          '<td>' + (typeof getChainIcon==='function'?getChainIcon(p.chain||'solana',14):'') + ' <span class="badge badge-purple" style="font-size:11px">' + esc((p.chain || 'solana').charAt(0).toUpperCase() + (p.chain || 'solana').slice(1)) + '</span></td>' +
           '<td style="color:' + apyColor + ';font-weight:700;font-family:JetBrains Mono,monospace">' + Number(apy).toFixed(2) + '%' + warningIcon + '</td>' +
           '<td style="font-family:JetBrains Mono,monospace;font-size:13px">' + fmtUSD(p.tvl_usd || p.tvl || 0) + '</td>' +
           '<td><span class="badge ' + riskClass + '">' + riskLabel + '</span></td>' +
@@ -4650,7 +4715,7 @@ async function loadYields(asset, btnEl) {
         : '<span style="padding:4px 12px;background:var(--surface2);color:var(--muted);border-radius:6px;font-size:11px">No link</span>';
       return '<tr>' +
         '<td style="font-weight:600">' + p.protocol + '</td>' +
-        '<td><span class="badge badge-purple" style="font-size:11px">' + p.chain + '</span></td>' +
+        '<td>' + (typeof getChainIcon==='function'?getChainIcon(p.chain.toLowerCase(),14):'') + ' <span class="badge badge-purple" style="font-size:11px">' + p.chain + '</span></td>' +
         '<td style="color:var(--green);font-weight:700;font-family:JetBrains Mono,monospace">' + p.apy.toFixed(2) + '%</td>' +
         '<td style="font-family:JetBrains Mono,monospace;font-size:13px">' + fmtUSD(p.tvl) + '</td>' +
         '<td><span class="badge ' + riskClass + '">' + p.risk + '</span></td>' +
@@ -4659,6 +4724,120 @@ async function loadYields(asset, btnEl) {
       '</tr>';
     }).join('');
   }
+}
+
+// ======================================
+// AUTO-COMPOUND (wallet-based)
+// ======================================
+
+async function loadCompoundSection() {
+  await Promise.all([loadCompoundStats(), loadCompoundProtocols(), loadCompoundVaults()]);
+}
+
+async function loadCompoundStats() {
+  var data = await api('/api/compound/stats');
+  if (!data) return;
+  var el = function(id) { return document.getElementById(id); };
+  el('compound-stat-vaults').textContent = data.active_vaults || 0;
+  el('compound-stat-tvl').textContent = fmtUSD(data.total_value_locked_usdc || 0);
+  el('compound-stat-yield').textContent = fmtUSD(data.total_yield_generated_usdc || 0);
+}
+
+async function loadCompoundProtocols() {
+  var container = document.getElementById('compound-protocols');
+  if (!container) return;
+  var data = await api('/api/compound/protocols');
+  if (!data || !data.protocols) { container.innerHTML = '<p style="color:var(--muted)">Failed to load protocols</p>'; return; }
+  container.innerHTML = data.protocols.map(function(p) {
+    var apyColor = p.net_apy_percent > 7 ? 'var(--green)' : 'var(--cyan)';
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-weight:700;font-size:15px">' + esc(p.name) + '</span>' +
+        '<span class="badge badge-purple" style="font-size:11px">' + esc(p.asset) + '</span>' +
+      '</div>' +
+      '<div style="font-size:13px;color:var(--muted);margin-bottom:12px">' + esc(p.description) + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<div><span style="color:var(--muted);font-size:12px">Gross APY</span><div style="font-size:18px;font-weight:700;color:' + apyColor + ';font-family:JetBrains Mono,monospace">' + Number(p.gross_apy_percent).toFixed(2) + '%</div></div>' +
+        '<div><span style="color:var(--muted);font-size:12px">Net APY</span><div style="font-size:18px;font-weight:700;color:' + apyColor + ';font-family:JetBrains Mono,monospace">' + Number(p.net_apy_percent).toFixed(2) + '%</div></div>' +
+        '<div><span style="color:var(--muted);font-size:12px">Fee</span><div style="font-size:14px;color:var(--muted);font-family:JetBrains Mono,monospace">' + p.performance_fee_percent + '%</div></div>' +
+      '</div>' +
+      '<button class="btn-primary" style="width:100%;padding:8px;font-size:13px" onclick="compoundDeposit(\'' + esc(p.protocol_id) + '\',' + p.gross_apy_percent + ')">Deposit ' + esc(p.asset) + '</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function loadCompoundVaults() {
+  var noWallet = document.getElementById('compound-no-wallet');
+  var table = document.getElementById('compound-vaults-table');
+  var tbody = document.getElementById('compound-vaults-body');
+  if (!wallet) {
+    if (noWallet) noWallet.style.display = '';
+    if (table) table.style.display = 'none';
+    return;
+  }
+  if (noWallet) noWallet.style.display = 'none';
+  if (table) table.style.display = '';
+  var data = await api('/api/compound/w/my');
+  if (!data || !data.vaults) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No vaults yet</td></tr>'; return; }
+  if (data.vaults.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No vaults — deposit to start earning</td></tr>'; return; }
+  tbody.innerHTML = data.vaults.map(function(v) {
+    var gain = v.gain_usdc || 0;
+    var gainColor = gain > 0 ? 'var(--green)' : 'var(--muted)';
+    var statusBadge = v.status === 'active' ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Closed</span>';
+    var withdrawBtn = v.status === 'active'
+      ? '<button class="btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="compoundWithdraw(\'' + v.vault_id + '\')">Withdraw</button>'
+      : '';
+    return '<tr>' +
+      '<td style="font-weight:600">' + esc(v.protocol_name || v.protocol) + '</td>' +
+      '<td style="font-family:JetBrains Mono,monospace;font-size:13px">' + fmtUSD(v.deposited_usdc) + '</td>' +
+      '<td style="font-family:JetBrains Mono,monospace;font-size:13px">' + fmtUSD(v.current_value_usdc) + '</td>' +
+      '<td style="color:' + gainColor + ';font-family:JetBrains Mono,monospace;font-size:13px">+' + fmtUSD(gain) + '</td>' +
+      '<td style="color:var(--green);font-family:JetBrains Mono,monospace">' + Number(v.net_apy_percent || 0).toFixed(2) + '%</td>' +
+      '<td style="text-align:center">' + (v.total_compounds || 0) + '</td>' +
+      '<td>' + withdrawBtn + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function compoundDeposit(protocolId, currentApy) {
+  if (!wallet) { showToast('Connect your wallet first', 'error'); return; }
+  var amount = prompt('Deposit amount in USDC (min 1, max 50000):');
+  if (!amount) return;
+  var amountNum = parseFloat(amount);
+  if (isNaN(amountNum) || amountNum < 1 || amountNum > 50000) { showToast('Invalid amount (1-50000 USDC)', 'error'); return; }
+  var data = await api('/api/compound/w/deposit', {
+    method: 'POST',
+    body: JSON.stringify({ protocol: protocolId, amount_usdc: amountNum, wallet: wallet })
+  });
+  if (!data || !data.success) { showToast('Deposit failed: ' + ((data && data.detail) || 'Unknown error'), 'error'); return; }
+  showToast('Vault created — ' + data.protocol + ' @ ' + Number(data.net_apy_percent).toFixed(2) + '% net APY', 'success');
+  // Construire la transaction on-chain
+  if (data.vault_id) {
+    var txData = await api('/api/compound/w/tx/' + data.vault_id);
+    if (txData && txData.transaction_b64 && window.solana) {
+      try {
+        showToast('Sign the transaction in your wallet...', 'info');
+        var txBytes = Uint8Array.from(atob(txData.transaction_b64), function(c) { return c.charCodeAt(0); });
+        var tx = solanaWeb3.VersionedTransaction.deserialize(txBytes);
+        var signed = await window.solana.signTransaction(tx);
+        var conn = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
+        var sig = await conn.sendRawTransaction(signed.serialize());
+        showToast('Transaction sent: ' + sig.slice(0, 12) + '...', 'success');
+      } catch (txErr) {
+        console.warn('TX signing skipped:', txErr.message);
+        showToast('Vault created (on-chain deposit pending)', 'info');
+      }
+    }
+  }
+  await loadCompoundSection();
+}
+
+async function compoundWithdraw(vaultId) {
+  if (!confirm('Withdraw and close this vault?')) return;
+  var data = await api('/api/compound/w/' + vaultId, { method: 'DELETE' });
+  if (!data || !data.success) { showToast('Withdraw failed', 'error'); return; }
+  showToast('Vault closed — profit: ' + fmtUSD(data.net_profit_usdc || 0), 'success');
+  await loadCompoundSection();
 }
 
 // ======================================
@@ -7268,6 +7447,64 @@ async function sendChat(){
     msgs.innerHTML+='<div class="chat-msg bot" style="color:#ef4444">Connection error. Try again.</div>';
   }
   msgs.scrollTop=msgs.scrollHeight;
+}
+</script>
+
+<!-- Offline indicator -->
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;height:32px;background:#f59e0b;color:#000;font-size:13px;font-weight:600;text-align:center;line-height:32px;z-index:99999">You're offline — some features may be unavailable</div>
+
+<!-- PWA Install banner -->
+<div id="pwa-install-banner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 24px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;align-items:center;gap:12px;font-size:14px">
+  <span>Install MAXIA for faster access</span>
+  <button onclick="pwaInstall()" style="padding:6px 16px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Install</button>
+  <button onclick="pwaDismiss()" style="padding:6px 10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">&times;</button>
+</div>
+
+<script>
+/* Service Worker */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    reg.addEventListener('updatefound', function() {
+      var sw = reg.installing;
+      sw.addEventListener('statechange', function() {
+        if (sw.state === 'activated' && navigator.serviceWorker.controller) {
+          if (confirm('New MAXIA version available. Reload?')) window.location.reload();
+        }
+      });
+    });
+  }).catch(function(e) { console.warn('SW registration failed:', e); });
+}
+
+/* Offline indicator */
+function _updateOnlineStatus() {
+  var bar = document.getElementById('offline-bar');
+  if (bar) bar.style.display = navigator.onLine ? 'none' : 'block';
+}
+window.addEventListener('online', _updateOnlineStatus);
+window.addEventListener('offline', _updateOnlineStatus);
+_updateOnlineStatus();
+
+/* PWA Install prompt */
+var _deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _deferredPrompt = e;
+  var dismissed = localStorage.getItem('pwa-dismiss');
+  if (dismissed && Date.now() - parseInt(dismissed) < 604800000) return;
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'flex';
+});
+function pwaInstall() {
+  if (!_deferredPrompt) return;
+  _deferredPrompt.prompt();
+  _deferredPrompt.userChoice.then(function() { _deferredPrompt = null; });
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+}
+function pwaDismiss() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.style.display = 'none';
+  localStorage.setItem('pwa-dismiss', String(Date.now()));
 }
 </script>
 

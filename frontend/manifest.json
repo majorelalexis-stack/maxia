@@ -2,14 +2,19 @@
   "name": "MAXIA — AI-to-AI Marketplace",
   "short_name": "MAXIA",
   "description": "AI-to-AI Marketplace on 15 Blockchains. Swap on 7 chains, escrow on 2, DeFi on 14. 65 tokens, GPUs, stocks — all in USDC.",
-  "start_url": "/",
+  "id": "/",
+  "start_url": "/app",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0A0E17",
-  "theme_color": "#3B82F6",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#060a14",
+  "theme_color": "#060a14",
   "orientation": "portrait-primary",
   "categories": ["finance", "productivity", "business"],
   "icons": [
-    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ]
 }

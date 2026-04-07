@@ -109,6 +109,19 @@ async def manifest_json():
         return FileResponse(str(mf_path), media_type="application/json")
     return HTMLResponse("{}", status_code=404, media_type="application/json")
 
+@router.get("/sw.js", include_in_schema=False)
+async def service_worker_js():
+    """Service Worker servi a la racine avec scope /."""
+    sw_path = FRONTEND_DIR / "sw.js"
+    if sw_path.exists():
+        return FileResponse(
+            str(sw_path),
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+    return HTMLResponse("", status_code=404)
+
+
 @router.get("/favicon.ico", include_in_schema=False)
 async def favicon_ico():
     """Redirect .ico to .svg for browsers that request favicon.ico."""

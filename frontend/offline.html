@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAXIA — Offline</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:#060a14;color:#e4e4e7;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+.wrap{max-width:400px}
+h1{font-size:28px;font-weight:800;margin-bottom:8px;background:linear-gradient(135deg,#00e5ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+p{color:#a1a1aa;margin-bottom:24px;font-size:15px;line-height:1.6}
+.btn{display:inline-block;padding:12px 32px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{opacity:.9}
+.icon{font-size:48px;margin-bottom:16px;opacity:.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="icon">&#x1F4F6;</div>
+  <h1>You're Offline</h1>
+  <p>Check your internet connection and try again. MAXIA needs a network connection to fetch live prices and execute trades.</p>
+  <button class="btn" onclick="window.location.reload()">Retry</button>
+</div>
+<script>
+window.addEventListener('online', function() { window.location.reload(); });
+</script>
+</body>
+</html>

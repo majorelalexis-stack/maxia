@@ -75,3 +75,6 @@ code{background:rgba(0,229,255,.06);padding:2px 6px;border-radius:4px;color:var(
   .nav-links{display:none}
   .page-wrap{padding:72px 16px 40px}
 }
+/* -- Icones crypto SVG -- */
+.icon-svg{display:inline-block;vertical-align:middle;flex-shrink:0}
+.icon-fallback{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:700;flex-shrink:0;vertical-align:middle}

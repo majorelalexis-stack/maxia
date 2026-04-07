@@ -7,6 +7,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MAXIA — AI Web3 Hub on 15 Chains — Solana, Base, Ethereum, XRP, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="canonical" href="https://maxiaworld.app/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -393,6 +396,19 @@ body::before {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .panels-row.three { grid-template-columns: 1fr 1fr; }
 }
+@media (max-width: 768px) {
+  .sidebar { position:fixed;left:-270px;width:260px;transition:left .3s ease;z-index:2000; }
+  .sidebar.open { left:0; }
+  .main { margin-left:0 !important; padding:60px 12px 16px !important; }
+  .stats-grid { grid-template-columns: 1fr !important; }
+  .panels-row.three { grid-template-columns: 1fr !important; }
+  .mobile-topbar { display:flex !important; }
+  .sidebar-overlay.active { display:block !important; }
+}
+.mobile-topbar { display:none;position:fixed;top:0;left:0;right:0;height:52px;background:var(--bg1);border-bottom:1px solid var(--border);z-index:1999;align-items:center;padding:0 16px; }
+.mobile-topbar .hamburger { background:none;border:none;color:var(--text);font-size:22px;cursor:pointer;padding:8px; }
+.mobile-topbar .mob-logo { font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-left:12px;background:linear-gradient(135deg,#00e5ff,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+.sidebar-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1998; }
 </style>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#3B82F6">
@@ -401,6 +417,17 @@ body::before {
 <script src="/static/js/track.js"></script>
 </head>
 <body>
+<!-- Mobile topbar (visible < 768px) -->
+<div class="mobile-topbar">
+  <button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open');document.querySelector('.sidebar-overlay').classList.toggle('active')">&#9776;</button>
+  <span class="mob-logo">MAXIA</span>
+</div>
+<div class="sidebar-overlay" onclick="document.querySelector('.sidebar').classList.remove('open');this.classList.remove('active')"></div>
+<div style="display:none" id="crypto-sprite-container"></div>
+<script>
+(function(){var x=new XMLHttpRequest();x.open('GET','/static/icons/crypto-sprite.svg',true);x.onload=function(){if(x.status===200)document.getElementById('crypto-sprite-container').innerHTML=x.responseText;};x.send();})();
+</script>
+
 <div class="shell">
 
 <!-- ══ SIDEBAR ══ -->
@@ -3624,6 +3651,19 @@ async function loadRPC() {
 }
 
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    reg.addEventListener('updatefound', function() {
+      var sw = reg.installing;
+      sw.addEventListener('statechange', function() {
+        if (sw.state === 'activated' && navigator.serviceWorker.controller) {
+          if (confirm('New MAXIA version available. Reload?')) window.location.reload();
+        }
+      });
+    });
+  }).catch(function() {});
+}
+</script>
 </body>
 </html>

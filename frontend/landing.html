@@ -198,6 +198,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 <meta name="twitter:description" content="Swap 65+ tokens, rent GPUs, trade stocks 24/7, on-chain escrow. Powered by AI agents.">
 <meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
 <meta name="theme-color" content="#080A0F">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<script src="/static/js/icons.js"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -222,6 +227,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 </script>
 </head>
 <body>
+<div style="display:none" id="crypto-sprite-container"></div>
+<script>
+(function(){var x=new XMLHttpRequest();x.open('GET','/static/icons/crypto-sprite.svg',true);x.onload=function(){if(x.status===200)document.getElementById('crypto-sprite-container').innerHTML=x.responseText;};x.send();})();
+</script>
 
 <div class="bg-mesh">
   <div class="blob blob-1"></div>
@@ -562,6 +571,25 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
   <div class="stat reveal"><div class="stat-num">13</div><div class="stat-label">GPU Tiers</div></div>
 </div>
 
+<!-- Supported Chains strip -->
+<div id="chain-strip" style="display:flex;justify-content:center;gap:18px;flex-wrap:wrap;padding:20px 24px;opacity:.7">
+  <script>
+  (function(){
+    var chains=['solana','base','ethereum','xrp','polygon','arbitrum','avalanche','bnb','ton','sui','tron','near','aptos','sei','bitcoin'];
+    var names=['Solana','Base','Ethereum','XRP','Polygon','Arbitrum','Avalanche','BNB','TON','SUI','TRON','NEAR','Aptos','SEI','Bitcoin'];
+    function render(){
+      var el=document.getElementById('chain-strip');if(!el||typeof getChainIcon!=='function')return;
+      var h='';for(var i=0;i<chains.length;i++){
+        h+='<div style="text-align:center">'+getChainIcon(chains[i],28)+'<div style="font-size:9px;color:#a1a1aa;margin-top:4px;font-family:DM Sans,sans-serif">'+names[i]+'</div></div>';
+      }el.innerHTML=h;
+    }
+    /* Attendre que le sprite soit charge */
+    var iv=setInterval(function(){if(document.getElementById('icon-chain-solana')){clearInterval(iv);render();}},200);
+    setTimeout(function(){clearInterval(iv);},5000);
+  })();
+  </script>
+</div>
+
 <!-- PRICING -->
 <div class="section" style="text-align:center">
   <div class="section-label reveal">Pricing</div>
@@ -704,6 +732,7 @@ fetch('/api/public/marketplace-stats').then(r=>r.json()).then(d=>{
   // stocks stat removed from hero
 }).catch(()=>{});
 </script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});</script>
 <a href="/forum?community=bugs" id="bug-badge" style="position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:10px 18px;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;text-decoration:none;backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.3);transition:all .2s" onmouseenter="this.style.background='rgba(245,158,11,.25)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='rgba(245,158,11,.15)';this.style.transform=''"><span style="font-size:20px">&#128027;</span> Report Bug</a>
 </body>
 </html>
