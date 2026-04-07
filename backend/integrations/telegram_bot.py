@@ -70,9 +70,9 @@ async def _handle_start(chat_id: int, first_name: str):
         "inline_keyboard": [[
             {"text": "Open MAXIA Trading", "web_app": {"url": MINIAPP_URL}},
         ], [
-            {"text": "Buy Crypto with Card", "url": "https://maxiaworld.app/buy"},
+            {"text": "Buy Crypto with Card", "web_app": {"url": "https://maxiaworld.app/buy"}},
         ], [
-            {"text": "Token Sniper", "url": "https://maxiaworld.app/sniper"},
+            {"text": "Token Sniper", "web_app": {"url": "https://maxiaworld.app/sniper"}},
         ]]
     }
     await _send_message(chat_id, text, markup)
