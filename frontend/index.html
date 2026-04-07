@@ -2007,6 +2007,11 @@ function showPage(name, el) {
   document.getElementById('page-' + name).classList.add('active');
   el.classList.add('active');
   document.getElementById('topbar-title').textContent = el.textContent.trim();
+  /* Fermer sidebar mobile apres navigation */
+  var sb = document.querySelector('.sidebar');
+  var ov = document.querySelector('.sidebar-overlay');
+  if (sb) sb.classList.remove('open');
+  if (ov) ov.classList.remove('active');
   // Auto-load data
   if (name === 'marketplace') loadListings();
   if (name === 'exchange')    { loadTokens(); }

@@ -15,26 +15,35 @@ var CHAIN_IDS = {
   'aptos':'chain-aptos','sei':'chain-sei','bitcoin':'chain-bitcoin'
 };
 
+/* Sanitize: only allow alphanumeric + common token chars */
+function _iconSafe(s) {
+  return (s || '').replace(/[^a-zA-Z0-9._\-]/g, '').slice(0, 20);
+}
+
+function _escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function getTokenIcon(symbol, size) {
-  size = size || 20;
-  var sym = (symbol || '').toUpperCase();
+  size = Math.min(Math.max(parseInt(size) || 20, 8), 64);
+  var sym = _iconSafe((symbol || '').toUpperCase());
   var id = 'icon-' + (ICON_ALIASES[sym] || sym.toLowerCase());
   if (document.getElementById(id)) {
-    return '<svg class="icon-svg" width="' + size + '" height="' + size + '"><use href="#' + id + '"/></svg>';
+    return '<svg class="icon-svg" width="' + size + '" height="' + size + '"><use href="#' + _escHtml(id) + '"/></svg>';
   }
-  // Fallback: cercle colore avec initiale
   var h = 0;
   for (var i = 0; i < sym.length; i++) h = sym.charCodeAt(i) + ((h << 5) - h);
   var hue = Math.abs(h % 360);
-  return '<span class="icon-fallback" style="width:' + size + 'px;height:' + size + 'px;background:hsl(' + hue + ',55%,40%);font-size:' + Math.round(size * 0.5) + 'px">' + (sym.charAt(0) || '?') + '</span>';
+  var ch = _escHtml(sym.charAt(0) || '?');
+  return '<span class="icon-fallback" style="width:' + size + 'px;height:' + size + 'px;background:hsl(' + hue + ',55%,40%);font-size:' + Math.round(size * 0.5) + 'px">' + ch + '</span>';
 }
 
 function getChainIcon(chain, size) {
-  size = size || 20;
-  var key = (chain || '').toLowerCase();
+  size = Math.min(Math.max(parseInt(size) || 20, 8), 64);
+  var key = _iconSafe((chain || '').toLowerCase());
   var id = 'icon-' + (CHAIN_IDS[key] || 'chain-' + key);
   if (document.getElementById(id)) {
-    return '<svg class="icon-svg" width="' + size + '" height="' + size + '"><use href="#' + id + '"/></svg>';
+    return '<svg class="icon-svg" width="' + size + '" height="' + size + '"><use href="#' + _escHtml(id) + '"/></svg>';
   }
   return getTokenIcon(chain, size);
 }

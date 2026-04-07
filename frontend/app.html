@@ -344,14 +344,28 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   var x=new XMLHttpRequest();
   x.open('GET','/static/icons/crypto-sprite.svg',true);
   x.onload=function(){if(x.status===200){
-    document.getElementById('crypto-sprite-container').innerHTML=x.responseText;
+    /* Sanitize: parse SVG, extract only <symbol> elements */
+    var parser=new DOMParser();
+    var doc=parser.parseFromString(x.responseText,'image/svg+xml');
+    var svgEl=doc.querySelector('svg');
+    if(svgEl){
+      var safe=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      safe.style.display='none';
+      var symbols=svgEl.querySelectorAll('symbol,defs,linearGradient');
+      for(var i=0;i<symbols.length;i++) safe.appendChild(document.importNode(symbols[i],true));
+      document.getElementById('crypto-sprite-container').appendChild(safe);
+    }
     /* Injecter icones dans les boutons chain EVM */
     var chainMap={'1':'ethereum','8453':'base','137':'polygon','42161':'arbitrum','43114':'avalanche','56':'bnb'};
     document.querySelectorAll('.evm-chain-btn').forEach(function(b){
       var ch=chainMap[b.dataset.chain];
       if(ch && typeof getChainIcon==='function') b.innerHTML=getChainIcon(ch,14)+' '+b.textContent.trim();
     });
+    /* Re-render le ticker si deja affiche (fix FOUC icones) */
+    if(typeof _latestPrices!=='undefined' && _latestPrices) updatePriceTicker(_latestPrices);
   }};
+  x.onerror=function(){console.warn('SVG sprite load failed');};
+  x.timeout=10000;
   x.send();
 })();
 </script>
@@ -3391,7 +3405,9 @@ function connectPriceWs() {
   };
 }
 
+var _latestPrices = null;
 function updatePriceTicker(prices) {
+  _latestPrices = prices;
   var container = document.getElementById('price-ticker-row');
   if (!container) return;
   // Top 8 tokens by relevance
@@ -4759,7 +4775,7 @@ async function loadCompoundProtocols() {
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
         '<div><span style="color:var(--muted);font-size:12px">Gross APY</span><div style="font-size:18px;font-weight:700;color:' + apyColor + ';font-family:JetBrains Mono,monospace">' + Number(p.gross_apy_percent).toFixed(2) + '%</div></div>' +
         '<div><span style="color:var(--muted);font-size:12px">Net APY</span><div style="font-size:18px;font-weight:700;color:' + apyColor + ';font-family:JetBrains Mono,monospace">' + Number(p.net_apy_percent).toFixed(2) + '%</div></div>' +
-        '<div><span style="color:var(--muted);font-size:12px">Fee</span><div style="font-size:14px;color:var(--muted);font-family:JetBrains Mono,monospace">' + p.performance_fee_percent + '%</div></div>' +
+        '<div><span style="color:var(--muted);font-size:12px">Fee</span><div style="font-size:14px;color:var(--muted);font-family:JetBrains Mono,monospace">' + Number(p.performance_fee_percent || 0).toFixed(1) + '%</div></div>' +
       '</div>' +
       '<button class="btn-primary" style="width:100%;padding:8px;font-size:13px" onclick="compoundDeposit(\'' + esc(p.protocol_id) + '\',' + p.gross_apy_percent + ')">Deposit ' + esc(p.asset) + '</button>' +
     '</div>';
@@ -4784,8 +4800,9 @@ async function loadCompoundVaults() {
     var gain = v.gain_usdc || 0;
     var gainColor = gain > 0 ? 'var(--green)' : 'var(--muted)';
     var statusBadge = v.status === 'active' ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Closed</span>';
+    var safeVid = esc(v.vault_id || '');
     var withdrawBtn = v.status === 'active'
-      ? '<button class="btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="compoundWithdraw(\'' + v.vault_id + '\')">Withdraw</button>'
+      ? '<button class="btn-outline" style="padding:4px 10px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="compoundWithdraw(\'' + safeVid + '\')">Withdraw</button>'
       : '';
     return '<tr>' +
       '<td style="font-weight:600">' + esc(v.protocol_name || v.protocol) + '</td>' +
@@ -4799,21 +4816,24 @@ async function loadCompoundVaults() {
   }).join('');
 }
 
+var _compoundPending = false;
 async function compoundDeposit(protocolId, currentApy) {
+  if (_compoundPending) return;
   if (!wallet) { showToast('Connect your wallet first', 'error'); return; }
   var amount = prompt('Deposit amount in USDC (min 1, max 50000):');
   if (!amount) return;
   var amountNum = parseFloat(amount);
   if (isNaN(amountNum) || amountNum < 1 || amountNum > 50000) { showToast('Invalid amount (1-50000 USDC)', 'error'); return; }
+  _compoundPending = true;
   var data = await api('/api/compound/w/deposit', {
     method: 'POST',
     body: JSON.stringify({ protocol: protocolId, amount_usdc: amountNum, wallet: wallet })
   });
-  if (!data || !data.success) { showToast('Deposit failed: ' + ((data && data.detail) || 'Unknown error'), 'error'); return; }
+  if (!data || !data.success) { _compoundPending = false; showToast('Deposit failed', 'error'); return; }
   showToast('Vault created — ' + data.protocol + ' @ ' + Number(data.net_apy_percent).toFixed(2) + '% net APY', 'success');
   // Construire la transaction on-chain
   if (data.vault_id) {
-    var txData = await api('/api/compound/w/tx/' + data.vault_id);
+    var txData = await api('/api/compound/w/tx/' + encodeURIComponent(data.vault_id));
     if (txData && txData.transaction_b64 && window.solana) {
       try {
         showToast('Sign the transaction in your wallet...', 'info');
@@ -4829,12 +4849,16 @@ async function compoundDeposit(protocolId, currentApy) {
       }
     }
   }
+  _compoundPending = false;
   await loadCompoundSection();
 }
 
 async function compoundWithdraw(vaultId) {
+  if (_compoundPending) return;
   if (!confirm('Withdraw and close this vault?')) return;
-  var data = await api('/api/compound/w/' + vaultId, { method: 'DELETE' });
+  _compoundPending = true;
+  var data = await api('/api/compound/w/' + encodeURIComponent(vaultId), { method: 'DELETE' });
+  _compoundPending = false;
   if (!data || !data.success) { showToast('Withdraw failed', 'error'); return; }
   showToast('Vault closed — profit: ' + fmtUSD(data.net_profit_usdc || 0), 'success');
   await loadCompoundSection();
@@ -7451,10 +7475,10 @@ async function sendChat(){
 </script>
 
 <!-- Offline indicator -->
-<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;height:32px;background:#f59e0b;color:#000;font-size:13px;font-weight:600;text-align:center;line-height:32px;z-index:99999">You're offline — some features may be unavailable</div>
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:0;right:0;height:28px;background:#f59e0b;color:#000;font-size:12px;font-weight:600;text-align:center;line-height:28px;z-index:999">You're offline — some features may be unavailable</div>
 
 <!-- PWA Install banner -->
-<div id="pwa-install-banner" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 24px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;align-items:center;gap:12px;font-size:14px">
+<div id="pwa-install-banner" style="display:none;position:fixed;top:60px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px 24px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,.5);align-items:center;gap:12px;font-size:14px">
   <span>Install MAXIA for faster access</span>
   <button onclick="pwaInstall()" style="padding:6px 16px;background:linear-gradient(135deg,#00e5ff,#7c3aed);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Install</button>
   <button onclick="pwaDismiss()" style="padding:6px 10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">&times;</button>

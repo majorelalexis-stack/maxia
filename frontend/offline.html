@@ -23,7 +23,15 @@ p{color:#a1a1aa;margin-bottom:24px;font-size:15px;line-height:1.6}
   <button class="btn" onclick="window.location.reload()">Retry</button>
 </div>
 <script>
-window.addEventListener('online', function() { window.location.reload(); });
+/* Auto-reload quand online — avec verification reelle de connectivite pour eviter boucle infinie */
+var _reloadAttempts = 0;
+window.addEventListener('online', function() {
+  if (_reloadAttempts > 3) return;
+  _reloadAttempts++;
+  fetch('/health', {method:'HEAD',cache:'no-store'}).then(function(r) {
+    if (r.ok) window.location.reload();
+  }).catch(function() { /* serveur pas encore joignable */ });
+});
 </script>
 </body>
 </html>

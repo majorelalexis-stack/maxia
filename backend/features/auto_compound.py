@@ -1,6 +1,8 @@
 """MAXIA V12 — Auto-Compound DeFi: automated yield compounding on Solana"""
 import logging
 import asyncio
+import math
+import re
 import time
 import uuid
 from fastapi import APIRouter, HTTPException, Header
@@ -113,6 +115,26 @@ def _net_apy(gross: float) -> float:
     return round(gross * (1 - PERFORMANCE_FEE_PCT / 100), 2)
 
 
+# Base58 alphabet (Solana addresses)
+_B58_RE = re.compile(r'^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$')
+MAX_VAULTS_PER_WALLET = 20
+
+
+def _safe_amount(raw) -> float:
+    """Parse et valide un montant — rejette NaN, Inf, negatif."""
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Invalid amount: must be a number")
+    if math.isnan(val) or math.isinf(val):
+        raise HTTPException(400, "Invalid amount: NaN/Infinity not allowed")
+    if val < MIN_DEPOSIT:
+        raise HTTPException(400, f"Minimum deposit: {MIN_DEPOSIT} USDC")
+    if val > MAX_DEPOSIT:
+        raise HTTPException(400, f"Maximum deposit: {MAX_DEPOSIT} USDC")
+    return val
+
+
 # ── API Endpoints ──
 
 @router.post("/deposit")
@@ -122,7 +144,7 @@ async def compound_deposit(req: dict, x_api_key: str = Header(None, alias="X-API
         raise HTTPException(401, "X-API-Key required")
     await _get_agent(x_api_key)
     protocol = (req.get("protocol") or "").lower()
-    amount_usdc = float(req.get("amount_usdc", 0))
+    amount_usdc = _safe_amount(req.get("amount_usdc", 0))
     wallet = req.get("wallet", "")
     if protocol not in COMPOUND_PROTOCOLS:
         raise HTTPException(400, f"Invalid protocol. Supported: {sorted(COMPOUND_PROTOCOLS.keys())}")
@@ -130,12 +152,8 @@ async def compound_deposit(req: dict, x_api_key: str = Header(None, alias="X-API
     asset_in = (req.get("asset") or "").upper()
     if asset_in and asset_in != proto["asset"]:
         raise HTTPException(400, f"{proto['name']} only supports {proto['asset']}")
-    if amount_usdc < MIN_DEPOSIT:
-        raise HTTPException(400, f"Minimum deposit: {MIN_DEPOSIT} USDC")
-    if amount_usdc > MAX_DEPOSIT:
-        raise HTTPException(400, f"Maximum deposit: {MAX_DEPOSIT} USDC")
-    if not wallet or len(wallet) < 20:
-        raise HTTPException(400, "Valid wallet address required (min 20 chars)")
+    if not wallet or len(wallet) < 32 or len(wallet) > 44 or not _B58_RE.match(wallet):
+        raise HTTPException(400, "Valid Solana wallet address required (base58, 32-44 chars)")
 
     vault_id, now = str(uuid.uuid4()), int(time.time())
     db = await _get_db()
@@ -162,7 +180,7 @@ async def compound_my_vaults(x_api_key: str = Header(None, alias="X-API-Key")):
     await _get_agent(x_api_key)
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT vault_id,api_key,wallet,protocol,asset,deposited_usdc,current_value_usdc,"
+        "SELECT vault_id,wallet,protocol,asset,deposited_usdc,current_value_usdc,"
         "total_yield_usdc,total_compounds,performance_fee_pct,status,last_compound,created_at "
         "FROM compound_vaults WHERE api_key=? ORDER BY created_at DESC", (x_api_key,))
     vaults, rates = [], await _refresh_apy_rates()
@@ -196,21 +214,23 @@ async def compound_protocols():
 
 @router.delete("/{vault_id}")
 async def compound_withdraw(vault_id: str, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Withdraw and close an auto-compound vault."""
+    """Withdraw and close an auto-compound vault (atomique)."""
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     await _get_agent(x_api_key)
     db = await _get_db()
+    # Atomic: UPDATE only if still active — prevents TOCTOU double-withdraw
+    await db.raw_execute(
+        "UPDATE compound_vaults SET status='closed' WHERE vault_id=? AND api_key=? AND status='active'",
+        (vault_id, x_api_key))
     rows = await db.raw_execute_fetchall(
         "SELECT vault_id,status,current_value_usdc,deposited_usdc,total_yield_usdc "
         "FROM compound_vaults WHERE vault_id=? AND api_key=?", (vault_id, x_api_key))
     if not rows:
         raise HTTPException(404, "Vault not found or not owned by you")
     vault = dict(rows[0])
-    if vault.get("status") == "closed":
-        raise HTTPException(400, "Vault already closed")
-    await db.raw_execute("UPDATE compound_vaults SET status='closed' WHERE vault_id=? AND api_key=?",
-                         (vault_id, x_api_key))
+    if vault.get("status") != "closed":
+        raise HTTPException(400, "Vault already closed or could not be withdrawn")
     final = float(vault.get("current_value_usdc", 0) or 0)
     dep = float(vault.get("deposited_usdc", 0) or 0)
     yld = float(vault.get("total_yield_usdc", 0) or 0)
@@ -257,26 +277,31 @@ async def compound_worker():
     logger.info("[Compound] Worker started — interval %ds", COMPOUND_INTERVAL)
     while True:
         try:
-            await asyncio.sleep(COMPOUND_INTERVAL)
             db, now = await _get_db(), int(time.time())
             active = await db.raw_execute_fetchall(
                 "SELECT vault_id,protocol,current_value_usdc,total_yield_usdc,"
                 "total_compounds,performance_fee_pct,last_compound "
-                "FROM compound_vaults WHERE status='active'")
+                "FROM compound_vaults WHERE status='active' LIMIT 500")
             if not active:
+                await asyncio.sleep(COMPOUND_INTERVAL)
                 continue
             rates = await _refresh_apy_rates()
             for row in active:
                 v = dict(row)
                 vid, proto = v["vault_id"], v["protocol"]
                 cur_val = float(v.get("current_value_usdc", 0) or 0)
+                if math.isnan(cur_val) or math.isinf(cur_val) or cur_val <= 0:
+                    continue
                 last = int(v.get("last_compound", 0) or 0)
                 fee_pct = float(v.get("performance_fee_pct", PERFORMANCE_FEE_PCT) or PERFORMANCE_FEE_PCT)
                 try:
                     apy = rates.get(proto, COMPOUND_PROTOCOLS.get(proto, {}).get("default_apy", 0))
                     if apy <= 0:
                         continue
-                    elapsed = min(now - last if last > 0 else COMPOUND_INTERVAL, COMPOUND_INTERVAL * 2)
+                    # Cap elapsed a exactement 1 intervalle — pas de double yield
+                    elapsed = min(now - last, COMPOUND_INTERVAL) if last > 0 else COMPOUND_INTERVAL
+                    if elapsed <= 0:
+                        continue
                     gross = cur_val * (apy / 100 / 8760) * (elapsed / 3600)
                     if gross < 0.000001:
                         continue
@@ -285,9 +310,11 @@ async def compound_worker():
                     new_val = round(cur_val + net, 6)
                     new_yield = round(float(v.get("total_yield_usdc", 0) or 0) + net, 6)
                     new_cnt = int(v.get("total_compounds", 0) or 0) + 1
+                    # Atomic: only update if still active (skip if closed mid-loop)
                     await db.raw_execute(
                         "UPDATE compound_vaults SET current_value_usdc=?,"
-                        "total_yield_usdc=?,total_compounds=?,last_compound=? WHERE vault_id=?",
+                        "total_yield_usdc=?,total_compounds=?,last_compound=? "
+                        "WHERE vault_id=? AND status='active'",
                         (new_val, new_yield, new_cnt, now, vid))
                     logger.debug("[Compound] %s: +$%.6f (fee $%.6f) val=$%.2f apy=%.2f%% #%d",
                                  vid[:8], net, fee, new_val, apy, new_cnt)
@@ -297,14 +324,17 @@ async def compound_worker():
             logger.info("[Compound] Cycle done — %d vaults", len(active))
         except Exception as e:
             logger.error("[Compound] Worker error: %s", e)
+        await asyncio.sleep(COMPOUND_INTERVAL)
 
 
 # ── Wallet-based Endpoints (frontend dashboard) ──
 
 def _validate_wallet(wallet: str) -> str:
-    """Valide et retourne l'adresse wallet Solana."""
+    """Valide une adresse wallet Solana (base58, 32-44 chars)."""
     if not wallet or len(wallet) < 32 or len(wallet) > 44:
         raise HTTPException(400, "Valid Solana wallet address required (32-44 chars)")
+    if not _B58_RE.match(wallet):
+        raise HTTPException(400, "Invalid wallet: must be base58 encoded")
     return wallet
 
 
@@ -313,14 +343,16 @@ async def compound_wallet_deposit(req: dict, x_wallet: str = Header(None, alias=
     """Creer un vault auto-compound via wallet (dashboard)."""
     wallet = _validate_wallet(x_wallet or req.get("wallet", ""))
     protocol = (req.get("protocol") or "").lower()
-    amount_usdc = float(req.get("amount_usdc", 0))
+    amount_usdc = _safe_amount(req.get("amount_usdc", 0))
     if protocol not in COMPOUND_PROTOCOLS:
         raise HTTPException(400, f"Invalid protocol. Supported: {sorted(COMPOUND_PROTOCOLS.keys())}")
     proto = COMPOUND_PROTOCOLS[protocol]
-    if amount_usdc < MIN_DEPOSIT:
-        raise HTTPException(400, f"Minimum deposit: {MIN_DEPOSIT} USDC")
-    if amount_usdc > MAX_DEPOSIT:
-        raise HTTPException(400, f"Maximum deposit: {MAX_DEPOSIT} USDC")
+    # Limite de vaults par wallet
+    db_check = await _get_db()
+    count_rows = await db_check.raw_execute_fetchall(
+        "SELECT COUNT(*) as cnt FROM compound_vaults WHERE wallet=? AND status='active'", (wallet,))
+    if count_rows and dict(count_rows[0]).get("cnt", 0) >= MAX_VAULTS_PER_WALLET:
+        raise HTTPException(400, f"Maximum {MAX_VAULTS_PER_WALLET} active vaults per wallet")
 
     vault_id, now = str(uuid.uuid4()), int(time.time())
     synthetic_key = f"wallet:{wallet[:16]}"
@@ -346,7 +378,7 @@ async def compound_wallet_my_vaults(x_wallet: str = Header(None, alias="X-Wallet
     wallet = _validate_wallet(x_wallet or "")
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT vault_id,api_key,wallet,protocol,asset,deposited_usdc,current_value_usdc,"
+        "SELECT vault_id,wallet,protocol,asset,deposited_usdc,current_value_usdc,"
         "total_yield_usdc,total_compounds,performance_fee_pct,status,last_compound,created_at "
         "FROM compound_vaults WHERE wallet=? ORDER BY created_at DESC", (wallet,))
     vaults, rates = [], await _refresh_apy_rates()
@@ -368,16 +400,18 @@ async def compound_wallet_withdraw(vault_id: str, x_wallet: str = Header(None, a
     """Fermer un vault auto-compound (auth wallet)."""
     wallet = _validate_wallet(x_wallet or "")
     db = await _get_db()
+    # Atomic: UPDATE only if still active — prevents TOCTOU double-withdraw
+    await db.raw_execute(
+        "UPDATE compound_vaults SET status='closed' WHERE vault_id=? AND wallet=? AND status='active'",
+        (vault_id, wallet))
     rows = await db.raw_execute_fetchall(
         "SELECT vault_id,wallet,status,current_value_usdc,deposited_usdc,total_yield_usdc "
         "FROM compound_vaults WHERE vault_id=? AND wallet=?", (vault_id, wallet))
     if not rows:
         raise HTTPException(404, "Vault not found or not owned by this wallet")
     vault = dict(rows[0])
-    if vault.get("status") == "closed":
+    if vault.get("status") != "closed":
         raise HTTPException(400, "Vault already closed")
-    await db.raw_execute("UPDATE compound_vaults SET status='closed' WHERE vault_id=? AND wallet=?",
-                         (vault_id, wallet))
     final = float(vault.get("current_value_usdc", 0) or 0)
     dep = float(vault.get("deposited_usdc", 0) or 0)
     yld = float(vault.get("total_yield_usdc", 0) or 0)
