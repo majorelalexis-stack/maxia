@@ -131,7 +131,7 @@ async function loadPrices(){
   var buyToken=document.getElementById('buy-token');
   ALL_TOKENS.forEach(function(t){buyToken.innerHTML+='<option>'+t+'</option>';});
   buyToken.value='SOL';
-  var tokens = ALL_TOKENS.slice(0, 15); // Top 15 for prices
+  var tokens = ALL_TOKENS; // All tokens for prices
   try{
     var fetches = tokens.map(function(t){
       return fetch('/oracle/price/live/'+t)
