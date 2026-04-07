@@ -9,10 +9,8 @@ Commandes:
   /help      — Liste des commandes
 """
 import asyncio
-import json
 import logging
 import os
-import time
 
 import httpx
 
@@ -34,6 +32,14 @@ async def _get_client() -> httpx.AsyncClient:
     return _client
 
 
+async def close_bot_client():
+    """Close the bot's httpx client on shutdown."""
+    global _client
+    if _client and not _client.is_closed:
+        await _client.aclose()
+        _client = None
+
+
 async def _tg_api(method: str, data: dict = None) -> dict:
     """Call Telegram Bot API."""
     client = await _get_client()
@@ -42,7 +48,13 @@ async def _tg_api(method: str, data: dict = None) -> dict:
             resp = await client.post(f"{_BASE}/{method}", json=data, timeout=15)
         else:
             resp = await client.get(f"{_BASE}/{method}", timeout=15)
-        return resp.json()
+        if resp.status_code != 200:
+            print(f"[TG Bot] HTTP {resp.status_code} on {method}")
+        try:
+            return resp.json()
+        except Exception:
+            print(f"[TG Bot] Non-JSON response on {method}: {resp.text[:100]}")
+            return {}
     except Exception as e:
         print(f"[TG Bot] API error {method}: {e}")
         return {}
@@ -149,8 +161,8 @@ async def _process_update(update: dict):
             response = d.get("response", "")
             if response:
                 await _send_message(chat_id, response)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[TG Bot] Chat handler error: {e}")
 
 
 async def setup_bot_menu():

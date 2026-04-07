@@ -84,8 +84,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <!-- BUY -->
 <div class="panel" id="p-buy">
   <div class="section-title">Buy Crypto with Card</div>
-  <div class="input-group"><label>Token</label><select id="buy-token"><option>SOL</option><option>ETH</option><option>BTC</option><option>USDC</option><option>MATIC</option><option>AVAX</option><option>BNB</option><option value="ARB">ETH (Arbitrum)</option><option value="BASE_ETH">ETH (Base)</option></select></div>
-  <div class="input-group"><label>Amount</label><div style="display:flex;gap:8px"><input type="number" id="buy-amt" value="50" min="10" style="flex:1"><select id="buy-fiat" style="width:80px"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>CAD</option></select></div></div>
+  <div class="input-group"><label>Token</label><select id="buy-token"><option>SOL</option><option>ETH</option><option>BTC</option><option>USDC</option><option>USDT</option><option>MATIC</option><option>AVAX</option><option>BNB</option><option value="ARB">ETH (Arbitrum)</option><option value="BASE_ETH">ETH (Base)</option></select></div>
+  <div class="input-group"><label>Amount</label><div style="display:flex;gap:8px"><input type="number" id="buy-amt" value="50" min="10" style="flex:1"><select id="buy-fiat" style="width:80px"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>CAD</option><option>AUD</option><option>JPY</option><option>KRW</option><option>BRL</option><option>MXN</option></select></div></div>
   <div class="input-group"><label>Your Wallet</label><input type="text" id="buy-wallet" placeholder="Solana or EVM address"></div>
   <button class="btn" onclick="buyNow()">Buy Now</button>
   <div id="buy-result"></div>
@@ -107,7 +107,7 @@ if(tg){
   document.getElementById('user-greeting').textContent = 'Open in Telegram for full experience';
 }
 
-function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
 
 // Tabs
 document.getElementById('tabs').addEventListener('click', function(e){
@@ -203,11 +203,13 @@ async function buyNow(){
   var amt = parseFloat(document.getElementById('buy-amt').value);
   var wallet = document.getElementById('buy-wallet').value.trim();
   var el = document.getElementById('buy-result');
-  if(!wallet||wallet.length<20){el.innerHTML='<div class="msg msg-err">Enter a valid wallet address (20+ chars)</div>';return;}
-  if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 EUR</div>';return;}
+  var isEVM=/^0x[0-9a-fA-F]{40}$/.test(wallet);var isSOL=/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet);
+  if(!wallet||(!isEVM&&!isSOL)){el.innerHTML='<div class="msg msg-err">Enter a valid Solana (32-44 chars) or EVM (0x...) wallet address</div>';return;}
+  var fiat = document.getElementById('buy-fiat').value;
+  if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 '+esc(fiat)+'</div>';return;}
+  if(amt>50000){el.innerHTML='<div class="msg msg-err">Maximum 50,000 '+esc(fiat)+'</div>';return;}
   el.innerHTML='<div class="msg msg-ok">Finding provider...</div>';
   try{
-    var fiat = document.getElementById('buy-fiat').value;
     var r = await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:token,fiat_amount:amt,fiat_currency:fiat,wallet_address:wallet})});
     var d = await r.json();
     if(d.url){

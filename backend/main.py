@@ -337,7 +337,7 @@ async def lifespan(app: FastAPI):
     # Telegram bot (long polling + Mini App menu button)
     try:
         from integrations.telegram_bot import run_telegram_bot
-        asyncio.create_task(run_telegram_bot())
+        t_telegram = asyncio.create_task(run_telegram_bot())
         logger.info("[MAXIA] Telegram bot started (long polling + Mini App)")
     except Exception as e:
         logger.error("[MAXIA] Telegram bot init error: %s", e)
@@ -388,10 +388,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] WS events periodic init error: %s", e)
 
-    # Telegram bot — REMOVED from lifespan: scheduler.py already starts run_telegram_bot()
-    # as one of its tasks (line 75). Running it twice causes duplicate getUpdates polling,
-    # which leads to missed approval button callbacks and 409 Conflict errors from Telegram API.
-    t_telegram = None
+    # Note: Telegram bot is started at line 340 above (t_telegram assigned there)
 
     # Pyth SSE permanent — stream prix live en continu (pas on-demand)
     try:
@@ -467,6 +464,12 @@ async def lifespan(app: FastAPI):
     try:
         from core.http_client import close_http_client
         await close_http_client()
+    except Exception:
+        pass
+    # Close Telegram bot httpx client
+    try:
+        from integrations.telegram_bot import close_bot_client
+        await close_bot_client()
     except Exception:
         pass
     await db.disconnect()

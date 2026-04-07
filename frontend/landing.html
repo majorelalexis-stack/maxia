@@ -557,9 +557,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
 <div class="stats-bar">
   <div class="stat reveal"><div class="stat-num">15</div><div class="stat-label">Blockchains</div></div>
   <div class="stat reveal"><div class="stat-num">65+</div><div class="stat-label">Tokens</div></div>
-  <div class="stat reveal"><div class="stat-num">47</div><div class="stat-label">MCP Tools</div></div>
+  <div class="stat reveal"><div class="stat-num">55</div><div class="stat-label">MCP Tools</div></div>
   <div class="stat reveal"><div class="stat-num">780+</div><div class="stat-label">API Routes</div></div>
-  <div class="stat reveal"><div class="stat-num">7</div><div class="stat-label">GPU Tiers</div></div>
+  <div class="stat reveal"><div class="stat-num">13</div><div class="stat-label">GPU Tiers</div></div>
 </div>
 
 <!-- PRICING -->
@@ -572,7 +572,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:f
       <div class="tier-name">Bronze</div>
       <div class="tier-pct" style="color:#cd7f32">1.5%</div>
       <div class="tier-desc">Under $500/trade</div>
-      <ul class="tier-list"><li>100 req/day free</li><li>All 15 chains</li><li>46 MCP tools</li></ul>
+      <ul class="tier-list"><li>100 req/day free</li><li>All 15 chains</li><li>55 MCP tools</li></ul>
       <a href="/register" class="btn btn-ghost" style="width:100%;text-align:center;padding:10px;font-size:13px">Start Free</a>
     </div>
     <div class="tier pop reveal reveal-d2" style="position:relative">
@@ -689,7 +689,7 @@ loadForum();
 
 // Activity feed
 (function(){
-  var msgs=['Welcome to MAXIA — 15 chains, swap on 7','AI chat: try "price SOL" or "buy ETH with card"','65+ tokens across 15 chains — trade 24/7','NEW: Buy crypto with credit card — no crypto needed','NEW: Token sniper — detect pump.fun tokens in 30s','NEW: Telegram Mini App — trade inside Telegram','NEW: Smart price alerts with % change detection','780+ API endpoints — the most complete AI trading API'];
+  var msgs=['Welcome to MAXIA — 15 chains, swap on 7','AI chat: try "price SOL" or "buy ETH with card"','65+ tokens across 15 chains — trade 24/7','Buy crypto with credit card — no crypto needed','Token sniper — detect new tokens in real-time','Telegram Mini App — trade inside Telegram','Smart price alerts with % change detection','55 MCP tools — 13 GPU tiers — 780+ API endpoints'];
   var el=document.getElementById('act-msg');var i=0;
   setInterval(function(){el.style.opacity=0;setTimeout(function(){el.textContent=msgs[i%msgs.length];el.style.opacity=1;i++;},300);},4000);
   try{fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');if(d.services_listed>0)msgs.push(d.services_listed+' AI services available');});}catch(e){}

@@ -63,7 +63,7 @@ h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8p
 </div>
 
 <script>
-function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
 
 async function loadStats(){
   try{
@@ -98,7 +98,7 @@ async function loadTokens(){
       var link=t.url||('https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint);
       var boostsTxt=t.boosts>0?t.boosts+' boosts':'new';
       return '<a href="'+esc(link)+'" target="_blank" class="token-row">'+
-        '<div class="token-name"><strong>'+esc(t.symbol)+'</strong> '+esc(t.name)+'</div>'+
+        '<div class="token-name"><strong>'+esc(t.symbol)+'</strong> '+esc(t.name||t.description||t.mint.substring(0,16)+'...')+'</div>'+
         '<div class="token-meta">'+
           '<div class="token-boosts">'+boostsTxt+'</div>'+
           '<div class="token-chain">'+esc(t.chain||'solana')+'</div>'+

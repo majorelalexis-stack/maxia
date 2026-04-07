@@ -80,15 +80,17 @@ select{cursor:pointer;appearance:none;-webkit-appearance:none}
 </div>
 
 <script>
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
+
 async function loadProviders(){
   try{
     var r=await fetch('/api/fiat/providers');
     var d=await r.json();
     var el=document.getElementById('providers');
     el.innerHTML=(d.providers||[]).map(function(p){
-      return '<div class="prov '+(p.status==='active'?'active':'')+'">'+p.name+' ('+p.fees+')</div>';
+      return '<div class="prov '+(p.status==='active'?'active':'')+'">'+esc(p.name)+' ('+esc(p.fees)+')</div>';
     }).join('');
-  }catch(e){}
+  }catch(e){console.error('loadProviders error:', e);}
 }
 loadProviders();
 
@@ -99,8 +101,10 @@ async function buyNow(){
   var wallet=document.getElementById('wallet').value.trim();
   var res=document.getElementById('result');
 
-  if(!wallet||wallet.length<20){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Enter a valid wallet address (Solana: 32-44 chars, EVM: 42 chars starting with 0x)</span>';return;}
-  if(amount<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Minimum amount is 10</span>';return;}
+  var isEVM=/^0x[0-9a-fA-F]{40}$/.test(wallet);var isSOL=/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet);
+  if(!wallet||(!isEVM&&!isSOL)){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Enter a valid Solana (32-44 chars) or EVM (0x...) wallet address</span>';return;}
+  if(amount<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Minimum amount is 10 '+esc(fiat)+'</span>';return;}
+  if(amount>50000){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Maximum amount is 50,000 '+esc(fiat)+'</span>';return;}
 
   res.style.display='block';
   res.innerHTML='<span style="color:var(--cyan)">Finding best provider...</span>';
@@ -110,18 +114,18 @@ async function buyNow(){
     var d=await r.json();
 
     if(d.url){
-      var html='<div style="font-size:14px;color:var(--green);margin-bottom:8px">Provider: '+d.provider+' ('+d.estimated_fees+' fees)</div>';
-      html+='<a href="'+d.url+'" target="_blank" rel="noopener">Buy '+crypto+' with '+fiat+' &rarr;</a>';
+      var html='<div style="font-size:14px;color:var(--green);margin-bottom:8px">Provider: '+esc(d.provider)+' ('+esc(d.estimated_fees)+' fees)</div>';
+      html+='<a href="'+esc(d.url)+'" target="_blank" rel="noopener">Buy '+esc(crypto)+' with '+esc(fiat)+' &rarr;</a>';
       if(d.alternatives&&d.alternatives.length>0){
         html+='<div class="alts">Other providers: ';
-        d.alternatives.forEach(function(a){html+='<a href="'+a.url+'" target="_blank">'+a.provider+' ('+a.fees+')</a> ';});
+        d.alternatives.forEach(function(a){html+='<a href="'+esc(a.url)+'" target="_blank">'+esc(a.provider)+' ('+esc(a.fees)+')</a> ';});
         html+='</div>';
       }
       res.innerHTML=html;
     }else{
-      res.innerHTML='<span style="color:var(--rose)">'+(d.detail||d.error||'Error')+'</span>';
+      res.innerHTML='<span style="color:var(--rose)">'+esc(d.detail||'Error')+'</span>';
     }
-  }catch(e){res.innerHTML='<span style="color:var(--rose)">Connection error</span>';}
+  }catch(e){console.error('buyNow error:', e);res.innerHTML='<span style="color:var(--rose)">Connection error</span>';}
 }
 </script>
 </body>

@@ -40,6 +40,7 @@ GUARDARIAN_BASE = "https://guardarian.com/calculator"
 SUPPORTED_TOKENS = {
     "SOL": {"transak": "SOL", "moonpay": "sol", "guardarian": "sol", "network": "solana"},
     "USDC": {"transak": "USDC", "moonpay": "usdc_sol", "guardarian": "usdc", "network": "solana"},
+    "USDT": {"transak": "USDT", "moonpay": "usdt_sol", "guardarian": "usdt", "network": "solana"},
     "ETH": {"transak": "ETH", "moonpay": "eth", "guardarian": "eth", "network": "ethereum"},
     "BTC": {"transak": "BTC", "moonpay": "btc", "guardarian": "btc", "network": "bitcoin"},
     "MATIC": {"transak": "MATIC", "moonpay": "matic_polygon", "guardarian": "matic", "network": "polygon"},
