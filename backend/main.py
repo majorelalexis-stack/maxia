@@ -1178,6 +1178,13 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Bounty Board router error: %s", e)
 
+try:
+    from features.data_marketplace import router as datasets_router
+    app.include_router(datasets_router)
+    logger.info("[Datasets] Data Marketplace V2 monte (Phase L4)")
+except Exception as e:
+    logger.error("[MAXIA] Data Marketplace V2 router error: %s", e)
+
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
