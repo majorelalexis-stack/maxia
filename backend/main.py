@@ -1164,6 +1164,20 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Memory Service router error: %s", e)
 
+try:
+    from features.shared_pools import router as shared_pools_router
+    app.include_router(shared_pools_router)
+    logger.info("[Pools] Shared Memory Pools monte (Phase L1)")
+except Exception as e:
+    logger.error("[MAXIA] Shared Pools router error: %s", e)
+
+try:
+    from features.bounty_board import router as bounty_router
+    app.include_router(bounty_router)
+    logger.info("[Bounty] Task Bounty Board monte (Phase L3)")
+except Exception as e:
+    logger.error("[MAXIA] Bounty Board router error: %s", e)
+
 FRONTEND_INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 

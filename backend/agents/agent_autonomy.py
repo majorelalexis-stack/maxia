@@ -56,6 +56,24 @@ CREATE TABLE IF NOT EXISTS agent_spawn_history (
 );
 CREATE INDEX IF NOT EXISTS idx_spawn_parent ON agent_spawn_history(parent_agent_id);
 CREATE INDEX IF NOT EXISTS idx_spawn_child ON agent_spawn_history(child_agent_id);
+
+CREATE TABLE IF NOT EXISTS skill_marketplace (
+    id TEXT PRIMARY KEY,
+    seller_agent_id TEXT NOT NULL,
+    skill_name TEXT NOT NULL,
+    skill_content TEXT NOT NULL,
+    source TEXT DEFAULT 'experience',
+    confidence REAL DEFAULT 0.5,
+    times_applied INTEGER DEFAULT 0,
+    price_usdc NUMERIC(18,6) DEFAULT 0.50,
+    times_sold INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active',
+    created_at TEXT,
+    updated_at TEXT,
+    UNIQUE(seller_agent_id, skill_name)
+);
+CREATE INDEX IF NOT EXISTS idx_skill_mkt_seller ON skill_marketplace(seller_agent_id);
+CREATE INDEX IF NOT EXISTS idx_skill_mkt_status ON skill_marketplace(status, times_sold DESC);
 """
 
 _schema_ready = False
@@ -272,6 +290,193 @@ async def get_soul(x_api_key: str = Header(None)):
         "total_skills": len(rows),
         "top_skill": rows[0]["skill_name"] if rows else None,
     }
+
+
+# ══════════════════════════════════════════
+# 1b. SKILL TRANSFER (Phase L2 — agent-to-agent skill trading)
+# ══════════════════════════════════════════
+
+class ExportSkillRequest(BaseModel):
+    skill_name: str = Field(..., min_length=2, max_length=100)
+    price_usdc: float = Field(0.50, ge=0.01, le=100.0, description="Price to buy this skill")
+
+
+class ImportSkillRequest(BaseModel):
+    seller_agent_id: str = Field(..., min_length=5, max_length=100)
+    skill_name: str = Field(..., min_length=2, max_length=100)
+
+
+@router.post("/skills/export")
+async def export_skill(req: ExportSkillRequest, x_api_key: str = Header(None)):
+    """List a skill for sale on the Skill Marketplace.
+
+    Other agents can browse and buy your skills. When bought, the skill
+    is copied to the buyer's SOUL.md. You earn the sale price.
+    Royalties: 10% each time the buyer applies the skill.
+    """
+    api_key = _validate_api_key(x_api_key)
+    await _ensure_schema()
+    agent_id = await _get_agent_id(api_key)
+    if not agent_id:
+        raise HTTPException(403, "Agent not found or inactive")
+
+    from core.database import db
+
+    # Verify skill exists and is mature enough
+    skill = await db._fetchone(
+        "SELECT skill_name, skill_content, confidence, times_applied, source "
+        "FROM agent_skills WHERE agent_id=? AND skill_name=?",
+        (agent_id, req.skill_name))
+    if not skill:
+        raise HTTPException(404, f"Skill '{req.skill_name}' not found in your SOUL")
+
+    if float(skill["confidence"]) < 0.3:
+        raise HTTPException(400, "Skill confidence too low (min 0.3). Apply it more before exporting.")
+
+    # Create or update listing in skill_marketplace table
+    now = datetime.now(timezone.utc).isoformat()
+    existing = await db._fetchone(
+        "SELECT id FROM skill_marketplace WHERE seller_agent_id=? AND skill_name=?",
+        (agent_id, req.skill_name))
+
+    if existing:
+        await db.raw_execute(
+            "UPDATE skill_marketplace SET price_usdc=?, skill_content=?, confidence=?, "
+            "times_applied=?, updated_at=? WHERE seller_agent_id=? AND skill_name=?",
+            (req.price_usdc, skill["skill_content"], skill["confidence"],
+             skill["times_applied"], now, agent_id, req.skill_name))
+        action = "updated"
+    else:
+        await db.raw_execute(
+            "INSERT INTO skill_marketplace(id, seller_agent_id, skill_name, skill_content, "
+            "source, confidence, times_applied, price_usdc, times_sold, status, created_at, updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,0,'active',?,?)",
+            (str(uuid.uuid4()), agent_id, req.skill_name, skill["skill_content"],
+             skill["source"], skill["confidence"], skill["times_applied"],
+             req.price_usdc, now, now))
+        action = "listed"
+
+    logger.info("[SKILL-MKT] Agent %s %s skill: %s ($%.2f)",
+                agent_id[:8], action, req.skill_name, req.price_usdc)
+
+    return {
+        "status": "ok",
+        "action": action,
+        "skill_name": req.skill_name,
+        "price_usdc": req.price_usdc,
+        "confidence": float(skill["confidence"]),
+        "times_applied": int(skill["times_applied"]),
+        "message": "Skill listed on marketplace. Other agents can now buy it.",
+    }
+
+
+@router.post("/skills/import")
+async def import_skill(req: ImportSkillRequest, x_api_key: str = Header(None)):
+    """Buy and import a skill from another agent.
+
+    The skill is copied to your SOUL.md. The seller earns the sale price.
+    Source is marked as 'imported' with the seller's agent_id.
+    """
+    api_key = _validate_api_key(x_api_key)
+    await _ensure_schema()
+    buyer_id = await _get_agent_id(api_key)
+    if not buyer_id:
+        raise HTTPException(403, "Agent not found or inactive")
+
+    if buyer_id == req.seller_agent_id:
+        raise HTTPException(400, "Cannot buy your own skill")
+
+    from core.database import db
+
+    # Find the skill listing
+    listing = await db._fetchone(
+        "SELECT id, skill_name, skill_content, source, confidence, times_applied, price_usdc "
+        "FROM skill_marketplace WHERE seller_agent_id=? AND skill_name=? AND status='active'",
+        (req.seller_agent_id, req.skill_name))
+    if not listing:
+        raise HTTPException(404, f"Skill '{req.skill_name}' not found from seller {req.seller_agent_id[:8]}")
+
+    price = float(listing["price_usdc"])
+
+    # Check buyer doesn't already have this skill
+    existing = await db._fetchone(
+        "SELECT id FROM agent_skills WHERE agent_id=? AND skill_name=?",
+        (buyer_id, req.skill_name))
+    if existing:
+        raise HTTPException(409, f"You already have skill '{req.skill_name}'")
+
+    # Charge buyer
+    from billing.prepaid_credits import deduct_credits, add_credits
+    charge = await deduct_credits(buyer_id, price, f"skill:buy:{req.skill_name[:30]}")
+    if not charge.get("success"):
+        raise HTTPException(402, f"Insufficient credits. Need ${price:.2f}")
+
+    # Pay seller
+    seller_row = await db._fetchone(
+        "SELECT wallet FROM agent_permissions WHERE agent_id=?", (req.seller_agent_id,))
+    if seller_row:
+        await add_credits(
+            req.seller_agent_id, seller_row["wallet"], price,
+            payment_tx="skill-sale",
+            description=f"Skill sale: {req.skill_name} to {buyer_id[:8]}")
+
+    # Copy skill to buyer's SOUL
+    now = datetime.now(timezone.utc).isoformat()
+    await db.raw_execute(
+        "INSERT INTO agent_skills(agent_id, skill_name, skill_content, source, "
+        "confidence, times_applied, created_at, updated_at) VALUES(?,?,?,?,?,0,?,?)",
+        (buyer_id, listing["skill_name"], listing["skill_content"],
+         f"imported:{req.seller_agent_id[:8]}", float(listing["confidence"]) * 0.8,
+         now, now))
+
+    # Update sales count
+    await db.raw_execute(
+        "UPDATE skill_marketplace SET times_sold = times_sold + 1 WHERE id=?",
+        (listing["id"],))
+
+    logger.info("[SKILL-MKT] Agent %s bought skill '%s' from %s ($%.2f)",
+                buyer_id[:8], req.skill_name, req.seller_agent_id[:8], price)
+
+    # Alert
+    try:
+        from infra.alerts import alert_revenue
+        await alert_revenue(price, f"Skill sale: {req.skill_name}")
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "skill_name": req.skill_name,
+        "paid_usdc": price,
+        "credit_balance": charge.get("balance", 0),
+        "confidence": float(listing["confidence"]) * 0.8,
+        "message": "Skill imported to your SOUL. Confidence starts at 80% of original.",
+    }
+
+
+@router.get("/skills/marketplace")
+async def browse_skill_marketplace(topic: str = "", limit: int = 20):
+    """Browse skills for sale from all agents. No auth required."""
+    await _ensure_schema()
+    from core.database import db
+
+    if topic:
+        rows = await db._fetchall(
+            "SELECT seller_agent_id, skill_name, skill_content, confidence, "
+            "times_applied, price_usdc, times_sold, created_at "
+            "FROM skill_marketplace WHERE status='active' "
+            "AND (skill_name LIKE ? OR skill_content LIKE ?) "
+            "ORDER BY times_sold DESC, confidence DESC LIMIT ?",
+            (f"%{topic}%", f"%{topic}%", limit))
+    else:
+        rows = await db._fetchall(
+            "SELECT seller_agent_id, skill_name, skill_content, confidence, "
+            "times_applied, price_usdc, times_sold, created_at "
+            "FROM skill_marketplace WHERE status='active' "
+            "ORDER BY times_sold DESC, confidence DESC LIMIT ?",
+            (limit,))
+
+    return {"count": len(rows), "skills": [dict(r) for r in rows]}
 
 
 # ══════════════════════════════════════════
