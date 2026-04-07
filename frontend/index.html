@@ -2060,7 +2060,7 @@ function clog(msg, lvl) {
   lvl = lvl || 'info';
   const el = document.getElementById('console-output');
   const ts = new Date().toTimeString().slice(0, 8);
-  el.innerHTML += `<div class="log-line"><span class="log-ts">${ts}</span><span class="log-${lvl}">${msg}</span></div>`;
+  el.innerHTML += `<div class="log-line"><span class="log-ts">${ts}</span><span class="log-${lvl}">${esc(msg)}</span></div>`;
   el.scrollTop = el.scrollHeight;
 }
 
@@ -3297,7 +3297,12 @@ async function openEmail(uid) {
   // Afficher le body (HTML si dispo, sinon texte)
   const bodyEl = document.getElementById('reader-body');
   if (r.data.body_html) {
-    bodyEl.innerHTML = r.data.body_html;
+    bodyEl.textContent = '';
+    var _frame = document.createElement('iframe');
+    _frame.sandbox = 'allow-same-origin';
+    _frame.style.cssText = 'width:100%;border:none;min-height:300px';
+    bodyEl.appendChild(_frame);
+    _frame.srcdoc = r.data.body_html;
   } else {
     bodyEl.textContent = r.data.body_text || '(vide)';
   }

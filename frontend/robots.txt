@@ -1,31 +1,11 @@
 User-agent: *
 Allow: /
-Disallow: /admin
-Disallow: /dashboard
 Disallow: /api/
-Disallow: /ws
 Disallow: /mcp/
-Disallow: /health
-Disallow: /openapi.json
-Disallow: /MAXIA_DOCS.md
+Disallow: /ws/
+Disallow: /admin/
 Disallow: /oracle/
-Disallow: /metrics
-Disallow: /status/chain/
-
-User-agent: GPTBot
-Allow: /
-Allow: /llms.txt
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
+Disallow: /static/js/
+Disallow: /miniapp
 
 Sitemap: https://maxiaworld.app/sitemap.xml

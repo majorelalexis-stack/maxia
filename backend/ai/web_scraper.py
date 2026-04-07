@@ -38,10 +38,12 @@ def _get_ua() -> str:
     return random.choice(USER_AGENTS)
 
 
-async def _is_blocked(url: str) -> bool:
-    """Verifie si l'URL est bloquee (Art.1 + SSRF protection).
+async def _is_safe_url(url: str) -> tuple[bool, str]:
+    """Validate URL is safe to fetch (Art.1 + SSRF + DNS rebinding protection).
 
-    Bloque: domaines interdits, schemas dangereux, IPs privees/loopback/link-local/metadata.
+    Returns (is_safe, resolved_ip). If is_safe is False, resolved_ip contains the reason.
+    Resolves DNS once and returns the IP so the caller can pin the connection to it,
+    preventing DNS rebinding attacks (PRO-A6).
     """
     url_lower = url.lower()
 
@@ -49,12 +51,12 @@ async def _is_blocked(url: str) -> bool:
     BLOCKED_SCHEMES = ("file://", "ftp://", "gopher://", "dict://", "ldap://", "tftp://")
     for scheme in BLOCKED_SCHEMES:
         if url_lower.startswith(scheme):
-            return True
+            return False, "blocked_scheme"
 
     # Domaines interdits (contenu Art.1)
     for blocked in BLOCKED_DOMAINS:
         if blocked in url_lower:
-            return True
+            return False, "blocked_domain"
 
     # SSRF: bloquer les IPs privees, loopback, link-local, metadata cloud
     try:
@@ -63,25 +65,29 @@ async def _is_blocked(url: str) -> bool:
 
         # Bloquer localhost et variantes
         if hostname in ("localhost", "0.0.0.0", "[::]", "[::1]"):
-            return True
+            return False, "localhost"
 
         # Resoudre le hostname en IP et verifier les plages privees
-        import socket, asyncio
+        import socket
         resolved_ips = await asyncio.to_thread(socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        first_safe_ip = None
         for _, _, _, _, sockaddr in resolved_ips:
             ip_str = sockaddr[0]
             ip = ipaddress.ip_address(ip_str)
             # Bloquer: loopback, prive, link-local, metadata AWS/cloud
             if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved:
-                return True
+                return False, "private_ip"
             # Double-check metadata IP explicitement (169.254.169.254)
             if ip_str in ("169.254.169.254", "fd00::ec2"):
-                return True
+                return False, "metadata_ip"
+            if first_safe_ip is None:
+                first_safe_ip = ip_str
+        if first_safe_ip is None:
+            return False, "no_resolved_ip"
+        return True, first_safe_ip
     except Exception:
         # DNS resolution impossible — bloquer par precaution
-        return True
-
-    return False
+        return False, "dns_error"
 
 
 def _extract_text_regex(html: str) -> dict:
@@ -164,7 +170,8 @@ async def scrape_url(url: str, extract_links: bool = True,
     if not url or not url.startswith("http"):
         return {"success": False, "error": "URL invalide. Doit commencer par http:// ou https://"}
 
-    if await _is_blocked(url):
+    is_safe, resolved_ip = await _is_safe_url(url)
+    if not is_safe:
         return {"success": False, "error": "URL bloquee par Art.1 (contenu interdit)"}
 
     # Cache
@@ -186,6 +193,14 @@ async def scrape_url(url: str, extract_links: bool = True,
 
         async with httpx.AsyncClient(timeout=15, follow_redirects=True, max_redirects=5) as client:
             resp = await client.get(url, headers=headers)
+
+        # PRO-A6: After following redirects, re-validate the final URL to prevent
+        # open-redirect-based SSRF (redirect to internal IP).
+        final_url = str(resp.url)
+        if final_url != url:
+            final_safe, _ = await _is_safe_url(final_url)
+            if not final_safe:
+                return {"success": False, "error": "URL bloquee apres redirection (SSRF protection)"}
 
         if resp.status_code != 200:
             _scrape_stats["errors"] += 1

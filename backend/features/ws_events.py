@@ -108,7 +108,7 @@ async def ws_events_endpoint(websocket: WebSocket) -> None:
 
     await websocket.accept()
     agent_name = agent.get("name", "unknown")
-    logger.info("[WS/events] Connected: %s (%s)", agent_name, api_key[:14] + "...")
+    logger.info("[WS/events] Connected: %s (%s)", agent_name, api_key[:6] + "...")
 
     # ── Create per-client queue ──
     queue: asyncio.Queue = asyncio.Queue(maxsize=_QUEUE_MAX_SIZE)

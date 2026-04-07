@@ -326,9 +326,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Alert worker init error: %s", e)
 
-    # Token sniper worker (pump.fun scan every 30s)
+    # Token sniper worker (pump.fun scan every 30s) + ONE-51 tables
     try:
-        from trading.token_sniper import sniper_worker
+        from trading.token_sniper import sniper_worker, ensure_tables as ensure_sniper_tables
+        await ensure_sniper_tables()
         asyncio.create_task(sniper_worker())
         logger.info("[MAXIA] Token sniper worker started (30s interval)")
     except Exception as e:
@@ -480,13 +481,15 @@ async def lifespan(app: FastAPI):
 # ── App ──
 
 _is_sandbox = os.getenv("SANDBOX_MODE", "false").lower() == "true"
+_force_https = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+_is_prod = _force_https or not _is_sandbox
 app = FastAPI(
     title="MAXIA API V12",
     version="12.0.0",
     lifespan=lifespan,
     docs_url=None,   # Protected endpoint below (S41)
     redoc_url=None,
-    openapi_url="/openapi.json",  # Needed for protected /docs
+    openapi_url=None if _is_prod else "/openapi.json",  # Disabled in prod (PRO-A1)
 )
 
 
@@ -564,13 +567,18 @@ async def not_found_handler(request: Request, exc):
 
 
 # ── CORS restrictif (pas de wildcard en prod) ──
-_ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app").split(",")
+_is_prod = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+_ALLOWED_ORIGINS = (
+    os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app").split(",")
+    if _is_prod
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Wallet", "X-Signature", "X-Nonce", "X-Admin-Key", "X-CEO-Key", "X-API-Key", "X-Payment", "X-Payment-Network"],
-    allow_credentials=True,
+    allow_credentials=_is_prod,  # credentials only with explicit origins
 )
 app.middleware("http")(x402_middleware)
 
@@ -660,8 +668,19 @@ async def rate_limit_headers_middleware(request, call_next):
             content={"error": e.detail, "retry_after": 60},
             headers={"Retry-After": "60"},
         )
-    except Exception:
-        pass
+    except Exception as e:
+        # PRO-A4: Fail-closed — if async rate limit throws, use in-memory fallback
+        logger.warning("Rate limit async error, using in-memory fallback: %s", e)
+        try:
+            from core.security import _check_rate_limit_memory
+            _check_rate_limit_memory(ip)
+        except HTTPException as e2:
+            from starlette.responses import JSONResponse as _JSONRespFallback
+            return _JSONRespFallback(
+                status_code=e2.status_code,
+                content={"error": e2.detail, "retry_after": 60},
+                headers={"Retry-After": "60"},
+            )
 
     # In-memory rate limit (smart, per-endpoint) — fallback/complement
     try:
@@ -674,8 +693,19 @@ async def rate_limit_headers_middleware(request, call_next):
                 content={"error": "Rate limit exceeded", "retry_after": 60},
                 headers={**info, "Retry-After": "60"},
             )
-    except Exception:
-        pass
+    except Exception as e:
+        # PRO-A4: Fail-closed — if smart rate limit throws, use in-memory fallback
+        logger.warning("Rate limit smart error, using in-memory fallback: %s", e)
+        try:
+            from core.security import _check_rate_limit_memory
+            _check_rate_limit_memory(ip)
+        except HTTPException as e2:
+            from starlette.responses import JSONResponse as _JSONRespFallback2
+            return _JSONRespFallback2(
+                status_code=e2.status_code,
+                content={"error": e2.detail, "retry_after": 60},
+                headers={"Retry-After": "60"},
+            )
 
     response = await call_next(request)
     try:

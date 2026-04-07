@@ -1,6 +1,9 @@
-"""MAXIA V12 — DCA Bot: Dollar-Cost Averaging automated trading"""
+"""MAXIA V12 — DCA Bot: Dollar-Cost Averaging automated trading
+Real Jupiter swap execution — user signs pending transactions via Phantom wallet.
+"""
 import logging
 import asyncio
+import json
 import time
 import uuid
 from fastapi import APIRouter, HTTPException, Header
@@ -14,6 +17,7 @@ DCA_COMMISSION_BPS = 10  # 0.10% (10 basis points)
 DCA_MIN_AMOUNT = 1.0
 DCA_MAX_AMOUNT = 1000.0
 DCA_MAX_FAIL_STREAK = 3
+DCA_PENDING_TX_EXPIRY_SECONDS = 120  # Jupiter txs expire after ~2 minutes
 
 FREQUENCY_SECONDS = {
     "daily": 86400,
@@ -65,6 +69,21 @@ async def ensure_tables():
             received NUMERIC(18,6) NOT NULL, commission_usdc NUMERIC(18,6) DEFAULT 0,
             created_at INTEGER DEFAULT (strftime('%s','now')));
         CREATE INDEX IF NOT EXISTS idx_dca_exec_order ON dca_executions(order_id);
+        CREATE TABLE IF NOT EXISTS dca_pending_txs (
+            tx_id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL,
+            swap_transaction TEXT NOT NULL,
+            quote_data TEXT NOT NULL,
+            amount_usdc NUMERIC(18,6) NOT NULL,
+            to_token TEXT NOT NULL,
+            price_usdc NUMERIC(18,6) NOT NULL,
+            commission_usdc NUMERIC(18,6) NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at INTEGER DEFAULT (strftime('%s','now')),
+            signed_at INTEGER DEFAULT 0,
+            tx_signature TEXT DEFAULT '');
+        CREATE INDEX IF NOT EXISTS idx_dca_pending_order ON dca_pending_txs(order_id);
+        CREATE INDEX IF NOT EXISTS idx_dca_pending_status ON dca_pending_txs(status);
     """)
 
 
@@ -262,13 +281,26 @@ async def dca_stats():
 # ── Background Worker ──
 
 async def dca_worker():
-    """Background: execute due DCA orders every 60 seconds."""
-    logger.info("[DCA] Worker started — checking every 60s")
+    """Background: create pending Jupiter swap txs for due DCA orders every 60s.
+
+    Instead of simulating executions in DB, the worker:
+    1. Gets a real Jupiter quote for the swap
+    2. Builds an unsigned swap transaction via Jupiter API
+    3. Stores the pending tx in dca_pending_txs (status='pending')
+    4. User retrieves and signs via Phantom, then calls /api/dca/confirm/{tx_id}
+    """
+    logger.info("[DCA] Worker started — checking every 60s (Jupiter real swaps)")
     while True:
         try:
             await asyncio.sleep(60)
             db = await _get_db()
             now = int(time.time())
+
+            # Expire stale pending txs (older than 2 minutes)
+            await db.raw_execute(
+                "UPDATE dca_pending_txs SET status='expired' "
+                "WHERE status='pending' AND created_at < ?",
+                (now - DCA_PENDING_TX_EXPIRY_SECONDS,))
 
             due_orders = await db.raw_execute_fetchall(
                 "SELECT order_id, api_key, wallet, from_token, to_token, "
@@ -280,58 +312,87 @@ async def dca_worker():
             if not due_orders:
                 continue
 
+            from blockchain.jupiter_router import get_quote, execute_swap, USDC_MINT
+            from trading.crypto_swap import SUPPORTED_TOKENS
+
             for row in due_orders:
                 order = dict(row)
                 order_id = order["order_id"]
                 to_token = order["to_token"]
                 amount_usdc = float(order["amount_usdc"])
+                wallet = order["wallet"]
 
                 try:
-                    # 1. Get current price
-                    from trading.price_oracle import get_price
-                    price = await get_price(to_token)
-                    if price <= 0:
-                        raise ValueError(f"Price unavailable for {to_token}")
+                    # 1. Resolve token mint address
+                    token_info = SUPPORTED_TOKENS.get(to_token.upper())
+                    if not token_info:
+                        raise ValueError(f"Token {to_token} not supported — no mint found")
+                    token_mint = token_info["mint"]
+                    token_decimals = token_info.get("decimals", 6)
 
-                    # 2. Calculate token amount (amount_usdc / price)
-                    raw_received = amount_usdc / price
-
-                    # 3. Apply commission (0.10%)
+                    # 2. Calculate commission and effective swap amount
                     commission_usdc = round(amount_usdc * DCA_COMMISSION_BPS / 10000, 6)
                     effective_amount = amount_usdc - commission_usdc
-                    received = round(effective_amount / price, 8)
+                    # USDC has 6 decimals — convert to raw lamports
+                    amount_raw = int(effective_amount * 1_000_000)
 
-                    # 4. Record execution
-                    exec_id = str(uuid.uuid4())
+                    if amount_raw <= 0:
+                        raise ValueError(f"Effective amount too small after commission: {effective_amount}")
+
+                    # 3. Get real Jupiter quote
+                    quote_result = await get_quote(USDC_MINT, token_mint, amount_raw)
+                    if not quote_result.get("success"):
+                        raise ValueError(
+                            f"Jupiter quote failed for {to_token}: "
+                            f"{quote_result.get('error', 'unknown')}")
+
+                    raw_quote = quote_result.get("raw_quote", {})
+                    out_amount_raw = int(quote_result.get("outAmount", "0"))
+                    received = out_amount_raw / (10 ** token_decimals) if out_amount_raw > 0 else 0
+                    price_usdc = round(effective_amount / received, 6) if received > 0 else 0
+
+                    # 4. Build unsigned swap transaction
+                    swap_result = await execute_swap(raw_quote, wallet)
+                    if not swap_result.get("success"):
+                        raise ValueError(
+                            f"Jupiter swap build failed for {to_token}: "
+                            f"{swap_result.get('error', 'unknown')}")
+
+                    swap_transaction = swap_result.get("swapTransaction", "")
+                    if not swap_transaction:
+                        raise ValueError("Jupiter returned empty swapTransaction")
+
+                    # 5. Store pending transaction
+                    tx_id = str(uuid.uuid4())
+                    quote_json = json.dumps({
+                        "inAmount": quote_result.get("inAmount", "0"),
+                        "outAmount": quote_result.get("outAmount", "0"),
+                        "priceImpactPct": quote_result.get("priceImpactPct", "0"),
+                        "lastValidBlockHeight": swap_result.get("lastValidBlockHeight", 0),
+                    })
+
                     await db.raw_execute(
-                        "INSERT INTO dca_executions(exec_id, order_id, price_usdc, "
-                        "amount_usdc, received, commission_usdc) VALUES(?,?,?,?,?,?)",
-                        (exec_id, order_id, round(price, 6), amount_usdc,
-                         received, commission_usdc))
+                        "INSERT INTO dca_pending_txs(tx_id, order_id, swap_transaction, "
+                        "quote_data, amount_usdc, to_token, price_usdc, commission_usdc, "
+                        "status, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                        (tx_id, order_id, swap_transaction, quote_json,
+                         amount_usdc, to_token, price_usdc, commission_usdc,
+                         "pending", now))
 
-                    # 5. Update order stats
-                    new_total_executed = int(order.get("total_executed", 0) or 0) + 1
-                    new_total_invested = float(order.get("total_invested_usdc", 0) or 0) + amount_usdc
-                    new_total_received = float(order.get("total_received", 0) or 0) + received
+                    # 6. Advance next_run so worker doesn't re-trigger this order
+                    #    (stats NOT updated yet — wait for user confirmation)
                     new_next_run = now + FREQUENCY_SECONDS.get(order["frequency"], 604800)
-
                     await db.raw_execute(
-                        "UPDATE dca_orders SET total_executed=?, total_invested_usdc=?, "
-                        "total_received=?, next_run=?, last_run=?, fail_streak=0 "
+                        "UPDATE dca_orders SET next_run=?, last_run=?, fail_streak=0 "
                         "WHERE order_id=?",
-                        (new_total_executed, round(new_total_invested, 6),
-                         round(new_total_received, 8), new_next_run, now, order_id))
+                        (new_next_run, now, order_id))
 
                     logger.info(
-                        "[DCA] Executed %s: %.2f USDC -> %.8f %s @ $%.4f (commission $%.4f)",
-                        order_id[:8], amount_usdc, received, to_token,
-                        price, commission_usdc)
-
-                    # 6. Try Telegram alert (best effort)
-                    try:
-                        await _send_dca_alert(order, price, received, commission_usdc)
-                    except Exception:
-                        pass
+                        "[DCA] Pending tx created for order %s — "
+                        "%.2f USDC -> %s @ $%.4f (commission $%.4f) — "
+                        "awaiting user signature [tx_id=%s]",
+                        order_id[:8], amount_usdc, to_token,
+                        price_usdc, commission_usdc, tx_id[:8])
 
                 except Exception as e:
                     # Increment fail streak
@@ -355,11 +416,232 @@ async def dca_worker():
                             "[DCA] Execution failed for %s (streak %d): %s",
                             order_id[:8], fail_streak, e)
 
-                # Small delay between orders to avoid flooding
+                # Small delay between orders to avoid flooding Jupiter
                 await asyncio.sleep(1)
 
         except Exception as e:
             logger.error("[DCA] Worker error: %s", e)
+
+
+@router.get("/pending/{order_id}")
+async def dca_pending_txs(
+    order_id: str,
+    x_api_key: str = Header(None, alias="X-API-Key"),
+):
+    """Get pending unsigned swap transactions for a DCA order."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _get_agent(x_api_key)
+
+    db = await _get_db()
+    # Verify ownership
+    order = await db.raw_execute_fetchall(
+        "SELECT order_id FROM dca_orders WHERE order_id=? AND api_key=?",
+        (order_id, x_api_key))
+    if not order:
+        raise HTTPException(404, "Order not found or not owned by you")
+
+    now = int(time.time())
+
+    # Expire stale pending txs before returning
+    await db.raw_execute(
+        "UPDATE dca_pending_txs SET status='expired' "
+        "WHERE order_id=? AND status='pending' AND created_at < ?",
+        (order_id, now - DCA_PENDING_TX_EXPIRY_SECONDS))
+
+    rows = await db.raw_execute_fetchall(
+        "SELECT tx_id, swap_transaction, amount_usdc, to_token, "
+        "price_usdc, commission_usdc, created_at, quote_data "
+        "FROM dca_pending_txs WHERE order_id=? AND status='pending' "
+        "ORDER BY created_at DESC",
+        (order_id,))
+
+    pending = []
+    for r in rows:
+        row = dict(r)
+        expires_at = int(row.get("created_at", 0)) + DCA_PENDING_TX_EXPIRY_SECONDS
+        pending.append({
+            "tx_id": row["tx_id"],
+            "swap_transaction": row["swap_transaction"],
+            "amount_usdc": float(row["amount_usdc"]),
+            "to_token": row["to_token"],
+            "price_usdc": float(row["price_usdc"]),
+            "commission_usdc": float(row["commission_usdc"]),
+            "created_at": row["created_at"],
+            "expires_at": expires_at,
+        })
+
+    return {"pending": pending, "total": len(pending)}
+
+
+@router.post("/confirm/{tx_id}")
+async def dca_confirm_tx(
+    tx_id: str,
+    req: dict,
+    x_api_key: str = Header(None, alias="X-API-Key"),
+):
+    """Confirm a signed DCA swap transaction after user broadcasts it.
+
+    Body: {"tx_signature": "the_solana_tx_signature"}
+    Verifies on-chain, then updates order stats and records execution.
+    """
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _get_agent(x_api_key)
+
+    tx_signature = (req.get("tx_signature") or "").strip()
+    if not tx_signature or len(tx_signature) < 40:
+        raise HTTPException(400, "Valid tx_signature required (Solana transaction signature)")
+
+    db = await _get_db()
+
+    # Fetch the pending tx
+    rows = await db.raw_execute_fetchall(
+        "SELECT pt.tx_id, pt.order_id, pt.amount_usdc, pt.to_token, "
+        "pt.price_usdc, pt.commission_usdc, pt.status, pt.created_at, "
+        "pt.quote_data, o.api_key, o.frequency, o.total_executed, "
+        "o.total_invested_usdc, o.total_received "
+        "FROM dca_pending_txs pt "
+        "JOIN dca_orders o ON o.order_id = pt.order_id "
+        "WHERE pt.tx_id=? AND o.api_key=?",
+        (tx_id, x_api_key))
+
+    if not rows:
+        raise HTTPException(404, "Pending transaction not found or not owned by you")
+
+    pending = dict(rows[0])
+
+    if pending["status"] != "pending":
+        raise HTTPException(400, f"Transaction is already '{pending['status']}' — cannot confirm")
+
+    # Check expiry
+    now = int(time.time())
+    created = int(pending.get("created_at", 0))
+    if now - created > DCA_PENDING_TX_EXPIRY_SECONDS:
+        await db.raw_execute(
+            "UPDATE dca_pending_txs SET status='expired' WHERE tx_id=?", (tx_id,))
+        raise HTTPException(410, "Transaction expired — Jupiter transactions are valid for ~2 minutes")
+
+    # Verify on-chain
+    try:
+        from blockchain.solana_verifier import verify_transaction
+        verification = await verify_transaction(tx_signature)
+    except Exception as e:
+        logger.error("[DCA] On-chain verification error for tx %s: %s", tx_id[:8], e)
+        raise HTTPException(502, "Failed to verify transaction on-chain — try again shortly")
+
+    if not verification.get("valid"):
+        raise HTTPException(
+            400,
+            f"Transaction not confirmed on-chain: {verification.get('error', 'not found or not finalized')}")
+
+    # Parse quote data for received amount
+    amount_usdc = float(pending["amount_usdc"])
+    to_token = pending["to_token"]
+    price_usdc = float(pending["price_usdc"])
+    commission_usdc = float(pending["commission_usdc"])
+
+    # Calculate received from quote
+    quote_data = {}
+    try:
+        quote_data = json.loads(pending.get("quote_data", "{}"))
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    out_amount_raw = int(quote_data.get("outAmount", "0"))
+    from trading.crypto_swap import SUPPORTED_TOKENS
+    token_info = SUPPORTED_TOKENS.get(to_token.upper(), {})
+    token_decimals = token_info.get("decimals", 6)
+    received = out_amount_raw / (10 ** token_decimals) if out_amount_raw > 0 else 0
+
+    # 1. Mark pending tx as confirmed
+    await db.raw_execute(
+        "UPDATE dca_pending_txs SET status='confirmed', signed_at=?, tx_signature=? "
+        "WHERE tx_id=?",
+        (now, tx_signature, tx_id))
+
+    # 2. Insert into dca_executions
+    exec_id = str(uuid.uuid4())
+    await db.raw_execute(
+        "INSERT INTO dca_executions(exec_id, order_id, price_usdc, "
+        "amount_usdc, received, commission_usdc) VALUES(?,?,?,?,?,?)",
+        (exec_id, pending["order_id"], price_usdc, amount_usdc,
+         round(received, 8), commission_usdc))
+
+    # 3. Update dca_orders stats
+    order_id = pending["order_id"]
+    new_total_executed = int(pending.get("total_executed", 0) or 0) + 1
+    new_total_invested = float(pending.get("total_invested_usdc", 0) or 0) + amount_usdc
+    new_total_received = float(pending.get("total_received", 0) or 0) + received
+
+    await db.raw_execute(
+        "UPDATE dca_orders SET total_executed=?, total_invested_usdc=?, "
+        "total_received=? WHERE order_id=?",
+        (new_total_executed, round(new_total_invested, 6),
+         round(new_total_received, 8), order_id))
+
+    logger.info(
+        "[DCA] Confirmed tx %s for order %s: %.2f USDC -> %.8f %s @ $%.4f "
+        "(on-chain: %s)",
+        tx_id[:8], order_id[:8], amount_usdc, received, to_token,
+        price_usdc, tx_signature[:16])
+
+    # Best-effort Telegram alert
+    try:
+        order_row = await db.raw_execute_fetchall(
+            "SELECT * FROM dca_orders WHERE order_id=?", (order_id,))
+        if order_row:
+            await _send_dca_alert(dict(order_row[0]), price_usdc, received, commission_usdc)
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "tx_id": tx_id,
+        "order_id": order_id,
+        "exec_id": exec_id,
+        "tx_signature": tx_signature,
+        "amount_usdc": amount_usdc,
+        "received": round(received, 8),
+        "to_token": to_token,
+        "price_usdc": price_usdc,
+        "commission_usdc": commission_usdc,
+        "status": "confirmed",
+    }
+
+
+@router.delete("/pending/{tx_id}")
+async def dca_cancel_pending_tx(
+    tx_id: str,
+    x_api_key: str = Header(None, alias="X-API-Key"),
+):
+    """Cancel a pending DCA swap transaction (sets status='expired')."""
+    if not x_api_key:
+        raise HTTPException(401, "X-API-Key required")
+    await _get_agent(x_api_key)
+
+    db = await _get_db()
+
+    # Verify ownership via join
+    rows = await db.raw_execute_fetchall(
+        "SELECT pt.tx_id, pt.status "
+        "FROM dca_pending_txs pt "
+        "JOIN dca_orders o ON o.order_id = pt.order_id "
+        "WHERE pt.tx_id=? AND o.api_key=?",
+        (tx_id, x_api_key))
+
+    if not rows:
+        raise HTTPException(404, "Pending transaction not found or not owned by you")
+
+    pending = dict(rows[0])
+    if pending["status"] != "pending":
+        raise HTTPException(400, f"Transaction is already '{pending['status']}' — cannot cancel")
+
+    await db.raw_execute(
+        "UPDATE dca_pending_txs SET status='expired' WHERE tx_id=?", (tx_id,))
+
+    logger.info("[DCA] Cancelled pending tx %s", tx_id[:8])
+    return {"success": True, "tx_id": tx_id, "status": "expired"}
 
 
 async def _send_dca_alert(order: dict, price: float, received: float, commission: float):

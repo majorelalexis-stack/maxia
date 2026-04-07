@@ -2,7 +2,7 @@
 
 Extracted from public_api.py (S34 split).
 """
-import logging, time
+import logging, time, json, secrets
 
 from fastapi import APIRouter, HTTPException, Header, Request
 
@@ -202,9 +202,24 @@ async def referral_my_code(x_api_key: str = Header(None, alias="X-API-Key")):
     if not x_api_key:
         raise HTTPException(401, "X-API-Key required")
     agent = _get_agent(x_api_key)
-    # Referral code = first 8 chars of api_key after "maxia_" prefix
-    code = x_api_key[6:14]
+    # PRO-A7: Look up independent referral code from DB (not derived from API key)
     from core.database import db
+    code = ""
+    try:
+        agent_row = await db.raw_execute_fetchall(
+            "SELECT referral_code FROM agents WHERE api_key=? LIMIT 1", (x_api_key,))
+        if agent_row:
+            code = (agent_row[0]["referral_code"] if isinstance(agent_row[0], dict) else agent_row[0][0]) or ""
+    except Exception:
+        pass
+    # Generate one if missing (legacy agent registered before migration 9)
+    if not code:
+        import secrets as _secrets
+        code = _secrets.token_hex(4).upper()
+        try:
+            await db.raw_execute("UPDATE agents SET referral_code=? WHERE api_key=?", (code, x_api_key))
+        except Exception:
+            pass
     rows = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (x_api_key,))
     count = rows[0]["cnt"] if rows else 0
@@ -266,8 +281,24 @@ async def referral_stats(api_key: str):
     if not agent:
         raise HTTPException(404, "Agent not found")
 
-    referral_code = api_key[6:14]
+    # PRO-A7: Look up independent referral code from DB
     from core.database import db
+    referral_code = ""
+    try:
+        agent_row = await db.raw_execute_fetchall(
+            "SELECT referral_code FROM agents WHERE api_key=? LIMIT 1", (api_key,))
+        if agent_row:
+            referral_code = (agent_row[0]["referral_code"] if isinstance(agent_row[0], dict) else agent_row[0][0]) or ""
+    except Exception:
+        pass
+    if not referral_code:
+        import secrets as _secrets
+        referral_code = _secrets.token_hex(4).upper()
+        try:
+            await db.raw_execute("UPDATE agents SET referral_code=? WHERE api_key=?", (referral_code, api_key))
+        except Exception:
+            pass
+
     # Count referrals
     rows = await db.raw_execute_fetchall(
         "SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (api_key,))
@@ -407,8 +438,12 @@ async def agent_bundle(request: Request):
     except Exception as e:
         logger.error("DB save agent error: %s", e)
 
-    # 2. Generate referral code
-    referral_code = f"ref_{wallet[:8]}_{int(time.time()) % 10000}"
+    # 2. PRO-A7: Generate independent referral code (not derived from API key or wallet)
+    referral_code = secrets.token_hex(4).upper()
+    try:
+        await db.raw_execute("UPDATE agents SET referral_code=? WHERE api_key=?", (referral_code, api_key))
+    except Exception as e:
+        logger.warning("Failed to store bundle referral_code: %s", e)
 
     # 3. Get current tier info
     from trading.crypto_swap import get_swap_tier_info

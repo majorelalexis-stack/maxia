@@ -449,6 +449,10 @@ class Database:
         8: ("Performance indexes for common queries", (
             "CREATE INDEX IF NOT EXISTS idx_tx_wallet_purpose ON transactions(wallet, purpose);"
         )),
+        9: ("PRO-A7: Independent referral codes — no longer derived from API key", (
+            "ALTER TABLE agents ADD COLUMN referral_code TEXT DEFAULT '';"
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_referral_code ON agents(referral_code) WHERE referral_code != '';"
+        )),
     }
 
     async def _run_migrations(self):
@@ -706,7 +710,14 @@ class Database:
             "FROM agents ORDER BY created_at DESC")
 
     async def get_agent_by_referral_code(self, code: str) -> dict[str, Any] | None:
-        """Find agent whose api_key[6:14] matches the referral code — O(1) with index."""
+        """Find agent by independent referral_code column, fallback to legacy substr match."""
+        # PRO-A7: prefer independent referral_code column
+        rows = await self.raw_execute_fetchall(
+            "SELECT api_key, name, wallet FROM agents WHERE referral_code = ? LIMIT 1",
+            (code,))
+        if rows:
+            return dict(rows[0])
+        # Legacy fallback: match substr(api_key, 7, 8) for agents registered before migration 9
         rows = await self.raw_execute_fetchall(
             "SELECT api_key, name, wallet FROM agents WHERE substr(api_key, 7, 8) = ? LIMIT 1",
             (code,))

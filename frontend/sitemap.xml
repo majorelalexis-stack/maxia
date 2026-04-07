@@ -1,23 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://maxiaworld.app/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://maxiaworld.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://maxiaworld.app/app</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
-  <url><loc>https://maxiaworld.app/docs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://maxiaworld.app/trust</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://maxiaworld.app/status</loc><changefreq>always</changefreq><priority>0.6</priority></url>
-  <url><loc>https://maxiaworld.app/forum</loc><changefreq>always</changefreq><priority>0.8</priority></url>
   <url><loc>https://maxiaworld.app/marketplace</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://maxiaworld.app/creator</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-  <url><loc>https://maxiaworld.app/register</loc><changefreq>daily</changefreq><priority>0.95</priority></url>
-  <url><loc>https://maxiaworld.app/enterprise</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://maxiaworld.app/compare</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://maxiaworld.app/architecture</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://maxiaworld.app/store</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-  <url><loc>https://maxiaworld.app/whitelabel</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://maxiaworld.app/blog</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://maxiaworld.app/launch</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://maxiaworld.app/docs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://maxiaworld.app/enterprise</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://maxiaworld.app/forum</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://maxiaworld.app/blog</loc><changefreq>daily</changefreq><priority>0.7</priority></url>
+  <url><loc>https://maxiaworld.app/register</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://maxiaworld.app/buy</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/sniper</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/store</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/referral</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
   <url><loc>https://maxiaworld.app/legal</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://maxiaworld.app/governance</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://maxiaworld.app/profile</loc><changefreq>weekly</changefreq><priority>0.4</priority></url>
-  <url><loc>https://maxiaworld.app/playground</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://maxiaworld.app/trust</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://maxiaworld.app/compare</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://maxiaworld.app/architecture</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://maxiaworld.app/status</loc><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://maxiaworld.app/creator</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://maxiaworld.app/governance</loc><changefreq>weekly</changefreq><priority>0.4</priority></url>
 </urlset>

@@ -2,7 +2,7 @@
 
 Extracted from public_api.py (S34 split).
 """
-import logging, json, time, asyncio, datetime
+import logging, json, os, time, asyncio, datetime
 
 from fastapi import APIRouter, HTTPException, Header, Request
 
@@ -813,7 +813,129 @@ _SERVICE_PROMPTS = {
 
 
 async def _execute_native_service(service_id: str, prompt: str) -> str:
-    """Execute a MAXIA native service via LLM Router (Groq -> Mistral -> Claude fallback)."""
+    """Execute a MAXIA native service.
+
+    ONE-53: Routes to real service implementations where available,
+    falls back to LLM Router for text-based services.
+    """
+    # ── ONE-53: Real service dispatch ──
+    real_result = await _dispatch_real_service(service_id, prompt)
+    if real_result is not None:
+        return real_result
+
+    # ── Fallback: LLM-based execution ──
+    return await _execute_via_llm(service_id, prompt)
+
+
+async def _dispatch_real_service(service_id: str, prompt: str) -> str | None:
+    """Dispatch to a real service implementation. Returns None if no real handler."""
+
+    # ── Sentiment Analysis ──
+    if service_id == "maxia-sentiment":
+        try:
+            from ai.sentiment_analyzer import get_sentiment
+            # Extract token from prompt (first word or default BTC)
+            token = _extract_token_from_prompt(prompt)
+            result = await asyncio.wait_for(get_sentiment(token), timeout=15)
+            return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error("Real sentiment service error: %s", e)
+            return None  # Fall back to LLM
+
+    # ── Image Generation ──
+    if service_id == "maxia-image":
+        try:
+            from ai.image_gen import generate_image
+            result = await asyncio.wait_for(generate_image(prompt), timeout=30)
+            if result.get("success"):
+                return json.dumps({
+                    "success": True,
+                    "image_url": result.get("url", result.get("image_url", "")),
+                    "model": result.get("model", "flux-schnell"),
+                    "prompt": prompt[:200],
+                }, indent=2)
+            # If image gen failed, return error as string
+            return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error("Real image gen service error: %s", e)
+            return None
+
+    # ── Wallet Analysis ──
+    if service_id in ("maxia-wallet", "maxia-wallet-analysis"):
+        try:
+            from features.web3_services import analyze_wallet
+            # Extract wallet address from prompt
+            address = _extract_address_from_prompt(prompt)
+            if address:
+                result = await asyncio.wait_for(analyze_wallet(address), timeout=20)
+                return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error("Real wallet analysis error: %s", e)
+        return None  # Fall back to LLM
+
+    # ── Wallet Risk Score ──
+    if service_id in ("maxia-wallet-risk", "maxia-wallet-score"):
+        try:
+            from features.wallet_risk import score_wallet
+            address = _extract_address_from_prompt(prompt)
+            if address:
+                chain = "solana" if len(address) > 40 else "ethereum"
+                result = await asyncio.wait_for(score_wallet(address, chain), timeout=15)
+                return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error("Real wallet risk error: %s", e)
+        return None
+
+    # ── Code Generation / Smart Contract Audit ──
+    if service_id in ("maxia-code", "maxia-code-review", "maxia-audit"):
+        # These use LLM but with the specialized system prompt — let fallback handle it
+        return None
+
+    # ── DeFi Yields ──
+    if service_id == "maxia-defi-yields":
+        try:
+            from trading.defi_scanner import get_best_yields
+            # Extract asset from prompt or default USDC
+            asset = _extract_token_from_prompt(prompt) if prompt else "USDC"
+            result = await asyncio.wait_for(get_best_yields(asset=asset, limit=10), timeout=15)
+            return json.dumps({"asset": asset, "yields": result, "count": len(result)}, indent=2)
+        except Exception as e:
+            logger.error("Real DeFi yields error: %s", e)
+        return None
+
+    return None  # No real handler — use LLM fallback
+
+
+def _extract_token_from_prompt(prompt: str) -> str:
+    """Extract a crypto token symbol from a prompt string."""
+    import re
+    # Common patterns: "BTC", "analyze BTC", "sentiment for ETH"
+    tokens = re.findall(r'\b([A-Z]{2,10})\b', prompt.upper())
+    known = {"BTC", "ETH", "SOL", "USDC", "USDT", "XRP", "ADA", "DOT", "AVAX",
+             "MATIC", "LINK", "UNI", "AAVE", "DOGE", "SHIB", "ARB", "OP", "SUI",
+             "APT", "NEAR", "TON", "TRX", "FET", "INJ", "TAO", "AKT", "ONDO"}
+    for t in tokens:
+        if t in known:
+            return t
+    return tokens[0] if tokens else "BTC"
+
+
+def _extract_address_from_prompt(prompt: str) -> str:
+    """Extract a wallet address from a prompt string."""
+    import re
+    # Solana: base58, 32-44 chars
+    sol_match = re.search(r'[1-9A-HJ-NP-Za-km-z]{32,44}', prompt)
+    if sol_match:
+        return sol_match.group(0)
+    # EVM: 0x prefix, 40 hex chars
+    evm_match = re.search(r'0x[0-9a-fA-F]{40}', prompt)
+    if evm_match:
+        return evm_match.group(0)
+    return ""
+
+
+async def _execute_via_llm(service_id: str, prompt: str) -> str:
+    """Execute a service via LLM Router with Cerebras fallback."""
     sys_prompt = _SERVICE_PROMPTS.get(service_id, "You are a helpful AI assistant.")
 
     try:

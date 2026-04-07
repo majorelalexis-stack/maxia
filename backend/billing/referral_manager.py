@@ -10,7 +10,22 @@ RATE_BPS = int(os.getenv("REFERRAL_RATE_BPS", "5000"))  # 50% of MAXIA's commiss
 
 @router.get("/my-code")
 async def my_code(wallet: str = Depends(require_auth)):
-    code = wallet[:8].upper() + "MAXIA"
+    # PRO-A7: Look up independent referral code from DB (not derived from wallet)
+    code = ""
+    try:
+        agent_row = await db.raw_execute_fetchall(
+            "SELECT referral_code FROM agents WHERE wallet=? LIMIT 1", (wallet,))
+        if agent_row:
+            code = (agent_row[0]["referral_code"] if isinstance(agent_row[0], dict) else agent_row[0][0]) or ""
+    except Exception:
+        pass
+    if not code:
+        import secrets
+        code = secrets.token_hex(4).upper()
+        try:
+            await db.raw_execute("UPDATE agents SET referral_code=? WHERE wallet=?", (code, wallet))
+        except Exception:
+            pass
     rows = await db.raw_execute_fetchall("SELECT COUNT(*) AS cnt FROM referrals WHERE referrer=?", (wallet,))
     r = rows[0] if rows else {"cnt": 0}
     earned = await _earnings(wallet)

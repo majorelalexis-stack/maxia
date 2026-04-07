@@ -272,9 +272,10 @@ async def _handle_price(intent: ParsedIntent) -> dict:
 
 
 async def _handle_swap(intent: ParsedIntent) -> dict:
-    """Get a swap quote (read-only, no execution)."""
+    """Get a swap quote (MAXIA commission + Jupiter pricing). Frontend builds the real tx."""
     try:
         from trading.crypto_swap import SUPPORTED_TOKENS, get_swap_quote
+        from blockchain.jupiter_router import get_quote as jup_get_quote
 
         from_token = intent.from_token or ""
         to_token = intent.to_token or ""
@@ -301,6 +302,7 @@ async def _handle_swap(intent: ParsedIntent) -> dict:
                 "data": None,
             }
 
+        # 1. Get MAXIA quote (with commission info)
         quote = await get_swap_quote(from_token, to_token, amount)
 
         if "error" in quote:
@@ -309,14 +311,31 @@ async def _handle_swap(intent: ParsedIntent) -> dict:
         out_amount = quote.get("output_amount", 0)
         rate = quote.get("rate", 0)
         commission = quote.get("commission_pct", 0)
+
+        # 2. Get Jupiter quote for real pricing (outAmount, priceImpact)
+        from_mint = SUPPORTED_TOKENS[from_token]["mint"]
+        to_mint = SUPPORTED_TOKENS[to_token]["mint"]
+        decimals = SUPPORTED_TOKENS[from_token].get("decimals", 6)
+        amount_raw = int(amount * (10 ** decimals))
+
+        jup_quote = await jup_get_quote(from_mint, to_mint, amount_raw)
+
+        response_text = (
+            f"Swap quote: {amount} {from_token} -> {out_amount:.6f} {to_token}\n"
+            f"Rate: 1 {from_token} = {rate:.6f} {to_token}\n"
+            f"Commission: {commission}\n\n"
+            f"Quote ready — execute from the app to swap."
+        )
+
+        result_data = dict(quote)
+        result_data["requires_wallet"] = True
+        if jup_quote.get("success") and jup_quote.get("raw_quote"):
+            result_data["jupiter_quote"] = jup_quote["raw_quote"]
+
         return {
-            "response": (
-                f"Swap quote: {amount} {from_token} -> {out_amount:.6f} {to_token}\n"
-                f"Rate: 1 {from_token} = {rate:.6f} {to_token}\n"
-                f"Commission: {commission}%"
-            ),
+            "response": response_text,
             "type": "swap_quote",
-            "data": quote,
+            "data": result_data,
         }
     except Exception as exc:
         err = safe_error(exc, "chat_swap")

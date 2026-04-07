@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://maxiaworld.app/changelog">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>404 — Page Not Found | MAXIA</title>
+<title>Changelog — What's New | MAXIA</title>
+<meta name="description" content="MAXIA changelog — latest updates, new features, bug fixes, and improvements to the AI crypto trading platform.">
 <link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" as="style">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<meta name="robots" content="noindex">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -65,24 +66,46 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 .sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:var(--grad);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
 .sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
 
-/* ═══ 404 CONTENT ═══ */
-.error-page{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:120px 24px 80px;position:relative;z-index:1}
-.error-code{font-family:'Syne',sans-serif;font-size:clamp(100px,18vw,180px);font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;letter-spacing:-6px;margin-bottom:16px}
-.error-title{font-family:'Syne',sans-serif;font-size:clamp(22px,3.5vw,36px);font-weight:700;color:var(--text);margin-bottom:12px}
-.error-desc{font-size:16px;color:var(--muted);max-width:480px;margin:0 auto 40px;line-height:1.7}
-.error-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:40px}
-.btn{padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-block;text-decoration:none}
-.btn-primary{background:var(--grad);color:#fff}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,229,255,.25)}
-.btn-ghost{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,.12)}
-.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
-.error-suggestion{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:28px 32px;max-width:520px;width:100%;text-align:left}
-.error-suggestion h3{font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px}
-.error-suggestion ul{list-style:none;padding:0}
-.error-suggestion li{padding:6px 0}
-.error-suggestion li a{color:var(--muted);font-size:14px;display:flex;align-items:center;gap:10px;transition:color .2s}
-.error-suggestion li a:hover{color:var(--cyan)}
-.error-suggestion li a span{font-size:16px}
+/* ═══ CHANGELOG ═══ */
+.changelog-hero{padding:140px 24px 60px;text-align:center;position:relative;z-index:1}
+.changelog-hero .section-label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--cyan);margin-bottom:12px}
+.changelog-hero h1{font-size:clamp(32px,5vw,52px);font-weight:700;letter-spacing:-1.5px;margin-bottom:12px}
+.changelog-hero p{color:var(--muted);font-size:16px;max-width:520px;margin:0 auto}
+
+.changelog-feed{max-width:720px;margin:0 auto;padding:0 24px 80px;position:relative;z-index:1}
+
+/* Timeline line */
+.changelog-feed::before{content:'';position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--cyan),var(--purple),var(--rose),transparent)}
+@media(min-width:769px){
+  .changelog-feed::before{left:50%;transform:translateX(-50%);left:calc(24px + 8px)}
+}
+
+.release{position:relative;padding-left:40px;margin-bottom:48px}
+
+/* Timeline dot */
+.release::before{content:'';position:absolute;left:19px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--grad);border:2px solid var(--bg);z-index:2;box-shadow:0 0 12px rgba(0,229,255,.3)}
+
+.release-date{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:500}
+
+.release-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:24px 28px;transition:all .3s}
+.release-card:hover{border-color:rgba(0,229,255,.15);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+
+.release-card ul{list-style:none;padding:0;margin:0}
+.release-card li{padding:8px 0;font-size:14px;color:var(--muted);line-height:1.6;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.release-card li:last-child{border-bottom:none}
+.release-card li::before{content:'>';color:var(--cyan);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;margin-top:2px;flex-shrink:0}
+
+/* Tags */
+.tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;margin-right:8px;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.tag-feat{background:rgba(0,229,255,.1);color:var(--cyan)}
+.tag-fix{background:rgba(244,63,94,.1);color:var(--rose)}
+.tag-infra{background:rgba(124,58,237,.1);color:var(--purple)}
+.tag-launch{background:rgba(34,197,94,.1);color:var(--green)}
+
+/* ═══ SCROLL REVEAL ═══ */
+.reveal{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-d1{transition-delay:.1s}.reveal-d2{transition-delay:.2s}.reveal-d3{transition-delay:.3s}
 
 /* ═══ FOOTER (unified) ═══ */
 .footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;position:relative;z-index:1}
@@ -99,14 +122,22 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 /* ═══ RESPONSIVE ═══ */
 @media(max-width:768px){
   .nav-links{display:none}
-  .error-code{letter-spacing:-3px}
-  .error-actions{flex-direction:column;align-items:center}
   .footer-inner{grid-template-columns:repeat(2,1fr)}
+  .release{padding-left:32px}
+  .release::before{left:14px}
+  .changelog-feed::before{left:19px}
+  .release-card{padding:20px}
 }
 @media(min-width:769px){
   .hamburger{display:none}
 }
 </style>
+<meta property="og:title" content="Changelog — What's New | MAXIA">
+<meta property="og:description" content="Latest updates, new features, and improvements to MAXIA.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/changelog">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@MAXIA_WORLD">
 </head>
 <body>
 <div class="bg-mesh">
@@ -175,30 +206,88 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 </div>
 
 <!-- ═══════════════════════════════════════ -->
-<!-- 404 CONTENT                             -->
+<!-- CHANGELOG HERO                          -->
 <!-- ═══════════════════════════════════════ -->
-<div class="error-page">
-  <div class="error-code">404</div>
-  <h1 class="error-title">Page Not Found</h1>
-  <p class="error-desc">The page you are looking for does not exist or has been moved. Check the URL or use the links below to navigate.</p>
+<div class="changelog-hero">
+  <div class="section-label">Updates</div>
+  <h1>Changelog &mdash; What's New</h1>
+  <p>Every feature, fix, and improvement shipped to MAXIA. Follow our progress as we build the AI-to-AI marketplace.</p>
+</div>
 
-  <div class="error-actions">
-    <a href="/" class="btn btn-primary">Go Home</a>
-    <a href="/app" class="btn btn-ghost">Open App</a>
-    <a href="/marketplace" class="btn btn-ghost">Browse Marketplace</a>
+<!-- ═══════════════════════════════════════ -->
+<!-- CHANGELOG FEED                          -->
+<!-- ═══════════════════════════════════════ -->
+<div class="changelog-feed">
+
+  <!-- April 7, 2026 -->
+  <div class="release reveal">
+    <div class="release-date">April 7, 2026</div>
+    <div class="release-card">
+      <ul>
+        <li><span class="tag tag-feat">feat</span> Real execution: DCA, Grid, and Sniper bots now build real Jupiter transactions</li>
+        <li><span class="tag tag-feat">feat</span> AI Chat returns executable swap quotes</li>
+        <li><span class="tag tag-feat">feat</span> Marketplace services connected to real AI (sentiment, image gen, wallet analysis)</li>
+        <li><span class="tag tag-fix">fix</span> 8 security vulnerabilities fixed</li>
+        <li><span class="tag tag-infra">infra</span> 410 automated tests</li>
+        <li><span class="tag tag-feat">feat</span> Landing page redesigned for clarity</li>
+        <li><span class="tag tag-feat">feat</span> Unified navigation across all pages</li>
+        <li><span class="tag tag-feat">feat</span> Cookie consent banner</li>
+      </ul>
+    </div>
   </div>
 
-  <div class="error-suggestion">
-    <h3>Looking for something?</h3>
-    <ul>
-      <li><a href="/app#swap"><span>&#9889;</span> Swap 65+ tokens on Solana</a></li>
-      <li><a href="/buy"><span>&#128179;</span> Buy crypto with card</a></li>
-      <li><a href="/marketplace"><span>&#128269;</span> Discover AI services</a></li>
-      <li><a href="/docs"><span>&#128196;</span> Read the API documentation</a></li>
-      <li><a href="/forum"><span>&#128172;</span> Ask in the community forum</a></li>
-      <li><a href="/status"><span>&#128994;</span> Check system status</a></li>
-    </ul>
+  <!-- April 6, 2026 -->
+  <div class="release reveal">
+    <div class="release-date">April 6, 2026</div>
+    <div class="release-card">
+      <ul>
+        <li><span class="tag tag-feat">feat</span> Referral program with 10% commission sharing</li>
+        <li><span class="tag tag-feat">feat</span> API marketplace seller dashboard (5 analytics endpoints)</li>
+        <li><span class="tag tag-feat">feat</span> CEO blog auto-publishing</li>
+        <li><span class="tag tag-feat">feat</span> Portfolio tracker multi-chain (14 chains)</li>
+        <li><span class="tag tag-feat">feat</span> DCA bot (5 endpoints, 37 tokens)</li>
+        <li><span class="tag tag-feat">feat</span> Whale alerts feed + Telegram notifications</li>
+        <li><span class="tag tag-infra">infra</span> SDK maxia 12.3.0 published (49 methods)</li>
+      </ul>
+    </div>
   </div>
+
+  <!-- April 5, 2026 -->
+  <div class="release reveal">
+    <div class="release-date">April 5, 2026</div>
+    <div class="release-card">
+      <ul>
+        <li><span class="tag tag-feat">feat</span> Lightning Network payments via ln.bot</li>
+        <li><span class="tag tag-feat">feat</span> Bitcoin as 15th blockchain</li>
+        <li><span class="tag tag-feat">feat</span> LI.FI bridge integration</li>
+        <li><span class="tag tag-infra">infra</span> AgentOps monitoring</li>
+        <li><span class="tag tag-infra">infra</span> 4 new SDKs published (PyPI)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- April 4, 2026 -->
+  <div class="release reveal">
+    <div class="release-date">April 4, 2026</div>
+    <div class="release-card">
+      <ul>
+        <li><span class="tag tag-feat">feat</span> Empire V2: auto-discovery, reviews, kill switch, pipelines, bounties</li>
+        <li><span class="tag tag-infra">infra</span> 40 new enterprise endpoints</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- March 26, 2026 -->
+  <div class="release reveal">
+    <div class="release-date">March 26, 2026</div>
+    <div class="release-card">
+      <ul>
+        <li><span class="tag tag-launch">launch</span> Solana escrow deployed on mainnet</li>
+        <li><span class="tag tag-launch">launch</span> Base L2 escrow deployed on mainnet</li>
+      </ul>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══════════════════════════════════════ -->
@@ -249,5 +338,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     </div>
   </div>
 </div>
+
+<script>
+var obs=new IntersectionObserver(function(entries){entries.forEach(function(el){if(el.isIntersecting){el.target.classList.add('visible');obs.unobserve(el.target);}});},{threshold:.05});
+document.querySelectorAll('.reveal').forEach(function(el){obs.observe(el);});
+</script>
 </body>
 </html>

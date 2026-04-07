@@ -18,43 +18,10 @@ FRONTEND_INDEX = Path(__file__).parent.parent.parent / "frontend" / "index.html"
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
-_ADMIN_SESSIONS_MAX = 100  # Cap to prevent unbounded growth
-_ADMIN_SESSIONS_FILE = Path(__file__).parent.parent / ".admin_sessions.json"
+_ADMIN_SESSIONS_MAX = 1000  # Cap to prevent unbounded growth
 
-
-def _load_admin_sessions() -> dict:
-    """Load sessions from disk — survives restarts."""
-    try:
-        if _ADMIN_SESSIONS_FILE.exists():
-            data = json.loads(_ADMIN_SESSIONS_FILE.read_text())
-            now = time.time()
-            return {k: v for k, v in data.items() if v > now}
-    except Exception:
-        pass
-    return {}
-
-
-def _save_admin_sessions():
-    """Persist sessions to disk — merge with existing file (multi-worker safe)."""
-    try:
-        now = time.time()
-        # Read existing from disk (other workers may have added sessions)
-        existing = {}
-        if _ADMIN_SESSIONS_FILE.exists():
-            try:
-                existing = json.loads(_ADMIN_SESSIONS_FILE.read_text())
-            except Exception:
-                pass
-        # Merge: combine disk + memory, remove expired
-        merged = {k: v for k, v in {**existing, **_ADMIN_SESSIONS}.items() if v > now}
-        _ADMIN_SESSIONS_FILE.write_text(json.dumps(merged))
-        # Update local memory too
-        _ADMIN_SESSIONS.update(merged)
-    except Exception:
-        pass
-
-
-_ADMIN_SESSIONS: dict = _load_admin_sessions()
+# PRO-A3: Sessions in-memory only (no disk persistence — avoids file-based tampering)
+_ADMIN_SESSIONS: dict = {}  # {token: expiry_timestamp}
 
 
 def _verify_admin(request: Request) -> bool:
@@ -63,15 +30,9 @@ def _verify_admin(request: Request) -> bool:
     header_key = request.headers.get("X-Admin-Key", "")
     if header_key and ADMIN_KEY and hmac.compare_digest(header_key, ADMIN_KEY):
         return True
-    # 2) Cookie session opaque (pour dashboard browser)
+    # 2) Cookie session opaque (pour dashboard browser) — in-memory only
     cookie_token = request.cookies.get("maxia_admin", "")
     if cookie_token:
-        # Check memory first
-        if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > time.time():
-            return True
-        # Fallback: reload from disk (another worker may have created it)
-        refreshed = _load_admin_sessions()
-        _ADMIN_SESSIONS.update(refreshed)
         if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > time.time():
             return True
     return False
@@ -141,7 +102,6 @@ async def admin_login(req: Request):
         oldest = min(_ADMIN_SESSIONS, key=_ADMIN_SESSIONS.get)
         _ADMIN_SESSIONS.pop(oldest, None)
     _ADMIN_SESSIONS[token] = now + 86400  # 24h
-    _save_admin_sessions()
     resp = JSONResponse({"ok": True, "redirect": "/dashboard"})
     resp.set_cookie("maxia_admin", token, httponly=True, secure=True, samesite="lax", max_age=86400)
     return resp

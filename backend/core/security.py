@@ -114,28 +114,16 @@ def require_admin(request: Request) -> str:
     if key and hmac.compare_digest(key, admin_key):
         audit_log("admin_auth_ok", ip, f"method=header path={request.url.path}")
         return key
-    # 2) Cookie session opaque (dashboard browser)
+    # 2) Cookie session opaque (dashboard browser) — in-memory only (PRO-A3)
     import time as _t
-    import json as _json
-    from pathlib import Path as _Path
     cookie_token = request.cookies.get("maxia_admin", "")
     if cookie_token:
-        # Check in-memory first
         try:
-            from main import _ADMIN_SESSIONS
+            from routes.admin_routes import _ADMIN_SESSIONS
             if cookie_token in _ADMIN_SESSIONS and _ADMIN_SESSIONS[cookie_token] > _t.time():
                 return "cookie"
         except Exception as e:
             logger.debug("In-memory admin session check failed: %s", e)
-        # Fallback: check persisted sessions on disk (multi-worker safe)
-        try:
-            sf = _Path(__file__).parent.parent / ".admin_sessions.json"
-            if sf.exists():
-                sessions = _json.loads(sf.read_text())
-                if cookie_token in sessions and sessions[cookie_token] > _t.time():
-                    return "cookie"
-        except Exception as e:
-            logger.warning("Disk admin session check failed: %s", e)
     audit_log("admin_auth_failed", ip, f"method=header+cookie path={request.url.path}")
     raise HTTPException(403, "Unauthorized")
 

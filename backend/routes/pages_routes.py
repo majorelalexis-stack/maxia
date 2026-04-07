@@ -10,6 +10,8 @@ from core.error_utils import safe_error
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+_APP_START_TIME = time.time()
+
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 
 # ── Agent Card ──
@@ -427,9 +429,9 @@ async def health(request: Request):
     checks = {}
     overall = "ok"
 
-    # DB check
+    # DB check — fast SELECT 1 (< 50ms typically)
     try:
-        await db.get_stats()
+        await db.raw_execute_fetchall("SELECT 1")
         checks["database"] = "ok"
     except Exception as e:
         checks["database"] = f"error: {str(e)[:80]}"
@@ -475,7 +477,17 @@ async def health(request: Request):
     except Exception:
         pass
 
-    result = {"status": overall, "version": "12.0.0", "timestamp": int(time.time())}
+    uptime_s = round(time.time() - _APP_START_TIME, 1)
+    db_status = "ok" if checks.get("database") == "ok" else "error"
+    result = {
+        "status": overall,
+        "db": db_status,
+        "uptime_seconds": uptime_s,
+        "version": "12.0",
+        "timestamp": int(time.time()),
+    }
+    if db_status == "error":
+        result["error"] = checks.get("database", "unknown")
     if is_admin:
         result["checks"] = checks
         result["networks"] = ["solana-mainnet", "base-mainnet", "ethereum-mainnet", "xrpl-mainnet", "ton-mainnet", "sui-mainnet", "polygon-mainnet", "arbitrum-mainnet", "avalanche-mainnet", "bnb-mainnet", "tron-mainnet", "near-mainnet", "aptos-mainnet", "sei-mainnet"]

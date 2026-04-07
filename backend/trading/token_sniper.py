@@ -1,18 +1,22 @@
-"""MAXIA ONE-40 — Token Sniper Bot.
+"""MAXIA ONE-40/51 — Token Sniper Bot.
 
 Detecte les nouveaux tokens via DexScreener (primary) + pump.fun (fallback).
 Filtre par criteres, alerte via Telegram/webhook.
+ONE-51: auto-buy via unsigned Jupiter transactions.
 
 Endpoints:
   GET  /api/sniper/new-tokens       — Derniers tokens detectes (filtrables)
-  POST /api/sniper/watch             — Creer une alerte sniper
+  POST /api/sniper/watch             — Creer une alerte sniper (+ auto_buy_usdc)
   GET  /api/sniper/watchlist         — Lister ses alertes actives
   DELETE /api/sniper/watch/{watch_id} — Supprimer une alerte
   GET  /api/sniper/stats             — Statistiques du scanner
+  GET  /api/sniper/pending           — Pending unsigned buy txs
+  POST /api/sniper/confirm/{tx_id}   — Confirm a signed buy tx
 
 Worker background: scan toutes les 30s.
 """
 import asyncio
+import json
 import logging
 import os
 import time
@@ -55,6 +59,149 @@ class WatchRequest(BaseModel):
     keywords: list[str] = Field(default_factory=list, description="Keywords in name/description")
     webhook_url: Optional[str] = None
     telegram_chat_id: Optional[str] = None
+    auto_buy_usdc: float = Field(0, ge=0, le=1000, description="Auto-buy amount in USDC (0 = disabled)")
+
+
+# ── DB Tables (ONE-51) ──
+
+async def _get_db():
+    from core.database import db
+    return db
+
+
+async def ensure_tables():
+    db = await _get_db()
+    await db.raw_executescript("""
+        CREATE TABLE IF NOT EXISTS sniper_pending_txs (
+            tx_id TEXT PRIMARY KEY,
+            watcher_id TEXT NOT NULL,
+            token_mint TEXT NOT NULL,
+            token_symbol TEXT NOT NULL,
+            swap_transaction TEXT NOT NULL,
+            amount_usdc NUMERIC(18,6) NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at INTEGER DEFAULT (strftime('%s','now')),
+            tx_signature TEXT DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_sniper_tx_watcher ON sniper_pending_txs(watcher_id, status);
+
+        CREATE TABLE IF NOT EXISTS sniper_watchers (
+            watcher_id TEXT PRIMARY KEY,
+            wallet TEXT NOT NULL,
+            filters TEXT NOT NULL,
+            auto_buy_usdc NUMERIC(18,6) DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at INTEGER DEFAULT (strftime('%s','now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_sniper_watchers_wallet ON sniper_watchers(wallet);
+        CREATE INDEX IF NOT EXISTS idx_sniper_watchers_status ON sniper_watchers(status);
+    """)
+    await _load_watchers_from_db()
+
+
+async def _load_watchers_from_db() -> None:
+    """Load active watchers from DB into in-memory _watchlist on startup."""
+    try:
+        db = await _get_db()
+        rows = await db.raw_execute_fetchall(
+            "SELECT watcher_id, wallet, filters, auto_buy_usdc, created_at "
+            "FROM sniper_watchers WHERE status = 'active'"
+        )
+        for row in rows:
+            filters = json.loads(row["filters"])
+            watch = {
+                "watch_id": row["watcher_id"],
+                "wallet": row["wallet"],
+                "min_market_cap_usd": filters.get("min_market_cap_usd", 0),
+                "max_market_cap_usd": filters.get("max_market_cap_usd", 100_000),
+                "min_boosts": filters.get("min_boosts", 0),
+                "keywords": filters.get("keywords", []),
+                "webhook_url": filters.get("webhook_url"),
+                "telegram_chat_id": filters.get("telegram_chat_id"),
+                "auto_buy_usdc": float(row.get("auto_buy_usdc", 0) or 0),
+                "created_at": row.get("created_at", 0),
+                "alerts_sent": 0,
+            }
+            _watchlist[row["watcher_id"]] = watch
+        if rows:
+            logger.info("[SNIPER] Loaded %d watchers from database", len(rows))
+    except Exception as e:
+        logger.error("[SNIPER] Failed to load watchers from DB: %s", e)
+
+
+# ── Auto-buy helper (ONE-51) ──
+
+async def _build_auto_buy_tx(watch: dict, token: dict) -> Optional[dict]:
+    """Build an unsigned Jupiter buy tx for a detected token.
+
+    Returns the pending tx record or None on failure.
+    """
+    amount_usdc = watch.get("auto_buy_usdc", 0)
+    if amount_usdc <= 0:
+        return None
+
+    mint = token.get("mint", "")
+    chain = token.get("chain", "solana")
+    if not mint or chain != "solana":
+        return None  # Jupiter only works on Solana
+
+    wallet = watch.get("wallet", "")
+    if not wallet:
+        return None
+
+    try:
+        from blockchain.jupiter_router import get_quote, execute_swap, USDC_MINT
+
+        amount_raw = int(amount_usdc * 1e6)  # USDC has 6 decimals
+        quote = await get_quote(USDC_MINT, mint, amount_raw)
+        if not quote.get("success"):
+            logger.warning("[Sniper] Auto-buy quote failed for %s: %s",
+                           mint[:12], quote.get("error", "unknown"))
+            return None
+
+        raw_quote = quote.get("raw_quote")
+        if not raw_quote:
+            logger.warning("[Sniper] Auto-buy: no raw_quote for %s", mint[:12])
+            return None
+
+        swap_result = await execute_swap(raw_quote, wallet)
+        if not swap_result.get("success"):
+            logger.warning("[Sniper] Auto-buy swap build failed for %s: %s",
+                           mint[:12], swap_result.get("error", "unknown"))
+            return None
+
+        tx_id = f"snp_tx_{uuid.uuid4().hex[:12]}"
+        symbol = token.get("symbol", mint[:8])
+        swap_tx_data = swap_result.get("transaction", swap_result.get("swapTransaction", ""))
+
+        pending = {
+            "tx_id": tx_id,
+            "watcher_id": watch["watch_id"],
+            "token_mint": mint,
+            "token_symbol": symbol,
+            "swap_transaction": swap_tx_data,
+            "amount_usdc": amount_usdc,
+            "status": "pending",
+            "created_at": int(time.time()),
+            "tx_signature": "",
+        }
+
+        # Persist to DB
+        db = await _get_db()
+        await db.raw_execute(
+            "INSERT INTO sniper_pending_txs "
+            "(tx_id, watcher_id, token_mint, token_symbol, swap_transaction, amount_usdc, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (tx_id, watch["watch_id"], mint, symbol, swap_tx_data, amount_usdc, "pending"),
+        )
+
+        logger.info("[Sniper] Auto-buy tx built: %s for %s USDC on %s",
+                     tx_id, amount_usdc, symbol)
+        return pending
+
+    except Exception as e:
+        logger.error("[Sniper] Auto-buy error for %s: %s", mint[:12], e)
+        return None
 
 
 # ── Scanner ──
@@ -168,11 +315,26 @@ def _matches_watch(token: dict, watch: dict) -> bool:
 
 
 async def _notify_watcher(watch: dict, token: dict) -> None:
-    """Send sniper alert via Telegram and/or webhook."""
+    """Send sniper alert via Telegram and/or webhook. Build auto-buy tx if enabled."""
     global _alert_count
 
     source = token.get("source", "?")
     url = token.get("url", "")
+
+    # ONE-51: Build auto-buy tx if enabled
+    pending_tx = None
+    auto_buy_usdc = watch.get("auto_buy_usdc", 0)
+    if auto_buy_usdc > 0:
+        pending_tx = await _build_auto_buy_tx(watch, token)
+
+    buy_info = ""
+    if pending_tx:
+        buy_info = (
+            f"\n\nBuy tx ready — sign in app\n"
+            f"Amount: {pending_tx['amount_usdc']} USDC\n"
+            f"TX ID: {pending_tx['tx_id']}"
+        )
+
     msg = (
         f"MAXIA Sniper Alert!\n"
         f"Token: {token.get('name', '?')}\n"
@@ -181,6 +343,7 @@ async def _notify_watcher(watch: dict, token: dict) -> None:
         f"Chain: {token.get('chain', 'solana')}\n"
         f"Source: {source}\n"
         f"Link: {url}"
+        f"{buy_info}"
     )
 
     # Telegram (with retry)
@@ -331,10 +494,30 @@ async def create_watch(req: WatchRequest):
         "keywords": req.keywords[:10],
         "webhook_url": req.webhook_url,
         "telegram_chat_id": req.telegram_chat_id,
+        "auto_buy_usdc": req.auto_buy_usdc,
         "created_at": int(time.time()),
         "alerts_sent": 0,
     }
     _watchlist[watch_id] = watch
+
+    # Persist to DB
+    try:
+        filters_json = json.dumps({
+            "min_market_cap_usd": req.min_market_cap_usd,
+            "max_market_cap_usd": req.max_market_cap_usd,
+            "min_boosts": req.min_boosts,
+            "keywords": req.keywords[:10],
+            "webhook_url": req.webhook_url,
+            "telegram_chat_id": req.telegram_chat_id,
+        })
+        db = await _get_db()
+        await db.raw_execute(
+            "INSERT INTO sniper_watchers (watcher_id, wallet, filters, auto_buy_usdc) "
+            "VALUES (?, ?, ?, ?)",
+            (watch_id, req.wallet, filters_json, req.auto_buy_usdc),
+        )
+    except Exception as e:
+        logger.error("[SNIPER] Failed to persist watcher %s: %s", watch_id, e)
 
     return {"status": "created", "watch": watch}
 
@@ -351,7 +534,18 @@ async def delete_watch(watch_id: str):
     """Supprimer une alerte sniper."""
     if watch_id not in _watchlist:
         raise HTTPException(404, f"Watch not found: {watch_id}")
-    watch = _watchlist.pop(watch_id)
+    _watchlist.pop(watch_id)
+
+    # Remove from DB
+    try:
+        db = await _get_db()
+        await db.raw_execute(
+            "UPDATE sniper_watchers SET status = 'deleted' WHERE watcher_id = ?",
+            (watch_id,),
+        )
+    except Exception as e:
+        logger.error("[SNIPER] Failed to delete watcher %s from DB: %s", watch_id, e)
+
     return {"status": "deleted", "watch_id": watch_id}
 
 
@@ -369,3 +563,98 @@ async def sniper_stats():
         "source": _source_used,
         "status": "active" if _scan_count > 0 else "starting",
     }
+
+
+# ══════════════════════════════════════════
+#  ONE-51 — Pending Buy Transactions
+# ══════════════════════════════════════════
+
+@router.get("/pending")
+async def get_pending_txs(wallet: str = Query(..., min_length=10)):
+    """Returns pending unsigned buy transactions for this wallet."""
+    # Find watcher IDs belonging to this wallet
+    wallet_watcher_ids = [
+        w["watch_id"] for w in _watchlist.values()
+        if w.get("wallet") == wallet
+    ]
+    if not wallet_watcher_ids:
+        return {"wallet": wallet, "count": 0, "pending_txs": []}
+
+    try:
+        db = await _get_db()
+        placeholders = ",".join("?" for _ in wallet_watcher_ids)
+        rows = await db.raw_execute_fetchall(
+            f"SELECT tx_id, watcher_id, token_mint, token_symbol, "
+            f"swap_transaction, amount_usdc, status, created_at "
+            f"FROM sniper_pending_txs "
+            f"WHERE watcher_id IN ({placeholders}) AND status = 'pending' "
+            f"ORDER BY created_at DESC LIMIT 50",
+            tuple(wallet_watcher_ids),
+        )
+        return {
+            "wallet": wallet,
+            "count": len(rows),
+            "pending_txs": rows,
+        }
+    except Exception as e:
+        logger.error("[Sniper] Pending txs query error: %s", e)
+        return {"wallet": wallet, "count": 0, "pending_txs": [], "error": safe_error(e)}
+
+
+class ConfirmRequest(BaseModel):
+    tx_signature: str = Field(..., min_length=10, max_length=200,
+                              description="On-chain transaction signature")
+
+
+@router.post("/confirm/{tx_id}")
+async def confirm_buy_tx(tx_id: str, req: ConfirmRequest):
+    """Confirm a pending sniper buy transaction with its on-chain signature."""
+    if not tx_id or len(tx_id) > 100:
+        raise HTTPException(400, "Invalid tx_id")
+
+    try:
+        db = await _get_db()
+        rows = await db.raw_execute_fetchall(
+            "SELECT tx_id, watcher_id, token_mint, token_symbol, amount_usdc, status "
+            "FROM sniper_pending_txs WHERE tx_id = ?",
+            (tx_id,),
+        )
+        if not rows:
+            raise HTTPException(404, f"Pending transaction not found: {tx_id}")
+
+        row = rows[0]
+        if row["status"] != "pending":
+            raise HTTPException(400, f"Transaction already {row['status']}")
+
+        # Verify on-chain (best-effort — Jupiter swap tx goes to DEX, not treasury)
+        verified = False
+        try:
+            from blockchain.solana_verifier import verify_transaction
+            result = await verify_transaction(req.tx_signature)
+            if result and result.get("valid"):
+                verified = True
+        except Exception as e:
+            logger.warning("[Sniper] On-chain verify failed (accepting): %s", e)
+            verified = True
+
+        # Update status
+        new_status = "confirmed" if verified else "failed"
+        await db.raw_execute(
+            "UPDATE sniper_pending_txs SET status = ?, tx_signature = ? WHERE tx_id = ?",
+            (new_status, req.tx_signature, tx_id),
+        )
+
+        return {
+            "status": new_status,
+            "tx_id": tx_id,
+            "token_mint": row["token_mint"],
+            "token_symbol": row["token_symbol"],
+            "amount_usdc": row["amount_usdc"],
+            "tx_signature": req.tx_signature,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("[Sniper] Confirm error: %s", e)
+        raise HTTPException(500, safe_error(e))

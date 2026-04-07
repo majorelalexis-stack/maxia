@@ -232,8 +232,13 @@ class TestBug11DoubleSpend:
         """On timeout, must raise 503, NOT continue processing."""
         import inspect
         # Read the execute endpoint source
-        with open(os.path.join(BACKEND_DIR, "marketplace", "public_api.py"), encoding="utf-8") as f:
-            source = f.read()
+        # Read all marketplace sources (split across multiple files)
+        source = ""
+        for fname in ["public_api.py", "public_api_discover.py"]:
+            fpath = os.path.join(BACKEND_DIR, "marketplace", fname)
+            if os.path.exists(fpath):
+                with open(fpath, encoding="utf-8") as f:
+                    source += f.read()
         # Find the timeout handler
         assert "TimeoutError" in source
         # Must raise 503, not log warning and continue

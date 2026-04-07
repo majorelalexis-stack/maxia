@@ -305,7 +305,7 @@ async def register_agent(req: dict, request: Request):
                                  "referrer_code": referral_code, "referee_api_key": api_key,
                                  "referee_wallet": wallet, "referee_name": name,
                                  "registeredAt": int(time.time()), "earnedUsdc": 0})))
-                logger.info("Referral: %s referred by %s (agent %s...)", name, referral_code, referrer_api_key[:14])
+                logger.info("Referral: %s referred by %s (agent %s...)", name, referral_code, referrer_api_key[:6])
             else:
                 logger.info("Referral code %s not found — ignored", referral_code)
         except Exception as e:
@@ -387,8 +387,15 @@ async def register_agent(req: dict, request: Request):
 
     sandbox_note = " (SANDBOX MODE — fake USDC)" if SANDBOX_MODE else ""
 
-    # Generate referral code for this agent
-    my_referral_code = api_key[6:14]
+    # PRO-A7: Generate independent referral code (not derived from API key)
+    my_referral_code = secrets.token_hex(4).upper()
+    try:
+        from core.database import db as _db_ref
+        await _db_ref.raw_execute(
+            "UPDATE agents SET referral_code=? WHERE api_key=?",
+            (my_referral_code, api_key))
+    except Exception as e:
+        logger.warning("Failed to store referral_code: %s", e)
 
     # Generate DID + UAID for this agent
     agent_identity = {}
@@ -542,44 +549,31 @@ async def buy_service(req: dict, request: Request, x_api_key: str = Header(None,
     commission = price * commission_bps / 10000
     seller_gets = price - commission
 
-    # Executer le service via Cerebras (only AFTER payment is verified)
-    if not cerebras_ready:
-        raise HTTPException(503, "Service IA temporairement indisponible")
-
-    system_prompts = {
-        "audit": "You are MAXIA AI Security Scanner. Analyze smart contract code for vulnerabilities. Structure: [CRITICAL][MAJOR][MINOR][INFO]. Respond in the SAME LANGUAGE as the user.",
-        "data": "You are MAXIA Crypto Data Analyst. Provide DeFi/crypto market analysis with on-chain metrics. Respond in the SAME LANGUAGE as the user.",
-        "code": "You are MAXIA Code Engineer. Write clean, commented, production-ready code. Respond in the SAME LANGUAGE as the user.",
-        "text": "You are MAXIA Universal Translator. Translate professionally and context-aware. Auto-detect source language.",
-        "audit_deep": "You are MAXIA Deep Security Auditor. Perform multi-pass analysis: reentrancy, flash loans, oracle manipulation, economic attacks. Detailed report with severity and fix recommendations. Respond in the SAME LANGUAGE as the user.",
+    # Executer le service (ONE-53: route to real implementations where available)
+    # Map /buy service_type to maxia-* service IDs for unified dispatch
+    _buy_service_map = {
+        "audit": "maxia-audit",
+        "code": "maxia-code",
+        "data": "maxia-defi-yields",
+        "text": "maxia-translate",
+        "image": "maxia-image",
+        "audit_deep": "maxia-audit",
     }
-    system = system_prompts.get(service_type, system_prompts["text"])
+    mapped_service_id = _buy_service_map.get(service_type, f"maxia-{service_type}")
 
     try:
-        from core.http_client import get_http_client
-        from core.config import CEREBRAS_API_KEY, CEREBRAS_MODEL
-        client = get_http_client()
-        resp = await client.post(
-            "https://api.cerebras.ai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {CEREBRAS_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": CEREBRAS_MODEL,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
-                "max_tokens": 4096,
-                "temperature": 0.7,
-            },
-            timeout=25.0,
+        from marketplace.public_api_discover import _execute_native_service
+        result = await asyncio.wait_for(
+            _execute_native_service(mapped_service_id, prompt),
+            timeout=35,
         )
-        resp.raise_for_status()
-        data = resp.json()
-        choices = data.get("choices", [])
-        result = choices[0]["message"]["content"].strip() if choices else ""
+        if not result:
+            raise HTTPException(502, "AI service temporarily unavailable")
+    except asyncio.TimeoutError:
+        logger.error("Service execution timed out (35s) for /buy %s", service_type)
+        raise HTTPException(504, "Service execution timed out. Please retry.")
+    except HTTPException:
+        raise
     except Exception as e:
         # Fix #12: Don't leak internal error details
         logger.error("AI service error: %s", e)

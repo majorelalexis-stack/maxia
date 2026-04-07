@@ -172,10 +172,28 @@ async def serve_buy():
     return _serve("buy.html")
 
 
+@router.get("/changelog", response_class=HTMLResponse)
+async def serve_changelog():
+    """Changelog — latest updates, features, and fixes."""
+    return _serve("changelog.html")
+
+
 @router.get("/sniper", response_class=HTMLResponse)
 async def serve_sniper():
     """Token sniper — real-time new token detection from pump.fun."""
     return _serve("sniper.html")
+
+
+@router.get("/about", response_class=HTMLResponse)
+async def serve_about():
+    """About MAXIA — platform overview, infrastructure, contact."""
+    return _serve("about.html")
+
+
+@router.get("/faq", response_class=HTMLResponse)
+async def serve_faq():
+    """FAQ — frequently asked questions about MAXIA."""
+    return _serve("faq.html")
 
 
 @router.get("/miniapp", response_class=HTMLResponse)

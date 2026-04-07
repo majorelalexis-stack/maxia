@@ -152,8 +152,8 @@ async def geo_block_middleware(request: Request, call_next):
 
     # Bloquer si pays dans la liste
     if country in BLOCKED_COUNTRIES:
-        audit_log("geo_block", ip, f"US IP blocked: {path}")
-        logger.info("[GEO] Blocked US IP %s on %s", ip, path)
+        audit_log("geo_block", ip, f"{country} IP blocked: {path}")
+        logger.info("[GEO] Blocked %s IP %s on %s", country, ip, path)
         return GEO_BLOCKED_RESPONSE
 
     return await call_next(request)
