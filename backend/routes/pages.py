@@ -164,3 +164,15 @@ async def serve_governance():
 async def serve_playground():
     """API Playground — test endpoints in the browser with zero setup."""
     return _serve("playground.html")
+
+
+@router.get("/buy", response_class=HTMLResponse)
+async def serve_buy():
+    """Buy crypto with credit card — fiat on-ramp page."""
+    return _serve("buy.html")
+
+
+@router.get("/sniper", response_class=HTMLResponse)
+async def serve_sniper():
+    """Token sniper — real-time new token detection from pump.fun."""
+    return _serve("sniper.html")

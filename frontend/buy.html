@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buy Crypto with Card — MAXIA</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--cyan:#00e5ff;--purple:#7c3aed;--green:#22c55e;--rose:#f43f5e}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 20px}
+a{color:var(--cyan);text-decoration:none}
+.back{position:fixed;top:20px;left:20px;font-size:14px;color:var(--muted)}
+h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8px;margin-top:40px}
+.sub{color:var(--muted);margin-bottom:32px;font-size:15px}
+.form-box{background:var(--bg2);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:32px;width:100%;max-width:440px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;margin-top:16px}
+label:first-child{margin-top:0}
+select,input{width:100%;padding:12px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text);font-size:15px;font-family:inherit;outline:none}
+select:focus,input:focus{border-color:var(--cyan)}
+select{cursor:pointer;appearance:none;-webkit-appearance:none}
+.btn{display:block;width:100%;padding:14px;margin-top:24px;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;text-align:center;font-family:inherit}
+.btn:hover{opacity:.9}
+.result{margin-top:20px;padding:16px;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.15);border-radius:12px;display:none;word-break:break-all}
+.result a{display:block;margin-top:12px;padding:12px;background:var(--cyan);color:#060a14;border-radius:10px;text-align:center;font-weight:600;font-size:15px}
+.result a:hover{opacity:.85}
+.alts{margin-top:12px;font-size:13px;color:var(--muted)}
+.alts a{color:var(--cyan);margin-left:4px}
+.providers{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.prov{padding:6px 14px;border-radius:8px;font-size:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);color:var(--muted)}
+.prov.active{border-color:var(--green);color:var(--green)}
+</style>
+</head>
+<body>
+<a href="/" class="back">&larr; Back to MAXIA</a>
+<h1>Buy Crypto with Card</h1>
+<p class="sub">Credit card, bank transfer, Apple Pay. No crypto needed to start.</p>
+
+<div class="form-box">
+  <label>Token</label>
+  <select id="crypto">
+    <option value="SOL">SOL (Solana)</option>
+    <option value="ETH">ETH (Ethereum)</option>
+    <option value="BTC">BTC (Bitcoin)</option>
+    <option value="USDC">USDC (Stablecoin)</option>
+    <option value="MATIC">MATIC (Polygon)</option>
+    <option value="AVAX">AVAX (Avalanche)</option>
+    <option value="BNB">BNB (BNB Chain)</option>
+  </select>
+
+  <label>Amount</label>
+  <div style="display:flex;gap:10px">
+    <input type="number" id="amount" value="50" min="10" max="50000" style="flex:1">
+    <select id="fiat" style="width:100px">
+      <option value="EUR">EUR</option>
+      <option value="USD">USD</option>
+      <option value="GBP">GBP</option>
+      <option value="CHF">CHF</option>
+      <option value="CAD">CAD</option>
+    </select>
+  </div>
+
+  <label>Your wallet address</label>
+  <input type="text" id="wallet" placeholder="Solana or EVM address">
+
+  <button class="btn" onclick="buyNow()">Buy Now</button>
+
+  <div class="result" id="result"></div>
+
+  <div class="providers" id="providers"></div>
+</div>
+
+<script>
+async function loadProviders(){
+  try{
+    var r=await fetch('/api/fiat/providers');
+    var d=await r.json();
+    var el=document.getElementById('providers');
+    el.innerHTML=(d.providers||[]).map(function(p){
+      return '<div class="prov '+(p.status==='active'?'active':'')+'">'+p.name+' ('+p.fees+')</div>';
+    }).join('');
+  }catch(e){}
+}
+loadProviders();
+
+async function buyNow(){
+  var crypto=document.getElementById('crypto').value;
+  var amount=parseFloat(document.getElementById('amount').value);
+  var fiat=document.getElementById('fiat').value;
+  var wallet=document.getElementById('wallet').value.trim();
+  var res=document.getElementById('result');
+
+  if(!wallet||wallet.length<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Enter your wallet address</span>';return;}
+  if(amount<10){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Minimum amount is 10</span>';return;}
+
+  res.style.display='block';
+  res.innerHTML='<span style="color:var(--cyan)">Finding best provider...</span>';
+
+  try{
+    var r=await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:crypto,fiat_amount:amount,fiat_currency:fiat,wallet_address:wallet})});
+    var d=await r.json();
+
+    if(d.url){
+      var html='<div style="font-size:14px;color:var(--green);margin-bottom:8px">Provider: '+d.provider+' ('+d.estimated_fees+' fees)</div>';
+      html+='<a href="'+d.url+'" target="_blank" rel="noopener">Buy '+crypto+' with '+fiat+' &rarr;</a>';
+      if(d.alternatives&&d.alternatives.length>0){
+        html+='<div class="alts">Other providers: ';
+        d.alternatives.forEach(function(a){html+='<a href="'+a.url+'" target="_blank">'+a.provider+' ('+a.fees+')</a> ';});
+        html+='</div>';
+      }
+      res.innerHTML=html;
+    }else{
+      res.innerHTML='<span style="color:var(--rose)">'+(d.detail||d.error||'Error')+'</span>';
+    }
+  }catch(e){res.innerHTML='<span style="color:var(--rose)">Connection error</span>';}
+}
+</script>
+</body>
+</html>
