@@ -1456,6 +1456,14 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Fiscal export router error: %s", e)
 
+# ── External Intelligence (8 free APIs) ──
+try:
+    from integrations.external_intel import router as intel_router
+    app.include_router(intel_router)
+    logger.info("[INTEL] External Intelligence (8 services) monte")
+except Exception as e:
+    logger.error("[MAXIA] External Intel router error: %s", e)
+
 # ── PRO-I5: Centralized Log Search ──
 try:
     from infra.log_search import router as log_search_router
