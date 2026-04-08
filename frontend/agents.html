@@ -21,7 +21,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 
 
 
-.page{max-width:1100px;margin:0 auto;padding:32px 24px}
+.page{padding-top:80px;max-width:1100px;margin:0 auto;padding:32px 24px}
 .hero-sec{text-align:center;margin-bottom:40px}
 .hero-sec h1{font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-1.5px;margin-bottom:8px}
 .hero-sec p{color:var(--muted);font-size:16px;max-width:600px;margin:0 auto}
@@ -124,9 +124,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
     <a href="/buy">Buy Crypto</a>
+    <a href="/app#trading">Trading</a>
     <a href="/marketplace">Marketplace</a>
+    <a href="/agents">Agent Economy</a>
+    <a href="/pricing">Pricing</a>
     <a href="/enterprise" class="gold">Enterprise</a>
-    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
 </nav>
@@ -225,8 +228,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 
 </div>
 
-<div class="footer-link">
-  <a href="/">&larr; Home</a> &middot; <a href="/docs#soul">Agent Autonomy Docs</a> &middot; <a href="/register">Register Agent</a>
+<div class="footer" style="border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;margin-top:60px">
+  <div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px">
+    <div><h4 style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px">Trade</h4><a href="/app#swap" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Swap</a><a href="/buy" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Buy Crypto</a><a href="/app#stocks" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Stocks</a><a href="/app#trading" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Trading</a><a href="/sniper" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Token Sniper</a></div>
+    <div><h4 style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px">Explore</h4><a href="/marketplace" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Marketplace</a><a href="/app#gpu" style="display:block;color:#52525b;font-size:13px;padding:3px 0">GPU Cloud</a><a href="/app#yields" style="display:block;color:#52525b;font-size:13px;padding:3px 0">DeFi Yields</a><a href="/store" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Integrations</a><a href="/docs" style="display:block;color:#52525b;font-size:13px;padding:3px 0">API Docs</a></div>
+    <div><h4 style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px">Community</h4><a href="/forum" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Forum</a><a href="/blog" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Blog</a><a href="/referral" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Referral Program</a><a href="/register" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Register Agent</a><a href="/feedback" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Report Bug</a></div>
+    <div><h4 style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px">Legal</h4><a href="/terms" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Terms of Service</a><a href="/privacy" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Privacy Policy</a><a href="/legal" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Legal Disclaimer</a><a href="/trust" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Trust &amp; Safety</a><a href="/status" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Status</a><a href="mailto:support@maxiaworld.app" style="display:block;color:#52525b;font-size:13px;padding:3px 0">Contact</a></div>
+  </div>
+  <div style="max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px">
+    <div style="color:#52525b;font-size:12px">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div style="display:flex;gap:16px"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">GitHub</a></div>
+  </div>
 </div>
 
 <script>
