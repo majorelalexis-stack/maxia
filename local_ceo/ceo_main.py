@@ -45,6 +45,9 @@ from missions.strategy import mission_strategy_review
 from missions.telegram_chat import mission_telegram_chat
 from missions.blog import mission_blog_post
 from missions.visual_audit import mission_visual_audit
+from missions.skill_scout import mission_skill_scout
+from missions.data_feeds import mission_data_feeds
+from missions.bounty_poster import mission_bounty_poster
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
@@ -186,6 +189,18 @@ async def run():
             # Mission 19: Strategy Review — weekly (dimanche 20h)
             if weekday == 6 and hour == 20 and actions["counts"].get("strategy_review", 0) == 0:
                 await run_mission("strategy_review", mission_strategy_review(mem, actions), mem, actions)
+
+            # Mission 25: Skill Scout — GitHub trending → free skills (11h, 1x/jour)
+            if hour == 11 and actions["counts"].get("skill_scout", 0) == 0:
+                await run_mission("skill_scout", mission_skill_scout(mem, actions), mem, actions)
+
+            # Mission 26: Data Feeds — SEC/NVD/arXiv → enriched datasets (dimanche 12h, 1x/semaine)
+            if weekday == 6 and hour == 12 and actions["counts"].get("data_feeds", 0) == 0:
+                await run_mission("data_feeds", mission_data_feeds(mem, actions), mem, actions)
+
+            # Mission 27: Bounty Poster — recurring bounties (lundi 9h, 1x/semaine)
+            if weekday == 0 and hour == 9 and actions["counts"].get("bounty_poster", 0) == 0:
+                await run_mission("bounty_poster", mission_bounty_poster(mem, actions), mem, actions)
 
             # Mission 22: Visual Audit — DESACTIVE (Claude fait ca mieux via Playwright)
 
