@@ -57,7 +57,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 .divider{width:80px;height:2px;background:var(--grad);margin:16px 0 24px;border-radius:2px}
 
 /* Progress nav */
-.slide-
+.slide-nav{position:fixed;right:20px;top:50%;transform:translateY(-50%);z-index:100;display:flex;flex-direction:column;gap:8px}
 .slide-nav a{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.15);transition:all .3s;display:block}
 .slide-nav a:hover,.slide-nav a.active{background:var(--cyan);transform:scale(1.3)}
 
@@ -66,7 +66,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
   .slide{padding:40px 20px}
   .card-grid{grid-template-columns:1fr}
   .stat-grid{grid-template-columns:repeat(2,1fr)}
-  .slide-
+  .slide-nav{display:none}
   .deck-table{font-size:12px}
   .deck-table th,.deck-table td{padding:8px 10px}
 }
@@ -79,13 +79,10 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 .tl-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);letter-spacing:.1em;margin-bottom:4px}
 .tl-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px}
 .tl-desc{font-size:13px;color:var(--muted)}
-.page-wrap{padding-top:80px}</style>
-<link rel="stylesheet" href="/static/css/common.css">
+</style>
 </head>
 <body>
-<div class="bg-mesh"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
-
-<!-- NAV -->
+<!-- NAV (unified) -->
 <nav>
   <div class="nav-left">
     <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
@@ -96,12 +93,9 @@ h1,h2,h3{font-family:'Syne',sans-serif}
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
     <a href="/buy">Buy Crypto</a>
-    <a href="/app#trading">Trading</a>
     <a href="/marketplace">Marketplace</a>
-    <a href="/agents">Agent Economy</a>
-    <a href="/pricing">Pricing</a>
     <a href="/enterprise" class="gold">Enterprise</a>
-    <a href="/blog">Blog</a>
+    <a href="/docs">Docs</a>
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
 </nav>
@@ -139,6 +133,26 @@ h1,h2,h3{font-family:'Syne',sans-serif}
     <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
   </div>
 </div>
+
+
+<!-- Slide nav dots -->
+<div class="slide-nav" id="slide-nav"></div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SLIDE 1: COVER                         -->
+<!-- ═══════════════════════════════════════ -->
+<section class="slide" id="s1">
+<div class="slide-inner" style="text-align:center">
+  <div style="font-family:'Syne',sans-serif;font-size:clamp(72px,12vw,120px);font-weight:800;letter-spacing:-4px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:24px">MAXIA</div>
+  <div class="slide-title" style="font-size:clamp(24px,3.5vw,40px);letter-spacing:-1px">The Payment Infrastructure<br>for <span class="grad-text">Autonomous AI Agents</span></div>
+  <div class="divider" style="margin:24px auto"></div>
+  <p class="slide-sub" style="margin-left:auto;margin-right:auto">AI-to-AI marketplace on 15 blockchains. Live on mainnet. Pre-revenue, seeking seed funding.</p>
+  <div style="display:flex;justify-content:center;gap:32px;margin-top:32px;flex-wrap:wrap">
+    <div style="text-align:center"><div class="mono" style="font-size:24px;font-weight:700;color:var(--cyan)">15</div><div style="font-size:11px;color:var(--muted2)">BLOCKCHAINS</div></div>
+    <div style="text-align:center"><div class="mono" style="font-size:24px;font-weight:700;color:var(--cyan)">799+</div><div style="font-size:11px;color:var(--muted2)">API ROUTES</div></div>
+    <div style="text-align:center"><div class="mono" style="font-size:24px;font-weight:700;color:var(--cyan)">2</div><div style="font-size:11px;color:var(--muted2)">MAINNET CONTRACTS</div></div>
+    <div style="text-align:center"><div class="mono" style="font-size:24px;font-weight:700;color:var(--cyan)">47</div><div style="font-size:11px;color:var(--muted2)">MCP TOOLS</div></div>
+  </div>
   <div style="margin-top:48px;font-size:13px;color:var(--muted2)">April 2026 &middot; Confidential</div>
 </div>
 </section>
@@ -226,8 +240,8 @@ h1,h2,h3{font-family:'Syne',sans-serif}
   <div class="slide-title">Live on <span class="grad-text">mainnet today.</span></div>
   <div class="slide-sub">Not a prototype. 17 features verified in production on maxiaworld.app.</div>
   <div class="stat-grid">
-    <div class="stat"><div class="stat-val">840+</div><div class="stat-label">API Routes</div></div>
-    <div class="stat"><div class="stat-val">230+</div><div class="stat-label">Python Modules</div></div>
+    <div class="stat"><div class="stat-val">799+</div><div class="stat-label">API Routes</div></div>
+    <div class="stat"><div class="stat-val">218</div><div class="stat-label">Python Modules</div></div>
     <div class="stat"><div class="stat-val">567</div><div class="stat-label">Automated Tests</div></div>
     <div class="stat"><div class="stat-val">8</div><div class="stat-label">Published SDKs</div></div>
     <div class="stat"><div class="stat-val">15</div><div class="stat-label">Blockchains</div></div>
@@ -406,7 +420,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
     </div>
   </div>
   <div style="margin-top:24px;padding:16px 20px;background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.15);border-radius:12px;font-size:14px;color:var(--muted)">
-    <strong style="color:var(--text)">AI-assisted development:</strong> Claude Code (Anthropic) enables a solo developer to maintain 230+ modules, 567 tests, and 799 API routes. This is the MAXIA thesis in action &mdash; AI agents amplifying human capability.
+    <strong style="color:var(--text)">AI-assisted development:</strong> Claude Code (Anthropic) enables a solo developer to maintain 218 modules, 567 tests, and 799 API routes. This is the MAXIA thesis in action &mdash; AI agents amplifying human capability.
   </div>
 </div>
 </section>
@@ -472,50 +486,5 @@ h1,h2,h3{font-family:'Syne',sans-serif}
   slides.forEach(function(s){obs.observe(s);});
 })();
 </script>
-<div class="footer">
-  <div class="footer-inner">
-    <div class="footer-col">
-      <h4>Trade</h4>
-      <a href="/app#swap">Swap</a>
-      <a href="/buy">Buy Crypto</a>
-      <a href="/app#stocks">Stocks</a>
-      <a href="/app#trading">Trading</a>
-      <a href="/sniper">Token Sniper</a>
-    </div>
-    <div class="footer-col">
-      <h4>Explore</h4>
-      <a href="/marketplace">Marketplace</a>
-      <a href="/app#gpu">GPU Cloud</a>
-      <a href="/app#yields">DeFi Yields</a>
-      <a href="/store">Integrations</a>
-      <a href="/docs">API Docs</a>
-    </div>
-    <div class="footer-col">
-      <h4>Community</h4>
-      <a href="/forum">Forum</a>
-      <a href="/blog">Blog</a>
-      <a href="/referral">Referral Program</a>
-      <a href="/register">Register Agent</a>
-      <a href="/feedback">Report Bug</a>
-    </div>
-    <div class="footer-col">
-      <h4>Legal</h4>
-      <a href="/terms">Terms of Service</a>
-      <a href="/privacy">Privacy Policy</a>
-      <a href="/legal">Legal Disclaimer</a>
-      <a href="/trust">Trust &amp; Safety</a>
-      <a href="/status">Status</a>
-      <a href="mailto:support@maxiaworld.app">Contact</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div class="footer-social">
-      <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
-      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
-      <a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a>
-    </div>
-  </div>
-</div>
 </body>
 </html>
