@@ -225,6 +225,18 @@ async def serve_feedback():
     return _serve("feedback.html")
 
 
+@router.get("/terms", response_class=HTMLResponse)
+async def serve_terms():
+    """Terms of Service — conditions governing use of MAXIA."""
+    return _serve("terms.html")
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def serve_privacy():
+    """Privacy Policy — GDPR-compliant data protection policy."""
+    return _serve("privacy.html")
+
+
 @router.get("/agents", response_class=HTMLResponse)
 async def serve_agents():
     """Agent Economy — pools, bounties, skills, data, reputation."""

@@ -289,6 +289,54 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   .stats-row{grid-template-columns:1fr}
   .card{padding:16px}
 }
+/* -- Mobile fixes (PRO-F session) -- */
+@media(max-width:768px){
+  /* Hide inline nav buttons on mobile — use hamburger menu instead */
+  nav>div:last-child>button[onclick*="showPage"],
+  nav>div:last-child>a[href="/forum"]{display:none}
+  /* Compact nav on mobile */
+  nav{padding:10px 16px !important}
+  /* Wallet button smaller */
+  .btn-connect{padding:6px 14px !important;font-size:12px !important}
+  /* Tables scrollable */
+  .tw,table.ct{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.ct th,table.ct td{padding:10px 12px;font-size:13px;white-space:nowrap}
+  /* Swap card full width */
+  .swap-card{max-width:100%;margin:20px auto}
+  .swap-input-row select{width:100px}
+  .swap-input-row input{font-size:16px}
+  /* Form inputs prevent zoom on iOS */
+  .input-field,.form-input,input,select,textarea{font-size:16px !important}
+  /* Page title */
+  .page-title{font-size:20px !important}
+  /* Stats */
+  .stat-card .val{font-size:20px}
+  /* Home stats wrap */
+  .home-stat{min-width:100px;padding:12px 14px}
+  .home-stat .hs-num{font-size:18px}
+  /* Trust badges scroll */
+  .trust-badges{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  /* Badge cards scroll */
+  .badge-card{min-width:70px;padding:8px 10px}
+  /* Ticker strip scroll */
+  .ticker-chip{padding:4px 8px;font-size:11px}
+  /* Activity rows compact */
+  .activity-row{font-size:12px;padding:8px 0}
+  /* Buttons full width */
+  .btn{padding:12px 24px;font-size:14px}
+  /* Enterprise billing grid */
+  #ent-billing{grid-template-columns:1fr !important}
+}
+@media(max-width:380px){
+  /* Very small screens */
+  .home-card .hc-icon{font-size:28px;margin-bottom:8px}
+  .home-card .hc-title{font-size:14px}
+  .home-card{padding:16px}
+  .stat-card{padding:14px}
+  .stat-card .val{font-size:18px}
+  nav{padding:8px 12px !important}
+  .swap-input-row select{width:80px;padding:10px 8px;font-size:13px}
+}
 /* -- Enterprise chart bars -- */
 .ent-bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;min-width:14px;max-width:28px;cursor:pointer;position:relative}
 .ent-bar .bar{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--cyan),var(--blue));transition:height .3s ease;min-height:2px}
@@ -300,9 +348,6 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 .ent-sla-dot.green{background:var(--green)}
 .ent-sla-dot.yellow{background:var(--orange)}
 .ent-sla-dot.red{background:var(--red)}
-@media(max-width:768px){
-  #ent-billing{grid-template-columns:1fr !important}
-}
 
 /* -- Swap status -- */
 .swap-status{margin-top:16px;padding:16px;border-radius:12px;font-size:14px;animation:fadeUp .3s ease}

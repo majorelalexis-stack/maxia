@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "maxia": {
+      "enabled": true,
+      "type": "sse",
+      "url": "https://maxiaworld.app/mcp/sse",
+      "headers": {},
+      "description": "MAXIA AI-to-AI Marketplace — 47 MCP tools: crypto swap (65 tokens), AI services, GPU rental, DeFi yields, tokenized stocks, on-chain escrow, wallet analysis, oracle feeds, NFT minting, agent identity. 15 blockchains."
+    }
+  },
+  "skills": {}
+}

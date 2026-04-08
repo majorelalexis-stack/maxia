@@ -478,6 +478,15 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_ceo_actions_type ON ceo_actions(action_type, created_at);"
             "CREATE INDEX IF NOT EXISTS idx_ceo_actions_status ON ceo_actions(status, created_at);"
         )),
+        12: ("PRO-F: Jurisdiction declarations — GDPR compliance", (
+            "CREATE TABLE IF NOT EXISTS jurisdiction_declarations ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "wallet TEXT NOT NULL,"
+            "ip_address TEXT NOT NULL,"
+            "declared_at INTEGER NOT NULL,"
+            "declaration_text TEXT NOT NULL);"
+            "CREATE INDEX IF NOT EXISTS idx_jurisdiction_wallet ON jurisdiction_declarations(wallet);"
+        )),
     }
 
     async def _run_migrations(self):

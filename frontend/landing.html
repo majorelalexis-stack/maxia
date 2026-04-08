@@ -627,7 +627,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <div class="tier-pct" style="color:var(--gold)">0.1%</div>
       <div class="tier-desc">$5K+ /trade</div>
       <ul class="tier-list"><li>Dedicated support</li><li>Custom SLA</li><li>Fleet dashboard</li><li>White-label available</li></ul>
-      <a href="mailto:ceo@maxiaworld.app" class="btn btn-ghost" style="width:100%;text-align:center;padding:10px;font-size:13px">Contact Us</a>
+      <a href="mailto:support@maxiaworld.app" class="btn btn-ghost" style="width:100%;text-align:center;padding:10px;font-size:13px">Contact Us</a>
     </div>
   </div>
 </div>
@@ -740,19 +740,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <a href="/feedback">Feedback</a>
     </div>
     <div class="footer-col">
-      <h4>Company</h4>
-      <a href="/about">About</a>
-      <a href="/pricing">Pricing</a>
-      <a href="/enterprise">Enterprise</a>
-      <a href="/metrics-public">Metrics</a>
-      <a href="/legal">Legal</a>
-      <a href="/changelog">Changelog</a>
+      <h4>Legal</h4>
+      <a href="/terms">Terms of Service</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/legal">Legal Disclaimer</a>
+      <a href="/trust">Trust &amp; Safety</a>
       <a href="/status">Status</a>
-      <a href="mailto:ceo@maxiaworld.app">Contact</a>
-    </div>
+      <a href="mailto:support@maxiaworld.app">Contact</a>
+      </div>
   </div>
   <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
       <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
@@ -793,11 +791,14 @@ async function updatePrices(){
 updatePrices();setInterval(updatePrices,10000);
 </script>
 <script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});</script>
-<!-- Cookie consent -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(6,10,20,.95);backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,.06);padding:14px 24px;display:none;align-items:center;justify-content:space-between;gap:16px;font-size:13px;color:#a1a1aa">
-  <span>We use essential cookies for site functionality. No tracking. <a href="/legal" style="color:#00e5ff">Learn more</a></span>
-  <button onclick="localStorage.setItem('cookie_ok','1');document.getElementById('cookie-banner').style.display='none'" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#e4e4e7;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">Got it</button>
+<!-- Cookie consent (CNIL compliant: Accept + Refuse equally visible) -->
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(6,10,20,.97);backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,.08);padding:16px 24px;display:none;align-items:center;justify-content:space-between;gap:16px;font-size:13px;color:#a1a1aa;flex-wrap:wrap">
+  <span>We use essential cookies for site functionality. No tracking or advertising cookies. <a href="/privacy#cookies" style="color:#00e5ff">Privacy Policy</a></span>
+  <div style="display:flex;gap:10px;flex-shrink:0">
+    <button onclick="localStorage.setItem('cookie_ok','refused');document.getElementById('cookie-banner').style.display='none'" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#a1a1aa;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">Refuse All</button>
+    <button onclick="localStorage.setItem('cookie_ok','accepted');document.getElementById('cookie-banner').style.display='none'" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#e4e4e7;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap">Accept</button>
+  </div>
 </div>
-<script>if(!localStorage.getItem('cookie_ok'))document.getElementById('cookie-banner').style.display='flex';</script>
+<script>(function(){var v=localStorage.getItem('cookie_ok'),ts=localStorage.getItem('cookie_ok_ts');if(!v||!ts||(Date.now()-parseInt(ts))>33696000000){localStorage.removeItem('cookie_ok');localStorage.removeItem('cookie_ok_ts');document.getElementById('cookie-banner').style.display='flex';}})();document.querySelectorAll('#cookie-banner button').forEach(function(b){var orig=b.onclick;b.onclick=function(){localStorage.setItem('cookie_ok_ts',Date.now().toString());if(orig)orig.call(this);}});</script>
 </body>
 </html>

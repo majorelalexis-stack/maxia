@@ -31,7 +31,10 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 ::selection{background:rgba(0,229,255,.2)}
 a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
 
-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,14,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;padding:0 32px;height:56px}
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
+.nav-links{display:flex;gap:20px;align-items:center}
+.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:#e4e4e7}
 .hero{text-align:center;padding:100px 24px 40px}
 .hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{color:var(--muted);font-size:18px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto}
@@ -100,7 +103,7 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
 .sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
 .sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
 .sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
-@media(min-width:769px){.hamburger{display:none}}
+/* hamburger visible on all screens */
 @media(max-width:768px){.nav-links{display:none}}
 /* Unified Footer */
 .footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;position:relative;z-index:1}
@@ -492,17 +495,17 @@ fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
       <a href="/forum?community=bugs">Report Bug</a>
     </div>
     <div class="footer-col">
-      <h4>Company</h4>
-      <a href="/enterprise">Enterprise</a>
-      <a href="/legal">Legal</a>
+      <h4>Legal</h4>
+      <a href="/terms">Terms of Service</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/legal">Legal Disclaimer</a>
       <a href="/trust">Trust &amp; Safety</a>
-      <a href="/changelog">Changelog</a>
       <a href="/status">Status</a>
-      <a href="mailto:ceo@maxiaworld.app">Contact</a>
-    </div>
+      <a href="mailto:support@maxiaworld.app">Contact</a>
+      </div>
   </div>
   <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
       <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>

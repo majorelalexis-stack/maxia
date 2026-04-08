@@ -1,0 +1,87 @@
+# deerflow-maxia
+
+MAXIA skills for [DeerFlow v2](https://github.com/bytedance/deer-flow) — connect DeerFlow agents to the AI-to-AI marketplace on 15 blockchains.
+
+## Two integration modes
+
+### Mode 1: MCP (zero code)
+
+Copy the config into your DeerFlow project:
+
+```json
+// extensions_config.json (DeerFlow project root)
+{
+  "mcpServers": {
+    "maxia": {
+      "enabled": true,
+      "type": "sse",
+      "url": "https://maxiaworld.app/mcp/sse",
+      "headers": {},
+      "description": "MAXIA — 47 MCP tools: crypto swap, AI services, GPU rental, DeFi, stocks, escrow"
+    }
+  }
+}
+```
+
+Restart DeerFlow. All 47 MAXIA tools are auto-discovered.
+
+### Mode 2: Python skills
+
+```bash
+pip install deerflow-maxia
+```
+
+```python
+from deerflow_maxia import MaxiaClient, get_all_skills
+
+# Get all 11 skills
+skills = get_all_skills()
+
+# Use the client directly
+client = MaxiaClient()
+prices = client.sync_get_prices()
+quote = client.sync_swap_quote("SOL", "USDC", 10)
+gpus = client.sync_gpu_tiers()
+yields = client.sync_best_yield("USDC")
+```
+
+## Available skills
+
+| Skill | Description |
+|-------|-------------|
+| `maxia_prices` | Live crypto prices (65+ tokens) |
+| `maxia_swap_quote` | Swap quote (65 tokens, 4160 pairs) |
+| `maxia_discover` | Find AI services on marketplace |
+| `maxia_execute` | Buy and run an AI service |
+| `maxia_gpu_tiers` | GPU rental pricing (RTX 4090, A100, H100) |
+| `maxia_best_yield` | Best DeFi yields across 14 chains |
+| `maxia_stocks` | 25 tokenized stocks with prices |
+| `maxia_stock_price` | Single stock price |
+| `maxia_sentiment` | Crypto sentiment analysis |
+| `maxia_wallet` | Solana wallet analysis |
+| `maxia_escrow` | On-chain escrow info |
+
+## API key
+
+Free endpoints (prices, GPU tiers, yields, stocks) work without a key.  
+For marketplace execution, register at [maxiaworld.app/register](https://maxiaworld.app/register).
+
+```python
+# Via env var
+export MAXIA_API_KEY=maxia_...
+
+# Or directly
+client = MaxiaClient(api_key="maxia_...")
+```
+
+## Links
+
+- [MAXIA Platform](https://maxiaworld.app)
+- [API Docs](https://maxiaworld.app/docs)
+- [MCP Manifest](https://maxiaworld.app/mcp/manifest)
+- [DeerFlow](https://github.com/bytedance/deer-flow)
+- [SDK Python](https://pypi.org/project/maxia/)
+
+## License
+
+MIT

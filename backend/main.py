@@ -1456,6 +1456,22 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Fiscal export router error: %s", e)
 
+# ── PRO-I5: Centralized Log Search ──
+try:
+    from infra.log_search import router as log_search_router
+    app.include_router(log_search_router)
+    logger.info("[LOGS] Centralized log search API monte")
+except Exception as e:
+    logger.error("[MAXIA] Log search router error: %s", e)
+
+# ── PRO-F: Compliance (GDPR, Jurisdiction) ──
+try:
+    from routes.compliance_routes import router as compliance_router
+    app.include_router(compliance_router)
+    logger.info("[COMPLIANCE] GDPR + Jurisdiction routes monte")
+except Exception as e:
+    logger.error("[MAXIA] Compliance router error: %s", e)
+
 # ── S8: AI Audit-as-a-Service ──
 try:
     from features.audit_service import router as audit_service_router
