@@ -270,6 +270,14 @@ async def trending_repos(
             params={"q": query, "sort": "stars", "order": "desc", "per_page": limit},
             headers=headers,
         )
+        # Retry without token if 401 (expired token)
+        if resp.status_code == 401 and gh_token:
+            headers.pop("Authorization", None)
+            resp = await client.get(
+                "https://api.github.com/search/repositories",
+                params={"q": query, "sort": "stars", "order": "desc", "per_page": limit},
+                headers=headers,
+            )
         resp.raise_for_status()
         data = resp.json()
 
