@@ -1538,6 +1538,22 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Whale Feed router error: %s", e)
 
+# ── P2: Agent Presets (No-Code Templates) ──
+try:
+    from agents.agent_presets import router as presets_router
+    app.include_router(presets_router)
+    logger.info("[Presets] Agent Presets (6 templates, 5 endpoints) monte — /api/presets/*")
+except Exception as e:
+    logger.error("[MAXIA] Presets router error: %s", e)
+
+# ── P3: Agent Social (Follows, Reviews, Feed) ──
+try:
+    from features.agent_social import router as social_router
+    app.include_router(social_router)
+    logger.info("[Social] Agent Social (follows, reviews, feed, trending) monte")
+except Exception as e:
+    logger.error("[MAXIA] Social router error: %s", e)
+
 # ── ONE-3: PicoClaw CEO Gateway ──
 try:
     from agents.picoclaw_gateway import get_router as get_picoclaw_router

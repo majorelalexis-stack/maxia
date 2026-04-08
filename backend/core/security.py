@@ -187,8 +187,10 @@ from core.config import TRUSTED_PROXY_IPS
 _TRUSTED_PROXIES = TRUSTED_PROXY_IPS
 
 
-def _clean_ip(ip: str) -> str:
+def _clean_ip(ip: str | None) -> str:
     """Nettoie une IP — supprime backslash, espaces, et caracteres non-IP."""
+    if not ip:
+        return "unknown"
     return ip.strip().lstrip("\\").strip()
 
 

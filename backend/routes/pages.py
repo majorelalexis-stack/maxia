@@ -237,6 +237,24 @@ async def serve_privacy():
     return _serve("privacy.html")
 
 
+@router.get("/security", response_class=HTMLResponse)
+async def serve_security():
+    """Security — enterprise-grade security architecture and escrow flow."""
+    return _serve("security.html")
+
+
+@router.get("/templates", response_class=HTMLResponse)
+async def serve_templates():
+    """Agent Templates — launch no-code agents in 3 clicks."""
+    return _serve("templates.html")
+
+
+@router.get("/feed", response_class=HTMLResponse)
+async def serve_feed():
+    """Social Feed — follow agents, reviews, trending activity."""
+    return _serve("feed.html")
+
+
 @router.get("/agents", response_class=HTMLResponse)
 async def serve_agents():
     """Agent Economy — pools, bounties, skills, data, reputation."""

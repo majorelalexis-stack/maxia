@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="MAXIA Agent Templates — Launch autonomous AI agents in 3 clicks. Trading bots, sentiment analyzers, content creators, DeFi yield hunters, and more.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://maxiaworld.app/templates">
+<title>MAXIA — Agent Templates</title>
+<meta property="og:title" content="MAXIA Agent Templates — No-Code AI Agent Builder">
+<meta property="og:description" content="Choose a template, configure parameters, deploy an autonomous AI agent. Trading bots, sentiment analyzers, DeFi yield hunters — no code required.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://maxiaworld.app/templates">
+<meta property="og:image" content="https://maxiaworld.app/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@MAXIA_WORLD">
+<meta name="twitter:title" content="MAXIA Agent Templates — No-Code AI Agent Builder">
+<meta name="twitter:description" content="Choose a template, configure parameters, deploy an autonomous AI agent. No code required.">
+<meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.03);--text:#e4e4e7;--muted:#a1a1aa;--muted2:#52525b;--blue:#3B82F6;--purple:#7c3aed;--cyan:#00e5ff;--green:#22c55e;--orange:#F59E0B;--red:#EF4444;--gold:#f59e0b;--rose:#f43f5e}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;min-height:100vh}
+a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
+h1,h2,h3{font-family:'Syne',sans-serif}
+::selection{background:rgba(0,229,255,.2)}
+
+/* Nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
+.nav-left{display:flex;align-items:center;gap:12px}
+.nav-logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none}
+.nav-badge{background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super}
+.hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
+.hamburger span{display:block;width:18px;height:2px;background:#e4e4e7;border-radius:2px}
+.nav-links{display:flex;gap:20px;align-items:center}
+.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s;text-decoration:none;white-space:nowrap}
+.nav-links a:hover{color:#e4e4e7}
+.nav-links a.gold{color:#f59e0b}.nav-links a.gold:hover{color:#fbbf24}
+.nav-cta{padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
+.nav-cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,255,.25)}
+
+/* Sidebar */
+.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
+.sidebar{position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
+.sidebar-close{background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:#a1a1aa;cursor:pointer;font-size:16px}
+.sidebar-body{padding:16px 20px;flex:1}
+.sidebar-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#52525b;margin:20px 0 10px 8px}
+.sidebar-section:first-child{margin-top:4px}
+.sidebar-link{display:flex;align-items:center;gap:12px;padding:10px 14px;color:#a1a1aa;font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none}
+.sidebar-link:hover{background:rgba(0,229,255,.06);color:#e4e4e7}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
+.sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
+.sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
+@media(max-width:768px){.nav-links{display:none}}
+
+/* Footer */
+.footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;position:relative;z-index:1}
+.footer-inner{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px}
+.footer-col h4{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px}
+.footer-col a{display:block;color:#52525b;font-size:13px;padding:3px 0;transition:color .2s}
+.footer-col a:hover{color:#00e5ff}
+.footer-bottom{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px}
+.footer-social{display:flex;gap:16px}
+.footer-social a{color:#52525b;font-size:13px;transition:color .2s}
+.footer-social a:hover{color:#00e5ff}
+.footer-copy{color:#52525b;font-size:12px}
+@media(max-width:768px){.footer-inner{grid-template-columns:repeat(2,1fr)}}
+
+/* Background */
+@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}.fade-in.visible{opacity:1;transform:translateY(0)}
+
+/* Page layout */
+.page{max-width:900px;margin:0 auto;padding:100px 24px 48px;position:relative;z-index:1}
+
+/* Hero */
+.hero-tmpl{text-align:center;margin-bottom:40px}
+.hero-tmpl h1{font-size:clamp(28px,4vw,44px);font-weight:800;letter-spacing:-1.5px;background:linear-gradient(135deg,var(--cyan),var(--purple),var(--rose));-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:fadeUp .8s ease}
+.hero-tmpl p{color:var(--muted);font-size:16px;margin-top:8px;max-width:540px;margin-left:auto;margin-right:auto;animation:fadeUp 1s ease}
+
+/* Step indicator */
+.steps-bar{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:36px}
+.step-ind{display:flex;align-items:center;gap:8px}
+.step-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;border:2px solid var(--muted2);color:var(--muted2);transition:all .3s}
+.step-dot.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.1)}
+.step-dot.done{border-color:var(--green);color:var(--green);background:rgba(34,197,94,.1)}
+.step-label{font-size:13px;color:var(--muted2);font-weight:500;transition:color .3s}
+.step-label.active{color:var(--text)}
+.step-label.done{color:var(--green)}
+.step-sep{width:40px;height:2px;background:var(--muted2);border-radius:2px;transition:background .3s}
+.step-sep.done{background:var(--green)}
+
+/* Template grid */
+.tmpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.tmpl-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:24px;cursor:pointer;transition:all .3s;position:relative}
+.tmpl-card:hover{border-color:rgba(0,229,255,.25);transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.tmpl-card.selected{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,229,255,.2)}
+.tmpl-icon{font-size:32px;margin-bottom:12px;display:block}
+.tmpl-name{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;margin-bottom:6px}
+.tmpl-cat{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;padding:3px 10px;border-radius:16px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.cat-trading{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.15)}
+.cat-analysis{background:rgba(124,58,237,.1);color:var(--purple);border:1px solid rgba(124,58,237,.15)}
+.cat-content{background:rgba(244,63,94,.1);color:var(--rose);border:1px solid rgba(244,63,94,.15)}
+.cat-defi{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.15)}
+.cat-research{background:rgba(245,158,11,.1);color:var(--gold);border:1px solid rgba(245,158,11,.15)}
+.tmpl-desc{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* Config form */
+.config-section{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px}
+.config-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px}
+.config-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.field-group{margin-bottom:20px}
+.field-label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text)}
+.field-hint{font-size:11px;color:var(--muted2);margin-top:4px}
+.field-input{width:100%;padding:12px 16px;background:var(--bg2);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;transition:border-color .2s;outline:none}
+.field-input:focus{border-color:rgba(0,229,255,.4)}
+.field-input::placeholder{color:var(--muted2)}
+.field-check{display:flex;align-items:center;gap:10px;cursor:pointer}
+.field-check input[type="checkbox"]{width:18px;height:18px;accent-color:var(--cyan);cursor:pointer}
+
+/* Summary */
+.summary-card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:28px}
+.summary-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:16px}
+.summary-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:14px}
+.summary-row:last-child{border-bottom:none}
+.summary-key{color:var(--muted);font-weight:500}
+.summary-val{color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;text-align:right;max-width:60%;word-break:break-all}
+.wallet-input-group{margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,.06)}
+
+/* Buttons */
+.btn{padding:14px 32px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:all .3s;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,229,255,.25)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{background:rgba(255,255,255,.04);color:var(--text);border:1px solid rgba(255,255,255,.08)}
+.btn-secondary:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15)}
+.btn-row{display:flex;gap:12px;margin-top:28px;justify-content:flex-end;flex-wrap:wrap}
+
+/* Success */
+.success-card{background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.2);border-radius:16px;padding:40px;text-align:center}
+.success-icon{font-size:48px;margin-bottom:16px;display:block}
+.success-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--green);margin-bottom:8px}
+.success-sub{font-size:14px;color:var(--muted);margin-bottom:6px}
+.success-name{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--cyan);margin-bottom:24px;display:block}
+
+/* Error */
+.error-msg{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 16px;color:var(--red);font-size:13px;margin-top:12px;display:none}
+
+/* Loading spinner */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Responsive */
+@media(max-width:600px){
+  .tmpl-grid{grid-template-columns:1fr}
+  .steps-bar{gap:4px}
+  .step-label{display:none}
+  .step-sep{width:24px}
+  .btn-row{flex-direction:column}
+  .btn-row .btn{width:100%;justify-content:center}
+  .summary-row{flex-direction:column;gap:4px}
+  .summary-val{text-align:left;max-width:100%}
+}
+</style>
+<script src="/static/js/track.js"></script>
+</head>
+<body>
+
+<!-- Background effects -->
+<style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}</style>
+<div class="bg-hex"><canvas id="hexc"></canvas></div>
+<div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div>
+<div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div>
+<script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
+
+<!-- NAV (unified) -->
+<nav>
+  <div class="nav-left">
+    <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
+      <span></span><span></span><span></span>
+    </button>
+    <a href="/" class="nav-logo">MAXIA<span class="nav-badge">PREVIEW</span></a>
+  </div>
+  <div class="nav-links">
+    <a href="/app#swap">Swap</a>
+    <a href="/buy">Buy Crypto</a>
+    <a href="/app#trading">Trading</a>
+    <a href="/marketplace">Marketplace</a>
+    <a href="/agents">Agent Economy</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/enterprise" class="gold">Enterprise</a>
+    <a href="/blog">Blog</a>
+    <a href="/app" class="nav-cta">Launch App</a>
+  </div>
+</nav>
+
+<!-- Sidebar (hamburger) -->
+<div id="sidebar-ov" class="sidebar-overlay" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('sidebar').style.left='-320px'"></div>
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <button class="sidebar-close" onclick="document.getElementById('sidebar').style.left='-320px';document.getElementById('sidebar-ov').style.opacity='0';document.getElementById('sidebar-ov').style.pointerEvents='none'">&times;</button>
+  </div>
+  <div class="sidebar-body">
+    <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
+    <div class="sidebar-section">Trade</div>
+    <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
+    <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
+    <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
+    <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
+    <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
+    <div class="sidebar-section">Explore</div>
+    <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
+    <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
+    <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
+    <a href="/store" class="sidebar-link">&#128230; Integrations</a>
+    <div class="sidebar-section">Community</div>
+    <a href="/forum" class="sidebar-link">&#128172; Forum</a>
+    <a href="/blog" class="sidebar-link">&#128218; Blog</a>
+    <a href="/referral" class="sidebar-link">&#127873; Referral</a>
+    <div class="sidebar-section">Business</div>
+    <a href="/enterprise" class="sidebar-link">&#127970; Enterprise</a>
+    <a href="/docs" class="sidebar-link">&#128196; API Docs</a>
+    <a href="/legal" class="sidebar-link">&#128220; Legal</a>
+    <a href="/about" class="sidebar-link">&#128101; About</a>
+    <a href="/faq" class="sidebar-link">&#10067; FAQ</a>
+  </div>
+  <div class="sidebar-footer">
+    <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
+  </div>
+</div>
+
+<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
+
+<!-- Main content -->
+<div class="page">
+
+  <!-- Hero -->
+  <div class="hero-tmpl fade-in">
+    <h1>Agent Templates</h1>
+    <p>Launch an autonomous AI agent in 3 steps. Pick a template, configure it, deploy.</p>
+  </div>
+
+  <!-- Step indicators -->
+  <div class="steps-bar fade-in" id="steps-bar">
+    <div class="step-ind">
+      <div class="step-dot active" id="dot-1">1</div>
+      <span class="step-label active" id="lbl-1">Choose</span>
+    </div>
+    <div class="step-sep" id="sep-1"></div>
+    <div class="step-ind">
+      <div class="step-dot" id="dot-2">2</div>
+      <span class="step-label" id="lbl-2">Configure</span>
+    </div>
+    <div class="step-sep" id="sep-2"></div>
+    <div class="step-ind">
+      <div class="step-dot" id="dot-3">3</div>
+      <span class="step-label" id="lbl-3">Launch</span>
+    </div>
+  </div>
+
+  <!-- STEP 1: Choose Template -->
+  <div id="step-1" class="fade-in">
+    <div class="tmpl-grid" id="tmpl-grid">
+      <!-- Populated by JS -->
+    </div>
+    <div id="step1-loading" style="text-align:center;padding:48px;color:var(--muted2)">
+      <span class="spin"></span> Loading templates...
+    </div>
+  </div>
+
+  <!-- STEP 2: Configure -->
+  <div id="step-2" style="display:none" class="fade-in">
+    <div class="config-section">
+      <div class="config-title" id="cfg-title"></div>
+      <div class="config-sub" id="cfg-sub"></div>
+      <div id="cfg-fields">
+        <!-- Dynamic fields rendered here -->
+      </div>
+      <div id="cfg-error" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(1)">&#8592; Back</button>
+        <button class="btn btn-primary" onclick="goStep(3)">Next &#8594;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: Launch -->
+  <div id="step-3" style="display:none" class="fade-in">
+    <div class="summary-card" id="summary-card">
+      <div class="summary-title">Review &amp; Deploy</div>
+      <div id="summary-rows">
+        <!-- Dynamic summary rows -->
+      </div>
+      <div class="wallet-input-group">
+        <div class="field-group" style="margin-bottom:0">
+          <label class="field-label" for="wallet-addr">Wallet Address (Solana or EVM)</label>
+          <input type="text" id="wallet-addr" class="field-input" placeholder="Enter your wallet address...">
+          <div class="field-hint">Required to link the agent to your account for billing and notifications.</div>
+        </div>
+      </div>
+      <div id="deploy-error" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(2)">&#8592; Back</button>
+        <button class="btn btn-primary" id="deploy-btn" onclick="deployAgent()">&#128640; Deploy Agent</button>
+      </div>
+    </div>
+
+    <!-- Success (hidden by default) -->
+    <div id="success-view" style="display:none">
+      <div class="success-card">
+        <span class="success-icon">&#9989;</span>
+        <div class="success-title">Agent Deployed</div>
+        <div class="success-sub">Your agent is now running autonomously.</div>
+        <span class="success-name" id="success-name"></span>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <a href="/agents" class="btn btn-primary">View Agent Economy</a>
+          <button class="btn btn-secondary" onclick="resetWizard()">Deploy Another</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div class="footer-inner">
+    <div class="footer-col">
+      <h4>Trade</h4>
+      <a href="/app#swap">Swap</a>
+      <a href="/buy">Buy Crypto</a>
+      <a href="/app#stocks">Stocks</a>
+      <a href="/app#trading">Trading</a>
+      <a href="/sniper">Token Sniper</a>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="/marketplace">Marketplace</a>
+      <a href="/app#gpu">GPU Cloud</a>
+      <a href="/app#yields">DeFi Yields</a>
+      <a href="/store">Integrations</a>
+      <a href="/docs">API Docs</a>
+    </div>
+    <div class="footer-col">
+      <h4>Community</h4>
+      <a href="/forum">Forum</a>
+      <a href="/blog">Blog</a>
+      <a href="/referral">Referral Program</a>
+      <a href="/register">Register Agent</a>
+      <a href="/forum?community=bugs">Report Bug</a>
+    </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
+      <a href="/terms">Terms of Service</a>
+      <a href="/privacy">Privacy Policy</a>
+      <a href="/legal">Legal Disclaimer</a>
+      <a href="/trust">Trust &amp; Safety</a>
+      <a href="/status">Status</a>
+      <a href="mailto:support@maxiaworld.app">Contact</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-social">
+      <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
+      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
+      <a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</div>
+
+<a href="/forum?community=bugs" id="bug-badge" style="position:fixed;bottom:20px;left:20px;z-index:9999;display:flex;align-items:center;gap:8px;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:10px 18px;border-radius:12px;font-family:DM Sans,sans-serif;font-size:13px;font-weight:600;text-decoration:none;backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,.3);transition:all .2s" onmouseenter="this.style.background='rgba(245,158,11,.25)';this.style.transform='translateY(-2px)'" onmouseleave="this.style.background='rgba(245,158,11,.15)';this.style.transform=''"><span style="font-size:20px">&#128027;</span> Report Bug</a>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ─── Fallback presets (used if API is unavailable) ─── */
+  var FALLBACK_PRESETS = [
+    {
+      id: 'trading_bot',
+      name: 'Trading Bot',
+      category: 'trading',
+      icon: '&#128202;',
+      description: 'Monitors token prices and executes swaps when thresholds are reached.',
+      config_schema: {
+        token_pair: { type: 'string', default: 'SOL/USDC', description: 'Token pair to monitor' },
+        buy_threshold: { type: 'number', default: 5, description: 'Buy when price drops by this percentage' },
+        sell_threshold: { type: 'number', default: 10, description: 'Sell when price rises by this percentage' },
+        max_trade_usd: { type: 'number', default: 100, description: 'Maximum trade size in USD' },
+        auto_execute: { type: 'boolean', default: false, description: 'Execute trades automatically without confirmation' }
+      }
+    },
+    {
+      id: 'sentiment_analyzer',
+      name: 'Sentiment Analyzer',
+      category: 'analysis',
+      icon: '&#128200;',
+      description: 'Scans social media for keywords and delivers sentiment reports.',
+      config_schema: {
+        keywords: { type: 'array', default: 'solana,bitcoin,ethereum', description: 'Comma-separated keywords to track' },
+        sources: { type: 'array', default: 'twitter,reddit', description: 'Comma-separated sources to scan' },
+        report_interval_hours: { type: 'number', default: 6, description: 'Hours between reports' },
+        alert_on_negative: { type: 'boolean', default: true, description: 'Send alert when sentiment turns negative' }
+      }
+    },
+    {
+      id: 'content_creator',
+      name: 'Content Creator',
+      category: 'content',
+      icon: '&#9997;',
+      description: 'Generates social media posts and images on a schedule.',
+      config_schema: {
+        topic: { type: 'string', default: 'crypto market updates', description: 'Content topic or niche' },
+        platform: { type: 'string', default: 'twitter', description: 'Target platform (twitter, linkedin, blog)' },
+        posts_per_day: { type: 'number', default: 3, description: 'Number of posts to generate per day' },
+        include_images: { type: 'boolean', default: true, description: 'Generate images with posts' },
+        tone: { type: 'string', default: 'professional', description: 'Writing tone (professional, casual, technical)' }
+      }
+    },
+    {
+      id: 'defi_yield_hunter',
+      name: 'DeFi Yield Hunter',
+      category: 'defi',
+      icon: '&#127793;',
+      description: 'Scans DeFi pools for high-yield opportunities.',
+      config_schema: {
+        chains: { type: 'array', default: 'solana,base,ethereum', description: 'Comma-separated chains to scan' },
+        min_apy: { type: 'number', default: 8, description: 'Minimum APY percentage to report' },
+        min_tvl_usd: { type: 'number', default: 100000, description: 'Minimum TVL in USD for pool to qualify' },
+        include_risky: { type: 'boolean', default: false, description: 'Include high-risk or unaudited pools' },
+        report_interval_hours: { type: 'number', default: 12, description: 'Hours between yield reports' }
+      }
+    },
+    {
+      id: 'data_researcher',
+      name: 'Data Researcher',
+      category: 'research',
+      icon: '&#128270;',
+      description: 'Scrapes sources and produces AI-summarized reports.',
+      config_schema: {
+        research_topic: { type: 'string', default: 'AI agent market trends', description: 'Topic to research' },
+        sources: { type: 'array', default: 'arxiv,github,twitter', description: 'Comma-separated sources to scrape' },
+        depth: { type: 'string', default: 'standard', description: 'Research depth (quick, standard, deep)' },
+        include_citations: { type: 'boolean', default: true, description: 'Include source citations in report' },
+        output_format: { type: 'string', default: 'markdown', description: 'Output format (markdown, json, pdf)' }
+      }
+    },
+    {
+      id: 'portfolio_manager',
+      name: 'Portfolio Manager',
+      category: 'trading',
+      icon: '&#128188;',
+      description: 'Tracks wallet holdings, calculates P&L, and sends daily reports.',
+      config_schema: {
+        wallets: { type: 'array', default: '', description: 'Comma-separated wallet addresses to track' },
+        report_time_utc: { type: 'string', default: '08:00', description: 'Daily report time in UTC (HH:MM)' },
+        include_pnl: { type: 'boolean', default: true, description: 'Include profit/loss calculations' },
+        include_defi: { type: 'boolean', default: true, description: 'Include DeFi positions in report' },
+        alert_threshold_pct: { type: 'number', default: 10, description: 'Alert when portfolio changes by this percentage' }
+      }
+    }
+  ];
+
+  var currentStep = 1;
+  var presets = [];
+  var selectedPreset = null;
+  var configValues = {};
+
+  /* ─── Init ─── */
+  loadPresets();
+
+  /* ─── Load presets from API with fallback ─── */
+  function loadPresets() {
+    fetch('/api/presets/catalog')
+      .then(function(r) {
+        if (!r.ok) throw new Error('API returned ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        presets = Array.isArray(data) ? data : (data.presets || data.templates || []);
+        if (presets.length === 0) presets = FALLBACK_PRESETS;
+        renderGrid();
+      })
+      .catch(function() {
+        presets = FALLBACK_PRESETS;
+        renderGrid();
+      });
+  }
+
+  /* ─── Render template grid ─── */
+  function renderGrid() {
+    var grid = document.getElementById('tmpl-grid');
+    var loading = document.getElementById('step1-loading');
+    if (loading) loading.style.display = 'none';
+
+    var html = '';
+    for (var i = 0; i < presets.length; i++) {
+      var p = presets[i];
+      var catClass = 'cat-' + esc(p.category || 'trading');
+      html += '<div class="tmpl-card" data-idx="' + i + '" onclick="window._selectTemplate(' + i + ')">'
+        + '<span class="tmpl-icon">' + (p.icon || '&#128296;') + '</span>'
+        + '<div class="tmpl-name">' + esc(p.name) + '</div>'
+        + '<span class="tmpl-cat ' + catClass + '">' + esc(p.category || 'general') + '</span>'
+        + '<div class="tmpl-desc">' + esc(p.description) + '</div>'
+        + '</div>';
+    }
+    grid.innerHTML = html;
+  }
+
+  /* ─── Select template ─── */
+  window._selectTemplate = function(idx) {
+    selectedPreset = presets[idx];
+    if (!selectedPreset) return;
+
+    /* Highlight selected card */
+    var cards = document.querySelectorAll('.tmpl-card');
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.remove('selected');
+    }
+    cards[idx].classList.add('selected');
+
+    /* Try fetching detailed schema from API */
+    var presetId = selectedPreset.id || selectedPreset.preset_id || '';
+    if (presetId) {
+      fetch('/api/presets/catalog/' + encodeURIComponent(presetId))
+        .then(function(r) {
+          if (!r.ok) throw new Error('Not found');
+          return r.json();
+        })
+        .then(function(detail) {
+          if (detail.config_schema) {
+            selectedPreset = Object.assign({}, selectedPreset, detail);
+          }
+          goStep(2);
+        })
+        .catch(function() {
+          goStep(2);
+        });
+    } else {
+      goStep(2);
+    }
+  };
+
+  /* ─── Go to step ─── */
+  window.goStep = function(step) {
+    if (step === 2 && !selectedPreset) return;
+    if (step === 3) collectConfig();
+
+    currentStep = step;
+    updateStepIndicators();
+
+    document.getElementById('step-1').style.display = step === 1 ? '' : 'none';
+    document.getElementById('step-2').style.display = step === 2 ? '' : 'none';
+    document.getElementById('step-3').style.display = step === 3 ? '' : 'none';
+
+    if (step === 2) renderConfigForm();
+    if (step === 3) renderSummary();
+
+    /* Show success or summary */
+    if (step === 3) {
+      document.getElementById('summary-card').style.display = '';
+      document.getElementById('success-view').style.display = 'none';
+    }
+
+    /* Scroll to top of page */
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  /* ─── Update step indicator dots ─── */
+  function updateStepIndicators() {
+    for (var i = 1; i <= 3; i++) {
+      var dot = document.getElementById('dot-' + i);
+      var lbl = document.getElementById('lbl-' + i);
+      dot.className = 'step-dot';
+      lbl.className = 'step-label';
+
+      if (i < currentStep) {
+        dot.classList.add('done');
+        dot.innerHTML = '&#10003;';
+        lbl.classList.add('done');
+      } else if (i === currentStep) {
+        dot.classList.add('active');
+        dot.innerHTML = String(i);
+        lbl.classList.add('active');
+      } else {
+        dot.innerHTML = String(i);
+      }
+    }
+    for (var j = 1; j <= 2; j++) {
+      var sep = document.getElementById('sep-' + j);
+      sep.className = 'step-sep';
+      if (j < currentStep) sep.classList.add('done');
+    }
+  }
+
+  /* ─── Render config form from schema ─── */
+  function renderConfigForm() {
+    if (!selectedPreset) return;
+    document.getElementById('cfg-title').textContent = selectedPreset.name || 'Configure';
+    document.getElementById('cfg-sub').textContent = selectedPreset.description || '';
+    document.getElementById('cfg-error').style.display = 'none';
+
+    var schema = selectedPreset.config_schema || {};
+    var keys = Object.keys(schema);
+    var html = '';
+
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var field = schema[key];
+      var fieldType = field.type || 'string';
+      var defaultVal = field.default !== undefined ? field.default : '';
+      var label = key.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+      var desc = field.description || '';
+
+      if (fieldType === 'boolean') {
+        var checked = defaultVal ? ' checked' : '';
+        html += '<div class="field-group">'
+          + '<label class="field-check">'
+          + '<input type="checkbox" data-key="' + esc(key) + '" data-type="boolean"' + checked + '>'
+          + '<span class="field-label" style="margin-bottom:0">' + esc(label) + '</span>'
+          + '</label>'
+          + (desc ? '<div class="field-hint">' + esc(desc) + '</div>' : '')
+          + '</div>';
+      } else if (fieldType === 'number') {
+        html += '<div class="field-group">'
+          + '<label class="field-label" for="f-' + esc(key) + '">' + esc(label) + '</label>'
+          + '<input type="number" id="f-' + esc(key) + '" class="field-input" data-key="' + esc(key) + '" data-type="number" value="' + esc(String(defaultVal)) + '" placeholder="' + esc(desc) + '">'
+          + (desc ? '<div class="field-hint">' + esc(desc) + '</div>' : '')
+          + '</div>';
+      } else if (fieldType === 'array') {
+        html += '<div class="field-group">'
+          + '<label class="field-label" for="f-' + esc(key) + '">' + esc(label) + '</label>'
+          + '<input type="text" id="f-' + esc(key) + '" class="field-input" data-key="' + esc(key) + '" data-type="array" value="' + esc(String(defaultVal)) + '" placeholder="' + esc(desc || 'Comma-separated values') + '">'
+          + (desc ? '<div class="field-hint">' + esc(desc) + ' (comma-separated)</div>' : '<div class="field-hint">Enter values separated by commas</div>')
+          + '</div>';
+      } else {
+        html += '<div class="field-group">'
+          + '<label class="field-label" for="f-' + esc(key) + '">' + esc(label) + '</label>'
+          + '<input type="text" id="f-' + esc(key) + '" class="field-input" data-key="' + esc(key) + '" data-type="string" value="' + esc(String(defaultVal)) + '" placeholder="' + esc(desc) + '">'
+          + (desc ? '<div class="field-hint">' + esc(desc) + '</div>' : '')
+          + '</div>';
+      }
+    }
+
+    if (keys.length === 0) {
+      html = '<div style="text-align:center;padding:24px;color:var(--muted2)">This template has no configurable parameters. Click Next to proceed.</div>';
+    }
+
+    document.getElementById('cfg-fields').innerHTML = html;
+  }
+
+  /* ─── Collect config values from form ─── */
+  function collectConfig() {
+    configValues = {};
+    var inputs = document.querySelectorAll('#cfg-fields [data-key]');
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      var key = el.getAttribute('data-key');
+      var type = el.getAttribute('data-type');
+
+      if (type === 'boolean') {
+        configValues[key] = el.checked;
+      } else if (type === 'number') {
+        configValues[key] = el.value !== '' ? Number(el.value) : 0;
+      } else if (type === 'array') {
+        var raw = el.value.trim();
+        configValues[key] = raw ? raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean) : [];
+      } else {
+        configValues[key] = el.value;
+      }
+    }
+  }
+
+  /* ─── Render summary ─── */
+  function renderSummary() {
+    if (!selectedPreset) return;
+    var rows = '';
+
+    rows += '<div class="summary-row">'
+      + '<span class="summary-key">Template</span>'
+      + '<span class="summary-val">' + esc(selectedPreset.name) + '</span>'
+      + '</div>';
+
+    rows += '<div class="summary-row">'
+      + '<span class="summary-key">Category</span>'
+      + '<span class="summary-val">' + esc(selectedPreset.category || 'general') + '</span>'
+      + '</div>';
+
+    var cfgKeys = Object.keys(configValues);
+    for (var i = 0; i < cfgKeys.length; i++) {
+      var key = cfgKeys[i];
+      var val = configValues[key];
+      var label = key.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+      var display = '';
+
+      if (Array.isArray(val)) {
+        display = val.join(', ') || '(none)';
+      } else if (typeof val === 'boolean') {
+        display = val ? 'Yes' : 'No';
+      } else {
+        display = String(val) || '(empty)';
+      }
+
+      rows += '<div class="summary-row">'
+        + '<span class="summary-key">' + esc(label) + '</span>'
+        + '<span class="summary-val">' + esc(display) + '</span>'
+        + '</div>';
+    }
+
+    document.getElementById('summary-rows').innerHTML = rows;
+    document.getElementById('deploy-error').style.display = 'none';
+    document.getElementById('deploy-btn').disabled = false;
+    document.getElementById('deploy-btn').innerHTML = '&#128640; Deploy Agent';
+  }
+
+  /* ─── Deploy agent ─── */
+  window.deployAgent = function() {
+    var wallet = document.getElementById('wallet-addr').value.trim();
+    if (!wallet) {
+      showError('deploy-error', 'Please enter a wallet address.');
+      return;
+    }
+    if (wallet.length < 20) {
+      showError('deploy-error', 'Wallet address looks too short. Please enter a valid Solana or EVM address.');
+      return;
+    }
+
+    var btn = document.getElementById('deploy-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Deploying...';
+    document.getElementById('deploy-error').style.display = 'none';
+
+    var payload = {
+      preset_id: selectedPreset.id || selectedPreset.preset_id || selectedPreset.name.toLowerCase().replace(/\s+/g, '_'),
+      config: configValues,
+      wallet_address: wallet
+    };
+
+    fetch('/api/presets/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.json().then(function(d) {
+          throw new Error(d.detail || d.error || 'Deployment failed (' + r.status + ')');
+        }).catch(function(e) {
+          if (e.message) throw e;
+          throw new Error('Deployment failed (' + r.status + ')');
+        });
+      }
+      return r.json();
+    })
+    .then(function(data) {
+      var agentName = data.agent_name || data.name || (selectedPreset.name + ' #' + Math.floor(Math.random() * 9000 + 1000));
+      document.getElementById('success-name').textContent = agentName;
+      document.getElementById('summary-card').style.display = 'none';
+      document.getElementById('success-view').style.display = '';
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '&#128640; Deploy Agent';
+      showError('deploy-error', err.message || 'Deployment failed. Please try again.');
+    });
+  };
+
+  /* ─── Reset wizard ─── */
+  window.resetWizard = function() {
+    selectedPreset = null;
+    configValues = {};
+    document.getElementById('wallet-addr').value = '';
+    goStep(1);
+  };
+
+  /* ─── Show error ─── */
+  function showError(id, msg) {
+    var el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  /* ─── Fade-in observer ─── */
+  var obs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(el) {
+      if (el.isIntersecting) el.target.classList.add('visible');
+    });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-in').forEach(function(el) { obs.observe(el); });
+
+})();
+</script>
+
+</body>
+</html>
