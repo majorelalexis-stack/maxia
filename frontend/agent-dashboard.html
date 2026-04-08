@@ -82,6 +82,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 .hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
 .hamburger span{display:block;width:18px;height:2px;background:#e4e4e7;border-radius:2px}
 .nav-links a{color:#a1a1aa;font-size:14px;margin-left:20px;transition:color .2s;text-decoration:none}.nav-links a:hover{color:#e4e4e7}
+.nav-links{display:flex;gap:20px;align-items:center}
+.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s;text-decoration:none;white-space:nowrap}
+.nav-links a:hover{color:#e4e4e7}
 .nav-links a.gold{color:#f59e0b}
 .nav-cta{padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
 .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -110,9 +113,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
     <a href="/buy">Buy Crypto</a>
+    <a href="/app#trading">Trading</a>
     <a href="/marketplace">Marketplace</a>
+    <a href="/agents">Agent Economy</a>
+    <a href="/pricing">Pricing</a>
     <a href="/enterprise" class="gold">Enterprise</a>
-    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
 </nav>
