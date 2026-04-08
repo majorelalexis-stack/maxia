@@ -422,7 +422,7 @@ updateHomePrices();setInterval(updateHomePrices,5000);
 
 (function(){
   var el=document.getElementById('home-feed');if(!el)return;
-  var msgs=['Platform active — 15 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','Leverage up to 100x on SOL/ETH/BTC'];
+  var msgs=['Platform active — 15 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','DCA, Grid, Sniper bots — real Jupiter swaps'];
   var i=0;setInterval(function(){el.textContent=msgs[i%msgs.length];i++;},4000);
   fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
     if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');
