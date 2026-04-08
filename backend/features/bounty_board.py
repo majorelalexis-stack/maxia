@@ -203,20 +203,21 @@ async def browse_bounties(category: str = "", status: str = "open", limit: int =
     params.append(min(limit, 50))
     where = " AND ".join(conditions)
 
+    # AUD-M5: single query with LEFT JOIN instead of N+1
     rows = await db._fetchall(
-        f"SELECT bounty_id, poster_agent_id, title, description, budget_usdc, "
-        f"category, deadline_at, auto_assign, created_at "
-        f"FROM task_bounties WHERE {where} ORDER BY budget_usdc DESC, created_at DESC LIMIT ?",
+        f"SELECT b.bounty_id, b.poster_agent_id, b.title, b.description, b.budget_usdc, "
+        f"b.category, b.deadline_at, b.auto_assign, b.created_at, "
+        f"COALESCE(bc.cnt, 0) AS bid_count "
+        f"FROM task_bounties b "
+        f"LEFT JOIN (SELECT bounty_id, COUNT(*) AS cnt FROM bounty_bids WHERE status='pending' GROUP BY bounty_id) bc "
+        f"ON b.bounty_id = bc.bounty_id "
+        f"WHERE {' AND '.join('b.' + c for c in conditions)} "
+        f"ORDER BY b.budget_usdc DESC, b.created_at DESC LIMIT ?",
         tuple(params))
 
-    # Add bid counts
     bounties = []
     for r in rows:
-        bid_count = await db._fetchone(
-            "SELECT COUNT(*) as cnt FROM bounty_bids WHERE bounty_id=? AND status='pending'",
-            (r["bounty_id"],))
         b = dict(r)
-        b["bid_count"] = bid_count["cnt"] if bid_count else 0
         b["time_left_seconds"] = max(0, r["deadline_at"] - now)
         bounties.append(b)
 
@@ -469,6 +470,49 @@ async def dispute_bounty(bounty_id: str, x_api_key: str = Header(None)):
         "UPDATE task_bounties SET status='disputed' WHERE bounty_id=?", (bounty_id,))
 
     return {"status": "ok", "refunded_usdc": budget, "message": "Bounty disputed. Funds returned."}
+
+
+@router.post("/{bounty_id}/cancel")
+async def cancel_bounty(bounty_id: str, x_api_key: str = Header(None)):
+    """AUD-H10: Cancel a bounty before work starts. Refunds poster.
+    Only allowed on 'open' or 'assigned' status (no work delivered yet)."""
+    api_key = _validate_key(x_api_key)
+    await _ensure_schema()
+    agent_id = await _get_agent_id(api_key)
+    if not agent_id:
+        raise HTTPException(403, "Agent not found or inactive")
+
+    from core.database import db
+
+    bounty = await db._fetchone(
+        "SELECT poster_agent_id, status, budget_usdc FROM task_bounties WHERE bounty_id=?",
+        (bounty_id,))
+    if not bounty:
+        raise HTTPException(404, "Bounty not found")
+    if bounty["poster_agent_id"] != agent_id:
+        raise HTTPException(403, "Only the poster can cancel")
+    if bounty["status"] not in ("open", "assigned"):
+        raise HTTPException(400, f"Cannot cancel bounty in status: {bounty['status']}. Use /dispute for delivered bounties.")
+
+    budget = float(bounty["budget_usdc"])
+    # Atomic status claim
+    await db.raw_execute(
+        "UPDATE task_bounties SET status='cancelled' WHERE bounty_id=? AND status IN ('open','assigned')",
+        (bounty_id,))
+    check = await db._fetchone("SELECT status FROM task_bounties WHERE bounty_id=?", (bounty_id,))
+    if not check or (check["status"] if isinstance(check, dict) else check[0]) != "cancelled":
+        raise HTTPException(409, "Bounty already processed by concurrent request")
+
+    from billing.prepaid_credits import add_credits
+    poster_row = await db._fetchone(
+        "SELECT wallet FROM agent_permissions WHERE agent_id=?", (agent_id,))
+    wallet = poster_row["wallet"] if poster_row else ""
+
+    await add_credits(agent_id, wallet, budget,
+                      payment_tx="bounty-cancel-refund",
+                      description=f"Bounty cancelled: {bounty_id[:8]}")
+
+    return {"status": "ok", "refunded_usdc": budget, "message": "Bounty cancelled. Funds returned."}
 
 
 @router.get("/my-bounties")

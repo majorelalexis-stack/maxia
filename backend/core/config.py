@@ -188,7 +188,7 @@ RAILWAY_API_TOKEN         = os.getenv("RAILWAY_API_TOKEN", "")
 COMMISSION_TIERS = [
     {"name": "BRONZE",  "min_amount": 0,    "max_amount": 500,  "rate_bps": 150},   # 1.5%
     {"name": "GOLD",    "min_amount": 500,  "max_amount": 5000, "rate_bps": 50},    # 0.5%
-    {"name": "WHALE",   "min_amount": 5000, "max_amount": None, "rate_bps": 10},    # 0.1%
+    {"name": "WHALE",   "min_amount": 5000, "max_amount": 10_000_000, "rate_bps": 10},  # 0.1% — AUD-M4: explicit cap (10M)
 ]
 
 def get_commission_bps(amount_usdc: float) -> int:

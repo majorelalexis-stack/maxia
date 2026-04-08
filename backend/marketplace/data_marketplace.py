@@ -21,9 +21,12 @@ class DataPurchaseRequest(BaseModel):
 
 
 @router.get("/datasets")
-async def list_all(category: str = None, max_price: float = None):
+async def list_all(category: str = None, max_price: float = None, limit: int = 50):
+    if limit < 1:
+        limit = 1
+    limit = min(limit, 200)  # AUD-M8: cap to prevent unlimited queries
     db = _get_db()
-    rows = await db.raw_execute_fetchall("SELECT data FROM datasets ORDER BY created_at DESC")
+    rows = await db.raw_execute_fetchall("SELECT data FROM datasets ORDER BY created_at DESC LIMIT ?", (limit,))
     ds = [json.loads(r["data"] if isinstance(r, dict) else r[0]) for r in rows]
     if category:
         ds = [d for d in ds if d.get("category") == category]
@@ -54,6 +57,12 @@ async def purchase(req: DataPurchaseRequest, wallet: str = Depends(require_auth)
     db = _get_db()
     if await db.tx_already_processed(req.tx_signature):
         raise HTTPException(400, "Transaction deja utilisee.")
+    # AUD-L3: prevent duplicate purchase of same dataset by same wallet
+    existing = await db.raw_execute_fetchall(
+        "SELECT purchase_id FROM data_purchases WHERE data LIKE ? AND data LIKE ?",
+        (f'%"buyer": "{wallet}"%', f'%"datasetId": "{req.dataset_id}"%'))
+    if existing:
+        raise HTTPException(409, "Vous avez deja achete ce dataset.")
     rows = await db.raw_execute_fetchall("SELECT data FROM datasets WHERE dataset_id=?", (req.dataset_id,))
     if not rows:
         raise HTTPException(404, "Dataset introuvable.")

@@ -511,10 +511,13 @@ async def get_post_with_replies(db, post_id: str) -> dict:
 
 async def search_posts(db, query: str, limit: int = 20) -> list:
     """Search forum posts by title/body."""
+    if not query or len(query.strip()) < 3:
+        return []
+    query = query.strip()[:200]  # AUD-H15: cap length to prevent abuse
     try:
         rows = await db.raw_execute_fetchall(
             "SELECT data FROM forum_posts WHERE status='active' AND data LIKE ? ORDER BY hot_score DESC LIMIT ?",
-            (f"%{query}%", limit))
+            (f"%{query}%", min(limit, 50)))
         return [json.loads(r["data"]) for r in rows]
     except Exception:
         return []

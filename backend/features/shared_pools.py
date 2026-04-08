@@ -201,6 +201,9 @@ async def browse_pools(topic: str = "", limit: int = 20):
     """Browse available shared memory pools. No auth required."""
     await _ensure_schema()
     from core.database import db
+    if limit < 1:
+        limit = 1
+    limit = min(limit, 100)  # AUD-M8: cap
 
     if topic:
         rows = await db._fetchall(

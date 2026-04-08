@@ -169,7 +169,8 @@ async def analyze_wallet(wallet_address: str) -> dict:
             result["profile"] = "defi_power_user"
 
     except Exception as e:
-        result["error"] = str(e)
+        logger.warning("[Web3] Wallet analysis error: %s", e)
+        result["error"] = "Analysis temporarily unavailable"
 
     return result
 

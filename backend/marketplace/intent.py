@@ -288,17 +288,9 @@ async def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
         if datetime.now(timezone.utc) > expires_dt:
             return {"valid": False, "error": "Expired"}
 
-        # BUG 25 fix + S3 audit fix: anti-replay FAIL-CLOSE (never skip)
-        nonce_key = f"intent:{intent['nonce']}"
-        try:
-            from core.auth import _nonce_is_used, _nonce_mark_used
-            if await _nonce_is_used(nonce_key):
-                return {"valid": False, "error": "Nonce already used (replay detected)"}
-        except Exception as e:
-            # S3 fix: Redis down → DENY, never silently proceed
-            logger.error("[Intent] Anti-replay store unavailable: %s", e)
-            return {"valid": False, "error": "Anti-replay verification unavailable"}
-
+        # AUD-H1 fix: verify signature FIRST, then check/burn nonce.
+        # Old order checked nonce before sig → attacker could burn valid nonces
+        # with bad signatures (DoS). Now: sig must pass before nonce is touched.
         payload = json.dumps({
             "action": intent["action"], "did": intent["did"],
             "expires": intent["expires"], "nonce": intent["nonce"],
@@ -308,12 +300,19 @@ async def verify_intent_legacy(intent: dict, public_key_b58: str) -> dict:
         sig_bytes = b58.b58decode(intent["sig"])
         pk_bytes = b58.b58decode(public_key_b58)
         VerifyKey(pk_bytes).verify(payload.encode(), sig_bytes)
-        # Mark nonce as used (anti-replay) — if this fails, the verification
-        # already passed so we log but don't reject (nonce was already checked above)
+
+        # Signature valid — now check and burn nonce (anti-replay FAIL-CLOSE)
+        nonce_key = f"intent:{intent['nonce']}"
         try:
+            from core.auth import _nonce_is_used, _nonce_mark_used
+            if await _nonce_is_used(nonce_key):
+                return {"valid": False, "error": "Nonce already used (replay detected)"}
             await _nonce_mark_used(nonce_key)
         except Exception as e:
-            logger.warning("[Intent] Failed to mark nonce used: %s", e)
+            # S3 fix: Redis down → DENY, never silently proceed
+            logger.error("[Intent] Anti-replay store unavailable: %s", e)
+            return {"valid": False, "error": "Anti-replay verification unavailable"}
+
         return {"valid": True, "did": intent["did"], "action": intent["action"]}
 
     except BadSignatureError:

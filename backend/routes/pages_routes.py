@@ -434,7 +434,7 @@ async def health(request: Request):
         await db.raw_execute_fetchall("SELECT 1")
         checks["database"] = "ok"
     except Exception as e:
-        checks["database"] = f"error: {str(e)[:80]}"
+        checks["database"] = "error: database check failed"
         overall = "degraded"
 
     # Redis check

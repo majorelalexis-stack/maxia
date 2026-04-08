@@ -590,7 +590,9 @@ async def not_found_handler(request: Request, exc):
 
 
 # ── CORS restrictif (pas de wildcard en prod) ──
-_is_prod = os.getenv("FORCE_HTTPS", "false").lower() == "true"
+# AUD-H2: check both FORCE_HTTPS and PROD_MODE to avoid accidental wildcard
+_is_prod = (os.getenv("FORCE_HTTPS", "false").lower() == "true"
+            or os.getenv("PROD_MODE", "false").lower() == "true")
 _ALLOWED_ORIGINS = (
     os.getenv("CORS_ORIGINS", "https://maxiaworld.app,https://www.maxiaworld.app").split(",")
     if _is_prod

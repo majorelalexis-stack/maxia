@@ -112,14 +112,18 @@ class AuthRequest(BaseModel):
     nonce: str
 
 
-async def _check_brute_force(wallet: str):
-    """Bloque apres trop de tentatives echouees (Redis-backed, memoire fallback)."""
+async def _check_brute_force(wallet: str, client_ip: str = ""):
+    """Bloque apres trop de tentatives echouees (Redis-backed, memoire fallback).
+    AUD-L1: checks both wallet AND IP to prevent distributed brute force."""
     rc = _get_rc()
+    keys_to_check = [f"bf:{wallet}"]
+    if client_ip:
+        keys_to_check.append(f"bf:ip:{client_ip}")
     try:
-        key = f"bf:{wallet}"
-        count = await rc.cache_get(key)
-        if count is not None and int(count) >= _MAX_FAILED_ATTEMPTS:
-            raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
+        for key in keys_to_check:
+            count = await rc.cache_get(key)
+            if count is not None and int(count) >= _MAX_FAILED_ATTEMPTS:
+                raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
     except HTTPException:
         raise
     except Exception:
@@ -132,13 +136,20 @@ async def _check_brute_force(wallet: str):
             raise HTTPException(429, "Trop de tentatives echouees. Reessayez dans 5 minutes.")
 
 
-async def _record_failed(wallet: str):
+async def _record_failed(wallet: str, client_ip: str = ""):
+    """AUD-L1: record failure for both wallet and IP."""
     rc = _get_rc()
     try:
         key = f"bf:{wallet}"
         count = await rc.cache_get(key)
         new_count = (int(count) + 1) if count else 1
         await rc.cache_set(key, str(new_count), ttl=_FAILED_WINDOW)
+        # AUD-L1: also track by IP
+        if client_ip:
+            ip_key = f"bf:ip:{client_ip}"
+            ip_count = await rc.cache_get(ip_key)
+            ip_new = (int(ip_count) + 1) if ip_count else 1
+            await rc.cache_set(ip_key, str(ip_new), ttl=_FAILED_WINDOW)
     except Exception:
         # Fallback memoire
         _FAILED_ATTEMPTS.setdefault(wallet, []).append(time.time())
@@ -279,6 +290,19 @@ async def require_auth_flexible(
 
     Returns: {"wallet": str, "did": str|None, "auth_method": str}
     """
+
+    # AUD-M1: check GDPR blocklist before any auth method
+    async def _check_gdpr_blocked(*identifiers: str) -> None:
+        try:
+            rc = _get_rc()
+            for ident in identifiers:
+                if ident and await rc.cache_get(f"maxia:gdpr_blocked:{ident}"):
+                    raise HTTPException(401, "Account erased per GDPR request")
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # Redis down — don't block auth
+
     # 1) DID signature auth
     if x_agent_did and x_agent_sig and x_agent_ts:
         agent_info = await require_agent_sig_auth(
@@ -297,6 +321,7 @@ async def require_auth_flexible(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1]
         wallet = verify_session_token(token)
+        await _check_gdpr_blocked(wallet)
         return {"wallet": wallet, "did": None, "auth_method": "session_token"}
 
     # 3) X-API-Key (for public API / sandbox) — verify key exists in DB
@@ -309,6 +334,7 @@ async def require_auth_flexible(
             )
             if rows:
                 agent = dict(rows[0])
+                await _check_gdpr_blocked(agent.get("wallet", ""), x_api_key)
                 return {
                     "wallet": agent.get("wallet", x_api_key),
                     "did": None,

@@ -119,6 +119,25 @@ async def create_stream(
     if total_locked <= 0:
         raise HTTPException(400, "Le montant total verrouille doit etre positif")
 
+    # AUD-H6: verify payment on-chain before creating stream
+    if not payment_tx or len(payment_tx) < 20:
+        raise HTTPException(402, "Valid payment transaction required to create stream")
+    try:
+        from blockchain.solana_verifier import verify_transaction
+        from core.config import TREASURY_ADDRESS
+        tx_result = await verify_transaction(
+            tx_signature=payment_tx,
+            expected_amount_usdc=total_locked,
+            expected_recipient=TREASURY_ADDRESS,
+        )
+        if not tx_result.get("valid"):
+            raise HTTPException(400, f"Payment verification failed: {tx_result.get('error', 'invalid')}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("[StreamPay] Payment verification error: %s", e)
+        raise HTTPException(502, "Payment verification temporarily unavailable")
+
     stream_id = f"STREAM-{uuid.uuid4().hex[:12].upper()}"
     now_ts = int(time.time())
 

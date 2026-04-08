@@ -21,21 +21,24 @@ FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend"
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")  # MUST be set in .env — no hardcoded default
 _ADMIN_SESSIONS_MAX = 1000  # Cap to prevent unbounded growth
 
-# PRO-A3: Sessions in-memory + Redis (survives restart if Redis available)
-_ADMIN_SESSIONS: dict = {}  # {token: expiry_timestamp}
+# AUD-H4: Redis-primary sessions. In-memory dict is ONLY a fallback when Redis is down.
+# This prevents desync between multiple uvicorn workers.
+_ADMIN_SESSIONS: dict = {}  # {token: expiry_timestamp} — fallback only
 
 
 async def _session_set(token: str, expiry: float) -> None:
-    """Store admin session in both Redis and in-memory dict."""
-    _ADMIN_SESSIONS[token] = expiry
+    """Store admin session in Redis (primary) with in-memory fallback."""
     try:
-        await redis_client.cache_set(f"maxia:admin_session:{token}", expiry, ttl=86400)
+        await redis_client.cache_set(f"maxia:admin_session:{token}", str(expiry), ttl=86400)
+        return  # Redis success — don't pollute in-memory
     except Exception:
-        pass  # Redis unavailable — in-memory fallback still works
+        pass
+    # Fallback: in-memory only if Redis is down
+    _ADMIN_SESSIONS[token] = expiry
 
 
 async def _session_get(token: str) -> float | None:
-    """Read admin session expiry, trying Redis first then in-memory."""
+    """Read admin session expiry from Redis (primary), in-memory fallback."""
     try:
         val = await redis_client.cache_get(f"maxia:admin_session:{token}")
         if val is not None:
@@ -46,7 +49,7 @@ async def _session_get(token: str) -> float | None:
 
 
 async def _session_delete(token: str) -> None:
-    """Remove admin session from both Redis and in-memory dict."""
+    """Remove admin session from Redis (primary) and in-memory fallback."""
     _ADMIN_SESSIONS.pop(token, None)
     try:
         await redis_client.cache_delete(f"maxia:admin_session:{token}")

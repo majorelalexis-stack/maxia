@@ -195,6 +195,16 @@ async def gdpr_data_erasure(
         "audit_log (LCEN — 1 year)",
     ]
 
+    # AUD-M1: blocklist wallet + api_key in Redis (24h) so existing tokens are rejected
+    try:
+        from core.redis_client import redis_client
+        if wallet:
+            await redis_client.cache_set(f"maxia:gdpr_blocked:{wallet}", "1", ttl=86400)
+        if api_key:
+            await redis_client.cache_set(f"maxia:gdpr_blocked:{api_key}", "1", ttl=86400)
+    except Exception as e:
+        logger.warning("[GDPR] Failed to blocklist tokens: %s", e)
+
     logger.info(
         "[GDPR] Data erasure: wallet=%s deleted=%s",
         wallet[:8] + "..." if wallet else "none",

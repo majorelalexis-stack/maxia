@@ -63,11 +63,16 @@ async def _earnings(wallet: str) -> float:
     except Exception:
         return 0.0
 
+# AUD-H7: cap total referral earnings per referrer ($10,000 lifetime)
+MAX_REFERRAL_EARNED_USD = float(os.getenv("MAX_REFERRAL_EARNED_USD", "10000"))
+
+
 async def add_commission(referee_wallet: str, commission_amount: float):
     """Credit 50% of MAXIA's commission to the referrer.
 
     Looks up the referee by wallet in referrals table (legacy) or by api_key
     in the agents.referred_by column (new system).
+    AUD-H7: enforces total cap per referrer to prevent abuse.
     """
     try:
         referral_credit = commission_amount * RATE_BPS / 10000  # 50% of commission
@@ -83,10 +88,16 @@ async def add_commission(referee_wallet: str, commission_amount: float):
                     "SELECT ref_id, data FROM referrals WHERE referee=?", (referee_api_key,))
                 if ref_rows:
                     row = ref_rows[0]
-                    d = json.loads(row["data"])
-                    d["earnedUsdc"] = d.get("earnedUsdc", 0) + referral_credit
-                    await db.raw_execute("UPDATE referrals SET data=? WHERE ref_id=?",
-                                         (json.dumps(d), row["ref_id"]))
+                    current_earned = json.loads(row["data"]).get("earnedUsdc", 0)
+                    if current_earned >= MAX_REFERRAL_EARNED_USD:
+                        return
+                    capped_credit = min(referral_credit, MAX_REFERRAL_EARNED_USD - current_earned)
+                    # AUD-L2: atomic SQL update — no read-modify-write race
+                    await db.raw_execute(
+                        "UPDATE referrals SET data = json_set(data, '$.earnedUsdc', "
+                        "COALESCE(json_extract(data, '$.earnedUsdc'), 0) + ?) "
+                        "WHERE ref_id=?",
+                        (capped_credit, row["ref_id"]))
                     return
             except Exception:
                 pass
@@ -96,9 +107,15 @@ async def add_commission(referee_wallet: str, commission_amount: float):
             "SELECT ref_id, data FROM referrals WHERE referee=?", (referee_wallet,))
         if rows:
             row = rows[0]
-            d = json.loads(row["data"])
-            d["earnedUsdc"] = d.get("earnedUsdc", 0) + referral_credit
-            await db.raw_execute("UPDATE referrals SET data=? WHERE ref_id=?",
-                                 (json.dumps(d), row["ref_id"]))
+            current_earned = json.loads(row["data"]).get("earnedUsdc", 0)
+            if current_earned >= MAX_REFERRAL_EARNED_USD:
+                return
+            capped_credit = min(referral_credit, MAX_REFERRAL_EARNED_USD - current_earned)
+            # AUD-L2: atomic SQL update
+            await db.raw_execute(
+                "UPDATE referrals SET data = json_set(data, '$.earnedUsdc', "
+                "COALESCE(json_extract(data, '$.earnedUsdc'), 0) + ?) "
+                "WHERE ref_id=?",
+                (capped_credit, row["ref_id"]))
     except Exception:
         pass

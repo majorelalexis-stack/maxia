@@ -716,7 +716,7 @@ async def spawn_agent(req: SpawnAgentRequest, x_api_key: str = Header(None)):
         "INSERT INTO agent_permissions(agent_id, api_key, wallet, did, uaid, "
         "trust_level, status, scopes, max_daily_spend_usd, max_single_tx_usd, "
         "daily_spent_usd, daily_spent_date, created_at, updated_at) "
-        "VALUES(?,?,?,?,?,0,'active','[\"*\"]',50,10,0,?,?,?)",
+        "VALUES(?,?,?,?,?,0,'active','[\"execute\",\"discover\",\"buy\",\"sell\",\"credits\"]',50,10,0,?,?,?)",
         (child_agent_id, child_api_key, parent_wallet, child_did, child_uaid,
          datetime.now(timezone.utc).strftime("%Y-%m-%d"),
          datetime.now(timezone.utc).isoformat(),
@@ -756,6 +756,7 @@ async def spawn_agent(req: SpawnAgentRequest, x_api_key: str = Header(None)):
     except Exception:
         pass
 
+    # AUD-H12: return full API key ONCE (parent must store it). Mask in subsequent queries.
     return {
         "status": "ok",
         "child": {
@@ -765,9 +766,10 @@ async def spawn_agent(req: SpawnAgentRequest, x_api_key: str = Header(None)):
             "did": child_did,
             "initial_credits_usdc": transferred,
             "revenue_share_pct": req.revenue_share_pct,
+            "scopes": ["execute", "discover", "buy", "sell", "credits"],
         },
         "parent_credits_remaining": (await get_balance(parent_id)) if req.initial_credits_usdc > 0 else None,
-        "message": "Child agent spawned. No human required.",
+        "message": "Child agent spawned. Store the api_key now — it won't be shown again.",
     }
 
 
@@ -792,10 +794,12 @@ async def list_children(x_api_key: str = Header(None)):
         # Get child's current balance
         from billing.prepaid_credits import get_balance
         balance = await get_balance(r["child_agent_id"])
-        children.append({
-            **dict(r),
-            "current_balance_usdc": balance,
-        })
+        child_data = dict(r)
+        # AUD-H12: mask API key in list (only shown once at spawn time)
+        raw_key = child_data.pop("child_api_key", "")
+        child_data["api_key_prefix"] = raw_key[:10] + "..." if raw_key else ""
+        child_data["current_balance_usdc"] = balance
+        children.append(child_data)
 
     return {
         "agent_id": agent_id,

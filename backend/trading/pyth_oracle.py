@@ -429,16 +429,18 @@ async def get_pyth_price(feed_id: str, hft: bool = False) -> dict:
         confidence = raw_conf * (10 ** exponent)
 
         # ── Staleness check (dual-tier: normal vs HFT) ──
-        age_s = int(now) - publish_time if publish_time > 0 else 0
+        # AUD-M3: publish_time=0 means unknown → treat as stale (fail-safe)
+        age_s = int(now) - publish_time if publish_time > 0 else 999999
         is_equity = feed_id in EQUITY_FEEDS.values()
         if hft:
             max_staleness = MAX_STALENESS_STOCK_HFT_S if is_equity else MAX_STALENESS_CRYPTO_HFT_S
         else:
             max_staleness = MAX_STALENESS_STOCK_NORMAL_S if is_equity else MAX_STALENESS_CRYPTO_NORMAL_S
-        is_stale = age_s > max_staleness if publish_time > 0 else False
+        is_stale = age_s > max_staleness
 
         # ── P2: Confidence interval check (tieree par asset class) ──
-        confidence_pct = (confidence / price * 100) if price > 0 else 0
+        # AUD-M2: if price is 0 or invalid, treat confidence as wide (fail-safe)
+        confidence_pct = (confidence / price * 100) if price > 0 else 100.0
         # Resolve symbol from feed_id for tiered threshold
         _sym = next((s for s, fid in ALL_FEEDS.items() if fid == feed_id), "")
         _conf_threshold = get_confidence_threshold(_sym) if _sym else 2.0
@@ -1517,7 +1519,8 @@ async def _pyth_sse_loop():
             # Client dedie pour SSE (le client partage peut avoir des params qui cassent le stream)
             ids_params = "&".join(f"ids[]=0x{fid}" for fid in feed_ids)
             stream_url = f"{HERMES_URL}/v2/updates/price/stream?{ids_params}"
-            async with httpx.AsyncClient(timeout=httpx.Timeout(None)) as sse_client:
+            # AUD-M6: connect timeout 5s, read timeout None (SSE is long-lived by design)
+            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout=120.0, connect=5.0)) as sse_client:
                 async with sse_client.stream("GET", stream_url) as resp:
                     if resp.status_code != 200:
                         logger.warning(f"[PythStream] HTTP {resp.status_code}, retrying in {backoff}s")
