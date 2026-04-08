@@ -91,8 +91,10 @@ class TestJWTVerification:
         from fastapi import HTTPException
         token = create_session_token("7v91N7iZ9mNicL8WfG6cgSCKyRXydQjLh6UYBWwm6y1Q")
         parts = token.rsplit(":", 2)
-        # Flip one character in the HMAC
-        tampered_sig = "a" + parts[2][1:]
+        # Flip one character in the HMAC (ensure it actually changes)
+        first_char = parts[2][0]
+        flipped = "b" if first_char != "b" else "c"
+        tampered_sig = flipped + parts[2][1:]
         tampered_token = f"{parts[0]}:{parts[1]}:{tampered_sig}"
         with pytest.raises(HTTPException) as exc_info:
             verify_session_token(tampered_token)
