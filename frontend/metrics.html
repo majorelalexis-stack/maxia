@@ -18,7 +18,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 
 .topbar-title{font-size:14px;color:var(--muted)}
 
-.page{max-width:1100px;margin:0 auto;padding:40px 24px}
+.page{max-width:1100px;margin:0 auto;padding:100px 24px 48px}
 .page-title{font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-1.5px;margin-bottom:8px}
 .page-sub{font-size:16px;color:var(--muted);margin-bottom:32px}
 
@@ -143,15 +143,16 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 
 
 
+<div class="page">
   <!-- Platform stats (hardcoded = real verified numbers) -->
   <div class="section-title">Platform</div>
   <div class="metric-grid">
-    <div class="metric"><div class="metric-val">799+</div><div class="metric-label">API Routes</div></div>
-    <div class="metric"><div class="metric-val">218</div><div class="metric-label">Python Modules</div></div>
+    <div class="metric"><div class="metric-val">840+</div><div class="metric-label">API Routes</div></div>
+    <div class="metric"><div class="metric-val">230+</div><div class="metric-label">Python Modules</div></div>
     <div class="metric"><div class="metric-val">567</div><div class="metric-label">Automated Tests</div></div>
     <div class="metric"><div class="metric-val">15</div><div class="metric-label">Blockchains</div></div>
     <div class="metric"><div class="metric-val">47</div><div class="metric-label">MCP Tools</div></div>
-    <div class="metric"><div class="metric-val">8</div><div class="metric-label">SDKs Published</div></div>
+    <div class="metric"><div class="metric-val">9</div><div class="metric-label">SDKs Published</div></div>
     <div class="metric"><div class="metric-val">2</div><div class="metric-label">Mainnet Contracts</div></div>
     <div class="metric"><div class="metric-val">17</div><div class="metric-label">Features Live</div></div>
   </div>
@@ -254,5 +255,6 @@ async function refresh(){
 refresh();
 setInterval(refresh,30000);
 </script>
+</div><!-- end .page -->
 </body>
 </html>

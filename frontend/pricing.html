@@ -19,7 +19,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 
 .topbar a.back{color:var(--muted);font-size:13px;margin-left:auto}
 
-.page{max-width:1000px;margin:0 auto;padding:48px 24px}
+.page{max-width:1000px;margin:0 auto;padding:100px 24px 48px}
 .hero-p{text-align:center;margin-bottom:48px}
 .hero-p h1{font-size:clamp(32px,5vw,48px);font-weight:800;letter-spacing:-2px;margin-bottom:12px}
 .hero-p .sub{font-size:17px;color:var(--muted);max-width:560px;margin:0 auto}
@@ -165,6 +165,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 
 
 
+<div class="page">
   <div class="lp"><div class="lp-sym">ETH</div><div class="lp-val lp-loading" id="p-ETH">$...</div></div>
   <div class="lp"><div class="lp-sym">BTC</div><div class="lp-val lp-loading" id="p-BTC">$...</div></div>
   <div class="lp"><div class="lp-sym">AAPL</div><div class="lp-val lp-loading" id="p-AAPL">$...</div></div>
@@ -365,5 +366,6 @@ async function loadPrices(){
 }
 loadPrices();setInterval(loadPrices,10000);
 </script>
+</div><!-- end .page -->
 </body>
 </html>
