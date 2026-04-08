@@ -82,6 +82,58 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 </style>
 </head>
 <body>
+<!-- NAV (unified) -->
+<nav>
+  <div class="nav-left">
+    <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
+      <span></span><span></span><span></span>
+    </button>
+    <a href="/" class="nav-logo">MAXIA<span class="nav-badge">PREVIEW</span></a>
+  </div>
+  <div class="nav-links">
+    <a href="/app#swap">Swap</a>
+    <a href="/buy">Buy Crypto</a>
+    <a href="/marketplace">Marketplace</a>
+    <a href="/enterprise" class="gold">Enterprise</a>
+    <a href="/docs">Docs</a>
+    <a href="/app" class="nav-cta">Launch App</a>
+  </div>
+</nav>
+<div id="sidebar-ov" class="sidebar-overlay" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('sidebar').style.left='-320px'"></div>
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <button class="sidebar-close" onclick="document.getElementById('sidebar').style.left='-320px';document.getElementById('sidebar-ov').style.opacity='0';document.getElementById('sidebar-ov').style.pointerEvents='none'">&times;</button>
+  </div>
+  <div class="sidebar-body">
+    <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
+    <div class="sidebar-section">Trade</div>
+    <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
+    <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
+    <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
+    <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
+    <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
+    <div class="sidebar-section">Explore</div>
+    <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
+    <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
+    <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
+    <a href="/store" class="sidebar-link">&#128230; Integrations</a>
+    <div class="sidebar-section">Community</div>
+    <a href="/forum" class="sidebar-link">&#128172; Forum</a>
+    <a href="/blog" class="sidebar-link">&#128218; Blog</a>
+    <a href="/referral" class="sidebar-link">&#127873; Referral</a>
+    <div class="sidebar-section">Business</div>
+    <a href="/enterprise" class="sidebar-link">&#127970; Enterprise</a>
+    <a href="/docs" class="sidebar-link">&#128196; API Docs</a>
+    <a href="/legal" class="sidebar-link">&#128220; Legal</a>
+    <a href="/about" class="sidebar-link">&#128101; About</a>
+    <a href="/faq" class="sidebar-link">&#10067; FAQ</a>
+  </div>
+  <div class="sidebar-footer">
+    <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
+  </div>
+</div>
+
 
 <!-- Slide nav dots -->
 <div class="slide-nav" id="slide-nav"></div>
