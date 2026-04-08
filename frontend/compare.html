@@ -31,10 +31,6 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 ::selection{background:rgba(0,229,255,.2)}
 a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(--blue)}
 
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
-.nav-links{display:flex;gap:20px;align-items:center}
-.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s}
-.nav-links a:hover{color:#e4e4e7}
 .hero{text-align:center;padding:100px 24px 40px}
 .hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{color:var(--muted);font-size:18px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto}
@@ -83,42 +79,15 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
 }
 
 /* Unified Nav */
-.nav-left{display:flex;align-items:center;gap:12px}
-.nav-logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none}
-.nav-badge{background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super}
-.hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
-.hamburger span{display:block;width:18px;height:2px;background:var(--text,#e4e4e7);border-radius:2px}
-.nav-links a.gold{color:#f59e0b}.nav-links a.gold:hover{color:#fbbf24}
-.nav-cta{padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
-.nav-cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,255,.25)}
-.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
-.sidebar{position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column}
-.sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
-.sidebar-close{background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:#a1a1aa;cursor:pointer;font-size:16px}
-.sidebar-body{padding:16px 20px;flex:1}
-.sidebar-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#52525b;margin:20px 0 10px 8px}
-.sidebar-section:first-child{margin-top:4px}
-.sidebar-link{display:flex;align-items:center;gap:12px;padding:10px 14px;color:#a1a1aa;font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none}
-.sidebar-link:hover{background:rgba(0,229,255,.06);color:#e4e4e7}
-.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
-.sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
-.sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
+
 /* hamburger visible on all screens */
-@media(max-width:768px){.nav-links{display:none}}
+@media(max-width:768px){}
 /* Unified Footer */
-.footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;position:relative;z-index:1}
-.footer-inner{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px}
-.footer-col h4{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px}
-.footer-col a{display:block;color:#52525b;font-size:13px;padding:3px 0;transition:color .2s}
-.footer-col a:hover{color:#00e5ff}
-.footer-bottom{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px}
-.footer-social{display:flex;gap:16px}
-.footer-social a{color:#52525b;font-size:13px;transition:color .2s}
-.footer-social a:hover{color:#00e5ff}
-.footer-copy{color:#52525b;font-size:12px}
-@media(max-width:768px){.footer-inner{grid-template-columns:repeat(2,1fr)}}
+
+@media(max-width:768px){}
 </style>
 <script src="/static/js/track.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}</style>
@@ -126,7 +95,7 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
 <div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div>
 <div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div>
 <script>(function(){var c=document.getElementById('hexc');if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext('2d');ctx.strokeStyle='rgba(0,229,255,0.07)';ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener('resize',draw);})();</script>
-<!-- NAV (unified) -->
+<!-- NAV -->
 <nav>
   <div class="nav-left">
     <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
@@ -182,293 +151,6 @@ th.col-maxia{color:var(--cyan);background:rgba(59,130,246,.1)}
     <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
   </div>
 </div>
-
-
-<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
-
-
-
-<section class="hero">
-  <h1>MAXIA vs Competitors</h1>
-  <p>Real-time fee comparison. MAXIA columns fetch live data from our API.</p>
-  <div style="margin-top:12px"><span class="live-pulse"></span><span style="font-size:13px;color:var(--green)">Live data</span></div>
-</section>
-
-<div class="container">
-
-  <!-- Swap Fees Table -->
-  <h2 class="section-title">Swap Fees</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Feature</th>
-          <th class="col-maxia">MAXIA</th>
-          <th>Jupiter</th>
-          <th>Binance</th>
-          <th>Coinbase</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>First Swap</td>
-          <td class="col-maxia"><span class="badge-free">FREE (0%)</span></td>
-          <td>0% + slippage</td>
-          <td>0.10%</td>
-          <td>0.40%</td>
-        </tr>
-        <tr>
-          <td>Swap Fee (Bronze)</td>
-          <td class="col-maxia live" id="fee-bronze">0.10%</td>
-          <td>0% + slippage</td>
-          <td>0.10%</td>
-          <td>0.40%</td>
-        </tr>
-        <tr>
-          <td>Swap Fee (Silver)</td>
-          <td class="col-maxia live" id="fee-silver">0.05%</td>
-          <td class="na">N/A</td>
-          <td>0.075%</td>
-          <td>0.40%</td>
-        </tr>
-        <tr>
-          <td>Swap Fee (Gold)</td>
-          <td class="col-maxia live" id="fee-gold">0.03%</td>
-          <td class="na">N/A</td>
-          <td>0.05%</td>
-          <td>0.25%</td>
-        </tr>
-        <tr>
-          <td>Swap Fee (Whale)</td>
-          <td class="col-maxia live best" id="fee-whale">0.01%</td>
-          <td class="na">N/A</td>
-          <td>0.02%</td>
-          <td>0.10%</td>
-        </tr>
-        <tr>
-          <td>Tokens</td>
-          <td class="col-maxia live" id="tokens-count">65</td>
-          <td>1000+</td>
-          <td>400+</td>
-          <td>200+</td>
-        </tr>
-        <tr>
-          <td>Chains</td>
-          <td class="col-maxia best">15</td>
-          <td>1 (Solana)</td>
-          <td>1 (BSC)</td>
-          <td>1 (Base)</td>
-        </tr>
-        <tr>
-          <td>On-chain Escrow</td>
-          <td class="col-maxia yes">PDA Escrow</td>
-          <td class="no">No</td>
-          <td class="no">No (custodial)</td>
-          <td class="no">No (custodial)</td>
-        </tr>
-        <tr>
-          <td>AI Dispute Resolution</td>
-          <td class="col-maxia yes">Yes</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- GPU Pricing Table -->
-  <h2 class="section-title">GPU Pricing</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>GPU</th>
-          <th class="col-maxia">MAXIA</th>
-          <th>RunPod (direct)</th>
-          <th>AWS</th>
-          <th>Google Cloud</th>
-        </tr>
-      </thead>
-      <tbody id="gpu-table-body">
-        <tr>
-          <td>H100 SXM 80GB</td>
-          <td class="col-maxia live" id="gpu-h100"><span class="live-pulse"></span>Loading...</td>
-          <td>$2.69/hr</td>
-          <td>$32.77/hr</td>
-          <td>$12.11/hr</td>
-        </tr>
-        <tr>
-          <td>A100 80GB</td>
-          <td class="col-maxia live" id="gpu-a100"><span class="live-pulse"></span>Loading...</td>
-          <td>$1.19/hr</td>
-          <td>$15.72/hr</td>
-          <td>$5.07/hr</td>
-        </tr>
-        <tr>
-          <td>RTX 4090 24GB</td>
-          <td class="col-maxia live" id="gpu-4090"><span class="live-pulse"></span>Loading...</td>
-          <td>$0.34/hr</td>
-          <td class="na">N/A</td>
-          <td class="na">N/A</td>
-        </tr>
-        <tr>
-          <td>Markup</td>
-          <td class="col-maxia best">0%</td>
-          <td>0% (direct)</td>
-          <td>~10x markup</td>
-          <td>~4x markup</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Platform Features Table -->
-  <h2 class="section-title">Platform Features</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Feature</th>
-          <th class="col-maxia">MAXIA</th>
-          <th>Jupiter</th>
-          <th>Binance</th>
-          <th>Coinbase</th>
-          <th>RunPod</th>
-          <th>AWS</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>MCP Tools</td>
-          <td class="col-maxia best">46</td>
-          <td class="no">0</td>
-          <td class="no">0</td>
-          <td class="no">0</td>
-          <td class="no">0</td>
-          <td class="no">0</td>
-        </tr>
-        <tr>
-          <td>AI Agent API</td>
-          <td class="col-maxia yes">REST + MCP + A2A</td>
-          <td>REST (limited)</td>
-          <td>REST</td>
-          <td>REST</td>
-          <td>REST</td>
-          <td>REST</td>
-        </tr>
-        <tr>
-          <td>On-chain Escrow</td>
-          <td class="col-maxia yes">Solana PDA</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-        </tr>
-        <tr>
-          <td>AI Services</td>
-          <td class="col-maxia best">17 native</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td>Bedrock</td>
-        </tr>
-        <tr>
-          <td>Tokenized Stocks</td>
-          <td class="col-maxia best">25 (3 providers)</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-        </tr>
-        <tr>
-          <td>DeFi Yields</td>
-          <td class="col-maxia yes">Scanner 15 chains</td>
-          <td>Native yields</td>
-          <td>Earn</td>
-          <td>Staking</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-        </tr>
-        <tr>
-          <td>Sandbox Mode</td>
-          <td class="col-maxia yes">Free $10K USDC</td>
-          <td class="no">No</td>
-          <td>Testnet</td>
-          <td class="no">No</td>
-          <td class="no">No</td>
-          <td>Free tier</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="cta">
-    <a href="/app#trading" class="btn btn-primary">Start Trading on MAXIA</a>
-    <p style="color:var(--muted);font-size:14px;margin-top:16px">First swap is free. No signup required.</p>
-  </div>
-
-  <p class="note">
-    Competitor fees are publicly available as of March 2026. MAXIA data is fetched live from our API.<br>
-    AWS GPU pricing refers to p5.48xlarge (8x H100) divided per-GPU hourly rate. Google Cloud refers to a2-ultragpu-1g.<br>
-    RunPod pricing from runpod.io/pricing. Jupiter fees from station.jup.ag. Binance/Coinbase from official fee pages.
-  </p>
-</div>
-
-<script>
-// Fetch live swap fees
-fetch('/api/public/crypto/compare-fees').then(r=>r.json()).then(d=>{
-  if(d.maxia_fee_pct){
-    // Update based on tiers from response
-  }
-}).catch(()=>{});
-
-// Fetch live swap stats to update token count
-fetch('/api/public/crypto/stats').then(r=>r.json()).then(d=>{
-  if(d.tokens_supported){
-    document.getElementById('tokens-count').textContent=d.tokens_supported+'+';
-  }
-  if(d.commission_tiers){
-    const t=d.commission_tiers;
-    if(t.BRONZE) document.getElementById('fee-bronze').innerHTML='<span class="live-pulse"></span>'+((t.BRONZE.bps||10)/100).toFixed(2)+'%';
-    if(t.SILVER) document.getElementById('fee-silver').innerHTML='<span class="live-pulse"></span>'+((t.SILVER.bps||5)/100).toFixed(2)+'%';
-    if(t.GOLD) document.getElementById('fee-gold').innerHTML='<span class="live-pulse"></span>'+((t.GOLD.bps||3)/100).toFixed(2)+'%';
-    if(t.WHALE) document.getElementById('fee-whale').innerHTML='<span class="live-pulse"></span>'+((t.WHALE.bps||1)/100).toFixed(2)+'%';
-  }
-}).catch(()=>{});
-
-// Fetch live GPU prices
-fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
-  if(!d.tiers) return;
-  const map={};
-  d.tiers.forEach(g=>{map[g.id]=g});
-  const h100=map['h100_sxm'];
-  const a100=map['a100_80'];
-  const rtx4090=map['rtx4090'];
-  if(h100){
-    const el=document.getElementById('gpu-h100');
-    el.innerHTML='<span class="live-pulse"></span>$'+h100.price_per_hour_usdc.toFixed(2)+'/hr';
-    el.classList.add('best');
-  }
-  if(a100){
-    const el=document.getElementById('gpu-a100');
-    el.innerHTML='<span class="live-pulse"></span>$'+a100.price_per_hour_usdc.toFixed(2)+'/hr';
-    el.classList.add('best');
-  }
-  if(rtx4090){
-    const el=document.getElementById('gpu-4090');
-    el.innerHTML='<span class="live-pulse"></span>$'+rtx4090.price_per_hour_usdc.toFixed(2)+'/hr';
-    el.classList.add('best');
-  }
-}).catch(()=>{
-  document.getElementById('gpu-h100').innerHTML='$2.69/hr';
-  document.getElementById('gpu-a100').innerHTML='$1.19/hr';
-  document.getElementById('gpu-4090').innerHTML='$0.34/hr';
-});
-</script>
 <div class="footer">
   <div class="footer-inner">
     <div class="footer-col">
@@ -493,7 +175,7 @@ fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
       <a href="/blog">Blog</a>
       <a href="/referral">Referral Program</a>
       <a href="/register">Register Agent</a>
-      <a href="/forum?community=bugs">Report Bug</a>
+      <a href="/feedback">Report Bug</a>
     </div>
     <div class="footer-col">
       <h4>Legal</h4>
@@ -503,10 +185,10 @@ fetch('/api/public/gpu/tiers').then(r=>r.json()).then(d=>{
       <a href="/trust">Trust &amp; Safety</a>
       <a href="/status">Status</a>
       <a href="mailto:support@maxiaworld.app">Contact</a>
-      </div>
+    </div>
   </div>
   <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
       <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>

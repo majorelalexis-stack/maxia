@@ -37,34 +37,8 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 }
 
 /* ═══ NAV (unified) ═══ */
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
-.nav-left{display:flex;align-items:center;gap:12px}
-.nav-logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none}
-.nav-badge{background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super}
-.hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
-.hamburger span{display:block;width:18px;height:2px;background:var(--text);border-radius:2px}
-.nav-links{display:flex;gap:20px;align-items:center}
-.nav-links a{color:var(--muted);font-size:13px;font-weight:500;transition:color .2s}
-.nav-links a:hover{color:var(--text)}
-.nav-links a.gold{color:var(--gold)}
-.nav-links a.gold:hover{color:#fbbf24}
-.nav-cta{padding:10px 24px;border-radius:10px;background:var(--grad);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
-.nav-cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,255,.25)}
 
 /* Sidebar */
-.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
-.sidebar{position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column}
-.sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
-.sidebar-close{background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px}
-.sidebar-body{padding:16px 20px;flex:1}
-.sidebar-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 10px 8px}
-.sidebar-section:first-child{margin-top:4px}
-.sidebar-link{display:flex;align-items:center;gap:12px;padding:10px 14px;color:var(--muted);font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none}
-.sidebar-link:hover{background:rgba(0,229,255,.06);color:var(--text)}
-.sidebar-link.active{color:var(--text);font-weight:600}
-.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
-.sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:var(--grad);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
-.sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
 
 /* ═══ HERO ═══ */
 .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 60px;position:relative;z-index:1}
@@ -168,16 +142,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 .cta-box::before{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;background:radial-gradient(circle,rgba(0,229,255,.06),transparent 70%);pointer-events:none}
 
 /* ═══ FOOTER (unified) ═══ */
-.footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px;position:relative;z-index:1}
-.footer-inner{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px}
-.footer-col h4{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px}
-.footer-col a{display:block;color:var(--muted2);font-size:13px;padding:3px 0;transition:color .2s}
-.footer-col a:hover{color:var(--cyan)}
-.footer-bottom{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px}
-.footer-social{display:flex;gap:16px}
-.footer-social a{color:var(--muted2);font-size:13px;transition:color .2s}
-.footer-social a:hover{color:var(--cyan)}
-.footer-copy{color:var(--muted2);font-size:12px}
 
 /* ═══ SCROLL REVEAL ═══ */
 .reveal{opacity:0;transform:translateY(24px);transition:all .7s cubic-bezier(.16,1,.3,1)}
@@ -186,14 +150,14 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 
 /* ═══ RESPONSIVE ═══ */
 @media(max-width:768px){
-  .nav-links{display:none}
+  
   .tiers{grid-template-columns:1fr}
   .hero h1{font-size:28px;letter-spacing:-1px}
   .hero-logo{font-size:64px;letter-spacing:-2px}
   .features{grid-template-columns:1fr}
   .compare-table{font-size:12px}
   .compare-table th,.compare-table td{padding:8px 10px}
-  .footer-inner{grid-template-columns:repeat(2,1fr)}
+  
   .cta-box{padding:48px 24px}
   .trust-strip{gap:16px}
   .steps{grid-template-columns:1fr}
@@ -239,6 +203,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
   }
 }
 </script>
+<link rel="stylesheet" href="/static/css/common.css">
 </head>
 <body>
 <div style="display:none" id="crypto-sprite-container"></div>
@@ -260,6 +225,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 <!-- ═══════════════════════════════════════ -->
 <!-- NAV (unified — same on all pages)      -->
 <!-- ═══════════════════════════════════════ -->
+<!-- NAV -->
 <nav>
   <div class="nav-left">
     <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
@@ -284,21 +250,19 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 <div id="sidebar-ov" class="sidebar-overlay" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('sidebar').style.left='-320px'"></div>
 <div id="sidebar" class="sidebar">
   <div class="sidebar-header">
-    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
     <button class="sidebar-close" onclick="document.getElementById('sidebar').style.left='-320px';document.getElementById('sidebar-ov').style.opacity='0';document.getElementById('sidebar-ov').style.pointerEvents='none'">&times;</button>
   </div>
   <div class="sidebar-body">
-    <a href="/" class="sidebar-link active" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
+    <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
     <div class="sidebar-section">Trade</div>
     <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
     <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
     <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
     <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
     <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
-    <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
-    <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
     <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
     <a href="/store" class="sidebar-link">&#128230; Integrations</a>
@@ -308,47 +272,15 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <a href="/referral" class="sidebar-link">&#127873; Referral</a>
     <div class="sidebar-section">Business</div>
     <a href="/enterprise" class="sidebar-link">&#127970; Enterprise</a>
-    <a href="/pricing" class="sidebar-link">&#128176; Pricing</a>
-    <a href="/about" class="sidebar-link">&#128196; About</a>
-    <a href="/faq" class="sidebar-link">&#10067; FAQ</a>
     <a href="/docs" class="sidebar-link">&#128196; API Docs</a>
-    <a href="/metrics-public" class="sidebar-link">&#128202; Metrics</a>
-    <a href="/feedback" class="sidebar-link">&#128172; Feedback</a>
     <a href="/legal" class="sidebar-link">&#128220; Legal</a>
+    <a href="/about" class="sidebar-link">&#128101; About</a>
+    <a href="/faq" class="sidebar-link">&#10067; FAQ</a>
   </div>
   <div class="sidebar-footer">
     <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
   </div>
 </div>
-
-<!-- ═══════════════════════════════════════ -->
-<!-- HERO                                    -->
-<!-- ═══════════════════════════════════════ -->
-<section class="hero">
-  <div class="hero-logo">MAXIA</div>
-  <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:20px;font-size:12px;font-family:'JetBrains Mono',monospace;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:var(--green);margin-bottom:16px"><div style="width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite"></div> Live on Solana &amp; Base mainnet</div>
-  <h1>Trade Crypto with AI</h1>
-  <p class="hero-sub">Swap tokens, buy crypto with your card, ask the AI for prices and analysis. No signup needed — start in 60 seconds.</p>
-  <div class="hero-btns">
-    <a href="/app" class="btn btn-primary" style="font-size:16px;padding:16px 36px">Launch App &#8594;</a>
-    <a href="#pricing" class="btn btn-ghost">See Pricing</a>
-    <a href="/faq" class="btn btn-ghost">How It Works</a>
-  </div>
-
-  <!-- Quick actions for beginners -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;max-width:520px;margin:32px auto 0;animation:fadeUp .6s ease .3s both">
-    <a href="/app#swap" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;border:1px solid rgba(0,229,255,.2);background:rgba(0,229,255,.04);color:#67e8f9;transition:all .3s">&#9889; Swap</a>
-    <a href="/buy" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;border:1px solid rgba(34,197,94,.2);background:rgba(34,197,94,.04);color:#86efac;transition:all .3s">&#128179; Buy</a>
-    <a href="/app" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;border:1px solid rgba(124,58,237,.2);background:rgba(124,58,237,.04);color:#a78bfa;transition:all .3s">&#129302; AI Chat</a>
-    <a href="/marketplace" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.04);color:#fcd34d;transition:all .3s">&#128269; Services</a>
-  </div>
-
-  <!-- Stats -->
-  <div style="display:flex;justify-content:center;gap:48px;margin-top:32px">
-    <div style="text-align:center"><div style="font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--cyan)">65+</div><div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:4px">Tokens</div></div>
-    <div style="text-align:center"><div style="font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--cyan)">15</div><div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:4px">Chains</div></div>
-    <div style="text-align:center"><div style="font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--cyan)">17</div><div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-top:4px">AI Services</div></div>
-  </div>
 </section>
 <style>@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 10px rgba(34,197,94,0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}</style>
 
@@ -480,7 +412,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="feat reveal reveal-d3" style="cursor:default">
       <div class="feat-icon">&#128640;</div>
       <div class="feat-name">API Automation</div>
-      <div class="feat-desc">790+ API endpoints for price feeds, wallet analysis, portfolio tracking, and marketplace interactions. Build any automation via REST API.</div>
+      <div class="feat-desc">840+ API endpoints for price feeds, wallet analysis, portfolio tracking, and marketplace interactions. Build any automation via REST API.</div>
     </div>
   </div>
   <div style="text-align:center;margin-top:24px" class="reveal">
@@ -638,10 +570,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 <div class="section">
   <div class="section-label reveal">For Developers</div>
   <div class="section-title reveal">Build on MAXIA.</div>
-  <div class="section-sub reveal">790+ API routes. 47 MCP tools. 8 published SDKs. Everything you need to integrate.</div>
+  <div class="section-sub reveal">840+ API routes. 47 MCP tools. 8 published SDKs. Everything you need to integrate.</div>
   <div class="features" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
     <div class="feat reveal reveal-d1" style="cursor:default;text-align:center">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--cyan)">790+</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--cyan)">840+</div>
       <div class="feat-desc" style="margin-bottom:0">API Routes</div>
     </div>
     <div class="feat reveal reveal-d2" style="cursor:default;text-align:center">
@@ -737,7 +669,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <a href="/blog">Blog</a>
       <a href="/referral">Referral Program</a>
       <a href="/register">Register Agent</a>
-      <a href="/feedback">Feedback</a>
+      <a href="/feedback">Report Bug</a>
     </div>
     <div class="footer-col">
       <h4>Legal</h4>
@@ -747,10 +679,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <a href="/trust">Trust &amp; Safety</a>
       <a href="/status">Status</a>
       <a href="mailto:support@maxiaworld.app">Contact</a>
-      </div>
+    </div>
   </div>
   <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
       <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>

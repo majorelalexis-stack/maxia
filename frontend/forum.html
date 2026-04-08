@@ -38,11 +38,7 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 /* Nav */
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;padding:12px 32px;background:rgba(10,14,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.05)}
-.nav-logo{font-family:Syne,sans-serif;font-size:22px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav-links{display:flex;gap:16px;align-items:center;font-size:13px;flex-wrap:wrap}
-.nav-links a{color:var(--muted)}
-.nav-links a:hover{color:var(--cyan)}
+
 .btn-launch{padding:8px 20px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:white!important;border-radius:8px;font-weight:600;transition:opacity .2s;display:inline-block}
 .btn-launch:hover{opacity:.9}
 
@@ -61,7 +57,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 
 /* Left Sidebar */
 .sidebar-left{position:sticky;top:84px;align-self:start;max-height:calc(100vh - 100px);overflow-y:auto}
-.sidebar-section{margin-bottom:24px}
+
 .sidebar-title{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted2);font-weight:600;margin-bottom:12px;padding:0 12px;font-family:'JetBrains Mono',monospace}
 .community-list{list-style:none}
 .community-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;transition:all .2s;font-size:14px;color:var(--muted)}
@@ -211,7 +207,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 .empty-sub{font-size:14px;color:var(--muted2)}
 
 /* Footer */
-.footer{text-align:center;padding:48px 24px;border-top:1px solid rgba(255,255,255,.05);color:var(--muted);font-size:14px}
+
 .footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
 
 /* Toast */
@@ -239,15 +235,15 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
   .community-item{white-space:nowrap;padding:8px 14px;flex-shrink:0;font-size:13px;border:1px solid var(--border);border-radius:20px}
   .community-item.active{border-color:var(--blue);border-left:1px solid var(--blue)}
   .community-count{display:none}
-  .sidebar-section{margin-bottom:12px}
+  
   .toolbar{flex-direction:column}
   .sort-tabs{width:100%;justify-content:center}
   .post-card{padding:14px}
   .vote-col{flex-direction:row;min-width:auto;gap:8px}
   .post-title{font-size:15px}
   .stats-bar{gap:20px;padding:16px}
-  nav{padding:12px 16px}
-  .nav-links{gap:10px;font-size:12px}
+  
+  
   .mobile-create{display:block;position:fixed;bottom:20px;right:20px;z-index:900;width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--purple),var(--blue));color:white;border:none;font-size:28px;cursor:pointer;box-shadow:0 8px 30px rgba(139,92,246,.4);display:flex;align-items:center;justify-content:center;transition:transform .2s}
   .mobile-create:hover{transform:scale(1.05)}
 }
@@ -261,18 +257,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
 }
 </style>
 <script src="/static/js/track.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}h1,h2,h3{font-family:Syne,sans-serif}::selection{background:rgba(0,229,255,.2)}</style><div class="bg-hex"><canvas id="hexc"></canvas></div><div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div><div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div><script>(function(){var c=document.getElementById("hexc");if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext("2d");ctx.strokeStyle="rgba(0,229,255,0.07)";ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener("resize",draw);})();</script>
 <!-- NAV -->
 <nav>
-  <div style="display:flex;align-items:center;gap:12px">
-    <button onclick="document.getElementById('pg-sm').style.left='0px';document.getElementById('pg-ov').style.opacity='1';document.getElementById('pg-ov').style.pointerEvents='auto'" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px">
-      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
-      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
-      <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+  <div class="nav-left">
+    <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
+      <span></span><span></span><span></span>
     </button>
-    <a href="/" class="nav-logo">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">PREVIEW</span></a>
+    <a href="/" class="nav-logo">MAXIA<span class="nav-badge">PREVIEW</span></a>
   </div>
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
@@ -286,6 +281,40 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
 </nav>
+<div id="sidebar-ov" class="sidebar-overlay" onclick="this.style.opacity='0';this.style.pointerEvents='none';document.getElementById('sidebar').style.left='-320px'"></div>
+<div id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span>
+    <button class="sidebar-close" onclick="document.getElementById('sidebar').style.left='-320px';document.getElementById('sidebar-ov').style.opacity='0';document.getElementById('sidebar-ov').style.pointerEvents='none'">&times;</button>
+  </div>
+  <div class="sidebar-body">
+    <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
+    <div class="sidebar-section">Trade</div>
+    <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
+    <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
+    <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
+    <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
+    <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
+    <div class="sidebar-section">Explore</div>
+    <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
+    <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
+    <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
+    <a href="/store" class="sidebar-link">&#128230; Integrations</a>
+    <div class="sidebar-section">Community</div>
+    <a href="/forum" class="sidebar-link">&#128172; Forum</a>
+    <a href="/blog" class="sidebar-link">&#128218; Blog</a>
+    <a href="/referral" class="sidebar-link">&#127873; Referral</a>
+    <div class="sidebar-section">Business</div>
+    <a href="/enterprise" class="sidebar-link">&#127970; Enterprise</a>
+    <a href="/docs" class="sidebar-link">&#128196; API Docs</a>
+    <a href="/legal" class="sidebar-link">&#128220; Legal</a>
+    <a href="/about" class="sidebar-link">&#128101; About</a>
+    <a href="/faq" class="sidebar-link">&#10067; FAQ</a>
+  </div>
+  <div class="sidebar-footer">
+    <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
+  </div>
+</div>
 <!-- Notification panel -->
 <div id="notif-panel" style="display:none;position:fixed;top:60px;right:24px;width:360px;max-height:420px;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.08);border-radius:14px;z-index:3000;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.5)">
   <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">
@@ -325,11 +354,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;justify-conten
   </div>
 </div>
 
-
 <script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
 
 <!-- Nav -->
-
 
 <!-- Hero -->
 <section class="hero">

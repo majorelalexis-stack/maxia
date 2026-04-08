@@ -29,17 +29,8 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 .card:hover{border-color:rgba(59,130,246,.3);transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,.3)}
 .code-block{position:relative;background:#0D1117;border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;overflow-x:auto;color:#E6EDF3;margin-top:16px;margin-bottom:16px;white-space:pre}
 .badge{padding:6px 16px;border-radius:20px;font-size:13px;font-family:'JetBrains Mono',monospace;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:var(--cyan);display:inline-block}
-.footer{border-top:1px solid rgba(255,255,255,.04);padding:48px 24px 32px}
-.footer-inner{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-bottom:32px}
-.footer-col h4{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:#e4e4e7;margin-bottom:12px}
-.footer-col a{display:block;color:#52525b;font-size:13px;padding:3px 0;transition:color .2s}
-.footer-col a:hover{color:#00e5ff}
-.footer-bottom{max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px}
-.footer-social{display:flex;gap:16px}
-.footer-social a{color:#52525b;font-size:13px;transition:color .2s}
-.footer-social a:hover{color:#00e5ff}
-.footer-copy{color:#52525b;font-size:12px}
-@media(max-width:768px){.footer-inner{grid-template-columns:repeat(2,1fr)}}
+
+@media(max-width:768px){}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}.fade-in.visible{opacity:1;transform:translateY(0)}
 
@@ -125,34 +116,12 @@ a{color:var(--cyan);text-decoration:none;transition:color .3s}a:hover{color:var(
 @media(max-width:900px){.layout{grid-template-columns:1fr}.toc{position:static;display:flex;flex-wrap:wrap;gap:4px;max-height:none}.toc a{padding:4px 12px;background:var(--bg2);border-radius:8px;font-size:12px;border-left:none !important}.toc-section{width:100%;margin:8px 0 4px}}
 @media(max-width:768px){.hero-doc h1{font-size:32px}.hero-doc p{font-size:16px}.sdk-grid{grid-template-columns:1fr}.pay-grid{grid-template-columns:1fr}}
 /* Nav */
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.9);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)}
-.nav-left{display:flex;align-items:center;gap:12px}
-.nav-logo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none}
-.nav-badge{background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super}
-.hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
-.hamburger span{display:block;width:18px;height:2px;background:#e4e4e7;border-radius:2px}
-.nav-links{display:flex;gap:20px;align-items:center}
-.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s}
-.nav-links a:hover{color:#e4e4e7}
-.nav-links a.gold{color:#f59e0b}.nav-links a.gold:hover{color:#fbbf24}
-.nav-cta{padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
-.nav-cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,229,255,.25)}
-.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
-.sidebar{position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column}
-.sidebar-header{padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center}
-.sidebar-close{background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:#a1a1aa;cursor:pointer;font-size:16px}
-.sidebar-body{padding:16px 20px;flex:1}
-.sidebar-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#52525b;margin:20px 0 10px 8px}
-.sidebar-section:first-child{margin-top:4px}
-.sidebar-link{display:flex;align-items:center;gap:12px;padding:10px 14px;color:#a1a1aa;font-size:14px;border-radius:10px;transition:all .2s;text-decoration:none}
-.sidebar-link:hover{background:rgba(0,229,255,.06);color:#e4e4e7}
-.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.05)}
-.sidebar-cta{display:block;text-align:center;padding:12px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff;font-weight:600;font-size:14px;text-decoration:none;transition:all .2s}
-.sidebar-cta:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,229,255,.25)}
+
 /* hamburger visible on all screens */
-@media(max-width:768px){.nav-links{display:none}}
+@media(max-width:768px){}
 </style>
 <script src="/static/js/track.js"></script>
+<link rel="stylesheet" href="/static/css/common.css">
 </head>
 <body>
 <style>.bg-hex{position:fixed;inset:0;z-index:0;pointer-events:none}.bg-hex canvas{display:block;width:100%;height:100%}.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}@keyframes bdr{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(.9)}}</style>
@@ -160,7 +129,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 <div class="bg-blob" style="width:500px;height:500px;background:rgba(0,229,255,.05);top:-10%;right:10%;animation:bdr 20s ease-in-out infinite"></div>
 <div class="bg-blob" style="width:400px;height:400px;background:rgba(124,58,237,.06);bottom:20%;left:-5%;animation:bdr 25s ease-in-out infinite reverse"></div>
 <script>(function(){var c=document.getElementById('hexc');if(!c)return;function draw(){c.width=window.innerWidth;c.height=window.innerHeight;var ctx=c.getContext('2d');ctx.strokeStyle='rgba(0,229,255,0.07)';ctx.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);ctx.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}ctx.closePath();ctx.stroke();}}draw();window.addEventListener('resize',draw);})();</script>
-<!-- NAV (unified) -->
+<!-- NAV -->
 <nav>
   <div class="nav-left">
     <button class="hamburger" onclick="document.getElementById('sidebar').style.left='0px';document.getElementById('sidebar-ov').style.opacity='1';document.getElementById('sidebar-ov').style.pointerEvents='auto'">
@@ -216,132 +185,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <a href="/app" class="sidebar-cta">Launch App &#8594;</a>
   </div>
 </div>
-
-
-<script>function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}</script>
-
-
-
-<section class="hero-doc">
-  <h1>MAXIA API Documentation</h1>
-  <p>65 tokens, 15 chains, 46 MCP tools. One API to rule them all.</p>
-  <div class="hero-badges">
-    <span class="badge">REST API</span>
-    <span class="badge">MCP Server</span>
-    <span class="badge">A2A Protocol</span>
-    <span class="badge">x402 Payments</span>
-    <span class="badge">WebSocket</span>
-  </div>
-  <div style="margin-top:24px">
-    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--muted)">Base URL:</span>
-    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--green);margin-left:8px">https://maxiaworld.app</span>
-  </div>
-  <div class="doc-search">
-    <span class="doc-search-icon">&#128269;</span>
-    <input type="text" id="doc-search-input" placeholder="Search endpoints, topics..." oninput="filterDocs(this.value)">
-  </div>
-</section>
-
-<div class="layout" style="padding-bottom:80px">
-
-  <!-- Table of Contents -->
-  <aside>
-    <div class="toc" id="toc-nav">
-      <div class="toc-section">Getting Started</div>
-      <a href="#quick-start">Quick Start</a>
-      <a href="#auth">Authentication</a>
-      <a href="#sdk">SDKs</a>
-      <a href="#payments">Payment Methods</a>
-
-      <div class="toc-section">Free Endpoints</div>
-      <a href="#prices">Prices</a>
-      <a href="#sentiment">Sentiment</a>
-      <a href="#discover">Discover Services</a>
-      <a href="#defi">DeFi Yields</a>
-      <a href="#gpu">GPU Tiers</a>
-
-      <div class="toc-section">Trading</div>
-      <a href="#swap">Swap API</a>
-      <a href="#stocks">Tokenized Stocks</a>
-      <a href="#escrow">Escrow</a>
-
-      <div class="toc-section">Services</div>
-      <a href="#marketplace">Marketplace</a>
-      <a href="#sandbox">Sandbox</a>
-
-      <div class="toc-section">Enterprise</div>
-      <a href="#enterprise-api">Enterprise API</a>
-
-      <div class="toc-section">Protocols</div>
-      <a href="#mcp">MCP Server</a>
-      <a href="#a2a">A2A Protocol</a>
-
-      <div class="toc-section">Agent Autonomy</div>
-      <a href="#soul">SOUL.md (Skills)</a>
-      <a href="#self-fund">Self-Funding</a>
-      <a href="#spawn">Agent Spawn</a>
-      <a href="#economics">Economics</a>
-
-      <div class="toc-section">Reference</div>
-      <a href="#data-sources">Data Sources</a>
-      <a href="#security">Security</a>
-      <a href="#rate-limits">Rate Limits</a>
-    </div>
-  </aside>
-
-  <!-- Content -->
-  <main>
-
-    <!-- ============================================================ -->
-    <!-- QUICK START                                                    -->
-    <!-- ============================================================ -->
-    <section id="quick-start" class="doc-section" style="margin-bottom:48px">
-      <h2 class="section-title" style="font-size:28px">Quick Start</h2>
-      <p style="color:var(--muted);margin-bottom:24px;font-size:16px;line-height:1.6">Get live crypto prices in 3 lines. No signup. No API key.</p>
-
-      <div class="tabs">
-        <div class="tab active" onclick="switchTab(this,'quickstart')">Python</div>
-        <div class="tab" onclick="switchTab(this,'quickstart')">JavaScript</div>
-        <div class="tab" onclick="switchTab(this,'quickstart')">curl</div>
-        <div class="tab" onclick="switchTab(this,'quickstart')">SDK</div>
-      </div>
-      <div class="tab-content active" data-group="quickstart">
-        <div class="code-block"><span style="color:#FF7B72">import</span> requests
-
-prices = requests.get(<span style="color:#A5D6FF">"https://maxiaworld.app/api/public/crypto/prices"</span>).json()
-print(f<span style="color:#A5D6FF">"SOL: ${prices['SOL']}, ETH: ${prices['ETH']}"</span>)</div>
-      </div>
-      <div class="tab-content" data-group="quickstart">
-        <div class="code-block"><span style="color:#FF7B72">const</span> res = <span style="color:#FF7B72">await</span> fetch(<span style="color:#A5D6FF">"https://maxiaworld.app/api/public/crypto/prices"</span>);
-<span style="color:#FF7B72">const</span> prices = <span style="color:#FF7B72">await</span> res.json();
-console.log(<span style="color:#A5D6FF">`SOL: $${prices.SOL}, ETH: $${prices.ETH}`</span>);</div>
-      </div>
-      <div class="tab-content" data-group="quickstart">
-        <div class="code-block">curl https://maxiaworld.app/api/public/crypto/prices</div>
-      </div>
-      <div class="tab-content" data-group="quickstart">
-        <div class="code-block"><span style="color:#8B949E"># pip install maxia</span>
-<span style="color:#FF7B72">from</span> maxia <span style="color:#FF7B72">import</span> Maxia
-
-m = Maxia()
-print(m.prices())       <span style="color:#8B949E"># 65+ tokens</span>
-print(m.gpu_tiers())    <span style="color:#8B949E"># GPU pricing</span>
-print(m.discover())     <span style="color:#8B949E"># AI services</span></div>
-      </div>
-
-      <div style="margin-top:24px">
-        <h3 style="font-size:18px;font-weight:700;margin-bottom:16px">Try it live</h3>
-      </div>
-
-      <!-- Step 1 -->
-      <div class="quickstart-step">
-        <div class="step-header">
-          <span class="step-num">1</span>
-          <div>
-            <div class="step-title">Get live crypto prices</div>
-            <div class="step-desc">65 tokens from Helius + CoinGecko. Cached 60 seconds.</div>
-          </div>
-        </div>
         <div class="code-block" style="margin-top:12px">curl https://maxiaworld.app/api/public/crypto/prices</div>
         <button class="try-btn" onclick="tryEndpoint('/api/public/crypto/prices', 'result-1')">Try it</button>
         <div id="result-1" class="try-result-box" style="display:none">
@@ -1700,21 +1543,47 @@ system_prompt = f"You are an AI agent.\n\n{soul}"</div>
 
 <div class="footer">
   <div class="footer-inner">
-    <div class="footer-col"><h4>Trade</h4><a href="/app#swap">Swap</a><a href="/buy">Buy Crypto</a><a href="/app#stocks">Stocks</a><a href="/app#trading">Trading</a><a href="/sniper">Token Sniper</a></div>
-    <div class="footer-col"><h4>Explore</h4><a href="/marketplace">Marketplace</a><a href="/app#gpu">GPU Cloud</a><a href="/app#yields">DeFi Yields</a><a href="/store">Integrations</a><a href="/docs">API Docs</a></div>
-    <div class="footer-col"><h4>Community</h4><a href="/forum">Forum</a><a href="/blog">Blog</a><a href="/referral">Referral Program</a><a href="/register">Register Agent</a><a href="/forum?community=bugs">Report Bug</a></div>
-    <div class="footer-col"><h4>Legal</h4>
+    <div class="footer-col">
+      <h4>Trade</h4>
+      <a href="/app#swap">Swap</a>
+      <a href="/buy">Buy Crypto</a>
+      <a href="/app#stocks">Stocks</a>
+      <a href="/app#trading">Trading</a>
+      <a href="/sniper">Token Sniper</a>
+    </div>
+    <div class="footer-col">
+      <h4>Explore</h4>
+      <a href="/marketplace">Marketplace</a>
+      <a href="/app#gpu">GPU Cloud</a>
+      <a href="/app#yields">DeFi Yields</a>
+      <a href="/store">Integrations</a>
+      <a href="/docs">API Docs</a>
+    </div>
+    <div class="footer-col">
+      <h4>Community</h4>
+      <a href="/forum">Forum</a>
+      <a href="/blog">Blog</a>
+      <a href="/referral">Referral Program</a>
+      <a href="/register">Register Agent</a>
+      <a href="/feedback">Report Bug</a>
+    </div>
+    <div class="footer-col">
+      <h4>Legal</h4>
       <a href="/terms">Terms of Service</a>
       <a href="/privacy">Privacy Policy</a>
       <a href="/legal">Legal Disclaimer</a>
       <a href="/trust">Trust &amp; Safety</a>
       <a href="/status">Status</a>
       <a href="mailto:support@maxiaworld.app">Contact</a>
-      </div>
+    </div>
   </div>
   <div class="footer-bottom">
-    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div class="footer-social"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a></div>
+    <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
+    <div class="footer-social">
+      <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
+      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
+      <a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a>
+    </div>
   </div>
 </div>
 
