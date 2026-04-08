@@ -1,4 +1,4 @@
-"""Config CEO Local V3 — Single model Qwen 3.5 27B (dense, multimodal, 256K), 18 missions, zero spam.
+"""Config CEO Local V3 — Single model Qwen 3.5 27B (dense, multimodal, 256K), 21 missions, zero spam.
 
 Le CEO ne poste JAMAIS directement. Il propose du contenu,
 Alexis valide et poste manuellement. Tout passe par Telegram (Go/No).

@@ -890,10 +890,10 @@ async def _dispatch_real_service(service_id: str, prompt: str) -> str | None:
             logger.error("Real wallet risk error: %s", e)
         return None
 
-    # ── Code Generation / Smart Contract Audit ──
+    # ── Code Generation / Smart Contract Audit — real LLM execution ──
     if service_id in ("maxia-code", "maxia-code-review", "maxia-audit"):
-        # These use LLM but with the specialized system prompt — let fallback handle it
-        return None
+        # Route directly to LLM with specialized system prompt (not a mock)
+        return await _execute_via_llm(service_id, prompt)
 
     # ── Token Price (real-time) ──
     if service_id == "maxia-price":

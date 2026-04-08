@@ -244,7 +244,8 @@ async def get_quote(
             "quote": sim,
             "source": "pyth_oracle",
             "timestamp": int(time.time()),
-            "note": "Simulation uniquement — pas d'execution de trade",
+            "note": "Paper trading simulation — no real execution. Use Jupiter Perps or Drift for live trading.",
+            "paper_trading": True,
         }
     except HTTPException:
         raise

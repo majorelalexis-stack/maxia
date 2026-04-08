@@ -1,9 +1,9 @@
 @echo off
-title CEO MAXIA Local V3 - 18 missions - qwen3.5:27b
+title CEO MAXIA Local V3 - 21 missions - qwen3.5:27b
 cd /d "C:\Users\Mini pc\Desktop\MAXIA V12\local_ceo"
 
 echo [CEO MAXIA V3] ========================================
-echo [CEO MAXIA V3] 1 modele (qwen3.5:27b) - 18 missions - 0 spam
+echo [CEO MAXIA V3] 1 modele (qwen3.5:27b) - 21 missions - 0 spam
 echo [CEO MAXIA V3] IMPORTANT: CEO proposes content, Alexis validates and posts manually
 echo [CEO MAXIA V3] ========================================
 

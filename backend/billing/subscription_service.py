@@ -287,7 +287,56 @@ async def process_payment(sub_id: str):
             "next_payment_at": sub["next_payment_at"],
         }
 
-    # Simuler le paiement (log uniquement, pas de transfert reel)
+    # Real payment: deduct from subscriber's prepaid credits
+    amount = sub["amount_usdc"]
+    subscriber_id = sub["subscriber"]
+    payment_method = "credits"
+    tx_ref = ""
+
+    try:
+        from billing.prepaid_credits import get_balance, deduct_credits
+        balance = await get_balance(subscriber_id)
+        if balance < amount:
+            # Insufficient credits — pause subscription
+            sub["status"] = "paused"
+            sub["pause_reason"] = f"Insufficient credits (${balance:.2f} < ${amount:.2f})"
+            logger.warning(
+                "Subscription %s paused: insufficient credits (%.2f < %.2f)",
+                sub_id[:8], balance, amount)
+            return {
+                "ok": False,
+                "reason": f"Insufficient credits. Balance: ${balance:.2f}, required: ${amount:.2f}. Top up credits to resume.",
+                "subscription": sub,
+            }
+
+        deduct_result = await deduct_credits(
+            subscriber_id, amount,
+            f"Subscription payment: {sub_id[:8]} ({sub['interval']})")
+        if not deduct_result.get("success"):
+            raise Exception(deduct_result.get("error", "deduct failed"))
+
+        tx_ref = f"sub-credit-{sub_id[:8]}-{sub['payments_made'] + 1}"
+        payment_method = "prepaid_credits"
+
+        # Credit provider (minus MAXIA commission)
+        provider_id = sub["provider"]
+        commission_pct = 5.0  # 5% MAXIA commission on subscriptions
+        commission = round(amount * commission_pct / 100, 6)
+        provider_amount = round(amount - commission, 6)
+        try:
+            from billing.prepaid_credits import add_credits
+            await add_credits(provider_id, "", provider_amount,
+                              payment_tx=tx_ref,
+                              description=f"Subscription revenue: {sub_id[:8]}")
+        except Exception as e:
+            logger.warning("Failed to credit provider %s: %s", provider_id[:8], e)
+
+    except Exception as e:
+        logger.error("Subscription payment error %s: %s", sub_id[:8], e)
+        # Fallback: log payment as pending (don't break the cycle)
+        payment_method = "pending"
+        tx_ref = f"sub-pending-{sub_id[:8]}"
+
     payment_record = {
         "payment_id": str(uuid.uuid4()),
         "sub_id": sub_id,
@@ -296,7 +345,8 @@ async def process_payment(sub_id: str):
         "amount_usdc": sub["amount_usdc"],
         "chain": sub["chain"],
         "processed_at": _now_iso(),
-        "simulated": True,  # V13: sera remplace par un vrai tx_signature
+        "payment_method": payment_method,
+        "tx_ref": tx_ref,
     }
     _payment_log.append(payment_record)
 
@@ -307,8 +357,8 @@ async def process_payment(sub_id: str):
     sub["next_payment_at"] = _compute_next_payment(sub["interval"], payment_record["processed_at"])
 
     logger.info(
-        "Payment processed (simulated): %s -> %s, %.2f USDC (#%d)",
-        sub["subscriber"][:8], sub["provider"][:8],
+        "Payment processed (%s): %s -> %s, %.2f USDC (#%d)",
+        payment_method, sub["subscriber"][:8], sub["provider"][:8],
         sub["amount_usdc"], sub["payments_made"],
     )
 
