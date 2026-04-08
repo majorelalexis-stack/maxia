@@ -3,7 +3,7 @@ import asyncio
 import time
 import httpx
 from config_local import (
-    DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+    DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN, TELEGRAM_CEO_CHAT_ID,
     APPROVAL_TIMEOUT_ORANGE_S, APPROVAL_TIMEOUT_ROUGE_S,
     AUTO_EXECUTE_MAX_USD,
 )
@@ -46,14 +46,14 @@ async def notify_discord(title: str, message: str, priority: str = "vert"):
 
 async def notify_telegram(title: str, message: str):
     """Envoie un message Telegram."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CEO_CHAT_ID:
         return
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                 json={
-                    "chat_id": TELEGRAM_CHAT_ID,
+                    "chat_id": TELEGRAM_CEO_CHAT_ID,
                     "text": f"*CEO MAXIA — {title}*\n\n{message[:3000]}",
                     "parse_mode": "Markdown",
                 },
@@ -75,7 +75,7 @@ async def notify_all(title: str, message: str, priority: str = "vert"):
 async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
                                    priority: str, params: dict) -> int:
     """Envoie un message Telegram avec boutons inline Go/No-Go. Retourne le message_id."""
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CEO_CHAT_ID:
         return 0
     emoji = "\U0001f7e0" if priority == "orange" else "\U0001f534"
     # Resume des params utiles (escape HTML)
@@ -104,7 +104,7 @@ async def _send_telegram_approval(action_id: str, action_desc: str, agent: str,
             resp = await client.post(
                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                 json={
-                    "chat_id": TELEGRAM_CHAT_ID,
+                    "chat_id": TELEGRAM_CEO_CHAT_ID,
                     "text": text,
                     "parse_mode": "HTML",
                     "reply_markup": keyboard,

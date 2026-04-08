@@ -781,7 +781,8 @@ async def chat(req: ChatRequest, request: Request):
         intent = _detect_intent(message)
         # ONE-52: pass wallet to intent for TX building
         if req.wallet and len(req.wallet) >= 20:
-            intent.wallet = req.wallet
+            from dataclasses import replace
+            intent = replace(intent, wallet=req.wallet)
         result = await _route_intent(intent)
         return ChatResponse(
             response=result.get("response", ""),

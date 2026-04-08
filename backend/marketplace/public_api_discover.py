@@ -986,6 +986,18 @@ async def _dispatch_real_service(service_id: str, prompt: str) -> str | None:
             logger.error("Real DeFi yields error: %s", e)
         return None
 
+    # ── Web Scraper (real — with SSRF protection) ──
+    if service_id == "maxia-scraper":
+        try:
+            url = _extract_url_from_prompt(prompt)
+            if url:
+                from ai.web_scraper import scrape_url
+                result = await asyncio.wait_for(scrape_url(url, max_text_length=5000), timeout=20)
+                return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error("Real scraper service error: %s", e)
+        return None
+
     return None  # No real handler — use LLM fallback
 
 
@@ -1001,6 +1013,13 @@ def _extract_token_from_prompt(prompt: str) -> str:
         if t in known:
             return t
     return tokens[0] if tokens else "BTC"
+
+
+def _extract_url_from_prompt(prompt: str) -> str:
+    """Extract a URL from a prompt string."""
+    import re
+    match = re.search(r'https?://[^\s<>"\']+', prompt)
+    return match.group(0) if match else ""
 
 
 def _extract_address_from_prompt(prompt: str) -> str:

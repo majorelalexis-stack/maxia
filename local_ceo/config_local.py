@@ -18,7 +18,8 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 # ── Notifications (optionnel) ──
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")  # client bot — NE PAS utiliser pour le CEO
+TELEGRAM_CEO_CHAT_ID = os.getenv("TELEGRAM_CEO_CHAT_ID", "")  # "MAXIA CEO Alert" — pour tweets, go/no, rapports
 
 # ══════════════════════════════════════════
 # Ollama — single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx)

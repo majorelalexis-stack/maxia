@@ -18,7 +18,7 @@ from llm import ask
 log = logging.getLogger("ceo")
 
 _TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-_TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+_TELEGRAM_CEO_CHAT_ID = os.getenv("TELEGRAM_CEO_CHAT_ID", "")
 _TELEGRAM_API = "https://api.telegram.org/bot"
 _LOCAL_CEO_DIR = os.path.dirname(os.path.dirname(__file__))
 _STATE_FILE = os.path.join(_LOCAL_CEO_DIR, "telegram_state.json")
@@ -48,12 +48,12 @@ def _save_state(state: dict) -> None:
 
 
 def _is_configured() -> bool:
-    return bool(_TELEGRAM_BOT_TOKEN and _TELEGRAM_CHAT_ID)
+    return bool(_TELEGRAM_BOT_TOKEN and _TELEGRAM_CEO_CHAT_ID)
 
 
 def _is_from_alexis(update: dict) -> bool:
     message = update.get("message") or update.get("callback_query", {}).get("message", {})
-    return str(message.get("chat", {}).get("id", "")) == str(_TELEGRAM_CHAT_ID)
+    return str(message.get("chat", {}).get("id", "")) == str(_TELEGRAM_CEO_CHAT_ID)
 
 
 async def _telegram_request(method: str, data: Optional[dict] = None) -> Optional[dict]:
@@ -74,7 +74,7 @@ async def _telegram_request(method: str, data: Optional[dict] = None) -> Optiona
 
 
 async def _send_message(text: str, reply_markup: Optional[dict] = None) -> Optional[dict]:
-    data: dict = {"chat_id": _TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}
+    data: dict = {"chat_id": _TELEGRAM_CEO_CHAT_ID, "text": text, "parse_mode": "Markdown"}
     if reply_markup:
         data["reply_markup"] = reply_markup
     return await _telegram_request("sendMessage", data)
