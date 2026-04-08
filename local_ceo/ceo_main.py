@@ -24,7 +24,7 @@ from memory import (
     init_db, migrate_json_to_sqlite, log_action, cleanup_old_data,
 )
 from agents import CEO_SYSTEM_PROMPT
-from scheduler import run_mission
+from scheduler import run_mission, send_mail
 
 # Mission imports
 from missions.health import mission_health_check, mission_health_report
@@ -44,6 +44,7 @@ from missions.email_outreach import mission_email_outreach
 from missions.strategy import mission_strategy_review
 from missions.telegram_chat import mission_telegram_chat
 from missions.blog import mission_blog_post
+from missions.visual_audit import mission_visual_audit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
@@ -143,8 +144,8 @@ async def run():
             if hour == 8 and actions["counts"].get("health_report_sent", 0) == 0:
                 await run_mission("health_report", mission_health_report(mem, actions), mem, actions)
 
-            # Mission 21: Blog article quotidien (8h, 1x/jour)
-            if hour == 8 and actions["counts"].get("blog_posted", 0) == 0:
+            # Mission 21: Blog article hebdomadaire (lundi 8h)
+            if weekday == 0 and hour == 8 and actions["counts"].get("blog_posted", 0) == 0:
                 await run_mission("blog_post", mission_blog_post(mem, actions), mem, actions)
 
             # Mission 13: Changelog forum (dimanche 11h)
@@ -185,6 +186,57 @@ async def run():
             # Mission 19: Strategy Review — weekly (dimanche 20h)
             if weekday == 6 and hour == 20 and actions["counts"].get("strategy_review", 0) == 0:
                 await run_mission("strategy_review", mission_strategy_review(mem, actions), mem, actions)
+
+            # Mission 22: Visual Audit — DESACTIVE (Claude fait ca mieux via Playwright)
+
+            # Mission 23: Veille mentions @MAXIA_WORLD (idle, toutes les 30 min)
+            if now - mem.get("_last_mention_check", 0) >= 1800:
+                try:
+                    from browser_agent import browser
+                    mentions = await browser.search_twitter("@MAXIA_WORLD", max_results=5)
+                    sent_ids = set(o.get("id") for o in mem.get("opportunities_sent", []))
+                    new_mentions = [m for m in mentions if m.get("id", m.get("url", "")) not in sent_ids]
+                    if new_mentions:
+                        body = "Nouvelles mentions @MAXIA_WORLD:\n\n"
+                        for i, m in enumerate(new_mentions[:5], 1):
+                            body += f"#{i} @{m.get('author', '?')}: {m.get('text', '')[:200]}\n{m.get('url', '')}\n\n"
+                        await send_mail("[MAXIA CEO] Mentions Twitter", body)
+                        for m in new_mentions:
+                            mem.setdefault("opportunities_sent", []).append({"id": m.get("id", m.get("url", "")), "type": "mention"})
+                        log.info("[VEILLE] %d nouvelles mentions detectees", len(new_mentions))
+                except Exception as e:
+                    log.debug("[VEILLE] Mention check: %s", e)
+                mem["_last_mention_check"] = now
+
+            # Mission 24: Recherche prospects (10h-13h, idle — cherche emails VCs)
+            if 10 <= hour <= 13 and actions["counts"].get("prospect_search", 0) < 3:
+                try:
+                    import json as _json
+                    scout_file = os.path.join(os.path.dirname(__file__), "scout_pending_contacts.json")
+                    with open(scout_file, "r") as f:
+                        contacts = _json.load(f)
+                    # Find contacts without email
+                    no_email = [c for c in contacts if c.get("type") == "investor" and not c.get("email")]
+                    if no_email:
+                        target = no_email[0]
+                        log.info("[PROSPECT] Searching email for %s (%s)", target["name"], target.get("url", ""))
+                        from browser_agent import browser
+                        # Search for contact email on their website
+                        try:
+                            text = await browser.browse_and_extract(target["url"], "body")
+                            import re
+                            emails_found = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text or "")
+                            if emails_found:
+                                target["email"] = emails_found[0]
+                                with open(scout_file, "w") as f:
+                                    _json.dump(contacts, f, indent=2)
+                                log.info("[PROSPECT] Found email for %s: %s", target["name"], emails_found[0])
+                                await send_mail(f"[MAXIA CEO] Email trouve: {target['name']}", f"Email: {emails_found[0]}\nSource: {target['url']}")
+                        except Exception as e:
+                            log.debug("[PROSPECT] Browse error: %s", e)
+                        actions["counts"]["prospect_search"] = actions["counts"].get("prospect_search", 0) + 1
+                except Exception as e:
+                    log.debug("[PROSPECT] Search error: %s", e)
 
             # Mission 20: Telegram Chat — poll messages from Alexis (toutes les 2 min)
             if now - mem.get("_last_telegram_poll", 0) >= 120:
