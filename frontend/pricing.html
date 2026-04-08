@@ -19,7 +19,7 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 
 .topbar a.back{color:var(--muted);font-size:13px;margin-left:auto}
 
-.page{max-width:1000px;margin:0 auto;padding:100px 24px 48px}
+.page{max-width:900px;margin:0 auto;padding:100px 24px 48px}
 .hero-p{text-align:center;margin-bottom:48px}
 .hero-p h1{font-size:clamp(32px,5vw,48px);font-weight:800;letter-spacing:-2px;margin-bottom:12px}
 .hero-p .sub{font-size:17px;color:var(--muted);max-width:560px;margin:0 auto}
@@ -34,12 +34,12 @@ h1,h2,h3{font-family:'Syne',sans-serif}
 
 /* Tier cards */
 .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-.tier{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:16px;padding:28px 20px;transition:all .3s;position:relative}
+.tier{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:14px;padding:20px 16px;transition:all .3s;position:relative}
 .tier:hover{border-color:rgba(0,229,255,.15);transform:translateY(-2px)}
 .tier.pop{border-color:var(--cyan)}
 .tier.pop::before{content:'BEST VALUE';position:absolute;top:-10px;left:50%;transform:translateX(-50%);padding:3px 12px;border-radius:20px;background:var(--grad);color:#fff;font-size:9px;font-weight:700;letter-spacing:1px;font-family:'JetBrains Mono',monospace}
 .tier-name{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.15em;margin-bottom:8px}
-.tier-rate{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;margin-bottom:4px}
+.tier-rate{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:4px}
 .tier-range{font-size:12px;color:var(--muted);margin-bottom:16px}
 .tier-list{list-style:none}
 .tier-list li{padding:4px 0;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
@@ -93,7 +93,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
 .nav-badge{background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super}
 .hamburger{width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px}
 .hamburger span{display:block;width:18px;height:2px;background:#e4e4e7;border-radius:2px}
-.nav-links a{color:#a1a1aa;font-size:14px;margin-left:20px;transition:color .2s;text-decoration:none}.nav-links a:hover{color:#e4e4e7}
+.nav-links{display:flex;gap:20px;align-items:center}
+.nav-links a{color:#a1a1aa;font-size:13px;font-weight:500;transition:color .2s;text-decoration:none;white-space:nowrap}.nav-links a:hover{color:#e4e4e7}
 .nav-links a.gold{color:#f59e0b}
 .nav-cta{padding:10px 24px;border-radius:10px;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);color:#fff !important;-webkit-text-fill-color:#fff;font-weight:600;font-size:13px;border:none;cursor:pointer;transition:all .3s;text-decoration:none;display:inline-block}
 .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s}
@@ -122,9 +123,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
   <div class="nav-links">
     <a href="/app#swap">Swap</a>
     <a href="/buy">Buy Crypto</a>
+    <a href="/app#trading">Trading</a>
     <a href="/marketplace">Marketplace</a>
+    <a href="/agents">Agent Economy</a>
+    <a href="/pricing">Pricing</a>
     <a href="/enterprise" class="gold">Enterprise</a>
-    <a href="/docs">Docs</a>
+    <a href="/blog">Blog</a>
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
 </nav>
@@ -171,7 +175,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
   <div class="lp"><div class="lp-sym">AAPL</div><div class="lp-val lp-loading" id="p-AAPL">$...</div></div>
   <div class="lp"><div class="lp-sym">TSLA</div><div class="lp-val lp-loading" id="p-TSLA">$...</div></div>
   <div class="lp"><div class="lp-sym">NVDA</div><div class="lp-val lp-loading" id="p-NVDA">$...</div></div>
-</div>
 
 <!-- ═══ SWAP FEES ═══ -->
 <div class="cat">
