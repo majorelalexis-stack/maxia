@@ -758,8 +758,23 @@ async def execute_swap(buyer_api_key: str, buyer_name: str, buyer_wallet: str,
         _log_swap(f"Idempotency reserve failed: {e}")
         return {"success": False, "error": "Service temporarily unavailable"}
 
+    # H8 fix: Never trust caller-supplied volume — fetch real 30d volume from DB
+    try:
+        vol_row = await db._fetchone(
+            "SELECT COALESCE(SUM(amount_in), 0) as vol FROM crypto_swaps "
+            "WHERE buyer_wallet=? AND timestamp > ?",
+            (buyer_wallet, int(time.time()) - 30 * 86400))
+        real_volume_30d = float(vol_row["vol"] if isinstance(vol_row, dict) else vol_row[0]) if vol_row else 0
+        count_row = await db._fetchone(
+            "SELECT COUNT(*) as cnt FROM crypto_swaps WHERE buyer_wallet=?",
+            (buyer_wallet,))
+        real_swap_count = int(count_row["cnt"] if isinstance(count_row, dict) else count_row[0]) if count_row else 0
+    except Exception:
+        real_volume_30d = 0
+        real_swap_count = -1
+
     # Obtenir le devis (commission calculated ONCE here — #5)
-    quote = await get_swap_quote(from_token, to_token, amount, buyer_volume_30d, swap_count)
+    quote = await get_swap_quote(from_token, to_token, amount, real_volume_30d, real_swap_count)
     if "error" in quote:
         return {"success": False, "error": quote["error"]}
 

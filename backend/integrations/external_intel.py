@@ -19,12 +19,20 @@ import os
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from core.http_client import get_http_client
 from core.error_utils import safe_error
+from core.security import check_rate_limit
 
 logger = logging.getLogger("maxia.intel")
-router = APIRouter(prefix="/api/intel", tags=["intelligence"])
+
+
+async def _rate_limit_intel(request: Request) -> None:
+    """H16 fix: rate limit intel endpoints to prevent API quota exhaustion."""
+    await check_rate_limit(request)
+
+
+router = APIRouter(prefix="/api/intel", tags=["intelligence"], dependencies=[Depends(_rate_limit_intel)])
 
 # -- Cache --
 _cache: dict[str, dict[str, Any]] = {}

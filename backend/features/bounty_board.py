@@ -378,11 +378,21 @@ async def confirm_bounty(bounty_id: str, x_api_key: str = Header(None)):
     if bounty["status"] != "delivered":
         raise HTTPException(400, f"Bounty is {bounty['status']}, not delivered")
 
+    # C3 fix: atomic status claim BEFORE payment to prevent double-spend
+    now = int(time.time())
     budget = float(bounty["budget_usdc"])
     commission = round(budget * _COMMISSION_RATE, 6)
     payout = round(budget - commission, 6)
 
-    # Pay winner
+    await db.raw_execute(
+        "UPDATE task_bounties SET status='completing', completed_at=? WHERE bounty_id=? AND status='delivered'",
+        (now, bounty_id))
+    # Verify the update took effect (another request may have claimed it)
+    check = await db._fetchone("SELECT status FROM task_bounties WHERE bounty_id=?", (bounty_id,))
+    if not check or (check["status"] if isinstance(check, dict) else check[0]) != "completing":
+        raise HTTPException(409, "Bounty already processed by concurrent request")
+
+    # Pay winner (safe — status is now 'completing', no other request can reach here)
     from billing.prepaid_credits import add_credits
     winner_row = await db._fetchone(
         "SELECT wallet FROM agent_permissions WHERE agent_id=?", (bounty["winner_agent_id"],))
@@ -393,10 +403,9 @@ async def confirm_bounty(bounty_id: str, x_api_key: str = Header(None)):
         payment_tx="bounty-payout",
         description=f"Bounty payout: {bounty_id[:8]}")
 
-    now = int(time.time())
     await db.raw_execute(
-        "UPDATE task_bounties SET status='completed', commission_usdc=?, completed_at=? WHERE bounty_id=?",
-        (commission, now, bounty_id))
+        "UPDATE task_bounties SET status='completed', commission_usdc=? WHERE bounty_id=?",
+        (commission, bounty_id))
 
     logger.info("[Bounty] Completed %s: $%.2f to %s (commission $%.2f)",
                 bounty_id[:8], payout, bounty["winner_agent_id"][:8], commission)
@@ -434,11 +443,19 @@ async def dispute_bounty(bounty_id: str, x_api_key: str = Header(None)):
         raise HTTPException(404, "Bounty not found")
     if bounty["poster_agent_id"] != agent_id:
         raise HTTPException(403, "Only the poster can dispute")
-    if bounty["status"] not in ("delivered", "assigned"):
+    if bounty["status"] not in ("delivered",):
         raise HTTPException(400, f"Cannot dispute bounty in status: {bounty['status']}")
 
-    # Refund poster
+    # C3 fix: atomic status claim BEFORE refund
     budget = float(bounty["budget_usdc"])
+    await db.raw_execute(
+        "UPDATE task_bounties SET status='disputing' WHERE bounty_id=? AND status='delivered'",
+        (bounty_id,))
+    check = await db._fetchone("SELECT status FROM task_bounties WHERE bounty_id=?", (bounty_id,))
+    if not check or (check["status"] if isinstance(check, dict) else check[0]) != "disputing":
+        raise HTTPException(409, "Bounty already processed by concurrent request")
+
+    # Refund poster (safe — status locked)
     from billing.prepaid_credits import add_credits
     poster_row = await db._fetchone(
         "SELECT wallet FROM agent_permissions WHERE agent_id=?", (agent_id,))
@@ -469,7 +486,7 @@ async def my_bounties(role: str = "poster", x_api_key: str = Header(None)):
         rows = await db._fetchall(
             "SELECT b.bounty_id, b.title, b.budget_usdc, b.status, b.category, "
             "b.deadline_at, bb.bid_amount_usdc, bb.status as bid_status "
-            "FROM bounty_bids bb JOIN bounties b ON bb.bounty_id = b.bounty_id "
+            "FROM bounty_bids bb JOIN task_bounties b ON bb.bounty_id = b.bounty_id "
             "WHERE bb.bidder_agent_id=? ORDER BY bb.created_at DESC LIMIT 50",
             (agent_id,))
     else:

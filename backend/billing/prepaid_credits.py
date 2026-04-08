@@ -93,21 +93,30 @@ async def deduct_credits(agent_id: str, amount: float, description: str = "") ->
     tx_id = str(uuid.uuid4())
     now = int(time.time())
 
+    # C5 fix: read balance BEFORE deduction to verify it actually happened
+    row_before = await db._fetchone(
+        "SELECT balance_usdc FROM prepaid_balances WHERE agent_id=?", (agent_id,))
+    if not row_before:
+        return {"success": False, "error": "No prepaid balance. Deposit USDC first: POST /api/credits/deposit"}
+
+    balance_before = float(row_before["balance_usdc"] if isinstance(row_before, dict) else row_before[0])
+    if balance_before < amount:
+        return {"success": False, "error": f"Insufficient balance: ${balance_before:.2f} < ${amount:.2f}"}
+
     await db.raw_execute(
         "UPDATE prepaid_balances SET balance_usdc = balance_usdc - ?, total_spent = total_spent + ?, updated_at = ? "
         "WHERE agent_id = ? AND balance_usdc >= ?",
         (amount, amount, now, agent_id, amount))
 
-    # Check if the update actually happened (affected rows)
-    row = await db._fetchone(
+    # Verify the deduction actually happened
+    row_after = await db._fetchone(
         "SELECT balance_usdc FROM prepaid_balances WHERE agent_id=?", (agent_id,))
-    if not row:
-        return {"success": False, "error": "No prepaid balance. Deposit USDC first: POST /api/credits/deposit"}
+    new_balance = float(row_after["balance_usdc"] if isinstance(row_after, dict) else row_after[0]) if row_after else 0
 
-    new_balance = float(row["balance_usdc"])
-    # If balance didn't change (or we need to verify the deduction happened),
-    # check if amount was actually deducted by comparing with expected
-    # The atomic UPDATE guarantees no negative balance
+    # If balance didn't decrease, the atomic UPDATE was a no-op (concurrent deduction)
+    if new_balance >= balance_before:
+        return {"success": False, "error": "Deduction failed (concurrent operation). Retry."}
+
     await db.raw_execute(
         "INSERT INTO prepaid_transactions(id, agent_id, type, amount_usdc, balance_after, description, created_at) "
         "VALUES(?,?,?,?,?,?,?)",
@@ -125,22 +134,20 @@ async def add_credits(agent_id: str, wallet: str, amount: float,
     await _ensure_schema()
     from core.database import db
 
-    row = await db._fetchone(
-        "SELECT balance_usdc FROM prepaid_balances WHERE agent_id=?", (agent_id,))
+    # C4 fix: atomic upsert instead of read-modify-write (prevents race condition)
     now = int(time.time())
     tx_id = str(uuid.uuid4())
 
-    if row:
-        new_balance = round(float(row["balance_usdc"]) + amount, 6)
-        await db.raw_execute(
-            "UPDATE prepaid_balances SET balance_usdc=?, total_deposited=total_deposited+?, updated_at=? WHERE agent_id=?",
-            (new_balance, amount, now, agent_id))
-    else:
-        new_balance = round(amount, 6)
-        await db.raw_execute(
-            "INSERT INTO prepaid_balances(agent_id, wallet, balance_usdc, total_deposited, total_spent, updated_at) "
-            "VALUES(?,?,?,?,0,?)",
-            (agent_id, wallet, new_balance, amount, now))
+    await db.raw_execute(
+        "INSERT INTO prepaid_balances(agent_id, wallet, balance_usdc, total_deposited, total_spent, updated_at) "
+        "VALUES(?,?,?,?,0,?) "
+        "ON CONFLICT(agent_id) DO UPDATE SET balance_usdc = balance_usdc + ?, total_deposited = total_deposited + ?, updated_at = ?",
+        (agent_id, wallet, amount, amount, now, amount, amount, now))
+
+    # Read new balance for the transaction record
+    row = await db._fetchone(
+        "SELECT balance_usdc FROM prepaid_balances WHERE agent_id=?", (agent_id,))
+    new_balance = round(float(row["balance_usdc"] if isinstance(row, dict) else row[0]), 6) if row else amount
 
     await db.raw_execute(
         "INSERT INTO prepaid_transactions(id, agent_id, type, amount_usdc, balance_after, description, payment_tx, created_at) "
