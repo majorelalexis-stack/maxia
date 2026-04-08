@@ -150,7 +150,7 @@ async def seed():
     os.environ.setdefault("ADMIN_KEY", "seed")
 
     from core.database import db
-    await db.initialize()
+    await db.connect()
 
     now = int(time.time())
     inserted = {"bounties": 0, "skills": 0, "datasets": 0}
