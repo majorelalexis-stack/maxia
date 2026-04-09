@@ -192,7 +192,6 @@ if __name__ == "__main__":
     # ── System (protected) ──
     print("\n[System]")
     test("Escrow stats (403)", "GET", "/api/escrow/stats", expected_status=403)
-    test("Twitter status", "GET", "/api/twitter/status")
     test("Watchdog health (403)", "GET", "/api/watchdog/health", expected_status=403)
 
     # ── Rate Limiting ──

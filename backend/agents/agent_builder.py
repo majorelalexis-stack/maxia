@@ -188,17 +188,6 @@ COMPONENT_REGISTRY: list[dict[str, Any]] = [
         "version": "1.0.0",
     },
     {
-        "id": "action.post_twitter",
-        "type": "action",
-        "name": "Post Twitter",
-        "description": "Publie un tweet ou un commentaire via le bot Twitter MAXIA.",
-        "config_schema": {
-            "action_type": {"type": "string", "required": True, "description": "'tweet' or 'reply'"},
-            "content_template": {"type": "string", "required": True, "description": "Tweet content ({result} placeholder, max 280 chars)"},
-        },
-        "version": "1.0.0",
-    },
-    {
         "id": "action.execute_service",
         "type": "action",
         "name": "Execute Service",

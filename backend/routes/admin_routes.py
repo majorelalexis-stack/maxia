@@ -484,11 +484,6 @@ async def admin_enable_agent(request: Request):
     return {"status": "removed", "message": "CEO moved to local-only (Plan CEO V4)"}
 
 
-@router.get("/api/twitter/status")
-async def twitter_status():
-    return {"status": "removed", "message": "Twitter bot moved to CEO local (Plan CEO V4)"}
-
-
 @router.get("/api/reddit/status")
 async def reddit_status():
     try:

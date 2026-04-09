@@ -61,7 +61,7 @@ backend/
 ├── marketplace/  (20)   # public_api (split: shared/sandbox/discover/trading/tools), mcp_server, a2a_protocol, empire_v2/sprint2/3/4/impact
 ├── agents/       (15)   # scheduler, agent_permissions, agent_builder, agent_profile, agent_leaderboard, agentverse_bridge
 ├── enterprise/   (12)   # billing, sso, metrics, audit_trail, tenant_isolation, stripe
-├── integrations/ (13)   # discord, telegram, twitter, reddit, kiteai, x402
+├── integrations/ (12)   # discord, telegram, reddit, kiteai, x402
 ├── infra/        (10)   # alerts, preflight, scale_out, health_monitor, db_backup
 ├── gpu/          (5)    # akash_client, runpod_client, gpu_api, gpu_pricing
 ├── ai/           (5)    # llm_router, llm_service, image_gen, sentiment_analyzer
@@ -117,7 +117,7 @@ backend/
 
 **GPU:** `akash_client.py` (Akash Network primary, 6 tiers live), `runpod_client.py` (hidden fallback only)
 
-**Integrations:** `kiteai_client.py`, `discord_bot.py`, `telegram_bot.py`, `twitter_bot.py`, `reddit_bot.py`
+**Integrations:** `kiteai_client.py`, `discord_bot.py`, `telegram_bot.py`, `reddit_bot.py`
 
 **Infrastructure:** `alerts.py` (Discord webhooks), `preflight.py` (health checks), `chain_resilience.py` (circuit breaker 15 chains, multi-RPC), `scale_out.py` (Railway auto-scaling), `dynamic_pricing.py`, `reputation_staking.py`, `cross_chain_handler.py`
 
@@ -160,7 +160,8 @@ Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.j
 - **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM) + 4GB RAM overflow. 3 modeles Ollama : Qwen 3 14B (CEO cerveau, 9.3GB), Qwen 3.5 9B (executeur, 6.6GB), Qwen 2.5-VL 7B (vision, 6GB). Groq supprime (rate-limite). 100% GPU local.
 - **GPU local** ajouté comme tier `local_7900xt` ($0.35/h, pure marge) dans config.py, runpod_client.py, finetune_service.py.
 - **Telegram** : approbations ORANGE/ROUGE via boutons Go/No sur @MAXIA_AI_bot (chat privé). Le VPS est le SEUL poller Telegram. Le CEO local interroge le VPS via `/api/ceo/approval-result`. Le channel @MAXIA_alerts est pour les rapports VPS.
-- **CEO Twitter** : commentaires avec lien maxiaworld.app, max 8 commentaires/jour, 3 quote tweets/jour, spacing 30min, 1 jour off/semaine. Actions hard-bloquees : dm_prospect, send_discord, send_telegram_group.
+- **Twitter** : SUPPRIME (Plan CEO V7, 2026-04-09). Compte suspendu, zero integration. Prospection via Discord + Email + bot Telegram extensions multilingue.
+- **CEO outreach** : Discord (compte dedie `maxia_alexis`), Email (ceo@maxiaworld.app, 30/jour), Telegram bot (inline mode, deep links, multilingue 13 langues, Mini App). 28 pays autorises (IN geo-block), 9 pays sanctionnes.
 
 ## Skills Workflow (OBLIGATOIRE)
 
@@ -171,4 +172,3 @@ Voir `~/.claude/rules/common/skills-workflow.md` pour les regles detaillees. En 
 - `/security-reviewer` avant deploy VPS
 - `/save-session` + `/learn` en fin de session
 - `/seo-audit` quand on touche au frontend
-- `/twitter-algorithm-optimizer` quand on modifie les prompts CEO

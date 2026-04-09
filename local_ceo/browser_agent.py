@@ -813,19 +813,25 @@ class BrowserAgent:
     # ── Actions principales ──
 
     async def post_tweet(self, text: str, media: str = None) -> dict:
-        """Poste un tweet sur X avec multi-selectors robustes.
+        """DISABLED — Twitter removed from MAXIA (Plan CEO V7, 2026-04-09).
 
-        IMPORTANT: When PROPOSE_DONT_POST is True, this method is blocked.
-        The CEO should use missions/tweet.py which proposes via Telegram instead.
+        Twitter account @MAXIA_AI was suspended. This method is kept as a stub
+        to avoid breaking any legacy dispatch code (e.g. execute_action_batch),
+        but always returns a disabled response. Use Discord, Telegram bot,
+        or email outreach instead.
         """
-        # Safety gate: block direct posting when in propose mode
-        try:
-            from config_local import PROPOSE_DONT_POST
-            if PROPOSE_DONT_POST:
-                return {"success": False, "error": "PROPOSE_DONT_POST is True — use Telegram proposal instead of direct posting"}
-        except ImportError:
-            pass
+        return {
+            "success": False,
+            "error": "Twitter removed (Plan CEO V7, 2026-04-09). Account suspended. Use Discord/Telegram/email.",
+            "disabled": True,
+        }
 
+    async def _post_tweet_legacy_unused(self, text: str, media: str = None) -> dict:
+        """LEGACY Playwright-based tweet posting — no longer reachable.
+
+        Kept only so the method body compiles for tooling; the public
+        post_tweet() above short-circuits before any of this runs.
+        """
         err = self._check_rate("tweet")
         if err:
             return {"success": False, "error": err}

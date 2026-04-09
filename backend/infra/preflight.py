@@ -111,7 +111,6 @@ async def check_system_ready() -> dict:
         "GROQ_API_KEY": ("optional", "Legacy Groq (remplace par Cerebras)"),
         "ANTHROPIC_API_KEY": ("optional", "CEO strategique (Sonnet/Opus)"),
         "DISCORD_WEBHOOK_URL": ("recommended", "Alertes Discord"),
-        "TWITTER_API_KEY": ("optional", "Twitter bot"),
         "TELEGRAM_BOT_TOKEN": ("optional", "Telegram bot"),
         "DISCORD_BOT_TOKEN": ("optional", "Discord bot"),
         "ADMIN_KEY": ("critical", "Admin endpoints"),

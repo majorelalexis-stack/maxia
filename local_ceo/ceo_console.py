@@ -246,34 +246,19 @@ async def cmd_models() -> str:
 
 
 async def cmd_tweet(text: str) -> str:
-    """Generer un tweet et l'afficher pour que Alexis le poste manuellement."""
-    if not text.strip():
-        # Generer un tweet automatiquement
-        text = await llm_text(
-            "Write a short tweet (max 250 chars) presenting a random MAXIA feature. "
-            "Include https://maxiaworld.app. End with #MAXIA #AI #Web3",
-            system=CEO_SYSTEM,
-            max_tokens=100,
-        )
-    # Mode PROPOSE: show the tweet for manual posting, do not post directly
-    try:
-        from config_local import PROPOSE_DONT_POST
-        if PROPOSE_DONT_POST:
-            return (
-                f"=== TWEET PROPOSE (copie et poste manuellement sur X) ===\n\n"
-                f"{text}\n\n"
-                f"=== FIN ==="
-            )
-    except ImportError:
-        pass
+    """DISABLED — Twitter removed from MAXIA (Plan CEO V7, 2026-04-09).
 
-    # Legacy: direct posting (should not be reached with default config)
-    try:
-        from browser_agent import browser
-        await browser.post_tweet(text)
-        return f"Tweet poste: {text}"
-    except Exception as e:
-        return f"Erreur tweet: {e}\n\nTexte genere (a poster manuellement):\n{text}"
+    Twitter account @MAXIA_AI was suspended. All Twitter integration has
+    been removed. Use Discord, Telegram bot, or email outreach instead.
+    """
+    return (
+        "Twitter disabled — Plan CEO V7 (2026-04-09).\n"
+        "Account @MAXIA_AI suspended. All Twitter integration removed.\n\n"
+        "Use these channels instead:\n"
+        "  - Discord (maxia_alexis dedicated account)\n"
+        "  - Telegram bot @MAXIA_AI_bot (multilingue, inline, Mini App)\n"
+        "  - Email ceo@maxiaworld.app (30/day, 13 languages)\n"
+    )
 
 
 async def cmd_rapport() -> str:
