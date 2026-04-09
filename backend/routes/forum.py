@@ -14,6 +14,7 @@ Protections anti-abus :
   - Report system (3 reports = auto-hide + alerte Telegram)
   - Content safety (Art.1 mots bloques)
 """
+import asyncio
 import logging
 import re
 import time
@@ -24,6 +25,36 @@ import uuid
 import json
 from core.error_utils import safe_error
 from collections import defaultdict
+
+
+async def _ceo_bridge_enqueue(post: dict) -> None:
+    """Fire-and-forget: ask CEO Local to auto-reply to a new forum post.
+
+    Must never raise — post creation must not fail if the bridge is down.
+    Forum posts are addressed to humans AND the MAXIA assistant; the
+    bridge marks the post_id as source_ref so the generated reply lands
+    as a new ``forum_replies`` row.
+    """
+    try:
+        # Skip replies posted by the assistant itself to avoid loops.
+        if (post.get("author_wallet") or "") == "ceo_bridge":
+            return
+        from ceo_bridge import ingest_message
+        title = post.get("title", "") or ""
+        body = post.get("body", "") or ""
+        message = (title + "\n\n" + body).strip() if title else body
+        if not message:
+            return
+        await ingest_message(
+            channel="forum",
+            source_ref=post.get("id", ""),
+            user_id=post.get("author_wallet", ""),
+            user_name=post.get("author_name", ""),
+            message=message[:3800],
+            language="",
+        )
+    except Exception as e:
+        logger.debug("[forum→ceo_bridge] ingest skipped: %s", e)
 
 # Callback for per-wallet WS push (injected by main.py at startup)
 _ws_notify_callback = None
@@ -277,6 +308,12 @@ async def create_post(db, data: dict) -> dict:
                         })
     except Exception:
         pass  # Mention failure must never break post creation
+
+    # Phase 1: trigger CEO Local auto-reply (fire-and-forget)
+    try:
+        asyncio.create_task(_ceo_bridge_enqueue(post))
+    except Exception:
+        pass  # Bridge failure must never break post creation
 
     return post
 

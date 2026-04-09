@@ -487,6 +487,25 @@ class Database:
             "declaration_text TEXT NOT NULL);"
             "CREATE INDEX IF NOT EXISTS idx_jurisdiction_wallet ON jurisdiction_declarations(wallet);"
         )),
+        13: ("Phase 1 CEO Bridge — pending user messages queue (Discord/Forum/Inbox)", (
+            "CREATE TABLE IF NOT EXISTS ceo_pending_replies ("
+            "msg_id TEXT PRIMARY KEY,"
+            "channel TEXT NOT NULL,"
+            "source_ref TEXT NOT NULL DEFAULT '',"
+            "user_id TEXT NOT NULL DEFAULT '',"
+            "user_name TEXT DEFAULT '',"
+            "message TEXT NOT NULL,"
+            "language TEXT DEFAULT '',"
+            "received_at INTEGER NOT NULL,"
+            "status TEXT NOT NULL DEFAULT 'pending',"
+            "response TEXT DEFAULT '',"
+            "confidence REAL DEFAULT 0,"
+            "escalated INTEGER DEFAULT 0,"
+            "responded_at INTEGER DEFAULT 0);"
+            "CREATE INDEX IF NOT EXISTS idx_ceo_pending_status ON ceo_pending_replies(status, received_at);"
+            "CREATE INDEX IF NOT EXISTS idx_ceo_pending_channel ON ceo_pending_replies(channel, status);"
+            "CREATE INDEX IF NOT EXISTS idx_ceo_pending_source ON ceo_pending_replies(source_ref);"
+        )),
     }
 
     async def _run_migrations(self):

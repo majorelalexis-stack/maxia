@@ -62,6 +62,10 @@ async def notify_telegram(title: str, message: str):
         print(f"[Notifier] Telegram failed: {e}")
 
 
+# Alias pour compat missions (disboard_bump, reddit_watch, seo_submit)
+notify_telegram_alert = notify_telegram
+
+
 async def notify_all(title: str, message: str, priority: str = "vert"):
     """Notifie sur tous les canaux."""
     await asyncio.gather(

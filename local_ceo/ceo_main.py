@@ -71,6 +71,9 @@ from missions.reddit_watch import mission_reddit_watch
 from missions.seo_submit import mission_seo_submit
 # telegram_smart_reply is a library, called from telegram_chat.py — not a scheduled mission
 
+# ── Phase 1 mission (2026-04-09): CEO responds on every channel via VPS bridge ──
+from missions.vps_bridge import mission_vps_bridge
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
 log = logging.getLogger("ceo")
 
@@ -303,6 +306,12 @@ async def run():
             if now - mem.get("_last_telegram_poll", 0) >= 120:
                 await run_mission("telegram_chat", mission_telegram_chat(mem, actions), mem, actions)
                 mem["_last_telegram_poll"] = now
+
+            # Phase 1: VPS Bridge — auto-reply to Discord/Forum/Inbox (every 30s)
+            if now - mem.get("_vps_bridge_last_run", 0) >= 30:
+                await run_mission("vps_bridge",
+                                  mission_vps_bridge(mem, actions),
+                                  mem, actions)
 
             # Mining — relancer si GPU libre depuis 60s (pas d'appel LLM recent)
             if KASPA_MINING_ENABLED:

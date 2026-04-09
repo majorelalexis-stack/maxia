@@ -417,6 +417,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[Pools] Seed error: %s", e)
 
+    # Phase 1: Discord assistant listener (reads #ask-ai, pushes to ceo_bridge)
+    try:
+        from integrations.discord_assistant import start_listener as start_discord_assistant
+        await start_discord_assistant()
+    except Exception as e:
+        logger.error("[Phase1] Discord assistant listener error: %s", e)
+
     logger.info("[MAXIA] V12 demarre — Art.1-15 + Phase L Agent Economy | 15 chains | %d+ endpoints",
                 len([r for r in app.routes if hasattr(r, 'path')]))
     logger.info("[MAXIA] DB: %s | Redis: %s", 'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite', 'connected' if redis_client.is_connected else 'in-memory fallback')
@@ -426,6 +433,12 @@ async def lifespan(app: FastAPI):
     logger.info("[MAXIA] Shutting down gracefully...")
     # AgentOps — fermer toutes les sessions
     shutdown_agentops()
+    # Phase 1: stop Discord assistant listener
+    try:
+        from integrations.discord_assistant import stop_listener as stop_discord_assistant
+        await stop_discord_assistant()
+    except Exception:
+        pass
     # Flush audit log
     try:
         _flush_audit()
@@ -1569,3 +1582,11 @@ try:
     logger.info("[CEO] CEO Analytics feedback loop monte — /api/ceo/analytics/*")
 except Exception as e:
     logger.error("[MAXIA] CEO Analytics router error: %s", e)
+
+# ── Phase 1: CEO Bridge — unified reply queue (Discord/Forum/Inbox) ──
+try:
+    from ceo_bridge import get_router as get_ceo_bridge_router
+    app.include_router(get_ceo_bridge_router())
+    logger.info("[Phase1] CEO Bridge monte — /api/ceo/messages/*")
+except Exception as e:
+    logger.error("[MAXIA] CEO Bridge router error: %s", e)
