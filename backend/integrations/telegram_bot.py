@@ -1,18 +1,29 @@
-"""MAXIA — Telegram Bot (minimal, httpx-only, zero dependencies).
+"""MAXIA — Telegram Bot (httpx-only, multilingue 13 langues — Plan CEO V7).
 
 Repond a /start, configure le Menu Button pour la Mini App,
 et gere les commandes de base. Long polling dans un background task.
 
 Commandes:
-  /start     — Message de bienvenue + bouton Mini App
-  /price SOL — Prix live
-  /help      — Liste des commandes
+  /start     — Message de bienvenue + bouton Mini App (localise)
+  /price SOL — Prix live (localise)
+  /help      — Liste des commandes (localise)
+
+Plan CEO V7 / P4A: multilingue static via telegram_i18n (13 langues,
+zero latence, zero LLM call pour les messages fixes).
 """
 import asyncio
 import logging
 import os
 
 import httpx
+
+from integrations.telegram_i18n import (
+    build_help_text,
+    build_price_text,
+    build_welcome_text,
+    detect_lang,
+    t,
+)
 
 logger = logging.getLogger("telegram_bot")
 
@@ -49,14 +60,14 @@ async def _tg_api(method: str, data: dict = None) -> dict:
         else:
             resp = await client.get(f"{_BASE}/{method}", timeout=15)
         if resp.status_code != 200:
-            print(f"[TG Bot] HTTP {resp.status_code} on {method}")
+            logger.warning("[TG Bot] HTTP %s on %s", resp.status_code, method)
         try:
             return resp.json()
         except Exception:
-            print(f"[TG Bot] Non-JSON response on {method}: {resp.text[:100]}")
+            logger.warning("[TG Bot] Non-JSON response on %s: %s", method, resp.text[:100])
             return {}
     except Exception as e:
-        print(f"[TG Bot] API error {method}: {e}")
+        logger.warning("[TG Bot] API error %s: %s", method, e)
         return {}
 
 
@@ -68,60 +79,51 @@ async def _send_message(chat_id: int, text: str, reply_markup: dict = None):
     return await _tg_api("sendMessage", data)
 
 
-async def _handle_start(chat_id: int, first_name: str):
-    """Handle /start command — welcome + Mini App button."""
-    text = (
-        f"Welcome to <b>MAXIA</b>, {first_name}!\n\n"
-        "AI-powered trading across 15 blockchains.\n\n"
-        "What you can do:\n"
-        "  /price SOL — Live price\n"
-        "  /help — All commands\n\n"
-        "Or tap the button below to open the full trading app:"
-    )
+async def _handle_start(chat_id: int, first_name: str, lang: str = "en"):
+    """Handle /start command — welcome + Mini App button (localized)."""
+    text = build_welcome_text(lang=lang, name=first_name)
     markup = {
         "inline_keyboard": [[
-            {"text": "Open MAXIA Trading", "web_app": {"url": MINIAPP_URL}},
+            {"text": t("button.open_trading", lang), "web_app": {"url": MINIAPP_URL}},
         ], [
-            {"text": "Buy Crypto with Card", "web_app": {"url": "https://maxiaworld.app/buy"}},
+            {"text": t("button.buy_crypto", lang), "web_app": {"url": "https://maxiaworld.app/buy"}},
         ], [
-            {"text": "Token Sniper", "web_app": {"url": "https://maxiaworld.app/sniper"}},
+            {"text": t("button.sniper", lang), "web_app": {"url": "https://maxiaworld.app/sniper"}},
         ]]
     }
     await _send_message(chat_id, text, markup)
 
 
-async def _handle_price(chat_id: int, args: str):
-    """Handle /price command."""
+async def _handle_price(chat_id: int, args: str, lang: str = "en"):
+    """Handle /price command (localized response)."""
     symbol = args.strip().upper() if args else "SOL"
     try:
         client = await _get_client()
-        resp = await client.get(f"http://127.0.0.1:8000/oracle/price/live/{symbol}", timeout=5)
+        resp = await client.get(
+            f"http://127.0.0.1:8001/oracle/price/live/{symbol}",
+            timeout=5,
+        )
         d = resp.json()
-        if d.get("price", 0) > 0:
-            price = d["price"]
-            source = d.get("source", "oracle")
-            await _send_message(chat_id, f"<b>{symbol}</b>: ${price:,.4f}\nSource: {source}")
-        else:
-            await _send_message(chat_id, f"Could not fetch price for {symbol}")
+        price = d.get("price", 0)
+        source = d.get("source", "oracle")
+        await _send_message(
+            chat_id,
+            build_price_text(lang=lang, symbol=symbol, price=price, source=source),
+        )
     except Exception as e:
-        print(f"[TG Bot] Price error: {e}")
-        await _send_message(chat_id, f"Error fetching price for {symbol}")
+        logger.warning("[TG Bot] Price error for %s: %s", symbol, e)
+        await _send_message(
+            chat_id,
+            build_price_text(lang=lang, symbol=symbol, price=None, source=""),
+        )
 
 
-async def _handle_help(chat_id: int):
-    """Handle /help command."""
-    text = (
-        "<b>MAXIA Bot Commands:</b>\n\n"
-        "/start — Welcome + Mini App\n"
-        "/price SOL — Live token price\n"
-        "/price ETH — Live ETH price\n"
-        "/price BTC — Live BTC price\n"
-        "/help — This help message\n\n"
-        "Or open the full trading app with the Menu button."
-    )
+async def _handle_help(chat_id: int, lang: str = "en"):
+    """Handle /help command (localized)."""
+    text = build_help_text(lang=lang)
     markup = {
         "inline_keyboard": [[
-            {"text": "Open MAXIA Trading", "web_app": {"url": MINIAPP_URL}},
+            {"text": t("button.open_trading", lang), "web_app": {"url": MINIAPP_URL}},
         ]]
     }
     await _send_message(chat_id, text, markup)
@@ -132,9 +134,14 @@ async def _process_update(update: dict):
     msg = update.get("message", {})
     text = msg.get("text", "")
     chat_id = msg.get("chat", {}).get("id")
-    first_name = msg.get("from", {}).get("first_name", "there")
+    from_user = msg.get("from", {}) or {}
+    first_name = from_user.get("first_name", "there")
+    lang = detect_lang(from_user.get("language_code", ""))
 
-    print(f"[TG Bot] Update: chat_id={chat_id} text={text[:50] if text else 'none'}")
+    logger.info(
+        "[TG Bot] Update: chat_id=%s lang=%s text=%s",
+        chat_id, lang, text[:50] if text else "none",
+    )
 
     if not chat_id or not text:
         return
@@ -142,19 +149,19 @@ async def _process_update(update: dict):
     text_lower = text.strip().lower()
 
     if text_lower == "/start" or text_lower.startswith("/start "):
-        await _handle_start(chat_id, first_name)
+        await _handle_start(chat_id, first_name, lang)
     elif text_lower.startswith("/price"):
         args = text[6:].strip()
-        await _handle_price(chat_id, args)
+        await _handle_price(chat_id, args, lang)
     elif text_lower == "/help":
-        await _handle_help(chat_id)
+        await _handle_help(chat_id, lang)
     else:
         # Forward to chat handler for NL processing
         try:
             client = await _get_client()
             resp = await client.post(
-                "http://127.0.0.1:8000/api/chat",
-                json={"message": text},
+                "http://127.0.0.1:8001/api/chat",
+                json={"message": text, "lang": lang},
                 timeout=10,
             )
             d = resp.json()
@@ -162,7 +169,7 @@ async def _process_update(update: dict):
             if response:
                 await _send_message(chat_id, response)
         except Exception as e:
-            print(f"[TG Bot] Chat handler error: {e}")
+            logger.warning("[TG Bot] Chat handler error: %s", e)
 
 
 async def setup_bot_menu():
@@ -188,7 +195,7 @@ async def setup_bot_menu():
         ]
     })
 
-    print("[TG Bot] Menu button + commands configured")
+    logger.info("[TG Bot] Menu button + commands configured")
 
 
 async def run_telegram_bot():
@@ -196,11 +203,11 @@ async def run_telegram_bot():
     global _last_update_id, _running
 
     if not BOT_TOKEN or len(BOT_TOKEN) < 20:
-        print("[TG Bot] TELEGRAM_BOT_TOKEN not set or invalid — bot disabled")
+        logger.info("[TG Bot] TELEGRAM_BOT_TOKEN not set or invalid — bot disabled")
         return
 
     if _running:
-        print("[TG Bot] Already running — skipping")
+        logger.info("[TG Bot] Already running — skipping")
         return
 
     _running = True
@@ -208,17 +215,20 @@ async def run_telegram_bot():
     # Verify token works
     me = await _tg_api("getMe")
     if not me.get("ok"):
-        print(f"[TG Bot] Invalid token: {me.get('description', 'unknown error')}")
+        logger.error(
+            "[TG Bot] Invalid token: %s",
+            me.get("description", "unknown error"),
+        )
         _running = False
         return
 
     bot_name = me.get("result", {}).get("username", "?")
-    print(f"[TG Bot] Bot verified: @{bot_name}")
+    logger.info("[TG Bot] Bot verified: @%s", bot_name)
 
     # Configure menu button on startup
     await setup_bot_menu()
 
-    print("[TG Bot] Starting long polling...")
+    logger.info("[TG Bot] Starting long polling...")
 
     consecutive_errors = 0
     while True:
@@ -234,13 +244,13 @@ async def run_telegram_bot():
             if not data.get("ok"):
                 err = data.get("description", "")
                 if "terminated by other" in err:
-                    print("[TG Bot] Conflict: another instance polling. Retrying in 5s...")
+                    logger.warning("[TG Bot] Conflict: another instance polling. Retrying in 5s...")
                     await asyncio.sleep(5)
                     continue
-                print(f"[TG Bot] API error: {err}")
+                logger.warning("[TG Bot] API error: %s", err)
                 consecutive_errors += 1
                 if consecutive_errors > 10:
-                    print("[TG Bot] Too many errors, pausing 60s")
+                    logger.warning("[TG Bot] Too many errors, pausing 60s")
                     await asyncio.sleep(60)
                     consecutive_errors = 0
                 continue
@@ -255,11 +265,11 @@ async def run_telegram_bot():
                 try:
                     await _process_update(update)
                 except Exception as e:
-                    print(f"[TG Bot] Update error: {e}")
+                    logger.warning("[TG Bot] Update error: %s", e)
 
         except asyncio.CancelledError:
-            print("[TG Bot] Shutting down")
+            logger.info("[TG Bot] Shutting down")
             break
         except Exception as e:
-            print(f"[TG Bot] Polling error: {e}")
+            logger.warning("[TG Bot] Polling error: %s", e)
             await asyncio.sleep(5)
