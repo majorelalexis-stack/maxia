@@ -88,22 +88,51 @@ async def _get_updates(offset: int) -> list[dict]:
     return result if isinstance(result, list) else []
 
 
-async def _handle_text_message(text: str, mem: dict) -> str:
-    """Generate a response using the Chat agent with recent context."""
-    parts = []
-    for key, label in [("tweets_posted", "Tweets"), ("health_alerts", "Alerts"), ("outreach_sent", "Outreach")]:
-        items = mem.get(key, [])[-3:]
-        if items:
-            parts.append(f"{label}: {len(items)} recent")
-    context = "\n".join(parts) if parts else "No recent activity."
+async def _handle_text_message(text: str, mem: dict, language_code: str = "fr") -> str:
+    """Generate a knowledge-grounded response via the V9 smart-reply layer.
 
-    prompt = (
-        f"Alexis wrote on Telegram: {text}\n\n"
-        f"Recent CEO activity:\n{context}\n\n"
-        f"Reply concisely in French. If he asks you to do something, confirm the action."
-    )
-    response = await ask(CHAT, prompt, knowledge=MAXIA_KNOWLEDGE[:2000])
-    return response or "Je suis la, mais je n'ai pas pu generer de reponse. Reessaie."
+    Falls back to the legacy Chat agent prompt if the smart-reply module
+    is unavailable for any reason.
+    """
+    # Build conversation history from mem (last 10 turns)
+    history = mem.get("telegram_conversation", [])
+
+    try:
+        from missions.telegram_smart_reply import answer_user_message
+        response = await answer_user_message(
+            user_message=text,
+            history=history,
+            language_code=language_code,
+        )
+    except Exception as e:
+        log.warning("[TELEGRAM] smart_reply failed, falling back: %s", e)
+        # Legacy fallback path
+        parts = []
+        for key, label in [("disboard_bumps", "DisboardBumps"),
+                           ("github_prospects", "Prospects"),
+                           ("health_alerts", "Alerts")]:
+            items = mem.get(key, [])[-3:]
+            if items:
+                parts.append(f"{label}: {len(items)} recent")
+        context = "\n".join(parts) if parts else "No recent activity."
+        prompt = (
+            f"Alexis wrote on Telegram: {text}\n\n"
+            f"Recent CEO activity:\n{context}\n\n"
+            f"Reply concisely in French."
+        )
+        response = await ask(CHAT, prompt, knowledge=MAXIA_KNOWLEDGE[:2000])
+
+    if not response:
+        response = "Je suis la, mais je n'ai pas pu generer de reponse. Reessaie."
+
+    # Persist conversation history (rolling window of 20 turns)
+    history = mem.setdefault("telegram_conversation", [])
+    history.append({"role": "user", "content": text[:1000]})
+    history.append({"role": "assistant", "content": response[:1000]})
+    if len(history) > 20:
+        mem["telegram_conversation"] = history[-20:]
+
+    return response
 
 
 async def _handle_callback_query(callback_data: str, callback_query_id: str, state: dict) -> None:

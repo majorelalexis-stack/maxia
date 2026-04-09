@@ -68,11 +68,7 @@ async def analyze_trends(browser) -> dict:
     except Exception:
         pass
 
-    try:
-        # Twitter trending in crypto
-        results = await browser.search_twitter("#Solana trending", 5)
-        trends["topics"] = [r.get("text", "")[:60] for r in results]
-    except Exception:
-        pass
+    # Twitter trending — DISABLED (Plan CEO V9, Twitter removed 2026-04-09)
+    trends["topics"] = []
 
     return trends

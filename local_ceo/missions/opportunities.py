@@ -19,69 +19,19 @@ log = logging.getLogger("ceo")
 
 
 # ══════════════════════════════════════════
-# Mission 2a — Twitter scan hourly
+# Mission 2a — Twitter scan hourly — DISABLED (Plan CEO V7, 2026-04-09)
 # ══════════════════════════════════════════
 
 async def mission_twitter_scan_hourly(mem: dict) -> None:
-    """Scan horaire — accumule les opportunites dans la memoire."""
-    keywords = [
-        "AI agent marketplace", "autonomous AI agent", "AI-to-AI", "crypto AI agent",
-        "Solana AI", "MCP server", "agent protocol", "AI service marketplace",
-    ]
+    """DISABLED — no-op stub. Twitter removed from MAXIA (V7).
 
-    kw = random.choice(keywords)
-    found = 0
-    try:
-        from browser_agent import browser
-        tweets = await browser.search_twitter(kw, max_results=5)
-        sent_ids = set(o.get("id") for o in mem.get("opportunities_sent", []))
-        today_opps = [o for o in mem.get("todays_opportunities", [])]
-        today_ids = set(o.get("id") for o in today_opps)
-
-        for tweet in tweets:
-            tweet_id = tweet.get("id", tweet.get("url", ""))
-            if tweet_id in sent_ids or tweet_id in today_ids:
-                continue
-
-            comment = await llm(
-                f"Write a short, helpful reply (max 240 chars) to this tweet:\n"
-                f"Tweet: {tweet.get('text', '')[:300]}\n\n"
-                f"Rules:\n- Be helpful, add value\n- Include link maxiaworld.app if relevant\n- Max 240 chars STRICT\n- Complete your sentence.",
-                system=CEO_SYSTEM_PROMPT,
-                max_tokens=300,
-            )
-
-            mem.setdefault("todays_opportunities", []).append({
-                "id": tweet_id,
-                "url": tweet.get("url", ""),
-                "author": tweet.get("author", ""),
-                "text": tweet.get("text", "")[:300],
-                "suggested_comment": comment[:500] if comment else "",
-                "keyword": kw,
-                "ts": time.time(),
-            })
-            found += 1
-        log.info("Twitter scan [%s]: %d new opportunities (total today: %d)",
-                 kw, found, len(mem.get("todays_opportunities", [])))
-
-        # Check @MAXIA_WORLD mentions (immediate alert)
-        mentions = await browser.search_twitter("@MAXIA_WORLD", max_results=5)
-        new_mentions = [m for m in mentions if m.get("id", m.get("url", "")) not in sent_ids]
-        if new_mentions:
-            mention_body = "Nouvelles mentions de @MAXIA_WORLD:\n\n"
-            for i, m in enumerate(new_mentions[:5], 1):
-                mention_body += f"#{i} — @{m.get('author', '?')}\n"
-                mention_body += f"  {m.get('text', '')[:300]}\n"
-                mention_body += f"  Lien: {m.get('url', '')}\n\n"
-            await send_mail("[MAXIA CEO] \U0001f514 Mention Twitter", mention_body)
-            for m in new_mentions:
-                mem.setdefault("opportunities_sent", []).append({
-                    "id": m.get("id", m.get("url", "")),
-                    "type": "mention",
-                    "date": datetime.now().isoformat(),
-                })
-    except Exception as e:
-        log.error("Twitter scan error: %s", e)
+    Kept as a stub so ceo_main.py imports do not break. Outreach now
+    flows through email (VPS /api/marketing/email) and Discord bot
+    MAXIA outreach in MAXIA Community, governed by the V7 compliance
+    filter (28 allowed countries, OFAC blocked list).
+    """
+    log.debug("[opps] twitter scan disabled (Plan CEO V7)")
+    return
 
 
 # ══════════════════════════════════════════

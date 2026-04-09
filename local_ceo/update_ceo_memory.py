@@ -46,8 +46,15 @@ _PROBES: Final[list[dict]] = [
     {"path": "/oracle/specs", "description": "Oracle configuration specs"},
     {"path": "/oracle/monitoring", "description": "Oracle P50/P95/P99 latency"},
     {"path": "/api/ceo/gateway/status", "description": "PicoClaw CEO gateway"},
-    {"path": "/api/bots/leaderboard", "description": "Agent leaderboard"},
     {"path": "/mcp/manifest", "description": "MCP server manifest"},
+    {"path": "/llms.txt", "description": "AI crawler context file"},
+    {"path": "/llms-full.txt", "description": "Detailed LLM context (V8)"},
+    {"path": "/blog/", "description": "Static SEO blog index (V8)"},
+    {"path": "/api/public/discover", "description": "Public discover endpoint"},
+    {"path": "/api/public/marketplace-stats", "description": "Marketplace stats"},
+    {"path": "/api/public/crypto/prices", "description": "Live crypto prices"},
+    {"path": "/api/public/stocks", "description": "Tokenized stocks"},
+    {"path": "/api/public/gpu/tiers", "description": "GPU rental tiers"},
 ]
 
 

@@ -1,0 +1,150 @@
+{
+  "capabilities": [
+    {
+      "consecutive_failures": 0,
+      "description": "Oracle configuration specs",
+      "endpoint": "/oracle/specs",
+      "last_check": 1775753074,
+      "last_latency_ms": 285.96530001959763,
+      "method": "GET",
+      "status": "live",
+      "success_count": 2,
+      "verified_at": 1775753056
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Oracle P50/P95/P99 latency",
+      "endpoint": "/oracle/monitoring",
+      "last_check": 1775753074,
+      "last_latency_ms": 287.82279998995364,
+      "method": "GET",
+      "status": "live",
+      "success_count": 2,
+      "verified_at": 1775753056
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "MCP server manifest",
+      "endpoint": "/mcp/manifest",
+      "last_check": 1775753074,
+      "last_latency_ms": 298.48510000738315,
+      "method": "GET",
+      "status": "live",
+      "success_count": 2,
+      "verified_at": 1775753056
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Global backend health",
+      "endpoint": "/health",
+      "last_check": 1775753074,
+      "last_latency_ms": 304.31740000494756,
+      "method": "GET",
+      "status": "live",
+      "success_count": 2,
+      "verified_at": 1775753056
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "PicoClaw CEO gateway",
+      "endpoint": "/api/ceo/gateway/status",
+      "last_check": 1775753074,
+      "last_latency_ms": 309.67109999619424,
+      "method": "GET",
+      "status": "live",
+      "success_count": 2,
+      "verified_at": 1775753056
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Live crypto prices",
+      "endpoint": "/api/public/crypto/prices",
+      "last_check": 1775753074,
+      "last_latency_ms": 296.00780000328086,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "AI crawler context file",
+      "endpoint": "/llms.txt",
+      "last_check": 1775753074,
+      "last_latency_ms": 301.1611000110861,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Public discover endpoint",
+      "endpoint": "/api/public/discover",
+      "last_check": 1775753074,
+      "last_latency_ms": 301.95890000322834,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Detailed LLM context (V8)",
+      "endpoint": "/llms-full.txt",
+      "last_check": 1775753074,
+      "last_latency_ms": 304.6971999865491,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Static SEO blog index (V8)",
+      "endpoint": "/blog/",
+      "last_check": 1775753074,
+      "last_latency_ms": 311.01439998019487,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Marketplace stats",
+      "endpoint": "/api/public/marketplace-stats",
+      "last_check": 1775753074,
+      "last_latency_ms": 315.76440000208095,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "Tokenized stocks",
+      "endpoint": "/api/public/stocks",
+      "last_check": 1775753074,
+      "last_latency_ms": 435.722900001565,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    },
+    {
+      "consecutive_failures": 0,
+      "description": "GPU rental tiers",
+      "endpoint": "/api/public/gpu/tiers",
+      "last_check": 1775753074,
+      "last_latency_ms": 733.0575000087265,
+      "method": "GET",
+      "status": "live",
+      "success_count": 1,
+      "verified_at": 1775753074
+    }
+  ],
+  "count": 13,
+  "updated_at": 1775753074,
+  "version": 1
+}
