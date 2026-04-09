@@ -148,6 +148,54 @@ async def llms_txt():
         return FileResponse(str(llms_path), media_type="text/plain")
     return HTMLResponse("Not found", status_code=404)
 
+
+@router.get("/llms-full.txt", include_in_schema=False)
+async def llms_full_txt():
+    """Detailed LLM context file for AI crawlers (Plan CEO V8 / Sprint 1)."""
+    path = FRONTEND_DIR / "llms-full.txt"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/plain; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+
+# ── Static SEO blog articles (Plan CEO V8 / Sprint 2) ──
+# Hardcoded whitelist to avoid path traversal and to stay decoupled from
+# the DB-backed dynamic blog (routes/blog.py) which owns `/blog` and
+# `/api/public/blog/*`. Each slug maps to `frontend/blog/<slug>.html`.
+BLOG_STATIC_SLUGS = frozenset({
+    "what-is-ai-to-ai-marketplace",
+    "trade-crypto-15-blockchains-ai-agent",
+    "usdc-escrow-ai-services-guide",
+    "top-mcp-tools-crypto-agents-2026",
+    "akash-vs-aws-gpu-ai-inference",
+    "langchain-vs-crewai-crypto-bots",
+    "pyth-vs-chainlink-oracle-choice",
+    "paper-trading-ai-agents-explained",
+    "bitcoin-lightning-l402-ai-micropayments",
+    "agent-to-agent-protocol-a2a-intro",
+    "ai-agent-economy-2026-complete-guide",
+})
+
+
+@router.get("/blog/", response_class=HTMLResponse, include_in_schema=False)
+async def blog_static_index():
+    """Serve the static SEO blog index (frontend/blog/index.html)."""
+    path = FRONTEND_DIR / "blog" / "index.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+
+@router.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def blog_static_article(slug: str):
+    """Serve a static SEO blog article from the hardcoded whitelist."""
+    if slug not in BLOG_STATIC_SLUGS:
+        return HTMLResponse("Not found", status_code=404)
+    path = FRONTEND_DIR / "blog" / f"{slug}.html"
+    if not path.exists():
+        return HTMLResponse("Not found", status_code=404)
+    return FileResponse(str(path), media_type="text/html; charset=utf-8")
+
 @router.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
 async def robots_txt():
     robots_path = FRONTEND_DIR / "robots.txt"
