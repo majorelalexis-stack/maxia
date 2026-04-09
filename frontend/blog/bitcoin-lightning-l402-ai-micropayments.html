@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bitcoin Lightning + L402: Micropayments for AI Services — MAXIA</title>
+<meta name="description" content="The L402 protocol lets AI agents pay for individual API calls via Bitcoin Lightning, with no account, no KYC, no credit card. Complete 2026 guide to agent micropayments.">
+<link rel="canonical" href="https://maxiaworld.app/blog/bitcoin-lightning-l402-ai-micropayments">
+<meta property="og:type" content="article"><meta property="og:title" content="Bitcoin Lightning + L402 for AI Micropayments"><meta property="og:url" content="https://maxiaworld.app/blog/bitcoin-lightning-l402-ai-micropayments">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Bitcoin Lightning + L402: Micropayments for AI Services","datePublished":"2026-04-09","author":{"@type":"Organization","name":"MAXIA"},"publisher":{"@type":"Organization","name":"MAXIA"},"mainEntityOfPage":"https://maxiaworld.app/blog/bitcoin-lightning-l402-ai-micropayments"}</script>
+<style>body{font-family:Inter,system-ui,sans-serif;background:#060a14;color:#e4e4e7;max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.7}a{color:#00e5ff}h1{font-size:2.2em;line-height:1.15}h2{font-size:1.5em;margin-top:1.8em;color:#fff;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:.3em}.meta{color:#71717a;font-size:.9em;margin-bottom:2em}code{background:#1a1e2e;padding:2px 6px;border-radius:4px;font-family:monospace}pre{background:#1a1e2e;padding:16px;border-radius:8px;overflow-x:auto;font-size:.88em}ul,ol{padding-left:1.4em}li{margin:.4em 0}.nav{margin-bottom:2em;padding-bottom:1em;border-bottom:1px solid rgba(255,255,255,.08)}.nav a{margin-right:18px}.cta{margin-top:3em;padding:24px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:12px;text-align:center}</style>
+</head><body>
+<nav class="nav"><a href="/">MAXIA</a> <a href="/blog">Blog</a> <a href="/docs">Docs</a> <a href="/register">Register</a></nav>
+<h1>Bitcoin Lightning + L402: Micropayments for AI Services</h1>
+<p class="meta">Published 2026-04-09 — by MAXIA</p>
+
+<p><strong>L402 is a protocol that turns HTTP 402 "Payment Required" into a real payment rail.</strong> Built by Lightning Labs on top of Bitcoin's Lightning Network, it lets an AI agent pay for a single API call in sats (satoshis, 1/100,000,000 of a Bitcoin) without opening an account, providing a credit card, or filling out a form. This guide explains how it works and how MAXIA uses it.</p>
+
+<h2>The problem L402 solves</h2>
+<p>An AI agent wants to call an API. The API costs $0.001 per call. There is no way to charge $0.001 via Stripe — the minimum transaction fee alone is higher than the charge. Subscription models do not work either because the agent might only need one call. This is the classic "internet micropayments" problem that was unsolvable until Lightning made it cheap to send $0.001 in sats.</p>
+
+<h2>How L402 works (3 steps)</h2>
+<ol>
+<li><strong>Agent requests the API</strong> — plain HTTP GET, no auth header.</li>
+<li><strong>Server replies 402 Payment Required</strong> — the response includes an <code>L402</code> header with a Lightning invoice (BOLT11) and an unpaid macaroon (authentication token).</li>
+<li><strong>Agent pays the invoice</strong> via Lightning (1-3 seconds), gets back a preimage, adds the preimage to the macaroon, and retries the request with <code>Authorization: L402 macaroon:preimage</code>. The server validates and returns the data.</li>
+</ol>
+<p>Total round trip: under 5 seconds including the Lightning payment. Fee to the Lightning network: usually less than 1 sat.</p>
+
+<h2>Example request/response</h2>
+<pre><code># Step 1: unauth GET
+GET /api/expensive-service HTTP/1.1
+
+# Step 2: server responds 402
+HTTP/1.1 402 Payment Required
+WWW-Authenticate: L402 macaroon="AGIAJEem...", invoice="lnbc100n1p..."
+
+# Step 3: agent pays invoice, then retries
+GET /api/expensive-service HTTP/1.1
+Authorization: L402 AGIAJEem...:0203abc...
+
+HTTP/1.1 200 OK
+{ "data": "..." }
+</code></pre>
+
+<h2>Why this is revolutionary for AI agents</h2>
+<ul>
+<li><strong>No account</strong> — the agent does not register, does not give an email, does not sign terms of service.</li>
+<li><strong>No credit card</strong> — works entirely in sats, which an agent can hold in a simple Lightning wallet.</li>
+<li><strong>Per-call granularity</strong> — you can charge $0.00001 per call if you want.</li>
+<li><strong>Programmable</strong> — the whole flow is a standard HTTP transaction, so any HTTP client (curl, httpx, fetch) can handle it with a small wrapper.</li>
+<li><strong>Privacy-preserving</strong> — Lightning payments are not linked to any identity.</li>
+</ul>
+
+<h2>How MAXIA supports L402</h2>
+<p>MAXIA integrates with <strong>ln.bot</strong>, a hosted Lightning service that exposes L402 without requiring you to run a Lightning node. The MAXIA client library handles the L402 dance transparently:</p>
+<pre><code>from maxia import Maxia
+m = Maxia()
+# Enable Lightning micropayments (requires ln.bot funded wallet)
+m.enable_lightning()
+
+# This call will trigger L402, pay the invoice, and return the result
+sentiment = m.call_service("sentiment_analyzer", text="BTC to the moon")
+</code></pre>
+
+<p>Behind the scenes, MAXIA's client sends the initial request, catches the 402, pays the invoice via ln.bot, attaches the macaroon + preimage, and retries. The agent author never sees any of this.</p>
+
+<h2>Alternatives to L402</h2>
+<ul>
+<li><strong>Prepaid credits</strong> (USDC) — lower latency, deposit once, consume credits per call. MAXIA supports this via <code>POST /api/credits/deposit</code>.</li>
+<li><strong>Streaming payments</strong> — pay-per-second for long services like GPU rental. MAXIA supports this via <code>POST /api/stream/create</code>.</li>
+<li><strong>x402 v2</strong> — similar concept to L402 but using USDC on Solana/Base instead of Lightning. MAXIA supports both.</li>
+</ul>
+<p>L402 is the right choice when you want zero-friction pay-per-call, no accounts, and Bitcoin-native.</p>
+
+<div class="cta"><strong>Try L402 micropayments</strong> — <a href="https://maxiaworld.app/docs">See the Lightning integration docs</a>.</div>
+</body></html>

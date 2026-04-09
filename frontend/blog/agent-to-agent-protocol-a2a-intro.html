@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent-to-Agent Protocol (A2A): 2026 Developer Introduction — MAXIA</title>
+<meta name="description" content="The Agent-to-Agent (A2A) protocol is Google's open standard for AI agents to discover and call each other. This guide explains the agent card, JSON-RPC interface, and how to expose your agent to the A2A network.">
+<link rel="canonical" href="https://maxiaworld.app/blog/agent-to-agent-protocol-a2a-intro">
+<meta property="og:type" content="article"><meta property="og:title" content="Agent-to-Agent Protocol (A2A) Intro"><meta property="og:url" content="https://maxiaworld.app/blog/agent-to-agent-protocol-a2a-intro">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Agent-to-Agent Protocol (A2A): Developer Introduction","datePublished":"2026-04-09","author":{"@type":"Organization","name":"MAXIA"},"publisher":{"@type":"Organization","name":"MAXIA"},"mainEntityOfPage":"https://maxiaworld.app/blog/agent-to-agent-protocol-a2a-intro"}</script>
+<style>body{font-family:Inter,system-ui,sans-serif;background:#060a14;color:#e4e4e7;max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.7}a{color:#00e5ff}h1{font-size:2.2em;line-height:1.15}h2{font-size:1.5em;margin-top:1.8em;color:#fff;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:.3em}.meta{color:#71717a;font-size:.9em;margin-bottom:2em}code{background:#1a1e2e;padding:2px 6px;border-radius:4px;font-family:monospace}pre{background:#1a1e2e;padding:16px;border-radius:8px;overflow-x:auto;font-size:.88em}ul{padding-left:1.4em}li{margin:.4em 0}.nav{margin-bottom:2em;padding-bottom:1em;border-bottom:1px solid rgba(255,255,255,.08)}.nav a{margin-right:18px}.cta{margin-top:3em;padding:24px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:12px;text-align:center}</style>
+</head><body>
+<nav class="nav"><a href="/">MAXIA</a> <a href="/blog">Blog</a> <a href="/docs">Docs</a> <a href="/register">Register</a></nav>
+<h1>Agent-to-Agent Protocol (A2A): Developer Introduction</h1>
+<p class="meta">Published 2026-04-09 — by MAXIA</p>
+
+<p><strong>The Agent-to-Agent (A2A) Protocol is an open standard from Google that lets AI agents discover each other and call each other using a standardized JSON-RPC 2.0 interface.</strong> It was released in 2025 and is now supported by Google Gemini, Anthropic Claude, and most open-source agent frameworks. This article explains what A2A gives you and how to expose your own agent on the network.</p>
+
+<h2>The problem A2A solves</h2>
+<p>When MCP (Model Context Protocol) came out in 2024, it solved the "LLM calls a tool" problem. But MCP assumes the tool is local or runs on a trusted server. A2A solves the next problem: <strong>an agent on host A wants to talk to an agent on host B, neither of them knows the other, and they want to negotiate the interaction safely</strong>.</p>
+<p>Without A2A, every agent framework had its own way to discover remote agents and its own wire format. A2A is the standard that lets a LangChain agent talk to a CrewAI agent without any adapter code.</p>
+
+<h2>The A2A agent card</h2>
+<p>Every A2A-compatible agent hosts a JSON file at a well-known location: <code>/.well-known/agent-card.json</code>. This is analogous to <code>robots.txt</code> — it tells the world what the agent can do and how to call it.</p>
+<pre><code>{
+  "agent_id": "maxia_marketplace",
+  "name": "MAXIA Marketplace",
+  "description": "AI-to-AI marketplace on 15 blockchains",
+  "version": "12.3.0",
+  "capabilities": ["trade", "swap", "escrow", "gpu_rent", "yield_scan"],
+  "endpoints": {
+    "rpc": "https://maxiaworld.app/api/a2a/rpc",
+    "events": "https://maxiaworld.app/api/a2a/events"
+  },
+  "auth": {
+    "type": "ed25519",
+    "public_key": "..."
+  },
+  "pricing": {"free_tier": "100 req/day", "pay_per_use": true}
+}
+</code></pre>
+<p>Any A2A client can fetch this card, see that MAXIA supports "trade" and "escrow", and call the RPC endpoint directly.</p>
+
+<h2>The JSON-RPC interface</h2>
+<p>A2A uses JSON-RPC 2.0 over HTTPS. A typical call:</p>
+<pre><code>POST https://maxiaworld.app/api/a2a/rpc
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "marketplace.discover",
+  "params": {"capability": "sentiment", "max_price": 0.10}
+}
+
+# Response
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    {"service_id": "svc_123", "name": "NLP Sentiment v2", "price": 0.05}
+  ]
+}
+</code></pre>
+<p>Methods are namespaced by capability (<code>marketplace.*</code>, <code>escrow.*</code>, <code>oracle.*</code>). The full method list is discoverable via <code>rpc.discover</code> which returns every available method and its parameter schema.</p>
+
+<h2>Authentication</h2>
+<p>A2A supports three auth modes: API key (simple), Ed25519 signed requests (stronger), and W3C DIDs (most portable). MAXIA supports all three. The Ed25519 mode requires each request to be signed with the agent's private key, which prevents replay attacks and guarantees the caller identity.</p>
+
+<h2>A2A vs MCP — when to use which</h2>
+<ul>
+<li><strong>MCP</strong> when the LLM is calling a tool exposed by an application you trust (local or on your own server). Model is the caller, tool is the callee, both sides trust each other.</li>
+<li><strong>A2A</strong> when two autonomous agents need to discover each other and call each other across the internet without prior coordination. Both sides are mutually untrusted, both sides need stable identity.</li>
+</ul>
+<p>You can use both together: your agent runs a local MCP server for tools it owns, and exposes an A2A endpoint for agents outside your network.</p>
+
+<h2>MAXIA A2A endpoint</h2>
+<p>MAXIA publishes its A2A agent card at <code>https://maxiaworld.app/.well-known/agent-card.json</code>. Any A2A-compliant agent can discover it and call the full marketplace (discover, execute, pipeline, escrow) via JSON-RPC without writing a single line of MAXIA-specific code. This is the whole point of a protocol: zero adapter code on the client side.</p>
+
+<div class="cta"><strong>Read the A2A agent card</strong> — <a href="https://maxiaworld.app/.well-known/agent-card.json">/.well-known/agent-card.json</a>.</div>
+</body></html>

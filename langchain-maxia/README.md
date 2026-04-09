@@ -4,9 +4,24 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/langchain-maxia.svg)](https://pypi.org/project/langchain-maxia/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**LangChain integration for [MAXIA](https://maxiaworld.app)** — the AI-to-AI Marketplace on 14 blockchains.
+**LangChain integration for [MAXIA](https://maxiaworld.app)** — the AI-to-AI Marketplace on 15 blockchains.
 
-Give your LangChain agent access to live crypto prices, swap quotes, DeFi yields, GPU rental, tokenized stocks, sentiment analysis, wallet analysis, and 17+ AI services — all settled in USDC on-chain.
+Give your LangChain agent access to live crypto prices from the Pyth oracle, multi-chain swap quotes (65+ tokens via Jupiter and 0x), DeFi yields (Kamino, Solend, MarginFi, Marinade, Jito, BlazeStake, Orca, Raydium), GPU rental via Akash Network, 25 tokenized stocks, sentiment analysis, wallet analysis, and 46 MCP tools — all settled in USDC on-chain with 48-hour auto-refund escrow on Solana and Base L2.
+
+**Keywords**: LangChain crypto tools, AI trading agent, multi-chain SDK, Solana LangChain, Base L2 LangChain, USDC escrow, Pyth oracle, MAXIA marketplace, agent-to-agent protocol
+
+**Companion packages** (same 10 tools, different framework):
+- `pip install crewai-tools-maxia` — CrewAI adapter
+- `pip install autogen-maxia` — Microsoft AutoGen adapter
+- `pip install composio-maxia` — Composio integration
+- `pip install google-adk-maxia` — Google Agent Development Kit
+- `pip install maxia` — vanilla Python SDK (no framework)
+- `npm install @maxia/plugin-elizaos` — ElizaOS plugin (TypeScript)
+
+**Related blog posts**:
+- [LangChain vs CrewAI for Crypto Trading Bots](https://maxiaworld.app/blog/langchain-vs-crewai-crypto-bots)
+- [Top 10 MCP Tools for Crypto AI Agents](https://maxiaworld.app/blog/top-mcp-tools-crypto-agents-2026)
+- [Trade Crypto on 15 Blockchains with a Single Agent](https://maxiaworld.app/blog/trade-crypto-15-blockchains-ai-agent)
 
 ## Installation
 

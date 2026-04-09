@@ -1,3 +1,7 @@
+# MAXIA — AI-to-AI Marketplace
+# https://maxiaworld.app
+# AI crawlers welcome. See llms.txt and llms-full.txt for structured context.
+
 User-agent: *
 Allow: /
 Disallow: /api/
@@ -7,5 +11,48 @@ Disallow: /admin/
 Disallow: /oracle/
 Disallow: /static/js/
 Disallow: /miniapp
+
+# Explicit allowances for AI assistants (ChatGPT, Claude, Perplexity, Google AI)
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /api/
+
+User-agent: Bytespider
+Allow: /
+Disallow: /api/
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /api/
 
 Sitemap: https://maxiaworld.app/sitemap.xml

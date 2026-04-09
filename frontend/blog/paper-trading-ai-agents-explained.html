@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What is Paper Trading and Why AI Agents Need It — MAXIA</title>
+<meta name="description" content="Paper trading simulates real market orders without moving any money. For AI agents it is not optional — it is the only way to test strategy, catch bugs, and prevent catastrophic loss.">
+<link rel="canonical" href="https://maxiaworld.app/blog/paper-trading-ai-agents-explained">
+<meta property="og:type" content="article"><meta property="og:title" content="Paper Trading for AI Agents Explained"><meta property="og:url" content="https://maxiaworld.app/blog/paper-trading-ai-agents-explained">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"What is Paper Trading and Why AI Agents Need It","datePublished":"2026-04-09","author":{"@type":"Organization","name":"MAXIA"},"publisher":{"@type":"Organization","name":"MAXIA"},"mainEntityOfPage":"https://maxiaworld.app/blog/paper-trading-ai-agents-explained"}</script>
+<style>body{font-family:Inter,system-ui,sans-serif;background:#060a14;color:#e4e4e7;max-width:760px;margin:0 auto;padding:40px 24px;line-height:1.7}a{color:#00e5ff}h1{font-size:2.2em;line-height:1.15}h2{font-size:1.5em;margin-top:1.8em;color:#fff;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:.3em}.meta{color:#71717a;font-size:.9em;margin-bottom:2em}code{background:#1a1e2e;padding:2px 6px;border-radius:4px;font-family:monospace}ul,ol{padding-left:1.4em}li{margin:.4em 0}.nav{margin-bottom:2em;padding-bottom:1em;border-bottom:1px solid rgba(255,255,255,.08)}.nav a{margin-right:18px}.cta{margin-top:3em;padding:24px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);border-radius:12px;text-align:center}</style>
+</head><body>
+<nav class="nav"><a href="/">MAXIA</a> <a href="/blog">Blog</a> <a href="/docs">Docs</a> <a href="/register">Register</a></nav>
+<h1>Paper Trading for AI Agents, Explained</h1>
+<p class="meta">Published 2026-04-09 — by MAXIA</p>
+
+<p><strong>Paper trading is the practice of executing trades against live market data without actually moving any money.</strong> The agent reads real prices, computes the same orders it would execute in production, records the fills, and tracks the PnL. But no token is ever transferred. This is how serious quant teams test strategies before going live — and why MAXIA enables it by default for every new agent.</p>
+
+<h2>The 3 failure modes paper trading catches</h2>
+
+<h3>1. Code bugs that leak money</h3>
+<p>A classic mistake: "buy 100 USDC worth of ETH" executes as "buy 100 ETH" because of a unit confusion. In paper trading this shows up as a negative PnL of thousands of dollars in the first minute — obviously wrong, easy to fix. In real trading it becomes a rugpull on your own wallet.</p>
+
+<h3>2. Strategy flaws</h3>
+<p>An agent might look profitable in backtests (historical data) and then lose money in live markets because the backtest did not model slippage, fees, or latency. Paper trading uses live prices and live latency, so it catches this gap between simulation and reality.</p>
+
+<h3>3. Over-fitting to recent data</h3>
+<p>An agent tuned on the last 3 months will likely fail on different market regimes. Running paper trading for at least 2 weeks before going live shows whether the strategy is robust.</p>
+
+<h2>Paper trading vs backtesting — not the same thing</h2>
+<ul>
+<li><strong>Backtesting</strong> replays historical price data against your strategy. Fast, free, lets you test years of data in minutes. But it cannot catch latency bugs, order-matching bugs, or live-market behavior.</li>
+<li><strong>Paper trading</strong> runs the real strategy against real live data in real time. Slower (days to weeks of observation), but it catches the bugs backtesting misses.</li>
+</ul>
+<p>A rigorous process uses both: backtest first to validate the idea, then paper-trade for 2-4 weeks to confirm it works in live conditions, then go live with a small real allocation.</p>
+
+<h2>How MAXIA implements paper trading</h2>
+<p>Every new MAXIA agent starts in paper mode. Calls to <code>m.swap_execute()</code> do not move any tokens — instead, they log a simulated fill at the current Pyth price, apply realistic slippage (0.1-0.5% based on the pair), and update a virtual portfolio. The agent sees exactly the same API responses as it would in live mode: trade ID, fill price, output amount, timestamp. The only difference is that no blockchain transaction happens.</p>
+
+<p>To enable real trading, the agent calls <code>m.enable_real_trading(confirm="I understand I can lose money")</code> and the next <code>swap_execute</code> call moves real tokens. This explicit opt-in step is required on every agent and cannot be skipped by a config flag — it must be a live API call, which prevents accidental production deployments.</p>
+
+<h2>Key metrics to track during paper trading</h2>
+<ul>
+<li><strong>Sharpe ratio</strong> — return / volatility. Above 1.5 is promising, above 2 is excellent.</li>
+<li><strong>Max drawdown</strong> — biggest loss from peak to trough. Lower is better.</li>
+<li><strong>Win rate</strong> — percentage of profitable trades. Not the only metric — a bot with 30% win rate and 4:1 reward/risk is better than 90% win rate with 1:10 reward/risk.</li>
+<li><strong>Turnover</strong> — how often the bot trades. Higher turnover means higher commission impact.</li>
+<li><strong>Slippage vs expected</strong> — real fill vs quoted price. If this diverges, the quote is stale or the liquidity is thinner than assumed.</li>
+</ul>
+
+<div class="cta"><strong>Start in paper mode (free)</strong> — <a href="https://maxiaworld.app/register">Register an agent</a> — all new agents default to paper trading.</div>
+</body></html>
