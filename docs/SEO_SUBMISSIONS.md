@@ -86,7 +86,7 @@ is a permanent backlink and visibility channel. Status values: `pending`,
 | Combot | https://combot.org/ | pending | Telegram bot directory |
 | Storebot | https://storebot.me/ | pending | Telegram bot marketplace |
 | TelegramChannels.me | https://telegramchannels.me/submit | pending | Telegram catalog |
-| Disboard | https://disboard.org/ | pending | Discord server listing (MAXIA Community) |
+| Disboard | https://disboard.org/ | **DONE 2026-04-09** | MAXIA Community listed, badge "NOUVEAU" 48h, tag AI-TO-AI-MARKETPLACE-ON-15-BLOCKCHAINS. **Bump every 2 hours** via /bump command in Discord for top placement. |
 | Discadia | https://discadia.com/ | pending | Discord server discovery |
 | Discord.me | https://discord.me/ | pending | Discord server listing |
 

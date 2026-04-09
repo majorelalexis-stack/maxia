@@ -121,6 +121,17 @@
       "status": "live",
       "mode": "broadcast",
       "auto_translate_enabled": false
+    },
+    "disboard_listing": {
+      "url": "https://disboard.org/",
+      "status": "live",
+      "listed_at": "2026-04-09",
+      "server_name": "MAXIA Community",
+      "badge": "NOUVEAU (48h)",
+      "tag": "AI-TO-AI-MARKETPLACE-ON-15-BLOCKCHAINS",
+      "bump_command": "/bump",
+      "bump_interval_minutes": 120,
+      "bump_location": "MAXIA Community Discord, any channel"
     }
   }
 }
