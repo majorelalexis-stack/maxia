@@ -567,6 +567,136 @@ class TestHelpers:
         assert cb._should_escalate(None) is False  # type: ignore[arg-type]
         assert cb._should_escalate(123) is False  # type: ignore[arg-type]
 
+    # ── False-positive regression guards (word boundaries) ──
+
+    def test_should_escalate_no_fp_tissue(self):
+        import ceo_bridge as cb
+        # "sue" inside "tissue" must NOT trigger escalation
+        assert cb._should_escalate("I have a tissue issue") is False
+
+    def test_should_escalate_no_fp_ensued(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("chaos ensued after the release") is False
+
+    def test_should_escalate_no_fp_hackathon(self):
+        import ceo_bridge as cb
+        # "hack" IS inside "hackathon" but with \b the word-bounded
+        # check only matches the standalone word. "hackathon" is a full
+        # word itself, so \bhack\b does NOT match — False.
+        assert cb._should_escalate("I joined a hackathon last week") is False
+
+    # ── Multilingual positive cases — 13 languages ──
+
+    def test_should_escalate_french_remboursement(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("je veux un remboursement maintenant") is True
+
+    def test_should_escalate_french_avocat(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("je vais prendre un avocat") is True
+
+    def test_should_escalate_spanish_reembolso(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("quiero mi reembolso ahora") is True
+
+    def test_should_escalate_spanish_estafa(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("esto es una estafa") is True
+
+    def test_should_escalate_german_rueckerstattung(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("ich brauche eine Rückerstattung") is True
+
+    def test_should_escalate_german_anwalt(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("ich werde einen Anwalt einschalten") is True
+
+    def test_should_escalate_portuguese_reembolso(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("quero meu reembolso") is True
+
+    def test_should_escalate_italian_rimborso(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("voglio un rimborso") is True
+
+    def test_should_escalate_italian_truffa(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("è una truffa") is True
+
+    def test_should_escalate_dutch_terugbetaling(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("ik wil een terugbetaling") is True
+
+    def test_should_escalate_turkish_dolandirici(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("siz dolandırıcısınız") is True
+
+    def test_should_escalate_russian_vozvrat(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("я хочу возврат денег") is True
+
+    def test_should_escalate_russian_vzlom(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("мой кошелек взломан") is True
+
+    def test_should_escalate_arabic_refund(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("أريد استرداد الأموال") is True
+
+    def test_should_escalate_arabic_lawyer(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("سأتحدث مع محامي") is True
+
+    def test_should_escalate_hindi_refund(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("मुझे धनवापसी चाहिए") is True
+
+    def test_should_escalate_hindi_lawyer(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("मैं वकील से बात करूंगा") is True
+
+    def test_should_escalate_chinese_refund(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("我要退款") is True
+
+    def test_should_escalate_chinese_scam(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("这是一个骗局") is True
+
+    def test_should_escalate_chinese_stolen(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("我的钱包被盗了") is True
+
+    def test_should_escalate_japanese_refund(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("返金してください") is True
+
+    def test_should_escalate_japanese_lawyer(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("弁護士に相談します") is True
+
+    def test_should_escalate_japanese_scam(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("これは詐欺です") is True
+
+    # ── Multilingual negative cases — normal messages should NOT escalate ──
+
+    def test_should_escalate_french_normal(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("Bonjour, comment fonctionne le swap ?") is False
+
+    def test_should_escalate_chinese_normal(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("MAXIA 支持哪些区块链?") is False
+
+    def test_should_escalate_japanese_normal(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("MAXIAはどのように動作しますか") is False
+
+    def test_should_escalate_spanish_normal(self):
+        import ceo_bridge as cb
+        assert cb._should_escalate("¿Qué es MAXIA?") is False
+
     def test_validate_channel_lowercases(self):
         import ceo_bridge as cb
         assert cb._validate_channel("DISCORD") == "discord"

@@ -71,23 +71,133 @@ MAX_MESSAGE_CHARS = 4000
 MAX_RESPONSE_CHARS = 4000
 MAX_PENDING_LIMIT = 50
 
-# Escalation keywords — CEO Local can also flag escalated=True itself,
-# but this is a belt-and-braces server-side check. Case-insensitive.
+# Escalation keywords — server-side safety net on top of CEO Local's
+# client-side check. Multilingual across the 13 languages spoken in
+# MAXIA Community (EN, FR, ES, DE, PT, IT, NL, TR, RU, AR, HI, ZH, JA).
+#
+# Two checks run:
+#   1) ``_ESCALATION_WORD_RE`` — Latin/Cyrillic/Arabic/Devanagari words
+#      with proper ``\b`` word boundaries so "issue"/"tissue"/"ensued"
+#      don't match "sue"/"sued".
+#   2) ``_ESCALATION_CJK_KEYWORDS`` — plain substring check for Chinese
+#      and Japanese, which have no whitespace between words.
+#
+# Both checks err on the side of OVER-escalation: it is always better to
+# route a sensitive question to Alexis than to let the bot answer a
+# legal/refund/hack question on its own.
+
+import re as _re
+
+# Word-boundary regex — Latin-only (no combining-mark weirdness, no
+# agglutinative suffix problems). Languages: EN, FR, ES, DE, PT, IT, NL.
+_ESCALATION_WORD_RE = _re.compile(
+    r"\b("
+    # ─ English ─
+    r"refund|refunded|refunding|"
+    r"chargeback|"
+    r"lawsuit|legal|lawyer|attorney|"
+    r"sue|sued|suing|"
+    r"hack|hacked|hacker|hacking|"
+    r"stolen|steal|stole|"
+    r"scam|scammed|scammer|"
+    r"fraud|defraud|fraudulent|"
+    r"exploit|exploited|"
+    r"phish|phishing|"
+    r"kyc|aml|gdpr|ccpa|"
+    r"police|compromise|compromised|"
+    # ─ French ─
+    r"remboursement|rembourser|rembourse|remboursee|"
+    r"juridique|avocat|poursuite|poursuivre|poursuivi|"
+    r"plainte|plaindre|"
+    r"piratage|pirater|piratee|"
+    r"arnaque|arnaquer|"
+    r"escroquerie|escroc|"
+    r"fraude|frauder|"
+    r"vole|volee|voler|derobe|derobee|"
+    r"litige|tribunal|reclamation|reclamer|"
+    # ─ Spanish ─
+    r"reembolso|reembolsar|reembolsado|"
+    r"abogado|demanda|demandar|"
+    r"hackeado|hackear|"
+    r"robado|robar|"
+    r"estafa|estafar|estafado|"
+    r"fraudulento|"
+    r"denuncia|denunciar|policia|"
+    r"juicio|pleito|"
+    # ─ German ─
+    r"rueckerstattung|rückerstattung|erstattung|erstatten|"
+    r"anwalt|rechtlich|klage|klagen|"
+    r"gehackt|"
+    r"gestohlen|diebstahl|"
+    r"betrug|betrogen|"
+    r"polizei|beschwerde|gericht|"
+    # ─ Portuguese (BR) ─
+    r"reembolso|advogado|processo|processar|"
+    r"roubado|roubar|"
+    r"golpe|golpista|fraudado|"
+    r"policia|tribunal|"
+    # ─ Italian ─
+    r"rimborso|rimborsare|"
+    r"avvocato|causa|denuncia|denunciare|"
+    r"hackerato|"
+    r"rubato|rubare|furto|"
+    r"truffa|truffato|frode|"
+    r"reclamo|tribunale|"
+    # ─ Dutch ─
+    r"terugbetaling|terugbetalen|"
+    r"advocaat|rechtszaak|"
+    r"gestolen|stelen|"
+    r"oplichting|oplichter|"
+    r"politie|klacht|rechtbank"
+    r")\b",
+    _re.IGNORECASE | _re.UNICODE,
+)
+
+# Substring keywords — non-Latin scripts + agglutinative Turkish.
+# Substring match is used because either the script has no word
+# boundaries (CJK) or suffixes are appended freely to stems (TR, HI,
+# AR, RU). Each stem is deliberately unique enough to avoid
+# cross-language false positives.
+_ESCALATION_CJK_KEYWORDS: tuple[str, ...] = (
+    # Turkish (stems — suffixes append freely so we match the stem)
+    "iade ", " iade", "hukuki", "avukat", " dava", "dava ",
+    "çalindi", "çalındı", "calindi", "çalmak", "calmak",
+    "dolandırıc", "dolandiric", "sahtekar", "sahteci",
+    " polis ", " polis.", "şikayet", "sikayet", "mahkeme",
+    # Russian (stems)
+    "возврат", "вернуть", "верните",
+    "юридическ", "адвокат", " иск ",
+    "взлом", "украли", "украден", "украл ",
+    "мошенничество", "мошенник", "обман",
+    "полиция", "жалоб",
+    # Arabic
+    "استرداد", "استرجاع", "قانوني", "قانونية", "محامي",
+    "دعوى", "محكمة", "اختراق", "سرقة", "سرق",
+    "احتيال", "نصب", "شرطة", "شكوى",
+    # Hindi (Devanagari)
+    "धनवापसी", "वापसी", "कानूनी", "वकील", "मुकदमा", "न्यायालय",
+    "हैक", "चोरी", "चोर", "धोखाधड़ी", "धोखा", "घोटाला",
+    "पुलिस", "शिकायत",
+    # Simplified Chinese
+    "退款", "退钱", "退还", "赔偿",
+    "律师", "法律", "起诉", "诉讼", "打官司",
+    "被黑", "被盗", "黑客", "盗了", "盗取", "窃取",
+    "欺诈", "诈骗", "骗局", "骗子",
+    "警察", "报警", "投诉",
+    # Japanese
+    "返金", "払い戻", "弁護士", "法的", "訴訟", "訴える",
+    "ハッキング", "ハック", "盗まれ", "盗難",
+    "詐欺", "通報", "苦情",
+)
+
+# Back-compat alias — flat tuple of English/French keywords. The real
+# multilingual detection lives in _should_escalate(). This tuple is
+# still exported for test eyeballing and backwards compatibility.
 SENSITIVE_KEYWORDS = (
-    "refund",
-    "lawsuit",
-    "legal",
-    "lawyer",
-    "sue",
-    "hack",
-    "stolen",
-    "scam",
-    "fraud",
-    "exploit",
-    "kyc",
-    "police",
-    "gdpr",
-    "chargeback",
+    "refund", "lawsuit", "legal", "lawyer", "sue",
+    "hack", "stolen", "scam", "fraud", "exploit",
+    "kyc", "police", "gdpr", "chargeback",
+    "remboursement", "avocat", "arnaque", "piratage", "fraude",
 )
 
 
@@ -131,11 +241,23 @@ def _validate_message(message: str) -> str:
 
 
 def _should_escalate(text: str) -> bool:
-    """Return True if ``text`` contains any sensitive keyword."""
-    if not isinstance(text, str):
+    """Return True if ``text`` contains any sensitive keyword.
+
+    Runs two passes:
+      1. A Unicode word-boundary regex over all non-CJK scripts
+         (Latin, Cyrillic, Arabic, Devanagari). This avoids false
+         positives like "tissue" matching "sue".
+      2. A plain substring scan for CJK (Chinese + Japanese), since
+         those scripts don't use whitespace between words.
+    """
+    if not isinstance(text, str) or not text:
         return False
-    lowered = text.lower()
-    return any(kw in lowered for kw in SENSITIVE_KEYWORDS)
+    if _ESCALATION_WORD_RE.search(text):
+        return True
+    for kw in _ESCALATION_CJK_KEYWORDS:
+        if kw in text:
+            return True
+    return False
 
 
 async def ingest_message(

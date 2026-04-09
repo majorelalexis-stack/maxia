@@ -64,17 +64,107 @@ POLL_TIMEOUT_SECONDS = 15
 LLM_MAX_TOKENS = 400
 LLM_TIMEOUT_SECONDS = 120
 
-# Server-side escalation keywords — mirror of ceo_bridge.SENSITIVE_KEYWORDS
-# so CEO Local can tag messages BEFORE sending, even if the server hasn't
-# pre-flagged them. Lower-case, substring match.
-_ESCALATION_RE = re.compile(
+# Server-side escalation keywords — mirrors backend/ceo_bridge.py so
+# CEO Local can skip the LLM call entirely when the user's message is
+# clearly sensitive. Multilingual across the 13 MAXIA Community
+# languages. Runs a word-boundary regex over non-CJK scripts PLUS a
+# substring scan over CJK (Chinese + Japanese).
+_ESCALATION_WORD_RE = re.compile(
     r"\b("
-    r"refund|lawsuit|legal|lawyer|sue|sued|"
-    r"hack(?:ed)?|stolen|scam|fraud|exploit|"
-    r"kyc|police|gdpr|chargeback|compromise[d]?"
+    # English
+    r"refund|refunded|refunding|chargeback|"
+    r"lawsuit|legal|lawyer|attorney|sue|sued|suing|"
+    r"hack|hacked|hacker|hacking|"
+    r"stolen|steal|stole|"
+    r"scam|scammed|scammer|"
+    r"fraud|defraud|fraudulent|"
+    r"exploit|exploited|phish|phishing|"
+    r"kyc|aml|gdpr|ccpa|police|compromise|compromised|"
+    # French
+    r"remboursement|rembourser|rembourse|remboursee|"
+    r"juridique|avocat|poursuite|poursuivre|poursuivi|"
+    r"plainte|plaindre|piratage|pirater|piratee|"
+    r"arnaque|arnaquer|escroquerie|escroc|"
+    r"fraude|frauder|vole|volee|voler|derobe|derobee|"
+    r"litige|tribunal|reclamation|reclamer|"
+    # Spanish
+    r"reembolso|reembolsar|reembolsado|"
+    r"abogado|demanda|demandar|"
+    r"hackeado|hackear|robado|robar|"
+    r"estafa|estafar|estafado|fraudulento|"
+    r"denuncia|denunciar|policia|juicio|pleito|"
+    # German
+    r"rueckerstattung|rückerstattung|erstattung|erstatten|"
+    r"anwalt|rechtlich|klage|klagen|"
+    r"gehackt|gestohlen|diebstahl|"
+    r"betrug|betrogen|polizei|beschwerde|gericht|"
+    # Portuguese
+    r"reembolso|advogado|processo|processar|"
+    r"roubado|roubar|golpe|golpista|fraudado|"
+    r"policia|tribunal|"
+    # Italian
+    r"rimborso|rimborsare|avvocato|causa|"
+    r"denuncia|denunciare|hackerato|"
+    r"rubato|rubare|furto|"
+    r"truffa|truffato|frode|reclamo|tribunale|"
+    # Dutch
+    r"terugbetaling|terugbetalen|advocaat|rechtszaak|"
+    r"gestolen|stelen|oplichting|oplichter|"
+    r"politie|klacht|rechtbank"
     r")\b",
-    re.IGNORECASE,
+    re.IGNORECASE | re.UNICODE,
 )
+
+# Substring keywords — non-Latin scripts (CJK, Cyrillic, Arabic,
+# Devanagari) + agglutinative Turkish. Word boundaries don't work
+# reliably for these, so we match stems as substrings.
+_ESCALATION_CJK_KEYWORDS: tuple[str, ...] = (
+    # Turkish
+    "iade ", " iade", "hukuki", "avukat", " dava", "dava ",
+    "çalindi", "çalındı", "calindi", "çalmak", "calmak",
+    "dolandırıc", "dolandiric", "sahtekar", "sahteci",
+    " polis ", " polis.", "şikayet", "sikayet", "mahkeme",
+    # Russian
+    "возврат", "вернуть", "верните",
+    "юридическ", "адвокат", " иск ",
+    "взлом", "украли", "украден", "украл ",
+    "мошенничество", "мошенник", "обман",
+    "полиция", "жалоб",
+    # Arabic
+    "استرداد", "استرجاع", "قانوني", "قانونية", "محامي",
+    "دعوى", "محكمة", "اختراق", "سرقة", "سرق",
+    "احتيال", "نصب", "شرطة", "شكوى",
+    # Hindi
+    "धनवापसी", "वापसी", "कानूनी", "वकील", "मुकदमा", "न्यायालय",
+    "हैक", "चोरी", "चोर", "धोखाधड़ी", "धोखा", "घोटाला",
+    "पुलिस", "शिकायत",
+    # Simplified Chinese
+    "退款", "退钱", "退还", "赔偿",
+    "律师", "法律", "起诉", "诉讼", "打官司",
+    "被黑", "被盗", "黑客", "盗了", "盗取", "窃取",
+    "欺诈", "诈骗", "骗局", "骗子",
+    "警察", "报警", "投诉",
+    # Japanese
+    "返金", "払い戻", "弁護士", "法的", "訴訟", "訴える",
+    "ハッキング", "ハック", "盗まれ", "盗難",
+    "詐欺", "通報", "苦情",
+)
+
+
+def _is_sensitive(text: str) -> bool:
+    """Multilingual sensitive-keyword check."""
+    if not isinstance(text, str) or not text:
+        return False
+    if _ESCALATION_WORD_RE.search(text):
+        return True
+    for kw in _ESCALATION_CJK_KEYWORDS:
+        if kw in text:
+            return True
+    return False
+
+
+# Back-compat alias for existing call sites
+_ESCALATION_RE = _ESCALATION_WORD_RE
 
 # Per-channel max reply length (dispatcher will trim again, but we do
 # the trimming client-side so the LLM doesn't waste tokens).
@@ -240,9 +330,9 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
     lang_name = _detect_lang(language_code)
 
     # Client-side escalation check BEFORE calling the LLM.
-    # If the message contains sensitive keywords, skip the LLM entirely
-    # and flag it so Alexis handles it manually.
-    if pre_escalated or _ESCALATION_RE.search(user_message):
+    # If the message contains sensitive keywords (any of 13 languages),
+    # skip the LLM entirely and flag it so Alexis handles it manually.
+    if pre_escalated or _is_sensitive(user_message):
         log.info(
             "[vps_bridge] msg=%s ESCALATE (sensitive keywords, no LLM call)",
             msg_id,
