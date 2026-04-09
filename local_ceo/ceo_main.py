@@ -1,7 +1,19 @@
-"""CEO Local V3 — Entry point. Refactored from ceo_local_v2.py.
+"""CEO Local V3 + V9 — Entry point. Refactored from ceo_local_v2.py.
 
-21 missions, single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx), zero spam.
+27 missions (19 historical + 8 V9), single model qwen3.5:27b (dense
+27.8B, multimodal, 256K ctx), zero spam, no Twitter (Plan V9).
 IMPORTANT: CEO proposes content, Alexis validates and posts manually.
+
+V9 missions added 2026-04-09:
+  - disboard_bump (Telegram reminder every 2h, 9-21h, max 8/day)
+  - github_prospect (10h daily, multilingual cold emails)
+  - community_news (9h daily, MAXIA Community #announcements post)
+  - blog_crosspost (14h daily, Dev.to + Hashnode)
+  - weekly_report (Mon 9h, email Alexis)
+  - reddit_watch (hourly, read-only, 8 subreddits)
+  - seo_submit (Mon/Wed/Fri 10h, directory submission reminder)
+  - telegram_smart_reply (library, used by telegram_chat for grounded answers)
+
 Usage:
   python ceo_main.py          # autonomous mode (all missions)
   python ceo_main.py chat     # interactive terminal mode
@@ -478,11 +490,12 @@ def main():
         asyncio.run(terminal_mode())
     else:
         print("""
-    +--------------------------------------------------+
-    |    MAXIA CEO Local V3                            |
-    |    21 missions - 1 modele (qwen3.5:27b) - 0 spam |
-    |    Mode: PROPOSE -> Alexis valide -> poste       |
-    +--------------------------------------------------+
+    +-----------------------------------------------------+
+    |    MAXIA CEO Local V3 + V9                          |
+    |    27 missions - qwen3.5:27b - 0 spam - 0 Twitter   |
+    |    Plan V9: 8 autonomous missions added 2026-04-09  |
+    |    Mode: PROPOSE -> Alexis valide -> poste          |
+    +-----------------------------------------------------+
         """)
         asyncio.run(run())
 

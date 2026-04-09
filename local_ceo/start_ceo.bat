@@ -1,11 +1,14 @@
 @echo off
-title CEO MAXIA Local V3 - 21 missions - qwen3.5:27b
+title CEO MAXIA Local V3+V9 - 27 missions - qwen3.5:27b
 cd /d "C:\Users\Mini pc\Desktop\MAXIA V12\local_ceo"
 
-echo [CEO MAXIA V3] ========================================
-echo [CEO MAXIA V3] 1 modele (qwen3.5:27b) - 21 missions - 0 spam
-echo [CEO MAXIA V3] IMPORTANT: CEO proposes content, Alexis validates and posts manually
-echo [CEO MAXIA V3] ========================================
+echo [CEO MAXIA V3+V9] ========================================
+echo [CEO MAXIA V3+V9] qwen3.5:27b - 27 missions - 0 spam - 0 Twitter
+echo [CEO MAXIA V3+V9] V9 added: disboard_bump, github_prospect, community_news,
+echo [CEO MAXIA V3+V9]           blog_crosspost, weekly_report, reddit_watch,
+echo [CEO MAXIA V3+V9]           seo_submit, telegram_smart_reply
+echo [CEO MAXIA V3+V9] CEO proposes content (Alexis validates) + V9 auto actions
+echo [CEO MAXIA V3+V9] ========================================
 
 :: Config Ollama — single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx)
 :: Replaces old 3-model setup (qwen3:14b + qwen3.5:9b + qwen2.5vl:7b)

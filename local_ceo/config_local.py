@@ -1,7 +1,10 @@
-"""Config CEO Local V3 — Single model Qwen 3.5 27B (dense, multimodal, 256K), 21 missions, zero spam.
+"""Config CEO Local V3 + V9 — Single model Qwen 3.5 27B, 27 missions, zero spam, no Twitter.
 
-Le CEO ne poste JAMAIS directement. Il propose du contenu,
-Alexis valide et poste manuellement. Tout passe par Telegram (Go/No).
+Le CEO ne poste JAMAIS directement (sauf MAXIA Community Discord ou il est admin).
+Il propose du contenu, Alexis valide et poste manuellement.
+Tout passe par Telegram (Go/No) sauf les actions auto V9 (DISBOARD bump reminder,
+GitHub prospector email, community news post, blog crosspost, weekly report,
+Reddit watch, SEO submit reminder).
 """
 import os
 from dotenv import load_dotenv
