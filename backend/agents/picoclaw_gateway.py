@@ -45,7 +45,21 @@ CREATE TABLE IF NOT EXISTS ceo_commands (
 );
 CREATE INDEX IF NOT EXISTS idx_ceo_cmd_status ON ceo_commands(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_ceo_cmd_user ON ceo_commands(user_id);
+
+CREATE TABLE IF NOT EXISTS ceo_approvals (
+    action_id TEXT PRIMARY KEY,
+    approved INTEGER NOT NULL DEFAULT 0,
+    action_name TEXT DEFAULT '',
+    level TEXT DEFAULT 'ORANGE',
+    decided_at INTEGER NOT NULL,
+    decided_by TEXT DEFAULT 'alexis'
+);
+CREATE INDEX IF NOT EXISTS idx_ceo_approvals_decided ON ceo_approvals(decided_at DESC);
 """
+
+# Valid approval levels (align with CEO local request_approval())
+APPROVAL_LEVELS = {"GREEN", "ORANGE", "RED"}
+_ACTION_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 
 # Valid platforms
 PLATFORMS = {"web", "telegram", "discord", "slack", "api", "mcp"}
@@ -262,6 +276,125 @@ async def get_response(
         "platform": r["platform"],
         "created_at": r["created_at"],
         "responded_at": r["responded_at"],
+    }
+
+
+# ══════════════════════════════════════════
+#  APPROVAL-RESULT — CEO local notifies VPS of Alexis's decision
+# ══════════════════════════════════════════
+#
+# Flow:
+#   1. CEO local (local_ceo/missions/telegram_chat.py) calls
+#      request_approval() which sends a Telegram message with GO/NO buttons.
+#   2. Alexis taps a button; CEO local receives the callback_query.
+#   3. CEO local POSTs to this endpoint with {action_id, approved} so the
+#      VPS has an auditable record and can expose status to other services.
+#
+# Auth: CEO local historically posts WITHOUT headers. To stay compatible we
+# accept unauthenticated POSTs, but if X-CEO-Key is provided we validate it
+# (strict mode). Idempotent on action_id (first write wins).
+
+@router.post("/approval-result")
+async def approval_result(
+    req: dict,
+    x_ceo_key: Optional[str] = Header(None, alias="X-CEO-Key"),
+) -> dict:
+    """Record Alexis's approval decision for a pending CEO action.
+
+    Body: {
+        "action_id": "abc123",      # required, must match regex ^[A-Za-z0-9_-]{1,64}$
+        "approved": true,            # required, bool
+        "action_name": "post_tweet", # optional, display name
+        "level": "ORANGE",           # optional, GREEN|ORANGE|RED
+    }
+    """
+    # Optional strict auth (if header present, must be valid)
+    if x_ceo_key is not None:
+        _require_ceo_key(x_ceo_key)
+
+    await _ensure_schema()
+
+    action_id = str(req.get("action_id", "")).strip()
+    if not action_id or not _ACTION_ID_RE.match(action_id):
+        raise HTTPException(400, "action_id required (alnum/_/-, 1-64 chars)")
+
+    approved_raw = req.get("approved")
+    if not isinstance(approved_raw, bool):
+        raise HTTPException(400, "approved must be boolean")
+
+    action_name = str(req.get("action_name", ""))[:128]
+    level = str(req.get("level", "ORANGE")).upper()
+    if level not in APPROVAL_LEVELS:
+        level = "ORANGE"
+
+    db = await _get_db()
+    now = int(time.time())
+
+    # Idempotent: check existing first
+    existing = await db.raw_execute_fetchall(
+        "SELECT approved, decided_at FROM ceo_approvals WHERE action_id=?",
+        (action_id,),
+    )
+    if existing:
+        row = dict(existing[0])
+        return {
+            "success": True,
+            "action_id": action_id,
+            "approved": bool(row.get("approved", 0)),
+            "decided_at": int(row.get("decided_at", 0)),
+            "idempotent": True,
+        }
+
+    await db.raw_execute(
+        "INSERT INTO ceo_approvals(action_id, approved, action_name, level, "
+        "decided_at, decided_by) VALUES(?,?,?,?,?,?)",
+        (action_id, 1 if approved_raw else 0, action_name, level, now, "alexis"),
+    )
+
+    logger.info(
+        "[CEO] Approval recorded: action_id=%s approved=%s level=%s",
+        action_id, approved_raw, level,
+    )
+
+    return {
+        "success": True,
+        "action_id": action_id,
+        "approved": approved_raw,
+        "decided_at": now,
+        "idempotent": False,
+    }
+
+
+@router.get("/approval-result/{action_id}")
+async def get_approval_result(
+    action_id: str,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+) -> dict:
+    """Read the approval decision for a given action_id.
+
+    Auth: optional API key (allows anonymous reads for public audit trail).
+    """
+    if not _ACTION_ID_RE.match(action_id):
+        raise HTTPException(400, "invalid action_id")
+
+    await _ensure_schema()
+    db = await _get_db()
+    rows = await db.raw_execute_fetchall(
+        "SELECT action_id, approved, action_name, level, decided_at, decided_by "
+        "FROM ceo_approvals WHERE action_id=?",
+        (action_id,),
+    )
+    if not rows:
+        raise HTTPException(404, "action_id not found")
+
+    row = dict(rows[0])
+    return {
+        "action_id": row["action_id"],
+        "approved": bool(row.get("approved", 0)),
+        "action_name": row.get("action_name", ""),
+        "level": row.get("level", "ORANGE"),
+        "decided_at": int(row.get("decided_at", 0)),
+        "decided_by": row.get("decided_by", "alexis"),
     }
 
 
