@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "plan": "CEO V7",
+  "updated_at": 0,
+  "channels": {
+    "discord_ceo": {
+      "email": "discord-ceo@maxiaworld.app",
+      "username": "maxia_alexis",
+      "status": "planned",
+      "warming_day": 0,
+      "servers_joined": [],
+      "last_activity_at": 0,
+      "bot_client_id": "1491786027143004180",
+      "bot_application_name": "MAXIA outreach",
+      "bot_status": "live",
+      "test_server": {
+        "name": "MAXIA test",
+        "guild_id": "1491791707296104529",
+        "channels": {
+          "general": "1491791708201943266"
+        }
+      },
+      "community_server": {
+        "name": "MAXIA Community",
+        "guild_id": "1491796153241698356",
+        "owner": "alexis",
+        "bot_joined": true,
+        "created_at": "2026-04-09",
+        "structure": {
+          "INFOS": ["announcements", "rules"],
+          "COMMUNITY": ["general", "support", "dev-talk"],
+          "REGIONS": ["asia", "latam", "japan", "europe", "africa"]
+        },
+        "channels": {
+          "general": "1491799045914497095",
+          "announcements": "1491798682239111178"
+        }
+      },
+      "shortlist_manual_outreach": [
+        {
+          "name": "Solana Tech",
+          "invite": "https://discord.gg/solana",
+          "guild_id": "428295358100013066",
+          "members_total": 149173,
+          "members_online": 7790,
+          "region": "global",
+          "lang": "en",
+          "priority": 1,
+          "notes": "Official Solana Foundation Discord. Strictly moderated; value-first engagement mandatory."
+        },
+        {
+          "name": "Crypto.com",
+          "invite": "https://discord.gg/cryptocom",
+          "guild_id": "372888022452011008",
+          "members_total": 33369,
+          "members_online": 2947,
+          "region": "global",
+          "lang": "en",
+          "priority": 2,
+          "verified": true,
+          "notes": "Verified server. Mass-market audience."
+        },
+        {
+          "name": "Fraternidade Crypto",
+          "invite": "https://discord.gg/pHkTA9QJcm",
+          "guild_id": "768189244639805520",
+          "members_total": 16457,
+          "members_online": 701,
+          "region": "latam",
+          "lang": "pt-br",
+          "priority": 3,
+          "notes": "Biggest Brazilian crypto Discord. PT-BR templates ready via marketing.email_templates."
+        },
+        {
+          "name": "Solana Superteam Japan",
+          "invite": "https://discord.gg/stjp",
+          "guild_id": "1106919982224384081",
+          "members_total": 4616,
+          "members_online": 853,
+          "region": "japan",
+          "lang": "ja/en",
+          "priority": 4,
+          "notes": "Tightly-knit Solana JP community. JA templates ready. High online ratio = very active."
+        }
+      ],
+      "shortlist_skipped": [
+        {
+          "name": "Superteam India",
+          "invite": "https://discord.gg/Mq3ReaekgG",
+          "guild_id": "857091160295866388",
+          "reason": "India is in GEO_BLOCKED_COUNTRIES (RBI/FIU-IND compliance). Marketing blocked at backend layer."
+        }
+      ]
+    },
+    "email_ceo": {
+      "from": "ceo@maxiaworld.app",
+      "status": "live",
+      "warming_day": 14,
+      "sent_today": 0,
+      "bounce_rate": 0.0,
+      "last_send_at": 0
+    },
+    "telegram_bot": {
+      "handle": "@MAXIA_AI_bot",
+      "status": "live",
+      "features": [
+        "multilingue_13_langs",
+        "inline_mode",
+        "deep_links",
+        "mini_app",
+        "group_mode"
+      ],
+      "inbound_only": true,
+      "supported_languages": [
+        "en", "fr", "ja", "ko", "zh-tw", "th", "vi",
+        "id", "hi", "ar", "he", "pt-br", "es"
+      ]
+    },
+    "telegram_alerts_channel": {
+      "handle": "@MAXIA_alerts",
+      "status": "live",
+      "mode": "broadcast",
+      "auto_translate_enabled": false
+    }
+  }
+}

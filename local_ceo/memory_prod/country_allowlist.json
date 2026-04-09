@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "plan": "CEO V7",
+  "updated_at": 0,
+  "allowed": [
+    "SG", "HK", "KR", "TW", "TH", "VN", "MY", "ID", "PH", "AE", "IL",
+    "JP",
+    "AU", "NZ",
+    "NG", "ZA", "KE", "EG", "GH", "MA", "TN", "SN",
+    "BR", "AR", "MX", "CO", "CL", "PE"
+  ],
+  "geo_blocked": [
+    "IN"
+  ],
+  "blocked": [
+    "CN", "KP", "IR", "SY", "CU", "MM", "AF", "RU", "BY",
+    "US"
+  ],
+  "notes": {
+    "IN": "RBI + FIU-IND KYC obligation — discovery only, no marketing/trading",
+    "US": "MAXIA ToS exclusion — unregistered securities risk",
+    "CN": "Crypto forbidden on mainland"
+  }
+}

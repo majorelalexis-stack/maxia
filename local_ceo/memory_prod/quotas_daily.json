@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "plan": "CEO V7",
+  "updated_at": 0,
+  "channels": {
+    "discord": {
+      "per_server_daily": 10,
+      "total_daily": 30,
+      "spacing_seconds": 2700,
+      "active_hours_utc": {"start": 9, "end": 18},
+      "weekend_modifier": 0.3,
+      "warming_days": 14,
+      "status": "planned"
+    },
+    "telegram_bot": {
+      "mode": "inbound_passive",
+      "inline_cache_seconds": 5,
+      "session_ttl_seconds": 86400,
+      "rate_limit_per_minute": 30,
+      "group_per_hour": 10,
+      "private_per_hour": 300,
+      "status": "live"
+    },
+    "email": {
+      "daily_cap": 30,
+      "spacing_seconds": 1800,
+      "weekend_modifier": 0.5,
+      "warming_days": 14,
+      "from": "ceo@maxiaworld.app",
+      "status": "live"
+    }
+  },
+  "total_daily_outreach_cap": 60,
+  "notes": "Hard caps enforced in backend. Changes require code update, not just config."
+}

@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "resolved_at": 0,
+  "candidates": [
+    {
+      "code": "solana",
+      "invite_url": "https://discord.gg/solana",
+      "guild_id": "428295358100013066",
+      "guild_name": "Solana Tech",
+      "channel_id": "517161607248347156",
+      "channel_name": "guidelines",
+      "members_total": 149173,
+      "members_online": 7790,
+      "verified": false,
+      "partnered": false,
+      "region": "global",
+      "lang": "en",
+      "why": "Official Solana Tech — devs + validators + core engineering"
+    },
+    {
+      "code": "cryptocom",
+      "invite_url": "https://discord.gg/cryptocom",
+      "guild_id": "372888022452011008",
+      "guild_name": "Crypto.com",
+      "channel_id": "1395430902858776606",
+      "channel_name": "🌎-lion-takeover",
+      "members_total": 33369,
+      "members_online": 2947,
+      "verified": true,
+      "partnered": false,
+      "region": "global",
+      "lang": "en",
+      "why": "Crypto.com — massive community (use as high-volume discovery)"
+    },
+    {
+      "code": "stjp",
+      "invite_url": "https://discord.gg/stjp",
+      "guild_id": "1106919982224384081",
+      "guild_name": "Solana Superteam Japan 🇯🇵",
+      "channel_id": "1106919982668976129",
+      "channel_name": "welcome-ようこそ",
+      "members_total": 4616,
+      "members_online": 853,
+      "verified": false,
+      "partnered": false,
+      "region": "japan",
+      "lang": "ja/en",
+      "why": "Superteam Japan — Solana ecosystem hub JP"
+    },
+    {
+      "code": "pHkTA9QJcm",
+      "invite_url": "https://discord.gg/pHkTA9QJcm",
+      "guild_id": "768189244639805520",
+      "guild_name": "Fraternidade Crypto",
+      "channel_id": "825455093394571345",
+      "channel_name": "🗨𝙱𝙴𝙼-𝚅𝙸𝙽𝙳𝙾",
+      "members_total": 16457,
+      "members_online": 701,
+      "verified": false,
+      "partnered": false,
+      "region": "latam",
+      "lang": "pt-br",
+      "why": "Fraternidade Crypto Brasil — 16k+ members, Web3 since 2019"
+    },
+    {
+      "code": "Mq3ReaekgG",
+      "invite_url": "https://discord.gg/Mq3ReaekgG",
+      "guild_id": "857091160295866388",
+      "guild_name": "Superteam India",
+      "channel_id": "857091161612484632",
+      "channel_name": "💬｜general",
+      "members_total": 9523,
+      "members_online": 636,
+      "verified": false,
+      "partnered": false,
+      "region": "india",
+      "lang": "en",
+      "why": "Superteam India — Solana talent + bounties (NOTE: India geo-blocked)"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "plan": "CEO V7",
+  "updated_at": 0,
+  "incidents": [],
+  "rules": {
+    "freeze_region_on_single_ban_hours": 24,
+    "freeze_all_on_three_bans_week_hours": 72,
+    "notify_alexis_on_any_ban": true
+  }
+}
