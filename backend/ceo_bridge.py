@@ -1,4 +1,4 @@
-"""CEO Bridge — Phase 1.
+"""CEO Bridge — Phase 1 + Phase 2 (A: escalation alerts, B: janitor).
 
 Unified "CEO Local responds to everyone" bridge.
 
@@ -15,13 +15,25 @@ Flow:
 
 Security: CEO auth via ``X-CEO-Key`` header (HMAC timing-safe compare).
 
-Escalation: if the CEO Local flags ``escalated=true``, the message is
-marked ``status="escalated"`` and the response is stored but NOT
-dispatched. Alexis handles escalated messages manually (Phase 2 will
-wire this into Telegram @MAXIA_alerts automatically).
+Phase 2A — Escalation alerts
+----------------------------
+If the CEO Local flags ``escalated=true`` (or the server detects a
+sensitive keyword in the incoming message or the generated response),
+the message is marked ``status="escalated"``, the response is stored
+but NOT dispatched, AND a Telegram alert is pushed to Alexis via
+``TELEGRAM_ALERT_CHAT_ID`` / ``TELEGRAM_BOT_TOKEN``. Fire-and-forget —
+alert failures never break the reply flow.
+
+Phase 2B — Janitor
+------------------
+A background task (started from main.py lifespan) runs every 60 s and
+resets messages that have been stuck in ``status='processing'`` for
+more than ``JANITOR_STALE_SECONDS`` (default 300 s) back to
+``pending``, so a crashed poller doesn't leave messages orphaned.
 """
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import logging
@@ -38,6 +50,11 @@ logger = logging.getLogger("maxia.ceo_bridge")
 router = APIRouter(prefix="/api/ceo/messages", tags=["ceo-bridge"])
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
+TELEGRAM_API_BASE = "https://api.telegram.org"
+
+# Phase 2B janitor tuning
+JANITOR_STALE_SECONDS = 300   # messages stuck in processing >5 min get reset
+JANITOR_INTERVAL_SECONDS = 60
 
 # Valid channels for the bridge. Keep small — add more in Phase 2.
 VALID_CHANNELS = frozenset({"discord", "forum", "inbox", "email"})
@@ -269,8 +286,120 @@ async def _dispatch(channel: str, source_ref: str, response: str) -> bool:
         return await _dispatch_discord(source_ref, response)
     if channel == "forum":
         return await _dispatch_forum(source_ref, response)
-    # inbox + email: Phase 2 — store only, no dispatch
+    # inbox + email: Phase 2b — store only, no dispatch
     logger.info("[ceo_bridge] no dispatcher for channel=%s (stored only)", channel)
+    return False
+
+
+# ══════════════════════════════════════════
+#  Phase 2A — Telegram escalation alerts
+# ══════════════════════════════════════════
+
+
+def _format_escalation_alert(
+    *,
+    msg_id: str,
+    channel: str,
+    user_name: str,
+    user_id: str,
+    user_message: str,
+    draft_response: str,
+) -> str:
+    """Build a short Telegram HTML-formatted alert for Alexis.
+
+    HTML is used (not Markdown) to sidestep Discord-style markdown
+    collisions when messages contain ``*`` or ``_``.
+    """
+    import html as _html
+
+    def esc(s: str) -> str:
+        return _html.escape((s or "")[:600])
+
+    lines = [
+        "🚨 <b>ESCALADE MAXIA Assistant</b>",
+        "",
+        f"<b>Canal:</b> {esc(channel)}",
+        f"<b>User:</b> {esc(user_name) or '?'} (<code>{esc(user_id) or '?'}</code>)",
+        "",
+        "<b>Message:</b>",
+        f"<i>{esc(user_message[:500])}</i>",
+    ]
+    if draft_response:
+        lines += [
+            "",
+            "<b>Draft du bot (NON envoye):</b>",
+            f"<i>{esc(draft_response[:500])}</i>",
+        ]
+    lines += ["", f"<code>msg_id: {esc(msg_id)}</code>"]
+    return "\n".join(lines)
+
+
+async def _notify_escalation_telegram(
+    *,
+    msg_id: str,
+    channel: str,
+    user_name: str,
+    user_id: str,
+    user_message: str,
+    draft_response: str,
+) -> bool:
+    """Push an escalation alert to ``TELEGRAM_ALERT_CHAT_ID``.
+
+    Fire-and-forget — returns ``True`` on success, ``False`` on any
+    failure (missing env var, network error, non-2xx). Never raises.
+
+    Env vars:
+        TELEGRAM_BOT_TOKEN       Shared with the client bot, but we send
+                                 to the CEO alert chat (not clients).
+        TELEGRAM_ALERT_CHAT_ID   Private chat or channel id where
+                                 Alexis receives CEO alerts. Numeric
+                                 (``-100...`` for channels) or ``@handle``.
+    """
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.getenv("TELEGRAM_ALERT_CHAT_ID", "")
+    if not token or not chat_id:
+        logger.info(
+            "[ceo_bridge] escalation TG alert skipped (TELEGRAM_BOT_TOKEN or "
+            "TELEGRAM_ALERT_CHAT_ID not set) msg=%s",
+            msg_id,
+        )
+        return False
+
+    text = _format_escalation_alert(
+        msg_id=msg_id,
+        channel=channel,
+        user_name=user_name,
+        user_id=user_id,
+        user_message=user_message,
+        draft_response=draft_response,
+    )
+
+    url = f"{TELEGRAM_API_BASE}/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload)
+    except Exception as e:
+        logger.warning(
+            "[ceo_bridge] escalation TG alert network error: %s (msg=%s)",
+            e, msg_id,
+        )
+        return False
+
+    if 200 <= resp.status_code < 300:
+        logger.info("[ceo_bridge] escalation TG alert sent for msg=%s", msg_id)
+        return True
+    logger.warning(
+        "[ceo_bridge] escalation TG alert HTTP %d for msg=%s: %s",
+        resp.status_code, msg_id,
+        resp.text[:200] if isinstance(resp.text, str) else "",
+    )
     return False
 
 
@@ -382,8 +511,9 @@ async def reply_endpoint(
 
     db = await _get_db()
     rows = await db.raw_execute_fetchall(
-        "SELECT channel, source_ref, message, escalated FROM ceo_pending_replies "
-        "WHERE msg_id=?", (msg_id,),
+        "SELECT channel, source_ref, message, user_id, user_name, escalated "
+        "FROM ceo_pending_replies WHERE msg_id=?",
+        (msg_id,),
     )
     if not rows:
         raise HTTPException(404, "msg_id not found")
@@ -405,6 +535,20 @@ async def reply_endpoint(
             "[ceo_bridge] msg=%s ESCALATED (not dispatched) channel=%s",
             msg_id, row["channel"],
         )
+        # Phase 2A: fire-and-forget Telegram alert to Alexis.
+        # We schedule it as a task so the HTTP response doesn't block on
+        # the Telegram API. Failures are logged but never propagated.
+        try:
+            asyncio.create_task(_notify_escalation_telegram(
+                msg_id=msg_id,
+                channel=row.get("channel", ""),
+                user_name=row.get("user_name", "") or "",
+                user_id=row.get("user_id", "") or "",
+                user_message=row.get("message", "") or "",
+                draft_response=response,
+            ))
+        except Exception as e:
+            logger.warning("[ceo_bridge] escalation alert schedule error: %s", e)
     else:
         try:
             dispatched = await _dispatch(
@@ -461,3 +605,107 @@ async def bridge_status() -> dict:
 
 def get_router() -> APIRouter:
     return router
+
+
+# ══════════════════════════════════════════
+#  Phase 2B — Janitor (recover stuck processing messages)
+# ══════════════════════════════════════════
+
+
+async def recover_stale_processing(stale_seconds: int = JANITOR_STALE_SECONDS) -> int:
+    """Reset to ``pending`` any message stuck in ``processing`` for too long.
+
+    Returns the number of rows recovered. A message is considered
+    stuck if it entered ``processing`` (``received_at``) more than
+    ``stale_seconds`` ago — using ``received_at`` as an
+    approximation is safe because the state transition
+    ``pending → processing`` happens inside the poll endpoint, which
+    runs well under a second after ingestion.
+
+    Called periodically by the janitor loop AND exposed as a library
+    function so tests and ops can trigger it manually.
+    """
+    try:
+        db = await _get_db()
+    except Exception as e:
+        logger.warning("[ceo_bridge] janitor db unavailable: %s", e)
+        return 0
+
+    cutoff = int(time.time()) - max(30, int(stale_seconds))
+
+    try:
+        rows = await db.raw_execute_fetchall(
+            "SELECT msg_id FROM ceo_pending_replies "
+            "WHERE status=? AND received_at < ?",
+            (STATUS_PROCESSING, cutoff),
+        )
+    except Exception as e:
+        logger.warning("[ceo_bridge] janitor query error: %s", e)
+        return 0
+
+    msg_ids = [dict(r).get("msg_id", "") for r in rows]
+    msg_ids = [m for m in msg_ids if m]
+    if not msg_ids:
+        return 0
+
+    recovered = 0
+    for msg_id in msg_ids:
+        try:
+            await db.raw_execute(
+                "UPDATE ceo_pending_replies SET status=? "
+                "WHERE msg_id=? AND status=?",
+                (STATUS_PENDING, msg_id, STATUS_PROCESSING),
+            )
+            recovered += 1
+        except Exception as e:
+            logger.warning(
+                "[ceo_bridge] janitor reset failed msg=%s: %s", msg_id, e,
+            )
+
+    if recovered:
+        logger.info(
+            "[ceo_bridge] janitor recovered %d stale processing message(s)",
+            recovered,
+        )
+    return recovered
+
+
+_janitor_task: Optional[asyncio.Task] = None
+
+
+async def _janitor_loop() -> None:
+    """Forever loop — call the janitor every JANITOR_INTERVAL_SECONDS."""
+    logger.info(
+        "[ceo_bridge] janitor loop started (interval=%ds, stale=%ds)",
+        JANITOR_INTERVAL_SECONDS, JANITOR_STALE_SECONDS,
+    )
+    try:
+        while True:
+            await asyncio.sleep(JANITOR_INTERVAL_SECONDS)
+            try:
+                await recover_stale_processing()
+            except Exception as e:
+                logger.warning("[ceo_bridge] janitor iteration error: %s", e)
+    except asyncio.CancelledError:
+        logger.info("[ceo_bridge] janitor loop cancelled")
+        raise
+
+
+async def start_janitor() -> None:
+    """Start the background janitor. Idempotent."""
+    global _janitor_task
+    if _janitor_task and not _janitor_task.done():
+        return
+    _janitor_task = asyncio.create_task(_janitor_loop())
+
+
+async def stop_janitor() -> None:
+    """Stop the background janitor (called on app shutdown)."""
+    global _janitor_task
+    if _janitor_task and not _janitor_task.done():
+        _janitor_task.cancel()
+        try:
+            await _janitor_task
+        except (asyncio.CancelledError, Exception):
+            pass
+    _janitor_task = None

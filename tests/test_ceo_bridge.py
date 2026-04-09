@@ -75,6 +75,26 @@ class _FakeDB:
                 row["escalated"] = escalated
                 row["responded_at"] = now
 
+    def seed(self, msg_id: str, **fields) -> None:
+        """Test helper — insert a fully-formed row without going through ingest."""
+        base = {
+            "msg_id": msg_id,
+            "channel": "discord",
+            "source_ref": "100:200",
+            "user_id": "u",
+            "user_name": "U",
+            "message": "seed message",
+            "language": "",
+            "received_at": 0,
+            "status": "processing",
+            "response": "",
+            "confidence": 0.0,
+            "escalated": 0,
+            "responded_at": 0,
+        }
+        base.update(fields)
+        self.rows[msg_id] = base
+
     async def raw_execute_fetchall(
         self, sql: str, params: tuple[Any, ...] = ()
     ) -> list[dict[str, Any]]:
@@ -95,7 +115,7 @@ class _FakeDB:
             results.sort(key=lambda r: r["received_at"])
             return results[:limit]
 
-        if "SELECT CHANNEL, SOURCE_REF, MESSAGE, ESCALATED" in sql_up:
+        if "SELECT CHANNEL, SOURCE_REF, MESSAGE, USER_ID, USER_NAME, ESCALATED" in sql_up:
             msg_id = params[0]
             row = self.rows.get(msg_id)
             return [row] if row else []
@@ -105,6 +125,18 @@ class _FakeDB:
             for r in self.rows.values():
                 counts[r["status"]] = counts.get(r["status"], 0) + 1
             return [{"status": s, "cnt": c} for s, c in counts.items()]
+
+        if "SELECT MSG_ID FROM CEO_PENDING_REPLIES WHERE STATUS=? AND RECEIVED_AT < ?" in sql_up:
+            status, cutoff = params
+            return [
+                {"msg_id": r["msg_id"]}
+                for r in self.rows.values()
+                if r["status"] == status and r["received_at"] < cutoff
+            ]
+
+        # SELECT ID FROM FORUM_POSTS (forum dispatcher lookup — not exercised here)
+        if "FROM FORUM_POSTS" in sql_up:
+            return []
 
         return []
 
@@ -546,3 +578,176 @@ class TestHelpers:
 
         with pytest.raises(HTTPException):
             cb._validate_channel("twitter")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Phase 2A — Escalation Telegram alerts
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestEscalationAlert:
+    def test_format_alert_contains_required_fields(self):
+        import ceo_bridge as cb
+        text = cb._format_escalation_alert(
+            msg_id="msg_abc",
+            channel="discord",
+            user_name="Alice",
+            user_id="42",
+            user_message="Can I get a refund?",
+            draft_response="Draft reply here",
+        )
+        assert "ESCALADE" in text
+        assert "discord" in text
+        assert "Alice" in text
+        assert "42" in text
+        assert "refund" in text.lower()
+        assert "Draft" in text
+        assert "msg_abc" in text
+
+    def test_format_alert_escapes_html(self):
+        import ceo_bridge as cb
+        text = cb._format_escalation_alert(
+            msg_id="msg_abc",
+            channel="discord",
+            user_name="<script>",
+            user_id="42",
+            user_message="a & b",
+            draft_response="",
+        )
+        # Raw script tag must NOT survive
+        assert "<script>" not in text
+        assert "&lt;script&gt;" in text
+        # Ampersand must be escaped too
+        assert "a &amp; b" in text
+
+    def test_format_alert_truncates_long_message(self):
+        import ceo_bridge as cb
+        long_msg = "x" * 5000
+        text = cb._format_escalation_alert(
+            msg_id="msg_abc",
+            channel="discord",
+            user_name="U",
+            user_id="42",
+            user_message=long_msg,
+            draft_response="",
+        )
+        # Should stay well under 4096 chars (Telegram hard cap)
+        assert len(text) < 4096
+
+    @pytest.mark.asyncio
+    async def test_notify_skipped_without_env_vars(self, bridge):
+        from unittest.mock import AsyncMock, patch
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("TELEGRAM_BOT_TOKEN", None)
+            os.environ.pop("TELEGRAM_ALERT_CHAT_ID", None)
+            result = await bridge._notify_escalation_telegram(
+                msg_id="msg_abc",
+                channel="discord",
+                user_name="U",
+                user_id="42",
+                user_message="refund please",
+                draft_response="",
+            )
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_notify_posts_to_telegram_with_env(self, bridge):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        captured: dict = {}
+
+        class _FakeResp:
+            status_code = 200
+            text = "ok"
+
+        class _FakeClient:
+            def __init__(self, *a, **k): pass
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return None
+            async def post(self, url, json=None):
+                captured["url"] = url
+                captured["json"] = json
+                return _FakeResp()
+
+        env = {
+            "TELEGRAM_BOT_TOKEN": "fake_tg_token",
+            "TELEGRAM_ALERT_CHAT_ID": "@MAXIA_alerts",
+            "CEO_API_KEY": "test_ceo_key",
+        }
+        with (
+            patch.dict(os.environ, env),
+            patch.object(bridge.httpx, "AsyncClient", _FakeClient),
+        ):
+            result = await bridge._notify_escalation_telegram(
+                msg_id="msg_abc",
+                channel="discord",
+                user_name="Alice",
+                user_id="42",
+                user_message="I want a refund",
+                draft_response="This will be handled by Alexis",
+            )
+        assert result is True
+        assert "fake_tg_token" in captured["url"]
+        payload = captured["json"]
+        assert payload["chat_id"] == "@MAXIA_alerts"
+        assert payload["parse_mode"] == "HTML"
+        assert "refund" in payload["text"].lower()
+        assert "Alice" in payload["text"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Phase 2B — Janitor
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestJanitor:
+    @pytest.mark.asyncio
+    async def test_recovers_stale_processing(self, bridge, fake_db):
+        import time as _t
+        now = int(_t.time())
+        fake_db.seed("msg_stalea11111", status="processing", received_at=now - 9999)
+        fake_db.seed("msg_staleb22222", status="processing", received_at=now - 9999)
+        # Fresh processing message — must NOT be recovered
+        fake_db.seed("msg_freshc33333", status="processing", received_at=now - 10)
+
+        recovered = await bridge.recover_stale_processing(stale_seconds=300)
+        assert recovered == 2
+
+        assert fake_db.rows["msg_stalea11111"]["status"] == "pending"
+        assert fake_db.rows["msg_staleb22222"]["status"] == "pending"
+        assert fake_db.rows["msg_freshc33333"]["status"] == "processing"
+
+    @pytest.mark.asyncio
+    async def test_noop_when_no_stale(self, bridge, fake_db):
+        import time as _t
+        now = int(_t.time())
+        fake_db.seed("msg_freshd44444", status="processing", received_at=now - 5)
+        recovered = await bridge.recover_stale_processing(stale_seconds=300)
+        assert recovered == 0
+        assert fake_db.rows["msg_freshd44444"]["status"] == "processing"
+
+    @pytest.mark.asyncio
+    async def test_does_not_touch_other_statuses(self, bridge, fake_db):
+        import time as _t
+        now = int(_t.time())
+        fake_db.seed("msg_pending5555", status="pending", received_at=now - 9999)
+        fake_db.seed("msg_replied6666", status="replied", received_at=now - 9999)
+        fake_db.seed("msg_escaltd7777", status="escalated", received_at=now - 9999)
+
+        recovered = await bridge.recover_stale_processing(stale_seconds=300)
+        assert recovered == 0
+        assert fake_db.rows["msg_pending5555"]["status"] == "pending"
+        assert fake_db.rows["msg_replied6666"]["status"] == "replied"
+        assert fake_db.rows["msg_escaltd7777"]["status"] == "escalated"
+
+    @pytest.mark.asyncio
+    async def test_enforces_minimum_stale_seconds(self, bridge, fake_db):
+        """Caller passing stale_seconds<30 is bumped to 30 to avoid
+        recovering messages that are still being processed."""
+        import time as _t
+        now = int(_t.time())
+        fake_db.seed("msg_freshe55555", status="processing", received_at=now - 20)
+        recovered = await bridge.recover_stale_processing(stale_seconds=0)
+        # 20 s < 30 s floor → must NOT recover
+        assert recovered == 0
+        assert fake_db.rows["msg_freshe55555"]["status"] == "processing"

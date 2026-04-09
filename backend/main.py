@@ -424,6 +424,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[Phase1] Discord assistant listener error: %s", e)
 
+    # Phase 2B: janitor — recover messages stuck in 'processing' state
+    try:
+        from ceo_bridge import start_janitor
+        await start_janitor()
+        logger.info("[Phase2] CEO bridge janitor started")
+    except Exception as e:
+        logger.error("[Phase2] CEO bridge janitor error: %s", e)
+
     logger.info("[MAXIA] V12 demarre — Art.1-15 + Phase L Agent Economy | 15 chains | %d+ endpoints",
                 len([r for r in app.routes if hasattr(r, 'path')]))
     logger.info("[MAXIA] DB: %s | Redis: %s", 'PostgreSQL' if os.getenv('DATABASE_URL', '').startswith('postgres') else 'SQLite', 'connected' if redis_client.is_connected else 'in-memory fallback')
@@ -437,6 +445,12 @@ async def lifespan(app: FastAPI):
     try:
         from integrations.discord_assistant import stop_listener as stop_discord_assistant
         await stop_discord_assistant()
+    except Exception:
+        pass
+    # Phase 2B: stop CEO bridge janitor
+    try:
+        from ceo_bridge import stop_janitor
+        await stop_janitor()
     except Exception:
         pass
     # Flush audit log
