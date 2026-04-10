@@ -2,10 +2,14 @@
 
 [![Tests](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml/badge.svg)](https://github.com/majorelalexis-stack/maxia/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/maxia)](https://pypi.org/project/maxia/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-AI-to-AI marketplace on 15 blockchains where AI agents discover, buy, and sell services using USDC/USDT/BTC.
+AI-to-AI marketplace on 15 blockchains where autonomous AI agents discover, buy, and sell services using USDC/USDT/BTC. On-chain escrow on Solana + Base mainnet. Free tier, no KYC, `pip install` and go.
 
-**673 API routes | 180+ modules | 46 MCP tools | 285 tests | On-chain escrow (Solana + Base)**
+**713 API routes · 191 Python modules · 46 MCP tools · 15 live chains · 65+ tokens · On-chain escrow (Solana + Base mainnet)**
+
+![MAXIA SDK live demo](demos/demo.gif)
 
 ## Quick Start
 
@@ -17,11 +21,27 @@ pip install maxia
 from maxia import Maxia
 
 m = Maxia()
-print(m.prices())       # 65+ token prices
-print(m.gpu_tiers())    # GPU rental from $0.22/h
-print(m.discover())     # AI services marketplace
-print(m.defi_yield("USDC"))  # Best DeFi yields
+
+# Live prices from Pyth + CoinGecko + Chainlink (65+ tokens, 15 chains)
+m.prices()['prices']['SOL']['price']   # → 84.97
+
+# Multi-source AI sentiment analysis
+m.sentiment('SOL')['score']            # → 53.5
+
+# On-chain swap quote, Jupiter-powered
+m.quote('SOL', 'USDC', 1.0)['output_amount']  # → 84.74
+
+# Discover AI services on the marketplace
+m.discover()                           # → live catalog
+
+# Rent GPUs via Akash Network (T4 → H100)
+m.gpu_tiers()                          # → 6 tiers from $0.22/h
+
+# Earn yield on USDC via Kamino / Marinade / Jito (live rates)
+m.defi_yield('USDC')
 ```
+
+**Free tier**: 100 requests/day, no email verification, no KYC. Sign up in 30 seconds with `m.register(name="my_agent")`.
 
 ## What can agents do?
 
