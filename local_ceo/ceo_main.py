@@ -74,7 +74,25 @@ from missions.seo_submit import mission_seo_submit
 # ── Phase 1 mission (2026-04-09): CEO responds on every channel via VPS bridge ──
 from missions.vps_bridge import mission_vps_bridge
 
+# ── Phase A mission (2026-04-10): Inbound email prospect handler (MaxiaSalesAgent) ──
+from missions.email_prospect_inbox import mission_email_prospect_inbox
+
+# ── RAG knowledge: nightly re-index ──
+from missions.reindex_rag import mission_reindex_rag
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CEO] %(message)s")
+
+# ── File log for dashboard (rotates automatically at 5 MB) ──
+try:
+    from logging.handlers import RotatingFileHandler
+    _log_path = os.path.join(os.path.dirname(__file__), "ceo_main.log")
+    _fh = RotatingFileHandler(_log_path, maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8")
+    _fh.setFormatter(logging.Formatter("%(asctime)s [CEO] %(message)s"))
+    _fh.setLevel(logging.INFO)
+    logging.getLogger().addHandler(_fh)
+except Exception as _log_err:  # pragma: no cover — never block CEO boot on log setup
+    logging.getLogger("ceo").warning("[CEO] FileHandler setup failed: %s", _log_err)
+
 log = logging.getLogger("ceo")
 
 # Mining Kaspa — DESACTIVE (non rentable mars 2026, ASICs ont tue le GPU mining)
@@ -125,6 +143,7 @@ async def run():
     last_opportunities_mail = 0
     last_report = 0
     last_competitive = 0
+    last_rag_reindex = 0
 
     while True:
         try:
@@ -133,12 +152,22 @@ async def run():
             hour = dt_now.hour
             weekday = dt_now.weekday()  # 0=lundi, 6=dimanche
             actions = load_actions_today()
+            # Dashboard counter — bumped once per loop iteration
+            mem["cycle_count"] = int(mem.get("cycle_count", 0)) + 1
 
             # Mission 7: Health check (toutes les 5 min)
             if now - last_health >= HEALTH_CHECK_INTERVAL_S:
                 await mission_health_check(mem)
                 last_health = now
                 actions["counts"]["health_checks"] = actions["counts"].get("health_checks", 0) + 1
+
+            # Mission RAG: re-index 02h00 UTC (mtime-gated, no-op if sources unchanged)
+            if hour == 2 and now - last_rag_reindex >= 3600:
+                try:
+                    await mission_reindex_rag(mem)
+                except Exception as _rag_err:
+                    log.warning("[CEO] reindex_rag failed: %s", _rag_err)
+                last_rag_reindex = now
 
             # Mission 4: Moderation forum (toutes les heures)
             if now - last_moderation >= MODERATION_INTERVAL_S:
@@ -312,6 +341,14 @@ async def run():
                 await run_mission("vps_bridge",
                                   mission_vps_bridge(mem, actions),
                                   mem, actions)
+
+            # Phase A: Email prospect inbox — MaxiaSalesAgent drafts (every 15 min)
+            # Gated by ENABLE_EMAIL_SALES env flag (default OFF).
+            if now - mem.get("_email_sales_last_run", 0) >= 900:
+                await run_mission("email_prospect_inbox",
+                                  mission_email_prospect_inbox(mem, actions),
+                                  mem, actions)
+                mem["_email_sales_last_run"] = now
 
             # Mining — relancer si GPU libre depuis 60s (pas d'appel LLM recent)
             if KASPA_MINING_ENABLED:
@@ -501,8 +538,8 @@ def main():
         print("""
     +-----------------------------------------------------+
     |    MAXIA CEO Local V3 + V9                          |
-    |    27 missions - qwen3.5:27b - 0 spam - 0 Twitter   |
-    |    Plan V9: 8 autonomous missions added 2026-04-09  |
+    |    27 missions - qwen3:30b-a3b MoE - 0 spam         |
+    |    + MaxiaSalesAgent (staged funnel + grounding)    |
     |    Mode: PROPOSE -> Alexis valide -> poste          |
     +-----------------------------------------------------+
         """)

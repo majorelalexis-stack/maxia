@@ -145,7 +145,7 @@ Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.j
 - **DeFi**: Live rates via DeFiLlama (Kamino, Solend, MarginFi lending + Marinade, Jito, BlazeStake staking + Orca, Raydium LP). Build unsigned Solana tx for wallet signing.
 - **SDK**: `pip install maxia` — 30 methods, sync httpx client. PyPI: https://pypi.org/project/maxia/
 - **Rate limiting**: `check_rate_limit()` enforces 100 req/day free tier
-- **AI models**: LLM Router with fallback chain: Groq `llama-3.3-70b-versatile` (rate limited 1req/10s) → Mistral Small → Claude Sonnet. CEO local: desactive (GPU libre pour Aider/coding).
+- **AI models**: LLM Router (`backend/ai/llm_router.py`) with tiered fallback chain: **LOCAL (Ollama)** → **FAST (Cerebras `gpt-oss-120b`, 3000 tok/s, 1M tok/jour gratuit)** → **FAST2 (Gemini 2.5 Flash-Lite, 1000 RPD gratuit)** → **FAST3 (Groq `llama-3.3-70b-versatile`, rate-limité 1req/10s, secours)** → **MID (Mistral Small)** → **STRATEGIC (Claude Sonnet)**. CEO local: **actif** (qwen3:30b-a3b-instruct-2507-q4_K_M sur RX 7900XT, 107 tok/s, piloté par `local_ceo/ceo_main.py`).
 - **Database**: PostgreSQL 17 in prod (asyncpg, pool 2-20), SQLite for dev. Schema migrations via `schema_version` table. Set `DATABASE_URL=postgresql://...` in `.env` for PostgreSQL.
 - **Env vars**: All secrets in `backend/.env` (see `.env.example`), loaded via `python-dotenv` in `config.py`
 - **Security**: Security headers middleware (CSP, HSTS, X-Frame-Options, X-Content-Type-Options), SSRF protection, IP spoofing prevention, global exception handler + safe_error() (no `str(e)` to client), WebSocket 64KB limit, body size 5MB limit, wallet address validation, Solana commitment `finalized`, Swagger/ReDoc disabled in prod, admin cookie opaque (session token), startup secret validation
@@ -157,7 +157,7 @@ Static HTML + vanilla JS, no build process. `index.html` is the dashboard (Vue.j
 - **Langue** : Alexis parle français. Répondre en français.
 - **Jamais hardcoder** de valeurs fausses — toujours calculer depuis la source réelle.
 - **Pas de lazy imports** inutiles, pas de port 8000 (toujours 8001), pas de `float('inf')`.
-- **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM) + 4GB RAM overflow. 3 modeles Ollama : Qwen 3 14B (CEO cerveau, 9.3GB), Qwen 3.5 9B (executeur, 6.6GB), Qwen 2.5-VL 7B (vision, 6GB). Groq supprime (rate-limite). 100% GPU local.
+- **CEO local** : tourne sur PC AMD 5800X + RX 7900XT (20GB VRAM). Modele unique **qwen3:30b-a3b-instruct-2507-q4_K_M** (MoE 3.3B actifs, 18GB, 107 tok/s) via Ollama ROCm. Fallback `qwen3:14b` (dense, 54 tok/s). Context 8192 avec flash_attention + KV q8_0. Tous les agents routent sur MAIN. Les 27 missions V3+V9 + vps_bridge Discord/Forum/Inbox + MaxiaSalesAgent + RAG knowledge_docs 151 chunks tournent 100% local.
 - **GPU local** ajouté comme tier `local_7900xt` ($0.35/h, pure marge) dans config.py, runpod_client.py, finetune_service.py.
 - **Telegram** : approbations ORANGE/ROUGE via boutons Go/No sur @MAXIA_AI_bot (chat privé). Le VPS est le SEUL poller Telegram. Le CEO local interroge le VPS via `/api/ceo/approval-result`. Le channel @MAXIA_alerts est pour les rapports VPS.
 - **Twitter** : SUPPRIME (Plan CEO V7, 2026-04-09). Compte suspendu, zero integration. Prospection via Discord + Email + bot Telegram extensions multilingue.

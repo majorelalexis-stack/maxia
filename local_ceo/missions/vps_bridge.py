@@ -50,7 +50,7 @@ try:
     )
 except ImportError as _e:
     log.warning("[vps_bridge] cannot import telegram_smart_reply helpers: %s", _e)
-    def _build_knowledge_blob() -> str:
+    def _build_knowledge_blob(query: Optional[str] = None) -> str:
         return "MAXIA is an AI-to-AI marketplace on 15 blockchains. Website: maxiaworld.app"
     def _detect_lang(lang: Optional[str]) -> str:
         return "English"
@@ -187,8 +187,8 @@ def _strip_think_tags(text: str) -> str:
     return text.strip()
 
 
-def _build_system_prompt(channel: str, lang_name: str) -> str:
-    knowledge = _build_knowledge_blob()
+def _build_system_prompt(channel: str, lang_name: str, user_message: str | None = None) -> str:
+    knowledge = _build_knowledge_blob(query=user_message) if user_message else _build_knowledge_blob()
     channel_notes = {
         "discord": "You are answering in a public Discord channel. Keep it conversational, plain text, no markdown headings, under 1500 characters. Emojis are fine.",
         "forum": "You are replying on the MAXIA forum (public). You may use simple markdown (**bold**, lists). Stay under 2000 characters.",
@@ -238,7 +238,7 @@ async def _ask_llm(
         log.warning("[vps_bridge] llm module unavailable: %s", e)
         return ""
 
-    system = _build_system_prompt(channel, lang_name)
+    system = _build_system_prompt(channel, lang_name, user_message=user_message)
     prompt = (
         f"User message:\n{user_message}\n\n"
         "Your reply (single turn, no preamble):"
@@ -321,6 +321,7 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
     msg_id = str(msg.get("msg_id", ""))
     channel = str(msg.get("channel", ""))
     user_message = str(msg.get("message", "")).strip()
+    user_id = str(msg.get("user_id", "")).strip()
     language_code = str(msg.get("language", ""))
     pre_escalated = bool(msg.get("escalated", 0))
 
@@ -349,11 +350,34 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
         )
         return
 
-    response_text = await _ask_llm(
-        user_message=user_message,
-        channel=channel,
-        lang_name=lang_name,
-    )
+    # Route through the smart_reply library, which decides between
+    # MaxiaSalesAgent (prospect with user_id + feature flag) and the
+    # legacy knowledge-grounded flow. This gives us:
+    #   - Staged funnel + per-user memory via MaxiaSalesAgent
+    #   - Closing-stage alert to Alexis
+    #   - Legacy fallback if the sales agent is unavailable
+    response_text = ""
+    try:
+        from missions.telegram_smart_reply import answer_user_message
+        response_text = await answer_user_message(
+            user_message=user_message,
+            history=[],  # sales agent uses its own persisted state
+            language_code=language_code,
+            user_id=user_id or None,
+            channel=channel,
+        )
+    except Exception as e:
+        log.warning("[vps_bridge] smart_reply route failed: %s", e)
+
+    # Last-resort fallback to the legacy direct-llm path if the smart_reply
+    # layer returned nothing (e.g. import chain broken during a refactor).
+    if not response_text or len(response_text) < 5:
+        log.info("[vps_bridge] msg=%s falling back to legacy _ask_llm", msg_id)
+        response_text = await _ask_llm(
+            user_message=user_message,
+            channel=channel,
+            lang_name=lang_name,
+        )
 
     if not response_text or len(response_text) < 5:
         log.warning("[vps_bridge] msg=%s empty LLM response", msg_id)
@@ -369,7 +393,8 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
         )
         return
 
-    # Trim per-channel
+    # Trim per-channel (MaxiaSalesAgent has its own 3800-char cap but we
+    # re-apply channel-specific limits here for Discord/Forum/Inbox sizes).
     cap = _MAX_REPLY_CHARS.get(channel, 2000)
     response_text = response_text[:cap]
 
@@ -377,12 +402,12 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
         client,
         msg_id,
         response_text=response_text,
-        confidence=0.75,
+        confidence=0.80,  # sales agent ground in catalog — slightly higher confidence
         escalated=False,
     )
     log.info(
-        "[vps_bridge] msg=%s REPLIED channel=%s (%d chars)",
-        msg_id, channel, len(response_text),
+        "[vps_bridge] msg=%s REPLIED channel=%s user=%s (%d chars)",
+        msg_id, channel, user_id[:32] if user_id else "?", len(response_text),
     )
 
 
