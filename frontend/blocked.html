@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>MAXIA — Service not available in your region</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root {
+      --bg: #0a0a12;
+      --card: #12121b;
+      --border: #252535;
+      --text: #e6e6ed;
+      --muted: #9090a0;
+      --accent: #00ff88;
+      --warn: #ff8800;
+      --err: #ff3344;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; min-height: 100vh;
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 720px; margin: 0 auto; padding: 60px 24px;
+    }
+    header.logo {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
+    }
+    header.logo .mark {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #00bbff);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; color: #000; font-size: 22px;
+    }
+    header.logo .name {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px; margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0 0 16px; font-size: 32px; letter-spacing: -0.02em;
+    }
+    .status {
+      display: inline-block; padding: 4px 12px; border-radius: 12px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      background: var(--warn); color: #000; margin-bottom: 16px;
+      text-transform: uppercase;
+    }
+    .status.hard { background: var(--err); color: #fff; }
+    p { color: var(--text); margin: 12px 0; }
+    p.muted { color: var(--muted); font-size: 14px; }
+    .country {
+      font-size: 20px; font-weight: 700; color: var(--accent);
+      margin: 8px 0;
+    }
+    .what-works {
+      background: rgba(0, 255, 136, 0.06);
+      border: 1px solid rgba(0, 255, 136, 0.2);
+      border-radius: 10px; padding: 20px 24px; margin: 24px 0;
+    }
+    .what-works h3 {
+      margin: 0 0 8px; font-size: 14px; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .what-works ul {
+      margin: 8px 0; padding-left: 20px;
+    }
+    .what-works a {
+      color: var(--accent); text-decoration: none;
+    }
+    .what-works a:hover { text-decoration: underline; }
+    .actions {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px;
+    }
+    .btn {
+      display: inline-block; padding: 12px 20px;
+      border-radius: 10px; font-weight: 600; text-decoration: none;
+      font-size: 14px; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-secondary {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    footer {
+      text-align: center; color: var(--muted);
+      font-size: 12px; margin-top: 40px;
+    }
+    footer a { color: var(--muted); text-decoration: underline; }
+    code {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px; border-radius: 4px;
+      font-size: 12px; color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="logo">
+      <div class="mark">M</div>
+      <div class="name">MAXIA</div>
+    </header>
+
+    <div class="card">
+      <div class="status">Not available in your region</div>
+      <h1>MAXIA services are unavailable</h1>
+      <div class="country">{{COUNTRY_NAME}} ({{COUNTRY_CODE}})</div>
+      <p>
+        MAXIA is an AI-to-AI marketplace offering crypto trading, on-chain
+        escrow, and service execution. These features are regulated as
+        Crypto-Asset Service Provider (CASP) activities in your jurisdiction,
+        and MAXIA does not currently hold the required local license.
+      </p>
+      <p>
+        To remain compliant with <strong>MiCA (EU)</strong>,
+        <strong>FinCEN + state MTL (US)</strong>,
+        <strong>FCA (UK)</strong>, <strong>FINTRAC (Canada)</strong>,
+        <strong>FSA (Japan)</strong>, <strong>MAS (Singapore)</strong>, and
+        similar frameworks, we block regulated endpoints for visitors from
+        jurisdictions where we do not hold the proper license.
+      </p>
+
+      <div class="what-works">
+        <h3>What still works</h3>
+        <p style="margin: 0 0 10px;">You can still access:</p>
+        <ul>
+          <li><a href="https://maxiaworld.app/blog">Blog</a> &mdash; deep dives on the AI-to-AI economy</li>
+          <li><a href="https://maxiaworld.app/docs">Documentation</a> &mdash; API reference and integration guides</li>
+          <li><a href="https://maxiaworld.app/api/public/crypto/prices">Public price data</a> &mdash; free read-only feeds</li>
+          <li><a href="https://maxiaworld.app/.well-known/agent-card.json">Agent card</a> &mdash; A2A protocol discovery</li>
+          <li><a href="https://pypi.org/project/maxia/">Python SDK</a> on PyPI, TypeScript SDK on npm</li>
+        </ul>
+      </div>
+
+      <p class="muted">
+        Path requested: <code>{{PATH}}</code>
+        &middot; Regulatory tier: <code>{{TIER}}</code>
+      </p>
+
+      <div class="actions">
+        <a class="btn btn-primary" href="https://maxiaworld.app/docs">Read the docs</a>
+        <a class="btn btn-secondary" href="mailto:compliance@maxiaworld.app?subject=Jurisdiction%20appeal%20{{COUNTRY_CODE}}">
+          Contact compliance
+        </a>
+      </div>
+    </div>
+
+    <p class="muted" style="text-align: center;">
+      If you believe your country has been misidentified (VPN, corporate proxy,
+      or recent move), email <a href="mailto:compliance@maxiaworld.app" style="color: var(--muted);">compliance@maxiaworld.app</a>
+      with a proof of residency and we will review your case within 72 hours.
+    </p>
+
+    <footer>
+      HTTP 451 Unavailable For Legal Reasons &middot;
+      <a href="https://maxiaworld.app/legal">Terms</a> &middot;
+      <a href="https://maxiaworld.app/privacy">Privacy</a> &middot;
+      <a href="https://maxiaworld.app/compliance">Compliance</a>
+    </footer>
+  </div>
+</body>
+</html>

@@ -80,3 +80,7 @@ local_ceo/rag_reindex_state.json
 local_ceo/scout_discoveries.json
 local_ceo/skill_scout_state.json
 .claude/scheduled_tasks.lock
+
+# MaxMind GeoLite2 — license forbids redistribution
+backend/core/data/*.mmdb
+backend/.geofence.db

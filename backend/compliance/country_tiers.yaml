@@ -1,0 +1,584 @@
+# MAXIA country geofencing — 4-tier classification (Plan Tier 1 Global)
+#
+# Single source of truth for all geofencing decisions across the backend
+# and the local CEO missions. Loaded at startup by
+# `backend.compliance.country_filter` and hot-reloaded on mtime change.
+#
+# The legacy 3-tier model (ALLOWED/GEO_BLOCKED/BLOCKED) is preserved
+# for API backwards-compat — the new 4-tier model maps as:
+#
+#     HARD     -> BLOCKED  (sanctions, zero access even to marketing)
+#     LICENSE  -> GEO_BLOCKED (trading blocked, marketing/docs allowed)
+#     CAUTION  -> ALLOWED with acknowledgment banner
+#     ALLOWED  -> ALLOWED (fully open)
+#
+# Country codes are ISO 3166-1 alpha-2 upper-case.
+# Last updated: 2026-04-11
+
+version: 1
+last_updated: "2026-04-11"
+
+# ══════════════════════════════════════════
+# HARD BLOCK — sanctions, zero access
+# ══════════════════════════════════════════
+# OFAC SDN + UN Security Council + EU consolidated list + MAXIA ToS.
+# These countries get HTTP 451 on ALL routes, including the landing
+# page, because US export control (EAR) can apply to pure content
+# delivery (North Korea, Iran in particular).
+hard:
+  - code: CU
+    name: Cuba
+    reason: "OFAC comprehensive sanctions"
+  - code: IR
+    name: Iran
+    reason: "OFAC comprehensive sanctions + FATF blacklist"
+  - code: KP
+    name: North Korea
+    reason: "UN + OFAC + EU total ban"
+  - code: SY
+    name: Syria
+    reason: "OFAC comprehensive sanctions"
+  - code: RU
+    name: Russia
+    reason: "OFAC + EU + UK sanctions (post-2022)"
+  - code: BY
+    name: Belarus
+    reason: "EU + UK sanctions (Russia support)"
+  - code: MM
+    name: Myanmar
+    reason: "EU sanctions + FATF grey list"
+  - code: VE
+    name: Venezuela
+    reason: "OFAC sectoral sanctions (crypto-specific)"
+  - code: AF
+    name: Afghanistan
+    reason: "OFAC + UN sanctions, Taliban control"
+  - code: SD
+    name: Sudan
+    reason: "OFAC sanctions"
+  - code: YE
+    name: Yemen
+    reason: "OFAC sanctions (Houthi-controlled regions)"
+  - code: ZW
+    name: Zimbabwe
+    reason: "EU restrictive measures"
+
+# ══════════════════════════════════════════
+# LICENSE BLOCK — trading blocked, marketing OK
+# ══════════════════════════════════════════
+# Countries where operating a crypto-asset service requires a license
+# that MAXIA does not currently hold. Users can still browse the
+# landing page, read blog, access docs, and view the public API (prices,
+# marketplace stats) — they just cannot execute trades, hold custody,
+# or use any CASP-regulated service.
+license:
+  # === USA (federal + state-by-state MSB/MTL/BitLicense) ===
+  - code: US
+    name: United States
+    regulator: "FinCEN + SEC + CFTC + state MTL"
+    reason: "Requires MSB registration + 50-state money transmitter licenses"
+
+  # === European Economic Area — MiCA (27 EU + 3 EEA) ===
+  - code: AT
+    name: Austria
+    regulator: "FMA"
+    reason: "MiCA CASP license required"
+  - code: BE
+    name: Belgium
+    regulator: "FSMA"
+    reason: "MiCA CASP license required"
+  - code: BG
+    name: Bulgaria
+    regulator: "KFN"
+    reason: "MiCA CASP license required"
+  - code: HR
+    name: Croatia
+    regulator: "HANFA"
+    reason: "MiCA CASP license required"
+  - code: CY
+    name: Cyprus
+    regulator: "CySEC"
+    reason: "MiCA CASP license required"
+  - code: CZ
+    name: Czech Republic
+    regulator: "CNB"
+    reason: "MiCA CASP license required"
+  - code: DK
+    name: Denmark
+    regulator: "DFSA"
+    reason: "MiCA CASP license required"
+  - code: EE
+    name: Estonia
+    regulator: "FI"
+    reason: "MiCA CASP license required"
+  - code: FI
+    name: Finland
+    regulator: "FIN-FSA"
+    reason: "MiCA CASP license required"
+  - code: FR
+    name: France
+    regulator: "AMF"
+    reason: "MiCA CASP license required (PSAN transitional until 2026-06-30)"
+  - code: DE
+    name: Germany
+    regulator: "BaFin"
+    reason: "MiCA CASP license required"
+  - code: GR
+    name: Greece
+    regulator: "HCMC"
+    reason: "MiCA CASP license required"
+  - code: HU
+    name: Hungary
+    regulator: "MNB"
+    reason: "MiCA CASP license required"
+  - code: IE
+    name: Ireland
+    regulator: "CBI"
+    reason: "MiCA CASP license required"
+  - code: IT
+    name: Italy
+    regulator: "Consob + Bank of Italy"
+    reason: "MiCA CASP license required"
+  - code: LV
+    name: Latvia
+    regulator: "FKTK"
+    reason: "MiCA CASP license required"
+  - code: LT
+    name: Lithuania
+    regulator: "LB"
+    reason: "MiCA CASP license required"
+  - code: LU
+    name: Luxembourg
+    regulator: "CSSF"
+    reason: "MiCA CASP license required"
+  - code: MT
+    name: Malta
+    regulator: "MFSA"
+    reason: "MiCA CASP license required"
+  - code: NL
+    name: Netherlands
+    regulator: "AFM"
+    reason: "MiCA CASP license required"
+  - code: PL
+    name: Poland
+    regulator: "KNF"
+    reason: "MiCA CASP license required"
+  - code: PT
+    name: Portugal
+    regulator: "CMVM"
+    reason: "MiCA CASP license required"
+  - code: RO
+    name: Romania
+    regulator: "ASF"
+    reason: "MiCA CASP license required"
+  - code: SK
+    name: Slovakia
+    regulator: "NBS"
+    reason: "MiCA CASP license required"
+  - code: SI
+    name: Slovenia
+    regulator: "ATVP"
+    reason: "MiCA CASP license required"
+  - code: ES
+    name: Spain
+    regulator: "CNMV"
+    reason: "MiCA CASP license required"
+  - code: SE
+    name: Sweden
+    regulator: "FI"
+    reason: "MiCA CASP license required"
+  - code: IS
+    name: Iceland
+    regulator: "FME"
+    reason: "MiCA CASP license required (EEA member)"
+  - code: LI
+    name: Liechtenstein
+    regulator: "FMA"
+    reason: "MiCA CASP license required (EEA member)"
+  - code: "NO"
+    name: Norway
+    regulator: "Finanstilsynet"
+    reason: "MiCA CASP license required (EEA member)"
+
+  # === UK ===
+  - code: GB
+    name: United Kingdom
+    regulator: "FCA"
+    reason: "Crypto asset AML registration required"
+
+  # === Canada ===
+  - code: CA
+    name: Canada
+    regulator: "FINTRAC + CSA"
+    reason: "MSB registration + provincial securities law"
+
+  # === Japan ===
+  - code: JP
+    name: Japan
+    regulator: "FSA"
+    reason: "Virtual currency exchange license (VCEL) required"
+
+  # === Singapore ===
+  - code: SG
+    name: Singapore
+    regulator: "MAS"
+    reason: "PSA DPT license required"
+
+  # === Hong Kong ===
+  - code: HK
+    name: Hong Kong
+    regulator: "SFC"
+    reason: "VATP license required"
+
+  # === Australia ===
+  - code: AU
+    name: Australia
+    regulator: "AUSTRAC + ASIC"
+    reason: "DCE registration required"
+
+  # === South Korea ===
+  - code: KR
+    name: South Korea
+    regulator: "FSC + FIU"
+    reason: "Virtual Asset User Protection Act registration required"
+
+  # === Thailand ===
+  - code: TH
+    name: Thailand
+    regulator: "SEC Thailand"
+    reason: "Digital Asset Business License required"
+
+  # === China ===
+  - code: CN
+    name: China (mainland)
+    regulator: "PBoC"
+    reason: "Total crypto trading ban (2021)"
+
+  # === Brazil ===
+  - code: BR
+    name: Brazil
+    regulator: "CVM + BCB"
+    reason: "VASP license required (2024 crypto asset law)"
+
+# ══════════════════════════════════════════
+# CAUTION — accessible with acknowledgment banner
+# ══════════════════════════════════════════
+# Countries where the legal situation is ambiguous, evolving, or where
+# a local tax/enforcement regime exists but crypto services are not
+# strictly forbidden. Users get a first-visit modal asking them to
+# acknowledge that they are responsible for compliance with local laws.
+caution:
+  - code: IN
+    name: India
+    reason: "30% crypto tax + 1% TDS, RBI/FIU-IND enforcement active"
+  - code: ID
+    name: Indonesia
+    reason: "OJK transition from Bappebti — license under review"
+  - code: VN
+    name: Vietnam
+    reason: "No explicit ban but no legal tender status"
+  - code: PK
+    name: Pakistan
+    reason: "Central bank warnings, status unclear"
+  - code: NG
+    name: Nigeria
+    reason: "SEC Nigeria crypto regulations 2022 + CBN banking restrictions"
+  - code: TR
+    name: Turkey
+    reason: "Payment-for-goods ban (2021), trading allowed"
+  - code: EG
+    name: Egypt
+    reason: "Dar al-Ifta fatwa against crypto, no clear legal status"
+  - code: MA
+    name: Morocco
+    reason: "Bank Al-Maghrib prohibition (2017), enforcement weak"
+  - code: DZ
+    name: Algeria
+    reason: "Explicit ban (2018), enforcement weak"
+  - code: BD
+    name: Bangladesh
+    reason: "Central bank warnings, legal status unclear"
+  - code: BO
+    name: Bolivia
+    reason: "Central bank ban (2014), later softened but unclear"
+  - code: NP
+    name: Nepal
+    reason: "Nepal Rastra Bank prohibition"
+
+# ══════════════════════════════════════════
+# ALLOWED — fully open
+# ══════════════════════════════════════════
+# Everything else. Explicitly listed here for auditability rather than
+# using "default allow". Countries NOT in any of the 4 lists default to
+# UNKNOWN tier with discovery-only access (fail-safe posture).
+allowed:
+  # --- Middle East (crypto-friendly jurisdictions) ---
+  - code: AE
+    name: United Arab Emirates
+    notes: "VARA (Dubai) + ADGM (Abu Dhabi) frameworks"
+  - code: BH
+    name: Bahrain
+    notes: "CBB crypto-asset framework"
+  - code: KW
+    name: Kuwait
+    notes: "CMA framework"
+  - code: SA
+    name: Saudi Arabia
+    notes: "SAMA pilot programs"
+  - code: QA
+    name: Qatar
+    notes: "QFC crypto framework"
+  - code: OM
+    name: Oman
+    notes: "Open to crypto, no formal license yet"
+  - code: IL
+    name: Israel
+    notes: "ISA crypto guidelines"
+  - code: JO
+    name: Jordan
+    notes: "No explicit ban"
+  - code: LB
+    name: Lebanon
+    notes: "Informal acceptance"
+
+  # --- Latin America ---
+  - code: MX
+    name: Mexico
+    notes: "Fintech Law 2018 framework"
+  - code: AR
+    name: Argentina
+    notes: "CNV registration required but open"
+  - code: CL
+    name: Chile
+    notes: "CMF fintech framework"
+  - code: CO
+    name: Colombia
+    notes: "Superfinanciera pilot"
+  - code: PE
+    name: Peru
+    notes: "Open, no specific regulation"
+  - code: UY
+    name: Uruguay
+    notes: "URSEC framework pending"
+  - code: CR
+    name: Costa Rica
+    notes: "No specific regulation, open"
+  - code: PA
+    name: Panama
+    notes: "Crypto-friendly legislation"
+  - code: PY
+    name: Paraguay
+    notes: "Mining-friendly, trading open"
+  - code: EC
+    name: Ecuador
+    notes: "Bitcoin not legal tender but trading allowed"
+  - code: GT
+    name: Guatemala
+    notes: "Open"
+  - code: HN
+    name: Honduras
+    notes: "Open"
+  - code: SV
+    name: El Salvador
+    notes: "Bitcoin legal tender (2021)"
+  - code: DO
+    name: Dominican Republic
+    notes: "Open"
+
+  # --- Southeast Asia (crypto-friendly) ---
+  - code: PH
+    name: Philippines
+    notes: "BSP VASP framework"
+  - code: MY
+    name: Malaysia
+    notes: "SC Malaysia digital asset guidelines"
+  - code: TW
+    name: Taiwan
+    notes: "FSC crypto guidelines"
+  - code: LA
+    name: Laos
+    notes: "Crypto pilot programs"
+  - code: KH
+    name: Cambodia
+    notes: "Open, no formal regulation"
+  - code: MN
+    name: Mongolia
+    notes: "Open"
+
+  # --- Africa (crypto-friendly or weak regulation) ---
+  - code: ZA
+    name: South Africa
+    notes: "FSCA crypto asset framework"
+  - code: KE
+    name: Kenya
+    notes: "CMA Kenya crypto guidelines"
+  - code: GH
+    name: Ghana
+    notes: "Bank of Ghana pilot"
+  - code: SN
+    name: Senegal
+    notes: "Open"
+  - code: TZ
+    name: Tanzania
+    notes: "Open (policy softening 2024)"
+  - code: UG
+    name: Uganda
+    notes: "Open, sandbox program"
+  - code: RW
+    name: Rwanda
+    notes: "Crypto-friendly"
+  - code: BW
+    name: Botswana
+    notes: "NBFIRA crypto framework"
+  - code: MU
+    name: Mauritius
+    notes: "FSC crypto license"
+  - code: SC
+    name: Seychelles
+    notes: "FSA crypto framework"
+
+  # --- Pacific + Caribbean (offshore-friendly) ---
+  - code: NZ
+    name: New Zealand
+    notes: "FMA guidelines, open"
+  - code: BS
+    name: Bahamas
+    notes: "DARE Act framework"
+  - code: BM
+    name: Bermuda
+    notes: "BMA DABA framework"
+  - code: KY
+    name: Cayman Islands
+    notes: "CIMA VASP framework"
+  - code: VG
+    name: British Virgin Islands
+    notes: "BVI FSC VASP framework"
+  - code: AG
+    name: Antigua and Barbuda
+    notes: "DABA framework"
+  - code: BB
+    name: Barbados
+    notes: "Open"
+  - code: FJ
+    name: Fiji
+    notes: "Open"
+
+  # --- CIS + Central Asia ---
+  - code: KZ
+    name: Kazakhstan
+    notes: "AFSA crypto framework, mining-friendly"
+  - code: GE
+    name: Georgia
+    notes: "Crypto-friendly, no specific law"
+  - code: AM
+    name: Armenia
+    notes: "Open"
+  - code: UZ
+    name: Uzbekistan
+    notes: "NAPP sandbox"
+  - code: AZ
+    name: Azerbaijan
+    notes: "Open"
+
+  # --- Europe non-EEA (crypto-friendly) ---
+  - code: CH
+    name: Switzerland
+    notes: "FINMA — crypto-friendly, regulated CASP exists but MAXIA not required for small scale"
+  - code: RS
+    name: Serbia
+    notes: "NBS framework"
+  - code: ME
+    name: Montenegro
+    notes: "Open"
+  - code: MK
+    name: North Macedonia
+    notes: "Open"
+  - code: BA
+    name: Bosnia and Herzegovina
+    notes: "Open"
+  - code: AL
+    name: Albania
+    notes: "AFSA crypto framework"
+  - code: MD
+    name: Moldova
+    notes: "Open"
+  - code: UA
+    name: Ukraine
+    notes: "Law on Virtual Assets (2022)"
+
+  # --- Other ---
+  - code: LK
+    name: Sri Lanka
+    notes: "Central bank warnings but no ban"
+  - code: MV
+    name: Maldives
+    notes: "Open"
+  - code: BT
+    name: Bhutan
+    notes: "State-backed crypto interest"
+
+# ══════════════════════════════════════════
+# Feature gates — what each feature requires per tier
+# ══════════════════════════════════════════
+# These override the legacy `country_filter.is_allowed(feature=...)`
+# semantics. Missing feature → fail-safe deny.
+feature_gates:
+  # Public read-only features (always available except HARD tier)
+  discovery:
+    hard: deny
+    license: allow
+    caution: allow
+    allowed: allow
+    unknown: allow
+  docs:
+    hard: deny
+    license: allow
+    caution: allow
+    allowed: allow
+    unknown: allow
+  pricing_data:
+    hard: deny
+    license: allow
+    caution: allow
+    allowed: allow
+    unknown: allow
+
+  # CASP-regulated features
+  trading:
+    hard: deny
+    license: deny
+    caution: allow_with_banner
+    allowed: allow
+    unknown: deny
+  custody:
+    hard: deny
+    license: deny
+    caution: allow_with_banner
+    allowed: allow
+    unknown: deny
+  payment:
+    hard: deny
+    license: deny
+    caution: allow_with_banner
+    allowed: allow
+    unknown: deny
+  withdrawal:
+    hard: deny
+    license: deny
+    caution: allow_with_banner
+    allowed: allow
+    unknown: deny
+
+  # Outreach features (subject to active solicitation rules)
+  marketing:
+    hard: deny
+    license: deny
+    caution: deny  # stricter — no cold outreach to caution zones
+    allowed: allow
+    unknown: deny
+  email_outreach:
+    hard: deny
+    license: deny
+    caution: deny
+    allowed: allow
+    unknown: deny

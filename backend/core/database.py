@@ -509,6 +509,43 @@ class Database:
         14: ("MAXIA Guard Q2b — declarative policy YAML per agent", (
             "ALTER TABLE agent_permissions ADD COLUMN policy_yaml TEXT DEFAULT '';"
         )),
+        15: ("Geofence Tier 1 — audit log + archive for compliance retention 5y", (
+            "CREATE TABLE IF NOT EXISTS geofence_log ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "ts INTEGER NOT NULL,"
+            "ip_hash TEXT NOT NULL,"
+            "country TEXT NOT NULL,"
+            "tier TEXT NOT NULL,"
+            "route_class TEXT NOT NULL,"
+            "path TEXT NOT NULL,"
+            "method TEXT NOT NULL DEFAULT 'GET',"
+            "action TEXT NOT NULL,"
+            "user_agent TEXT NOT NULL DEFAULT '',"
+            "session_id TEXT NOT NULL DEFAULT '');"
+            "CREATE INDEX IF NOT EXISTS idx_geofence_log_ts ON geofence_log(ts);"
+            "CREATE INDEX IF NOT EXISTS idx_geofence_log_country ON geofence_log(country);"
+            "CREATE INDEX IF NOT EXISTS idx_geofence_log_tier ON geofence_log(tier);"
+            "CREATE INDEX IF NOT EXISTS idx_geofence_log_action ON geofence_log(action);"
+            "CREATE TABLE IF NOT EXISTS geofence_log_archive ("
+            "id INTEGER PRIMARY KEY,"
+            "ts INTEGER NOT NULL,"
+            "ip_hash TEXT NOT NULL,"
+            "country TEXT NOT NULL,"
+            "tier TEXT NOT NULL,"
+            "route_class TEXT NOT NULL,"
+            "path TEXT NOT NULL,"
+            "method TEXT NOT NULL DEFAULT 'GET',"
+            "action TEXT NOT NULL,"
+            "user_agent TEXT NOT NULL DEFAULT '',"
+            "session_id TEXT NOT NULL DEFAULT '');"
+            "CREATE INDEX IF NOT EXISTS idx_geofence_log_archive_ts ON geofence_log_archive(ts);"
+        )),
+        16: ("Agent OAuth links — Google/GitHub/Discord/Microsoft + notification email opt-in", (
+            "ALTER TABLE agent_permissions ADD COLUMN linked_providers TEXT DEFAULT '[]';"
+            "ALTER TABLE agent_permissions ADD COLUMN notification_email TEXT DEFAULT '';"
+            "ALTER TABLE agent_permissions ADD COLUMN notification_email_verified INTEGER DEFAULT 0;"
+            "ALTER TABLE agent_permissions ADD COLUMN notification_channels TEXT DEFAULT '[]';"
+        )),
     }
 
     async def _run_migrations(self):
