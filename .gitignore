@@ -66,6 +66,7 @@ composio-maxia/dist/
 google-adk-maxia/dist/
 llama-index-maxia/dist/
 maxia-sdk/dist/
+maxia-ts-sdk/dist/
 *.whl
 *.tar.gz
 
