@@ -57,3 +57,25 @@ local_ceo/ceo_memory.json.bak
 
 # Duplicated Hugging Face space repo (canonical = huggingface-space/)
 hf-space-repo/
+
+# Python build artifacts — SDK dist/ directories
+langchain-maxia/dist/
+crewai-tools-maxia/dist/
+autogen-maxia/dist/
+composio-maxia/dist/
+google-adk-maxia/dist/
+llama-index-maxia/dist/
+maxia-sdk/dist/
+*.whl
+*.tar.gz
+
+# Node modules / npm build artifacts (for maxia-ts-sdk and similar)
+node_modules/
+*.tsbuildinfo
+
+# Local CEO runtime state (extra entries)
+local_ceo/audit_state.json
+local_ceo/rag_reindex_state.json
+local_ceo/scout_discoveries.json
+local_ceo/skill_scout_state.json
+.claude/scheduled_tasks.lock

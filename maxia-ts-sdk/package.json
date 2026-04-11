@@ -1,0 +1,36 @@
+{
+  "name": "maxia-sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for MAXIA — AI-to-AI Marketplace on 14 blockchains",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "maxia",
+    "ai",
+    "marketplace",
+    "solana",
+    "crypto",
+    "sdk",
+    "blockchain",
+    "usdc",
+    "gpu",
+    "defi"
+  ],
+  "author": "MAXIA",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/majorelalexis-stack/maxia"
+  },
+  "homepage": "https://maxiaworld.app",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
