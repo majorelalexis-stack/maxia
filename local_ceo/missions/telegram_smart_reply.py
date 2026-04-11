@@ -90,10 +90,19 @@ def _build_static_header() -> str:
     countries = _load_json(os.path.join(MEMORY_PROD_DIR, "country_allowlist.json"))
     if isinstance(countries, dict):
         allowed = countries.get("allowed", [])
+        limited = countries.get("limited", [])
         blocked = countries.get("blocked", [])
+        us_safe = countries.get("limited_features_us_safe", [])
+        us_blocked = countries.get("limited_features_us_blocked", [])
         parts.append("=== COMPLIANCE ===")
-        parts.append(f"Allowed countries (28): {', '.join(allowed)}")
-        parts.append(f"Blocked: {', '.join(blocked)}")
+        parts.append(f"Fully allowed countries ({len(allowed)}): {', '.join(allowed)}")
+        if limited:
+            parts.append(f"Limited tier ({len(limited)}): {', '.join(limited)}")
+            if us_safe:
+                parts.append(f"  US_SAFE features: {', '.join(us_safe)}")
+            if us_blocked:
+                parts.append(f"  US_BLOCKED features (NEVER mention to US prospects): {', '.join(us_blocked)}")
+        parts.append(f"Fully blocked: {', '.join(blocked)}")
         parts.append("India geo-blocked for marketing (read-only OK).")
 
     quotas = _load_json(os.path.join(MEMORY_PROD_DIR, "quotas_daily.json"))

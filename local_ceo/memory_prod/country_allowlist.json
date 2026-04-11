@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "plan": "CEO V7",
+  "version": 2,
+  "plan": "CEO V7 + US.1",
   "updated_at": 0,
   "allowed": [
     "SG", "HK", "KR", "TW", "TH", "VN", "MY", "ID", "PH", "AE", "IL",
@@ -9,16 +9,44 @@
     "NG", "ZA", "KE", "EG", "GH", "MA", "TN", "SN",
     "BR", "AR", "MX", "CO", "CL", "PE"
   ],
+  "limited": [
+    "US"
+  ],
   "geo_blocked": [
     "IN"
   ],
   "blocked": [
-    "CN", "KP", "IR", "SY", "CU", "MM", "AF", "RU", "BY",
-    "US"
+    "CN", "KP", "IR", "SY", "CU", "MM", "AF", "RU", "BY"
+  ],
+  "limited_features_us_safe": [
+    "ai_marketplace",
+    "mcp_tools",
+    "gpu_rental",
+    "free_tier_api",
+    "wallet_read",
+    "defi_read",
+    "enterprise_sso",
+    "prometheus_metrics",
+    "ai_services_catalog"
+  ],
+  "limited_features_us_blocked": [
+    "token_swap",
+    "tokenized_stocks",
+    "cross_chain_bridge",
+    "lightning_payments",
+    "escrow_trading"
   ],
   "notes": {
     "IN": "RBI + FIU-IND KYC obligation — discovery only, no marketing/trading",
-    "US": "MAXIA ToS exclusion — unregistered securities risk",
-    "CN": "Crypto forbidden on mainland"
+    "US": "License tier — AI marketplace + MCP + GPU + read-only OK. NO swap / tokenized stocks / cross-chain bridge / lightning / escrow trading. See backend/compliance/country_tiers.yaml for authoritative feature gating.",
+    "CN": "Crypto forbidden on mainland",
+    "KP": "OFAC sanctioned",
+    "IR": "OFAC sanctioned",
+    "SY": "OFAC sanctioned",
+    "CU": "OFAC sanctioned",
+    "MM": "OFAC sanctioned (post 2021 coup)",
+    "AF": "OFAC sanctioned (post 2021 Taliban)",
+    "RU": "OFAC sanctioned (post 2022 invasion)",
+    "BY": "OFAC sanctioned"
   }
 }

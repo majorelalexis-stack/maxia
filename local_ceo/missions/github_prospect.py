@@ -73,10 +73,14 @@ async def _generate_personalized_email(
     prospect_name: str,
     prospect_bio: str,
     prospect_topic: str,
+    prospect_country: str | None = None,
 ) -> Optional[tuple[str, str, str]]:
-    """Use qwen3.5:27b to write a 150-word cold email in the target language.
+    """Use qwen3:30b-a3b to write a 150-word cold email in the target language.
 
     Falls back to the static 13-language template if the LLM call fails.
+    When ``prospect_country`` is license/caution tier, the personalization
+    line uses developer framing and is post-filtered for forbidden words.
+
     Returns (subject, body_text, body_html).
     """
     try:
@@ -93,20 +97,67 @@ async def _generate_personalized_email(
         unsubscribe_link=UNSUBSCRIBE_LINK,
     )
 
+    # US_SAFE mode detection — license/caution tiers get dev-framing
+    us_safe = False
+    try:
+        from local_ceo.us_safe_content import is_us_safe_required
+        us_safe = is_us_safe_required(country_code=prospect_country)
+    except ImportError:
+        try:
+            _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if _parent not in sys.path:
+                sys.path.insert(0, _parent)
+            from us_safe_content import is_us_safe_required  # type: ignore
+            us_safe = is_us_safe_required(country_code=prospect_country)
+        except Exception:
+            us_safe = False
+    except Exception:
+        us_safe = False
+
     # Optional LLM personalization: prepend a short sentence referencing
     # the prospect's topic. Skip if Ollama is unreachable.
     try:
         from llm import ask
         from agents import WRITER
-        personal_line_prompt = (
-            f"Write ONE short sentence in {prospect_lang} (max 25 words) "
-            f"that mentions the developer's focus on '{prospect_topic}' and "
-            f"MAXIA as an AI-to-AI marketplace on 15 chains. Plain text, no "
-            f"quotes, no emoji, no exclamation marks."
-        )
+        if us_safe:
+            personal_line_prompt = (
+                f"Write ONE short sentence in {prospect_lang} (max 25 words) "
+                f"that mentions the developer's focus on '{prospect_topic}' and "
+                f"MAXIA as an AI service marketplace with MCP tools and GPU "
+                f"rental. Plain text, no quotes, no emoji, no exclamation marks. "
+                f"FORBIDDEN words: swap, tokenized stocks, xStock, bridge, "
+                f"lightning, escrow trading, custodial."
+            )
+        else:
+            personal_line_prompt = (
+                f"Write ONE short sentence in {prospect_lang} (max 25 words) "
+                f"that mentions the developer's focus on '{prospect_topic}' and "
+                f"MAXIA as an AI-to-AI marketplace on 15 chains. Plain text, no "
+                f"quotes, no emoji, no exclamation marks."
+            )
         lead = await ask(WRITER, personal_line_prompt)
         if isinstance(lead, str) and 10 < len(lead) < 200:
             lead = lead.strip().split("\n", 1)[0]
+            if us_safe:
+                try:
+                    from local_ceo.us_safe_content import scrub_us_forbidden, validate_us_safe
+                except ImportError:
+                    from us_safe_content import scrub_us_forbidden, validate_us_safe  # type: ignore
+                lead, hits = scrub_us_forbidden(lead)
+                if hits > 0:
+                    log.info(
+                        "[gh_prospect] US_SAFE scrubbed %d sentence(s) from "
+                        "personalization line for %s (%s)",
+                        hits, prospect_name, prospect_country,
+                    )
+                check = validate_us_safe(lead)
+                if not check["ok"] or not lead.strip():
+                    log.warning(
+                        "[gh_prospect] US_SAFE personalization rejected for "
+                        "%s — dropping lead line, sending static template",
+                        prospect_name,
+                    )
+                    return subject, text, html
             # Prepend the lead line to both text and html variants
             text = f"{lead}\n\n{text}"
             html = f"<p>{lead}</p>{html}"
@@ -215,6 +266,7 @@ async def mission_github_prospect(mem: dict, actions: dict) -> None:
             prospect_name=prospect.name or prospect.login,
             prospect_bio=prospect.bio,
             prospect_topic=topics[0] if topics else "crypto",
+            prospect_country=prospect.country,
         )
         if rendered is None:
             skipped += 1
