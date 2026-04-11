@@ -43,6 +43,22 @@ echo [CEO MAXIA V3] FAST: %OLLAMA_MODEL_FAST%
 echo [CEO MAXIA V3] Attente Ollama (10s)...
 timeout /t 10 /nobreak >nul
 
+:: ── Dashboard CEO localhost:8888 ──
+:: Lance dashboard.py dans une fenetre separee si port 8888 libre.
+:: Utilise le meme Python que ceo_main.py (voir project_ceo_chat_dashboard.md).
+set "PYTHON_EXE=C:\Users\Mini pc\AppData\Local\Programs\Python\Python312\python.exe"
+netstat -ano | findstr ":8888" | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 (
+  if exist "%PYTHON_EXE%" (
+    echo [CEO MAXIA V3] Dashboard: lancement localhost:8888...
+    start "CEO Dashboard" "%PYTHON_EXE%" "%~dp0dashboard.py"
+  ) else (
+    echo [CEO MAXIA V3] Dashboard: Python introuvable a %PYTHON_EXE% - skip.
+  )
+) else (
+  echo [CEO MAXIA V3] Dashboard: deja actif sur 8888 - skip.
+)
+
 echo [CEO MAXIA V3] Lancement CEO V3...
 :loop
 echo [CEO MAXIA V3] === START %date% %time% ===

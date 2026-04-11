@@ -1086,22 +1086,11 @@ async function loadStocks() {
     }
 
     if (!Array.isArray(stocks) || stocks.length === 0) {
-      // Fallback: build from catalog
+      // Fallback catalog — prices hydrated live by startStockPriceLive() WS
       stocks = Object.keys(STOCK_CATALOG).map(function(sym) {
         var cat = STOCK_CATALOG[sym];
         return {symbol: sym, name: cat.name, price_usd: 0, change_24h_pct: 0, sector: cat.sector, xstock: cat.xstock};
       });
-      // Try to fetch live prices
-      try {
-        var priceData = await api('/api/oracle/stocks/prices');
-        if (priceData && priceData.prices) {
-          priceData.prices.forEach(function(p) {
-            var s = (p.symbol||'').replace(/^x/,'').toUpperCase();
-            var match = stocks.find(function(st) { return st.symbol === s; });
-            if (match) { match.price_usd = p.price_usd || p.price || 0; match.change_24h_pct = p.change_24h_pct || 0; }
-          });
-        }
-      } catch(e) {}
     }
 
     // Normalize and cache
@@ -1433,28 +1422,9 @@ function quickStockTrade(symbol, side) {
 }
 
 async function renderFallbackStocks(grid) {
-  /* Fallback: tenter de fetcher les prix live depuis l'oracle avant d'afficher */
+  /* Fallback: affiche les symboles du catalog. Prix hydrates live via WS /ws/prices. */
   var symbols = ['AAPL', 'GOOGL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'MSTR', 'QQQ', 'SPY'];
   var fallback = symbols.map(function(sym) { return { sym: sym, price: 0 }; });
-
-  /* Tenter de recuperer les prix live depuis l'API oracle */
-  try {
-    var priceData = await api('/api/oracle/stocks/prices');
-    if (priceData && priceData.prices) {
-      var priceMap = {};
-      priceData.prices.forEach(function(p) {
-        var s = (p.symbol || '').replace(/^x/, '').toUpperCase();
-        priceMap[s] = { price: p.price_usd || p.price || 0, change: p.change_24h_pct || 0 };
-      });
-      fallback = symbols.map(function(sym) {
-        var live = priceMap[sym];
-        return { sym: sym, price: live ? live.price : 0, change: live ? live.change : 0 };
-      });
-    }
-  } catch (e) {
-    /* Si l'oracle echoue aussi, on affiche les symboles sans prix */
-    console.warn('[Stocks] Fallback oracle fetch failed:', e);
-  }
 
   fallback.forEach(function(f) {
     _stockPriceCache[f.sym] = { price: f.price, change: f.change || 0, source: f.price > 0 ? 'oracle' : 'unavailable' };

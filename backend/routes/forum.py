@@ -56,6 +56,40 @@ async def _ceo_bridge_enqueue(post: dict) -> None:
     except Exception as e:
         logger.debug("[forum→ceo_bridge] ingest skipped: %s", e)
 
+
+async def _ceo_bridge_enqueue_reply(reply: dict, parent_post: dict | None = None) -> None:
+    """Fire-and-forget: ask CEO Local to respond to a forum reply.
+
+    Audit 2026-04-11 (T2-22): create_post wired the bridge, create_reply
+    did not — so the CEO answered top-level posts but stayed silent on
+    follow-up replies. This closes that gap.
+
+    Loop protection: skip replies authored by ``ceo_bridge`` itself.
+    Context: prepend parent post title so the LLM sees the thread topic.
+    """
+    try:
+        if (reply.get("author_wallet") or "") == "ceo_bridge":
+            return
+        from ceo_bridge import ingest_message
+        body = reply.get("body", "") or ""
+        if not body.strip():
+            return
+        parent_title = (parent_post or {}).get("title", "") if parent_post else ""
+        if parent_title:
+            message = f"[Thread: {parent_title}]\n\n{body}"
+        else:
+            message = body
+        await ingest_message(
+            channel="forum",
+            source_ref=reply.get("id", ""),
+            user_id=reply.get("author_wallet", ""),
+            user_name=reply.get("author_name", ""),
+            message=message[:3800],
+            language="",
+        )
+    except Exception as e:
+        logger.debug("[forum_reply→ceo_bridge] ingest skipped: %s", e)
+
 # Callback for per-wallet WS push (injected by main.py at startup)
 _ws_notify_callback = None
 
@@ -432,10 +466,12 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
         pass  # Mention failure must never break reply creation
 
     # Update reply count (from actual COUNT) + hot score on parent post
+    parent_post_for_bridge: dict | None = None
     try:
         rows = await db.raw_execute_fetchall("SELECT data FROM forum_posts WHERE id=?", (post_id,))
         if rows:
             post = json.loads(rows[0]["data"])
+            parent_post_for_bridge = post
             # Derive reply_count from DB (avoids race condition)
             cnt_rows = await db.raw_execute_fetchall(
                 "SELECT COUNT(*) as cnt FROM forum_replies WHERE post_id=? AND status='active'", (post_id,))
@@ -448,6 +484,12 @@ async def create_reply(db, post_id: str, data: dict) -> dict:
                 (json.dumps(post, default=str), new_hot, post_id))
     except Exception as e:
         logger.warning("reply_count update error for %s: %s", post_id, e)
+
+    # T2-22: trigger CEO Local auto-reply on new forum replies (fire-and-forget)
+    try:
+        asyncio.create_task(_ceo_bridge_enqueue_reply(reply, parent_post_for_bridge))
+    except Exception:
+        pass  # Bridge failure must never break reply creation
 
     return reply
 

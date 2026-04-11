@@ -499,6 +499,7 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
   <div class="controls">
     <span id="status" class="status status-run">ACTIF</span>
     <button id="pauseBtn" class="btn btn-pause" onclick="togglePause()">Pause</button>
+    <button id="reindexBtn" class="btn btn-small" style="background:#252535;color:#e0e0e0" onclick="reindexRag()">Reindex RAG</button>
     <button class="btn btn-small" style="background:#252535;color:#e0e0e0" onclick="exportCSV()">Export CSV</button>
     <button class="btn btn-danger btn-small" onclick="clearMemory()">Reset memoire</button>
   </div>
@@ -977,6 +978,19 @@ async function exportCSV(){
   const a=document.createElement('a');
   a.href=url;a.download='ceo_audit.csv';a.click();
 }
+async function reindexRag(){
+  const btn=document.getElementById('reindexBtn');
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='Reindexing...';
+  try{
+    const r=await fetch('/api/rag/reindex',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({force:true})});
+    const d=await r.json();
+    if(d.error){alert('Reindex failed: '+d.error);}
+    else if(d.ran===false){alert('No change detected. Reason: '+(d.reason||'unknown'));}
+    else{const s=d.stats||{};alert('Reindex OK\n+'+(s.chunks_added||0)+' chunks\n'+(s.files||0)+' files\n'+(s.skipped||0)+' skipped\n'+((s.elapsed_s||0).toFixed(1))+'s');}
+  }catch(e){alert('Reindex error: '+e.message);}
+  btn.disabled=false;btn.textContent=orig;
+}
 load();setInterval(load,10000);
 </script>
 </body>
@@ -1065,6 +1079,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if self.path == "/api/chat/alexis/clear":
             _save_alexis_chat([])
             self._json_response({"cleared": True})
+            return
+        if self.path == "/api/rag/reindex":
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = json.loads(self.rfile.read(length)) if length else {}
+            except Exception:
+                body = {}
+            force = bool(body.get("force", True))
+            try:
+                import sys as _sys_rag
+                if str(_DIR) not in _sys_rag.path:
+                    _sys_rag.path.insert(0, str(_DIR))
+                from missions.reindex_rag import mission_reindex_rag
+                import asyncio as _asyncio
+                result = _asyncio.run(mission_reindex_rag(force=force))
+                self._json_response(result)
+            except Exception as e:
+                self._json_response({"error": str(e), "trace": traceback.format_exc()[-500:]})
             return
         if self.path == "/api/control":
             length = int(self.headers.get("Content-Length", 0))
