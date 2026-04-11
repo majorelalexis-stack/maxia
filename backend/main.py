@@ -770,6 +770,78 @@ async def rate_limit_headers_middleware(request, call_next):
         pass
     return response
 
+
+# ── MAXIA Guard — Pillar 5 extension: PII Shield outbound ──
+@app.middleware("http")
+async def pii_shield_middleware(request, call_next):
+    """Scrub PII from outbound JSON/text response bodies.
+
+    MAXIA Guard Q2a. Skipped on /metrics, /oracle/*, and binary types.
+    Logs scrub events to the audit trail (pillar 4) when hits > 0.
+    """
+    response = await call_next(request)
+
+    try:
+        from core.pii_shield import (
+            is_body_scannable,
+            scrub_body_bytes,
+        )
+    except Exception:
+        return response
+
+    try:
+        path = request.url.path
+        content_type = response.headers.get("content-type", "")
+
+        # Collect the streamed body.
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+
+        if not is_body_scannable(body, content_type, path):
+            from starlette.responses import Response as _Resp
+            return _Resp(
+                content=body,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+        new_body, hits = await scrub_body_bytes(body)
+
+        if hits:
+            total = sum(hits.values())
+            try:
+                from enterprise.audit_trail import audit_log
+                from core.database import db as _db
+                await audit_log(
+                    actor="pii_shield",
+                    action="pii_scrub",
+                    resource=path,
+                    db=_db,
+                    result="scrubbed",
+                    metadata={"hits": hits, "total": total},
+                    skip_policy=True,
+                )
+            except Exception as e:
+                logger.debug("pii_shield audit log skipped: %s", e)
+
+        from starlette.responses import Response as _Resp2
+        headers = dict(response.headers)
+        headers["content-length"] = str(len(new_body))
+        if hits:
+            headers["X-MAXIA-Guard-PII-Scrubbed"] = str(sum(hits.values()))
+        return _Resp2(
+            content=new_body,
+            status_code=response.status_code,
+            headers=headers,
+            media_type=response.media_type,
+        )
+    except Exception as e:
+        logger.warning("pii_shield middleware error (fail-open): %s", e)
+        return response
+
+
 # ── Routers ──
 app.include_router(auth_router)
 app.include_router(ref_router)
@@ -939,6 +1011,22 @@ try:
     logger.info("[AGENTVERSE] Fetch.ai Agentverse bridge monte")
 except Exception as e:
     logger.error("[MAXIA] Agentverse bridge router error: %s", e)
+
+# V12.3: A2A Handshake (ed25519 session bootstrap + uAgents v0.24.1 adapter config)
+try:
+    from agents.a2a_handshake import router as a2a_handshake_router
+    app.include_router(a2a_handshake_router)
+    logger.info("[A2A Handshake] ed25519 handshake + adapter-config router monte")
+except Exception as e:
+    logger.error("[MAXIA] A2A handshake router error: %s", e)
+
+# V12.4: LlamaIndex AgentMesh bridge (trusted worker registry + signed execute)
+try:
+    from agents.llama_mesh_bridge import router as llama_mesh_router
+    app.include_router(llama_mesh_router)
+    logger.info("[LlamaMesh] LlamaIndex AgentMesh bridge monte (4 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] LlamaIndex mesh bridge router error: %s", e)
 
 # V13: Proof of Delivery + Dispute Resolution (Art.47)
 try:
@@ -1293,6 +1381,14 @@ logger.info("[PagesInline] Pages + health + docs + versioning routes monte")
 from routes.forum_api import router as forum_api_router
 app.include_router(forum_api_router)
 logger.info("[Forum] Forum API routes monte")
+
+# ── MAXIA Guard Q2b — declarative policy YAML per agent ──
+try:
+    from routes.agent_policy import router as agent_policy_router
+    app.include_router(agent_policy_router)
+    logger.info("[Guard] Agent policy routes monte (Q2b)")
+except Exception as e:
+    logger.warning("[Guard] agent_policy router failed: %s", e)
 
 # ── Agent Profiles ──
 try:
