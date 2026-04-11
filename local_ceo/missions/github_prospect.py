@@ -179,6 +179,22 @@ async def mission_github_prospect(mem: dict, actions: dict) -> None:
             continue
         subject, text, html = rendered
 
+        # Early country gate — skip blocked jurisdictions BEFORE calling
+        # the LLM (saves qwen3 cycles + clearer audit trail). The backend
+        # `engine.send()` also enforces this via BlockedByCompliance, but
+        # we short-circuit here to avoid wasted compute.
+        try:
+            from compliance.country_filter import is_country_allowed_for_outreach
+            if not is_country_allowed_for_outreach(prospect.country):
+                skipped += 1
+                log.info(
+                    "[gh_prospect] skipped %s (country=%s not in outreach allowlist)",
+                    prospect.email, prospect.country,
+                )
+                continue
+        except ImportError:
+            pass  # backend compliance not reachable, fall through to engine check
+
         try:
             await engine.send(
                 to=prospect.email,

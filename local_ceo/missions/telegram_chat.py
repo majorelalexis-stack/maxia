@@ -190,6 +190,144 @@ def _is_sensitive_telegram(text: str) -> bool:
         return False
 
 
+# Telegram language_code is often ``xx`` or ``xx-YY`` where ``xx`` is
+# the ISO 639-1 language and ``YY`` is the ISO 3166-1 region. When the
+# region is present it's the most reliable country signal. When only
+# the language is present we map to the most-likely country for the
+# purpose of compliance gating — erring on the side of deny if the
+# language primarily maps to a regulated jurisdiction.
+_LANG_TO_LIKELY_COUNTRY: dict[str, str] = {
+    "de": "DE", "fr": "FR", "it": "IT", "es": "ES", "pt": "PT",
+    "nl": "NL", "sv": "SE", "da": "DK", "fi": "FI", "pl": "PL",
+    "cs": "CZ", "sk": "SK", "hu": "HU", "ro": "RO", "bg": "BG",
+    "hr": "HR", "sl": "SI", "lt": "LT", "lv": "LV", "et": "EE",
+    "el": "GR", "ga": "IE", "mt": "MT",
+    "en": "US",
+    "ja": "JP", "ko": "KR",
+    "zh": "CN",
+    "zh-cn": "CN", "zh-hk": "HK", "zh-tw": "TW",
+    "hi": "IN", "bn": "BD", "ur": "PK", "id": "ID", "vi": "VN",
+    "tr": "TR", "th": "TH",
+    "ar": "AE", "he": "IL", "fa": "IR",
+    "ru": "RU",
+}
+
+
+def _infer_country_from_lang(language_code: Optional[str]) -> str:
+    """Best-effort country inference from a Telegram language_code.
+
+    Returns an ISO 3166-1 alpha-2 upper-case code or '' if unknown.
+    """
+    if not isinstance(language_code, str) or not language_code.strip():
+        return ""
+    lc = language_code.strip().lower()
+    if "-" in lc:
+        lang, region = lc.split("-", 1)
+        region = region.strip().upper()
+        if len(region) == 2 and region.isalpha():
+            return region
+        combo_key = f"{lang}-{region.lower()}"
+        if combo_key in _LANG_TO_LIKELY_COUNTRY:
+            return _LANG_TO_LIKELY_COUNTRY[combo_key]
+        lc = lang
+    return _LANG_TO_LIKELY_COUNTRY.get(lc, "")
+
+
+# Canned decline messages shown to prospects from geo-blocked
+# jurisdictions. Short, polite, redirects to public docs which are
+# accessible from everywhere.
+_DECLINE_MESSAGES: dict[str, str] = {
+    "en": (
+        "Hi — thanks for reaching out to MAXIA. Unfortunately our trading "
+        "and custody services are not currently available to residents of "
+        "your jurisdiction due to local licensing requirements. You can "
+        "still browse our public documentation and API at "
+        "https://maxiaworld.app/docs. If you believe this is a mistake, "
+        "contact compliance@maxiaworld.app."
+    ),
+    "fr": (
+        "Bonjour — merci de nous contacter. Les services de trading et de "
+        "custody MAXIA ne sont pas disponibles dans votre pays en raison "
+        "des exigences de licence locales. Vous pouvez consulter notre "
+        "documentation publique sur https://maxiaworld.app/docs. Si vous "
+        "pensez qu'il s'agit d'une erreur, ecrivez a "
+        "compliance@maxiaworld.app."
+    ),
+    "de": (
+        "Hallo — danke fur Ihre Nachricht. Die Trading- und "
+        "Custody-Dienste von MAXIA sind in Ihrem Land derzeit aufgrund "
+        "lokaler Lizenzanforderungen nicht verfugbar. Unsere "
+        "offentliche Dokumentation ist weiterhin unter "
+        "https://maxiaworld.app/docs erreichbar. Bei Fragen: "
+        "compliance@maxiaworld.app."
+    ),
+    "es": (
+        "Hola — gracias por tu mensaje. Los servicios de trading y "
+        "custodia de MAXIA no estan disponibles en tu jurisdiccion debido "
+        "a requisitos de licencia locales. Puedes consultar nuestra "
+        "documentacion publica en https://maxiaworld.app/docs. Contacto: "
+        "compliance@maxiaworld.app."
+    ),
+    "it": (
+        "Ciao — grazie per averci contattato. I servizi di trading e "
+        "custody di MAXIA non sono al momento disponibili nella tua "
+        "giurisdizione per motivi di licenza locale. La documentazione "
+        "pubblica resta accessibile su https://maxiaworld.app/docs. "
+        "Contatto: compliance@maxiaworld.app."
+    ),
+    "pt": (
+        "Ola — obrigado pelo contato. Os servicos de trading e custodia "
+        "da MAXIA nao estao atualmente disponiveis na sua jurisdicao "
+        "devido a requisitos locais de licenca. Nossa documentacao "
+        "publica continua acessivel em https://maxiaworld.app/docs. "
+        "Contato: compliance@maxiaworld.app."
+    ),
+    "ja": (
+        "こんにちは。MAXIAへのお問い合わせありがとうございます。現時点で、"
+        "貴国の規制により当社の取引およびカストディサービスはご利用いただけ"
+        "ません。公開ドキュメントは https://maxiaworld.app/docs でご覧に"
+        "なれます。compliance@maxiaworld.app までお問い合わせください。"
+    ),
+    "ko": (
+        "안녕하세요. MAXIA에 문의해 주셔서 감사합니다. 현재 귀하의 관할 "
+        "구역에서는 현지 라이센스 요구 사항으로 인해 거래 및 커스터디 "
+        "서비스를 이용할 수 없습니다. 공개 문서는 https://maxiaworld.app/docs "
+        "에서 계속 이용하실 수 있습니다. compliance@maxiaworld.app 로 "
+        "문의해 주세요."
+    ),
+    "zh": (
+        "您好,感谢您联系MAXIA。由于当地许可要求,我们的交易和托管服务"
+        "目前在您所在的司法管辖区不可用。您仍可以在 "
+        "https://maxiaworld.app/docs 浏览我们的公开文档。如有疑问,请"
+        "联系 compliance@maxiaworld.app。"
+    ),
+    "ru": (
+        "Здравствуйте. Спасибо за обращение в MAXIA. К сожалению, наши "
+        "торговые услуги и услуги кастоди в настоящее время недоступны "
+        "в вашей юрисдикции из-за местных лицензионных требований. Вы "
+        "можете ознакомиться с нашей публичной документацией на "
+        "https://maxiaworld.app/docs. Для связи: compliance@maxiaworld.app."
+    ),
+    "ar": (
+        "مرحبا، شكرا لتواصلك مع MAXIA. للأسف، خدمات التداول والحفظ لدينا "
+        "غير متوفرة حاليا في ولايتك القضائية بسبب متطلبات الترخيص "
+        "المحلية. يمكنك الاطلاع على وثائقنا العامة على "
+        "https://maxiaworld.app/docs. التواصل: compliance@maxiaworld.app."
+    ),
+}
+
+
+def _decline_message_for_lang(
+    language_code: str, country: str, tier: str,
+) -> str:
+    """Return a polite decline message in the prospect's language.
+
+    Falls back to English if the language is not in our canned list.
+    """
+    lang_raw = (language_code or "en").lower().split("-")[0]
+    return _DECLINE_MESSAGES.get(lang_raw, _DECLINE_MESSAGES["en"])
+
+
 async def _handle_prospect_message(
     *,
     chat_id: int,
@@ -236,6 +374,41 @@ async def _handle_prospect_message(
             "You're sending messages too fast. Please wait a bit and try again."
         )
         return
+
+    # 2.5. Geofence gate — if the inferred country is in HARD or LICENSE
+    # tier, politely decline instead of running the sales agent. We do
+    # this AFTER the sensitive-keyword check so that actual escalations
+    # (refund, lawsuit, etc.) still get Alexis's personal follow-up
+    # regardless of jurisdiction.
+    inferred_country = _infer_country_from_lang(language_code)
+    if inferred_country:
+        try:
+            from compliance.country_filter import get_tier
+            tier = get_tier(inferred_country)
+            if tier in ("hard", "license"):
+                log.info(
+                    "[TELEGRAM] prospect geo-declined chat=%s country=%s tier=%s",
+                    chat_id, inferred_country, tier,
+                )
+                decline_msg = _decline_message_for_lang(
+                    language_code or "en",
+                    inferred_country,
+                    tier,
+                )
+                await _send_message_to(chat_id, decline_msg)
+                mem.setdefault("telegram_prospect_messages", []).append({
+                    "date": datetime.now().isoformat(),
+                    "chat_id": chat_id,
+                    "from_id": from_id,
+                    "lang": language_code or "?",
+                    "inferred_country": inferred_country,
+                    "tier": tier,
+                    "in": text[:200],
+                    "out": "[geo-declined]",
+                })
+                return
+        except ImportError:
+            pass  # backend compliance not reachable, fall through
 
     # 3. Route through smart_reply -> MaxiaSalesAgent
     try:

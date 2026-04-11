@@ -1028,6 +1028,30 @@ try:
 except Exception as e:
     logger.error("[MAXIA] LlamaIndex mesh bridge router error: %s", e)
 
+# V12.5: Geofence admin (Tier 1 global) — rules inspect, log stats, rotate
+try:
+    from routes.geofence_admin import router as geofence_admin_router
+    app.include_router(geofence_admin_router)
+    logger.info("[Geofence] admin router monte (8 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Geofence admin router error: %s", e)
+
+# V12.6: OAuth linking (Google/GitHub/Discord/Microsoft for notifications)
+try:
+    from routes.oauth_routes import router as oauth_router
+    app.include_router(oauth_router)
+    logger.info("[OAuth] linking router monte (providers/login/callback/unlink)")
+except Exception as e:
+    logger.error("[MAXIA] OAuth router error: %s", e)
+
+# V12.6b: Direct email notification opt-in (no OAuth)
+try:
+    from routes.notification_optin import router as notif_router
+    app.include_router(notif_router)
+    logger.info("[Notifications] opt-in router monte (4 endpoints)")
+except Exception as e:
+    logger.error("[MAXIA] Notification opt-in router error: %s", e)
+
 # V13: Proof of Delivery + Dispute Resolution (Art.47)
 try:
     from features.proof_of_delivery import router as pod_router
