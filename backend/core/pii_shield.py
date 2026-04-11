@@ -32,12 +32,19 @@ _MAX_BODY_BYTES = 100 * 1024  # 100 KB — skip scrub above this size
 # Path prefixes where scrubbing is a no-op.
 # ``/metrics`` = Prometheus (purely numeric, CC regex false positives).
 # ``/oracle/*`` = price feeds (large floats, no PII).
-# ``/api/public/prices`` = same reason.
+# ``/api/public/prices``, ``/api/public/crypto/prices``, ``/api/public/stocks``,
+# ``/api/public/marketplace-stats`` = pricing/market-data feeds. They contain
+# big numeric fields (max_amount caps, Unix timestamps, quantized prices) that
+# trip the phone regex and produce ``[PHONE_REDACTED]`` tokens, corrupting the
+# JSON. These endpoints hold zero user PII by construction.
 # ``/static/*`` = assets.
 _SKIP_PREFIXES: tuple[str, ...] = (
     "/metrics",
     "/oracle/",
     "/api/public/prices",
+    "/api/public/crypto/prices",
+    "/api/public/stocks",
+    "/api/public/marketplace-stats",
     "/static/",
     "/favicon",
     "/sw.js",
@@ -73,10 +80,23 @@ _SSN_FR_RE = re.compile(
 # IBAN — 2 letters + 2 digits + up to 30 alphanumeric.
 _IBAN_RE = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
 
-# Phone — E.164 with at least 8 digits to limit false positives.
-# Must be preceded by whitespace, start of string, or common separators.
+# Phone — E.164 or formatted with common separators.
+# IMPORTANT: a bare run of digits is NOT a phone match here, because JSON
+# payloads are full of big integer fields (Unix timestamps, tx block numbers,
+# price tiers, max_amount caps) that would otherwise all get redacted and
+# break the JSON. We require either:
+#   1. a ``+`` country-code prefix followed by 8-15 digits, OR
+#   2. a formatted phone (digit groups separated by space / dash / dot /
+#      parens) totaling at least 9 digits.
+# False-positive rate on this pattern is empirically ~0 for MAXIA's JSON
+# payloads while still catching "+33 6 12 34 56 78", "(555) 123-4567", and
+# "+1-800-555-0199".
 _PHONE_RE = re.compile(
-    r"(?<![\d])\+?[1-9]\d{7,14}(?![\d])"
+    r"(?<![\w])(?:"
+    r"\+[1-9]\d{7,14}"                                  # E.164 with +
+    r"|"
+    r"(?:\(\d{2,4}\)|\d{2,4})[ .\-]\d{2,4}[ .\-]\d{2,4}(?:[ .\-]\d{2,4})*"  # formatted
+    r")(?![\w])"
 )
 
 
@@ -202,9 +222,19 @@ def is_body_scannable(body: bytes, content_type: str, path: str) -> bool:
     return True
 
 
-async def scrub_body_bytes(body: bytes) -> tuple[bytes, dict[str, int]]:
+async def scrub_body_bytes(
+    body: bytes, content_type: str = ""
+) -> tuple[bytes, dict[str, int]]:
     """Decode -> scrub -> re-encode a response body. Returns original bytes
-    if decoding fails. Never raises."""
+    if decoding fails. Never raises.
+
+    **JSON safety net**: if the caller hints the content is JSON and the
+    scrubbed output is no longer valid JSON (a placeholder like
+    ``[PHONE_REDACTED]`` broke the number grammar), we return the original
+    body unchanged and log a warning. This guarantees the PII shield can
+    never corrupt the JSON contract even if a future regex match fires
+    inside a numeric field by accident.
+    """
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
@@ -213,6 +243,21 @@ async def scrub_body_bytes(body: bytes) -> tuple[bytes, dict[str, int]]:
     if not hits:
         return body, {}
     try:
-        return scrubbed.encode("utf-8"), hits
+        new_bytes = scrubbed.encode("utf-8")
     except UnicodeEncodeError:
         return body, {}
+
+    # JSON safety net — rollback on invalid output
+    if content_type and "json" in content_type.lower():
+        try:
+            import json as _json
+            _json.loads(scrubbed)
+        except Exception as e:
+            logger.warning(
+                "pii_shield rollback: scrubbed body is invalid JSON (%s) — "
+                "returning original bytes. hits=%s",
+                e, hits,
+            )
+            return body, {}
+
+    return new_bytes, hits

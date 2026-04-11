@@ -689,15 +689,67 @@ async def public_create_auction(req: dict, x_api_key: str = Header(None, alias="
 #  BOURSE D'ACTIONS TOKENISEES
 # ══════════════════════════════════════════
 
-def _is_us_market_open() -> bool:
-    """Check if US stock market is open (Mon-Fri 9:30-16:00 ET, simplified UTC-5)."""
+def _us_market_state() -> tuple[bool, str, str]:
+    """Return ``(is_open, status, last_open_iso)`` for the US equity market.
+
+    ``status`` is one of:
+        * ``"open"``              — regular trading hours, Mon-Fri
+        * ``"closed_weekend"``    — Saturday or Sunday
+        * ``"closed_after_hours"``— weekday but outside 9:30-16:00 ET
+
+    ``last_open_iso`` is an ISO-8601 UTC timestamp for the most recent
+    close (16:00 ET). Useful for rendering "Last Fri close" labels.
+
+    DST-aware: uses ``zoneinfo`` on Python 3.9+. Falls back to a fixed
+    UTC-4 offset (EDT) if ``zoneinfo`` is unavailable.
+    """
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
-    now_utc = _dt.now(_tz.utc)
-    est = now_utc - _td(hours=5)  # EST = UTC-5 (simplified)
-    if est.weekday() >= 5:  # Weekend
-        return False
-    hour_min = est.hour * 100 + est.minute
-    return 930 <= hour_min < 1600
+
+    try:
+        from zoneinfo import ZoneInfo  # py>=3.9
+        ny = _dt.now(ZoneInfo("America/New_York"))
+    except Exception:
+        # Fallback: assume EDT (April through November). Not perfect but
+        # never raises and is correct for the majority of the year.
+        now_utc = _dt.now(_tz.utc)
+        ny = (now_utc - _td(hours=4)).replace(tzinfo=_tz(_td(hours=-4)))
+
+    weekday = ny.weekday()  # Mon=0 .. Sun=6
+    minutes_since_midnight = ny.hour * 60 + ny.minute
+    open_min = 9 * 60 + 30   # 09:30
+    close_min = 16 * 60      # 16:00
+
+    def _last_close_iso(ref: _dt) -> str:
+        """Return ISO UTC of the most recent 16:00 ET close at or before ref."""
+        close = ref.replace(hour=16, minute=0, second=0, microsecond=0)
+        # If we haven't reached today's close yet, step back to yesterday.
+        if ref < close:
+            close = close - _td(days=1)
+        # Walk back over weekend days (Sat=5, Sun=6).
+        while close.weekday() >= 5:
+            close = close - _td(days=1)
+        return close.astimezone(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    if weekday >= 5:  # Saturday or Sunday
+        return False, "closed_weekend", _last_close_iso(ny)
+    if open_min <= minutes_since_midnight < close_min:
+        return True, "open", _last_close_iso(ny)
+    return False, "closed_after_hours", _last_close_iso(ny)
+
+
+def _is_us_market_open() -> bool:
+    """Back-compat wrapper. Returns only the open/closed bool."""
+    return _us_market_state()[0]
+
+
+def _apply_market_state(result: dict) -> dict:
+    """Mutate ``result`` in place to add ``market_open``, ``market_status``
+    and ``last_open_iso`` fields. Returns the same dict for chaining."""
+    is_open, status, last_close = _us_market_state()
+    result["market_open"] = is_open
+    result["market_status"] = status
+    result["last_open_iso"] = last_close
+    return result
 
 
 @router.get("/stocks")
@@ -705,10 +757,7 @@ async def list_stocks():
     """Liste les actions tokenisees disponibles avec prix. Sans auth."""
     from trading.tokenized_stocks import stock_exchange
     result = await stock_exchange.list_stocks()
-    market_open = _is_us_market_open()
-    result["market_open"] = market_open
-    result["market_status"] = "open" if market_open else "closed"
-    return result
+    return _apply_market_state(result)
 
 
 @router.get("/stocks/price/{symbol}")
@@ -717,9 +766,7 @@ async def stock_price(symbol: str):
     from trading.tokenized_stocks import stock_exchange
     result = await stock_exchange.get_price(symbol)
     if "error" not in result:
-        market_open = _is_us_market_open()
-        result["market_open"] = market_open
-        result["market_status"] = "open" if market_open else "closed"
+        _apply_market_state(result)
     return result
 
 
