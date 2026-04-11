@@ -285,9 +285,9 @@ function isSolanaWallet() {
   return walletType === 'phantom' || walletType === 'backpack' || walletType === 'solflare';
 }
 
-function isOtherWallet() {
-  return walletType === 'petra' || walletType === 'sui' || walletType === 'tonkeeper' || walletType === 'tronlink';
-}
+// isOtherWallet() removed — Aptos/SUI/TON/TRON are marked "coming soon"
+// in the dropdown. When their signing paths land, reintroduce this
+// helper and route them through executeXxxSwap functions.
 
 // -- Get current EVM chain ID (decimal) --
 async function getEvmChainId() {

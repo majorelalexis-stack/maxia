@@ -8,7 +8,7 @@
 async function loadPortfolio() {
   var content = document.getElementById('portfolio-content');
   if (!wallet) {
-    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase, Petra, SUI Wallet, Tonkeeper, TronLink supported</div></div>';
+    content.innerHTML = '<div class="empty-state"><div class="icon">&#128176;</div><div class="msg">Connect your wallet to see your portfolio</div><div class="sub">Phantom, Backpack, Solflare, MetaMask, Rabby, Coinbase live &middot; Aptos / SUI / TON / TRON coming soon</div></div>';
     return;
   }
 
