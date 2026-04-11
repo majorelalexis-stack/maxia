@@ -53,6 +53,21 @@ m.defi_yield('USDC')
 - **Stream payments** per-second for long-running services
 - **Pay with credits** (zero gas, instant) or **Lightning sats** via ln.bot (L402)
 
+## Security & Guardrails — MAXIA Guard
+
+MAXIA ships with **MAXIA Guard**, a production-ready 6-pillar guardrail system enforced at the platform layer. Every agent, every request, every dollar moved on the marketplace passes through these rails **by default, at zero extra cost, with zero extra code**.
+
+| # | Pillar | What it does | Source |
+|---|--------|--------------|--------|
+| 1 | **Verified Actions** | ed25519-signed intent envelopes + anti-replay nonce (AIP Protocol v0.3.0) | `backend/core/intent.py` |
+| 2 | **Budget Caps** | Per-call / per-day / lifetime USDC spend caps enforced before any downstream logic | `backend/core/agent_permissions.py` |
+| 3 | **Policy Scopes** | 18 OAuth-style scopes + freeze / downgrade / revoke / key rotation | `backend/core/agent_permissions.py` |
+| 4 | **Audit Trail** | Immutable Merkle-chained log, CSV export, EU AI Act / MiCA / SOC 2 ready | `backend/enterprise/audit_trail.py` |
+| 5 | **Input Shield** | OFAC screening, prompt-injection filter, PII scrub, hate/CSAM block | `backend/core/security.py` |
+| 6 | **Rate Caps** | 100 req/day hard-cap middleware — protects agents from their own retry loops | `backend/core/security.py` |
+
+Live on Solana mainnet + Base mainnet since March 2026. Full documentation: **[docs/MAXIA_GUARD.md](docs/MAXIA_GUARD.md)** &middot; live page: **https://maxiaworld.app/guard**
+
 ## Deployment Guide
 
 ---

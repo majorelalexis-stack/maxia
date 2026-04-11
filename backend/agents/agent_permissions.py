@@ -363,6 +363,53 @@ async def check_agent_scope(api_key: str, wallet: str, required_scope: str):
 
 
 # ══════════════════════════════════════════
+# CHECK POLICY — declarative policy.yaml (MAXIA Guard Q2b)
+# ══════════════════════════════════════════
+
+async def check_agent_policy(
+    agent_id: str,
+    action: str,
+    *,
+    amount_usdc: float = 0.0,
+    chain: str = "",
+    token: str = "",
+) -> dict:
+    """Evaluate the agent's declarative policy for ``action``.
+
+    Called before scopes/budget in the auth flow (MAXIA Guard pillar 3 ext).
+    Returns ``{"allowed": bool, "require_2fa": bool, "rule": str, "reason": str}``.
+    Raises HTTPException(403) on deny; never raises on allow.
+    """
+    try:
+        from core.policy_engine import load_policy, evaluate
+    except Exception:
+        return {"allowed": True, "require_2fa": False, "rule": "", "reason": "policy_engine_unavailable"}
+
+    db = await _get_db()
+    policy = await load_policy(db, agent_id)
+    decision = evaluate(
+        policy, action,
+        amount_usdc=amount_usdc, chain=chain, token=token,
+    )
+
+    if not decision.allowed:
+        raise HTTPException(403, {
+            "error": "Denied by policy",
+            "agent_id": agent_id,
+            "action": action,
+            "rule": decision.rule,
+            "detail": decision.reason,
+        })
+
+    return {
+        "allowed": True,
+        "require_2fa": decision.require_2fa,
+        "rule": "",
+        "reason": "",
+    }
+
+
+# ══════════════════════════════════════════
 # CHECK SPEND — per-agent budget limits
 # ══════════════════════════════════════════
 

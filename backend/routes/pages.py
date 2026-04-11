@@ -243,6 +243,12 @@ async def serve_security():
     return _serve("security.html")
 
 
+@router.get("/guard", response_class=HTMLResponse)
+async def serve_guard():
+    """MAXIA Guard — 6-pillar guardrail system for autonomous AI agents."""
+    return _serve("guard.html")
+
+
 @router.get("/templates", response_class=HTMLResponse)
 async def serve_templates():
     """Agent Templates — launch no-code agents in 3 clicks."""

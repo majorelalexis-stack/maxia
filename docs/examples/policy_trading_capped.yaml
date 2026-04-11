@@ -1,0 +1,29 @@
+# MAXIA Guard — trading bot capped at $50/day
+# Use case: a paper-trading bot graduating to real USDC. Strict per-call and
+# per-day caps. Can only swap on Solana + Base. Meme tokens denied by policy.
+version: 1
+
+allow:
+  - read:prices
+  - read:defi
+  - swap:execute
+  - escrow:create
+  - escrow:confirm
+
+deny:
+  - transfer_large
+  - stocks:trade
+
+limits:
+  max_usdc_per_call: 10
+  max_usdc_per_day: 50
+  max_usdc_lifetime: 500
+
+constraints:
+  allowed_chains:
+    - solana
+    - base
+  denied_tokens:
+    - PUMP
+    - TRUMP
+  require_2fa_above_usd: 25

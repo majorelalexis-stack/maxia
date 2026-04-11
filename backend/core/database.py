@@ -506,6 +506,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_ceo_pending_channel ON ceo_pending_replies(channel, status);"
             "CREATE INDEX IF NOT EXISTS idx_ceo_pending_source ON ceo_pending_replies(source_ref);"
         )),
+        14: ("MAXIA Guard Q2b — declarative policy YAML per agent", (
+            "ALTER TABLE agent_permissions ADD COLUMN policy_yaml TEXT DEFAULT '';"
+        )),
     }
 
     async def _run_migrations(self):

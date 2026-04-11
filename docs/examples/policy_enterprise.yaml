@@ -1,0 +1,16 @@
+# MAXIA Guard — full-access enterprise agent
+# Use case: an internal enterprise agent orchestrating multiple workflows.
+# No allow-list (all scopes from the agent's permissions apply). Hard dollar
+# ceiling via limits. 2FA above $1000 per call.
+version: 1
+
+deny:
+  - admin:*
+
+limits:
+  max_usdc_per_call: 5000
+  max_usdc_per_day: 50000
+  max_usdc_lifetime: 1000000
+
+constraints:
+  require_2fa_above_usd: 1000

@@ -182,6 +182,40 @@ async def enterprise_compliance(wallet: str, request: Request, period: int = 30)
     return await generate_compliance_report(wallet, db, period)
 
 
+@router.get("/api/enterprise/compliance-report")
+async def enterprise_eu_ai_act_report(
+    request: Request,
+    period: str = "last-30d",
+    format: str = "csv",
+    tenant_id: str = "",
+):
+    """EU AI Act compliance report (tenant-wide, MAXIA Guard 6-pillar summary).
+
+    Query params:
+        period: Q1-2026, 2026-03, last-30d, last-7d, last-90d, YYYY
+        format: csv | html | json
+        tenant_id: empty = all tenants (admin only)
+    """
+    from core.security import require_admin
+    require_admin(request)
+    from enterprise.compliance_report import generate_eu_ai_act_report
+    from core.database import db
+    from starlette.responses import Response
+
+    try:
+        body, content_type, filename = await generate_eu_ai_act_report(
+            db, tenant_id=tenant_id, period=period, fmt=format,
+        )
+    except ValueError as e:
+        raise HTTPException(400, safe_error(e, default="invalid period or format"))
+
+    return Response(
+        content=body,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/api/enterprise/contact")
 async def enterprise_contact(request: Request):
     """Receive enterprise contact form. Store in DB + send email + alert Telegram."""

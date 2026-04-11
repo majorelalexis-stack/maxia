@@ -1,0 +1,15 @@
+# MAXIA Guard — read-only sentinel agent
+# Use case: an agent that monitors prices, reads DeFi yields, and publishes
+# observations to a channel. Cannot spend anything, cannot trade.
+version: 1
+
+allow:
+  - read:marketplace
+  - read:prices
+  - read:defi
+  - read:agent
+
+limits:
+  max_usdc_per_call: 0
+  max_usdc_per_day: 0
+  max_usdc_lifetime: 0

@@ -2,6 +2,7 @@
 
 **PREMIERE ACTION DE CHAQUE SESSION : lancer `/context-budget` AVANT tout travail.**
 **A 60% du contexte : lancer `/strategic-compact`.**
+**ROUTAGE MODELES (OBLIGATOIRE)** : tout appel au tool `Agent` DOIT passer `model:` explicitement. `haiku` pour lookups/grep/reads/fetches/status, `sonnet` pour implementation/refactor/tests/reviews, `opus` rare (archi ambigue uniquement). Jamais omettre `model:` (sinon le subagent herite d'Opus et brule des tokens). Regles detaillees : skill `cost-aware-delegation` + memoire `feedback_cost_aware_delegation.md`. Addresse l'issue anthropics/claude-code#27665.
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
