@@ -33,3 +33,27 @@ local_ceo/rnd_findings.md
 
 # Pip install artifacts
 backend/=*
+
+# Runtime state artifacts (2026-04-11: split out from tracked files during bilan)
+.coverage
+*.db-wal
+*.db-shm
+*.sqlite3-wal
+*.sqlite3-shm
+backend/ceo_vector_db/
+backend/ceo_archives/
+backend/.audit_log.jsonl
+backend/.mesh_agents.json
+backend/.mesh_agents.tmp
+backend/.ofac_addresses.txt
+local_ceo/scout_pending_contacts.json
+local_ceo/alexis_chat_log.json
+local_ceo/telegram_state.json
+local_ceo/dashboard.log
+local_ceo/ceo_main.log
+local_ceo/ceo_state.db
+local_ceo/ceo_memory.json
+local_ceo/ceo_memory.json.bak
+
+# Duplicated Hugging Face space repo (canonical = huggingface-space/)
+hf-space-repo/
