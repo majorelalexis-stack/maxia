@@ -45,6 +45,19 @@ async def serve_register():
     return _serve("register.html")
 
 
+@router.get("/signin", response_class=HTMLResponse)
+async def serve_signin():
+    """OAuth-first spectator signup — Sign in with Google/GitHub."""
+    return _serve("signin.html")
+
+
+@router.get("/account", response_class=HTMLResponse)
+async def serve_account():
+    """Account profile — reads api_key from localStorage, fetches
+    /api/account/me, renders spectator upgrade CTA if applicable."""
+    return _serve("account.html")
+
+
 @router.get("/app", response_class=HTMLResponse)
 async def serve_app():
     """Interface humaine — Web3 Hub (swap, portfolio, GPU, yields, bridge, stocks, NFT)."""

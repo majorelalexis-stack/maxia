@@ -546,6 +546,11 @@ class Database:
             "ALTER TABLE agent_permissions ADD COLUMN notification_email_verified INTEGER DEFAULT 0;"
             "ALTER TABLE agent_permissions ADD COLUMN notification_channels TEXT DEFAULT '[]';"
         )),
+        17: ("Spectator accounts — OAuth-first signup without wallet (account_type)", (
+            "ALTER TABLE agent_permissions ADD COLUMN account_type TEXT DEFAULT 'wallet';"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_account_type ON agent_permissions(account_type);"
+            "CREATE INDEX IF NOT EXISTS idx_agent_perms_notification_email ON agent_permissions(notification_email);"
+        )),
     }
 
     async def _run_migrations(self):

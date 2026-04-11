@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Account — MAXIA</title>
+  <link rel="icon" href="/static/favicon.ico">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --fg: #eaeaf0;
+      --muted: #7a7a8a;
+      --card: #15151e;
+      --card2: #1e1e2b;
+      --border: #2a2a3a;
+      --accent: #7c5cff;
+      --accent2: #9a7fff;
+      --ok: #2ecc71;
+      --warn: #f1c40f;
+      --err: #ff4757;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+    }
+    a { color: var(--accent2); text-decoration: none; }
+    .wrap { max-width: 620px; margin: 6vh auto 4rem; padding: 0 1.5rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.75rem 1.75rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.55rem; font-weight: 600; }
+    h2 { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .muted { color: var(--muted); font-size: 0.88rem; }
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .pill.spec { background: rgba(241,196,15,0.15); color: var(--warn); border: 1px solid rgba(241,196,15,0.4); }
+    .pill.wallet { background: rgba(46,204,113,0.15); color: var(--ok); border: 1px solid rgba(46,204,113,0.4); }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.55rem 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.9rem;
+      gap: 1rem;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .k { color: var(--muted); flex: 0 0 40%; }
+    .row .v { text-align: right; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; word-break: break-all; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 0.85rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--fg);
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: #262637; border-color: #3a3a4a; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent2); }
+    .btn.block { display: flex; width: 100%; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      display: none;
+      word-break: break-word;
+    }
+    .status.ok { display: block; background: rgba(46,204,113,0.1); border: 1px solid var(--ok); color: #9fe5bf; }
+    .status.err { display: block; background: rgba(255,71,87,0.1); border: 1px solid var(--err); color: #ff9faa; }
+    .status.warn { display: block; background: rgba(241,196,15,0.1); border: 1px solid var(--warn); color: #ffe380; }
+    .loading { text-align: center; color: var(--muted); padding: 2rem 0; }
+    .upgrade-cta {
+      background: linear-gradient(135deg, rgba(124,92,255,0.15), rgba(154,127,255,0.05));
+      border: 1px solid rgba(124,92,255,0.4);
+    }
+    .foot { margin-top: 1.5rem; text-align: center; font-size: 0.82rem; color: var(--muted); }
+    .foot .sep { margin: 0 0.5rem; color: var(--border); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="loading" class="card loading">Loading your account…</div>
+
+    <div id="content" style="display:none">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <h1>Your MAXIA account</h1>
+          <span id="type-pill" class="pill"></span>
+        </div>
+        <p id="subtitle" class="muted"></p>
+
+        <div style="margin-top:1rem">
+          <div class="row"><span class="k">agent_id</span><span class="v" id="v-agent-id">—</span></div>
+          <div class="row"><span class="k">wallet</span><span class="v" id="v-wallet">—</span></div>
+          <div class="row"><span class="k">did</span><span class="v" id="v-did">—</span></div>
+          <div class="row"><span class="k">email</span><span class="v" id="v-email">—</span></div>
+          <div class="row"><span class="k">trust level</span><span class="v" id="v-trust">—</span></div>
+          <div class="row"><span class="k">daily cap</span><span class="v" id="v-daily">—</span></div>
+          <div class="row"><span class="k">can trade</span><span class="v" id="v-trade">—</span></div>
+        </div>
+      </div>
+
+      <div id="upgrade-card" class="card upgrade-cta" style="display:none">
+        <h2>Unlock trading</h2>
+        <p class="muted" style="margin:0 0 1rem">
+          Spectator accounts can browse and receive notifications but
+          can't trade. Connect a Solana wallet to unlock the full
+          marketplace — your OAuth link, email and profile will carry
+          over to the wallet account.
+        </p>
+        <button id="btn-connect" class="btn primary block">Connect Solana wallet</button>
+        <div id="upgrade-status" class="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Linked providers</h2>
+        <div id="providers-list" class="muted">None</div>
+      </div>
+
+      <div class="foot">
+        <a href="/">Home</a>
+        <span class="sep">·</span>
+        <a href="/app">Open the app</a>
+        <span class="sep">·</span>
+        <a href="#" id="btn-signout">Sign out</a>
+      </div>
+    </div>
+
+    <div id="no-session" class="card" style="display:none">
+      <h1>Not signed in</h1>
+      <p class="muted">You don't have a MAXIA session in this browser yet.</p>
+      <a class="btn primary block" href="/signin" style="margin-top:1rem">Sign in</a>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ──────────────────────────────────────
+    //  Step 1: capture signin fragment (if any)
+    // ──────────────────────────────────────
+    var hash = (window.location.hash || '').replace(/^#/, '');
+    var topStatus = null;
+    if (hash) {
+      var params = {};
+      hash.split('&').forEach(function (kv) {
+        var idx = kv.indexOf('=');
+        if (idx === -1) return;
+        params[decodeURIComponent(kv.slice(0, idx))] = decodeURIComponent(kv.slice(idx + 1));
+      });
+      if (params.signin === 'ok' && params.api_key) {
+        try {
+          localStorage.setItem('maxia_api_key', params.api_key);
+          localStorage.setItem('maxia_agent_id', params.agent_id || '');
+          localStorage.setItem('maxia_account_type', params.account_type || '');
+          topStatus = { kind: 'ok', text: (params['new'] === '1' ? 'Account created' : 'Signed in') + ' via ' + (params.provider || 'OAuth') + '.' };
+        } catch (e) {
+          topStatus = { kind: 'err', text: 'localStorage unavailable: ' + e.message };
+        }
+      } else if (params.oauth === 'error' || params.reason) {
+        topStatus = { kind: 'err', text: 'Sign-in failed: ' + (params.reason || 'unknown') };
+      }
+      history.replaceState(null, '', window.location.pathname);
+    }
+
+    var apiKey = null;
+    try { apiKey = localStorage.getItem('maxia_api_key'); } catch (e) {}
+
+    if (!apiKey) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('no-session').style.display = 'block';
+      return;
+    }
+
+    // ──────────────────────────────────────
+    //  Step 2: fetch profile
+    // ──────────────────────────────────────
+    fetch('/api/account/me', { headers: { 'X-API-Key': apiKey } })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.status === 401) {
+          // Stale api_key (account deleted after merge, signed out
+          // on another tab, etc.) — clear localStorage and bounce to
+          // /signin so the user can pick up cleanly.
+          try {
+            localStorage.removeItem('maxia_api_key');
+            localStorage.removeItem('maxia_agent_id');
+            localStorage.removeItem('maxia_account_type');
+          } catch (e) {}
+          window.location.href = '/signin?reason=session_expired';
+          return;
+        }
+        if (res.status !== 200 || !res.body || !res.body.ok) {
+          throw new Error((res.body && res.body.detail) || 'status ' + res.status);
+        }
+        renderProfile(res.body);
+      })
+      .catch(function (err) {
+        document.getElementById('loading').textContent = 'Failed to load account: ' + err.message;
+      });
+
+    function renderProfile(p) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      var pill = document.getElementById('type-pill');
+      if (p.is_spectator) {
+        pill.textContent = 'Spectator';
+        pill.className = 'pill spec';
+        document.getElementById('subtitle').textContent =
+          'Browse + notifications only. Connect a wallet below to trade.';
+        document.getElementById('upgrade-card').style.display = 'block';
+      } else {
+        pill.textContent = 'Wallet';
+        pill.className = 'pill wallet';
+        document.getElementById('subtitle').textContent =
+          'Full trading access. Manage your linked providers below.';
+      }
+
+      document.getElementById('v-agent-id').textContent = p.agent_id || '—';
+      document.getElementById('v-wallet').textContent = p.wallet || '—';
+      document.getElementById('v-did').textContent = p.did || '—';
+      document.getElementById('v-email').textContent = p.notification_email +
+        (p.notification_email_verified ? ' ✓' : '');
+      document.getElementById('v-trust').textContent = String(p.trust_level);
+      document.getElementById('v-daily').textContent = '$' + p.max_daily_spend_usd.toFixed(2);
+      document.getElementById('v-trade').textContent = p.can_trade ? 'Yes' : 'No';
+
+      var listEl = document.getElementById('providers-list');
+      if (p.linked_providers && p.linked_providers.length) {
+        listEl.innerHTML = '';
+        listEl.className = '';
+        p.linked_providers.forEach(function (lp) {
+          var div = document.createElement('div');
+          div.className = 'row';
+          div.innerHTML = '<span class="k">' + (lp.provider || '?') + '</span>' +
+            '<span class="v">' + (lp.email || '(no email)') + (lp.verified ? ' ✓' : '') + '</span>';
+          listEl.appendChild(div);
+        });
+      }
+
+      if (topStatus) {
+        var el = document.createElement('div');
+        el.className = 'status ' + topStatus.kind;
+        el.textContent = topStatus.text;
+        document.querySelector('#content .card').appendChild(el);
+      }
+    }
+
+    // ──────────────────────────────────────
+    //  Step 3: connect wallet (spectator → wallet upgrade)
+    // ──────────────────────────────────────
+    document.getElementById('btn-connect').addEventListener('click', function () {
+      var btn = this;
+      var status = document.getElementById('upgrade-status');
+      status.className = 'status';
+      status.textContent = '';
+
+      var phantom = (window.phantom && window.phantom.solana) || (window.solana && window.solana.isPhantom ? window.solana : null);
+      if (!phantom) {
+        status.className = 'status err';
+        status.innerHTML = 'Phantom wallet not detected. Install it from <a href="https://phantom.com" target="_blank" rel="noopener">phantom.com</a> and refresh.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+
+      phantom.connect()
+        .then(function (resp) {
+          var walletAddr = resp.publicKey.toString();
+          btn.textContent = 'Requesting nonce…';
+          return fetch('/api/auth/nonce', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wallet: walletAddr }),
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (!j.nonce) throw new Error('no nonce returned');
+            return { wallet: walletAddr, nonce: j.nonce };
+          });
+        })
+        .then(function (ctx) {
+          btn.textContent = 'Signing…';
+          var msgText = 'MAXIA login: ' + ctx.nonce;
+          var encoded = new TextEncoder().encode(msgText);
+          return phantom.signMessage(encoded, 'utf8').then(function (signed) {
+            // Phantom returns { signature: Uint8Array, publicKey }.
+            // Backend /api/account/link-wallet accepts 128-char hex (64
+            // bytes) or base58 — hex is simpler and avoids a custom
+            // encoder.
+            var raw = signed && signed.signature ? signed.signature : signed;
+            var u8 = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+            var sigHex = '';
+            for (var i = 0; i < u8.length; i++) {
+              var h = u8[i].toString(16);
+              sigHex += h.length === 1 ? '0' + h : h;
+            }
+            return { wallet: ctx.wallet, nonce: ctx.nonce, signature: sigHex };
+          });
+        })
+        .then(function (ctx) {
+          btn.textContent = 'Linking…';
+          return fetch('/api/account/link-wallet', {
+            method: 'POST',
+            headers: {
+              'X-API-Key': apiKey,
+              'X-Wallet': ctx.wallet,
+              'X-Signature': ctx.signature,
+              'X-Nonce': ctx.nonce,
+            },
+          }).then(function (r) {
+            return r.json().then(function (j) { return { status: r.status, body: j }; });
+          });
+        })
+        .then(function (res) {
+          if (res.status === 200 && res.body && res.body.ok) {
+            // If the backend merged the spectator into an existing
+            // wallet row, the response carries the wallet's api_key.
+            // Swap localStorage so the refresh reads the merged row.
+            if (res.body.api_key && res.body.api_key !== apiKey) {
+              try {
+                localStorage.setItem('maxia_api_key', res.body.api_key);
+                localStorage.setItem('maxia_agent_id', res.body.agent_id || '');
+                localStorage.setItem('maxia_account_type', res.body.account_type || '');
+              } catch (e) {}
+            }
+            status.className = 'status ok';
+            status.textContent = res.body.merged
+              ? 'Merged into your existing wallet account — trading unlocked. Refreshing…'
+              : 'Wallet linked — trading unlocked. Refreshing…';
+            setTimeout(function () { window.location.reload(); }, 1200);
+          } else {
+            throw new Error((res.body && res.body.detail) || 'status ' + res.status);
+          }
+        })
+        .catch(function (err) {
+          status.className = 'status err';
+          status.textContent = 'Failed: ' + (err.message || err);
+          btn.disabled = false;
+          btn.textContent = 'Connect Solana wallet';
+        });
+    });
+
+    // ──────────────────────────────────────
+    //  Sign out
+    // ──────────────────────────────────────
+    document.getElementById('btn-signout').addEventListener('click', function (e) {
+      e.preventDefault();
+      fetch('/api/account/signout', { method: 'POST', headers: { 'X-API-Key': apiKey } })
+        .catch(function () {})
+        .finally(function () {
+          try {
+            localStorage.removeItem('maxia_api_key');
+            localStorage.removeItem('maxia_agent_id');
+            localStorage.removeItem('maxia_account_type');
+          } catch (e) {}
+          window.location.href = '/';
+        });
+    });
+
+  })();
+  </script>
+</body>
+</html>

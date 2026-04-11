@@ -807,7 +807,7 @@ async def pii_shield_middleware(request, call_next):
                 media_type=response.media_type,
             )
 
-        new_body, hits = await scrub_body_bytes(body)
+        new_body, hits = await scrub_body_bytes(body, content_type)
 
         if hits:
             total = sum(hits.values())
@@ -1043,6 +1043,14 @@ try:
     logger.info("[OAuth] linking router monte (providers/login/callback/unlink)")
 except Exception as e:
     logger.error("[MAXIA] OAuth router error: %s", e)
+
+# V12.6c: Account profile + spectator → wallet upgrade
+try:
+    from routes.account_routes import router as account_router
+    app.include_router(account_router)
+    logger.info("[Account] routes mounted (me / link-wallet / signout)")
+except Exception as e:
+    logger.error("[MAXIA] Account router error: %s", e)
 
 # V12.6b: Direct email notification opt-in (no OAuth)
 try:

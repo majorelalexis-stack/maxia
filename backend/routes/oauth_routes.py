@@ -1,30 +1,43 @@
-"""OAuth linking endpoints — wallet + social provider pairing.
+"""OAuth endpoints — two flows sharing one callback.
 
-Flow
-----
+Flow 1: LINK (wallet already authenticated)
+-------------------------------------------
 
-1. User with an authenticated wallet session clicks "Link Google" on
-   the frontend.
+1. User clicks "Link Google" from their wallet-authenticated session.
 2. Browser hits ``GET /api/oauth/google/login?wallet=<addr>`` — we
-   generate a signed ``state`` token containing the wallet address and
-   a nonce, then redirect to the provider's authorize URL.
-3. Provider redirects back to
-   ``GET /api/oauth/google/callback?code=...&state=...`` — we verify
-   the state, exchange the code for a token, fetch userinfo, and
-   persist the link into ``agent_permissions.linked_providers`` JSON.
-4. Frontend sees the success redirect and shows "Google linked".
+   generate a signed ``state`` containing ``{flow: "link", wallet, ...}``.
+3. Provider redirects to ``/api/oauth/google/callback?code&state``.
+4. Callback dispatches on ``state.flow == "link"`` → persist the
+   provider entry into ``agent_permissions.linked_providers`` for
+   ``wallet`` via ``notification_store.link_provider``.
+
+Flow 2: SIGNIN (spectator account — no wallet yet)
+--------------------------------------------------
+
+1. User clicks "Sign in with Google" on the public landing page.
+2. Browser hits ``GET /api/oauth/google/signin`` — we generate a
+   signed ``state`` containing ``{flow: "signin"}`` (no wallet).
+3. Provider redirects to ``/api/oauth/google/callback?code&state``.
+4. Callback dispatches on ``state.flow == "signin"`` → call
+   ``spectator.create_or_get_spectator`` which returns a full
+   ``agent_permissions`` row with ``account_type=spectator_google``,
+   trust_level 0, spend caps 0, and a fresh ``api_key``.
+5. Success redirect includes the api_key / agent_id in the URL fragment
+   so the frontend JS can store it in ``localStorage`` without the
+   value ever reaching an intermediate server log.
 
 Security
 --------
 
-* ``state`` is a HMAC-signed JSON blob with ``wallet``, ``nonce``,
-  ``ts``, ``provider`` — any tampering invalidates it.
+* ``state`` is a HMAC-signed JSON blob (wallet, flow, nonce, ts,
+  provider) — tampering invalidates the signature.
 * ``ts`` enforces a 10-minute TTL to prevent replay attacks.
-* The wallet address in ``state`` must match an existing
-  ``agent_permissions`` row before we persist the link. Missing row =
-  reject.
-* All writes are idempotent: re-linking the same provider overwrites
-  the previous entry.
+* Spectator rows have ``max_daily_spend_usd=0`` and scopes
+  ``read:public,notifications:receive`` so they cannot trade or touch
+  any CASP-regulated feature until they upgrade to a real wallet.
+* All writes are idempotent: re-linking a provider overwrites the
+  previous entry; re-signing in as a spectator updates last_seen and
+  returns the same api_key.
 """
 from __future__ import annotations
 
@@ -81,11 +94,20 @@ _STATE_TTL = 600  # 10 minutes
 # State signing / verification
 # ══════════════════════════════════════════
 
-def _sign_state(wallet: str, provider: str) -> str:
-    """Produce an HMAC-signed state token carrying wallet + nonce + ts."""
+def _sign_state(*, wallet: str, provider: str, flow: str) -> str:
+    """Produce an HMAC-signed state token carrying wallet + flow + nonce + ts.
+
+    ``flow`` is either ``"link"`` (wallet already authenticated, we're
+    adding a provider to an existing row) or ``"signin"`` (OAuth-first
+    spectator signup, no wallet yet). The two flows share one callback
+    which dispatches on this field.
+    """
+    if flow not in ("link", "signin"):
+        raise ValueError(f"invalid flow: {flow}")
     payload = {
         "wallet": wallet,
         "provider": provider,
+        "flow": flow,
         "nonce": secrets.token_urlsafe(16),
         "ts": int(time.time()),
     }
@@ -140,19 +162,8 @@ async def oauth_providers() -> JSONResponse:
         return JSONResponse(safe_error(e, "oauth_providers"), status_code=500)
 
 
-@router.get("/{provider_id}/login")
-async def oauth_login(
-    provider_id: str,
-    wallet: str = Query(..., min_length=26, max_length=64),
-) -> Response:  # type: ignore[name-defined]
-    """Start the OAuth flow for a given provider + wallet binding."""
-    from fastapi.responses import Response  # local import to avoid shadow
-
-    provider = get_provider(provider_id)
-    if provider is None:
-        raise HTTPException(status_code=404, detail=f"Provider {provider_id} not enabled")
-
-    state = _sign_state(wallet=wallet, provider=provider.id)
+def _authorize_url(provider: Any, state: str) -> str:
+    """Build the provider's authorize URL with standard params."""
     redirect_uri = f"{OAUTH_REDIRECT_BASE}/api/oauth/{provider.id}/callback"
     params = {
         "client_id": provider.client_id,
@@ -166,9 +177,42 @@ async def oauth_login(
         params["prompt"] = "consent"
     if provider.id == "discord":
         params["prompt"] = "consent"
+    return f"{provider.authorize_url}?{urlencode(params)}"
 
-    authorize_url = f"{provider.authorize_url}?{urlencode(params)}"
-    return RedirectResponse(url=authorize_url, status_code=302)
+
+@router.get("/{provider_id}/login")
+async def oauth_login(
+    provider_id: str,
+    wallet: str = Query(..., min_length=26, max_length=64),
+) -> Response:  # type: ignore[name-defined]
+    """Start the LINK flow — attach a provider to an existing wallet."""
+    from fastapi.responses import Response  # local import to avoid shadow
+
+    provider = get_provider(provider_id)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=f"Provider {provider_id} not enabled")
+
+    state = _sign_state(wallet=wallet, provider=provider.id, flow="link")
+    return RedirectResponse(url=_authorize_url(provider, state), status_code=302)
+
+
+@router.get("/{provider_id}/signin")
+async def oauth_signin(provider_id: str) -> Response:  # type: ignore[name-defined]
+    """Start the SIGNIN flow — spectator signup, no wallet required.
+
+    The user lands on the public landing page, clicks "Sign in with
+    Google", and this endpoint kicks off OAuth with ``flow=signin`` in
+    the signed state. On callback we create (or return) a spectator
+    row and hand the api_key back to the browser via URL fragment.
+    """
+    from fastapi.responses import Response  # local import to avoid shadow
+
+    provider = get_provider(provider_id)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=f"Provider {provider_id} not enabled")
+
+    state = _sign_state(wallet="", provider=provider.id, flow="signin")
+    return RedirectResponse(url=_authorize_url(provider, state), status_code=302)
 
 
 @router.get("/{provider_id}/callback")
@@ -207,8 +251,15 @@ async def oauth_callback(
             status_code=302,
         )
 
+    flow = str(payload.get("flow", "link")).lower()
+    if flow not in ("link", "signin"):
+        return RedirectResponse(
+            url=f"{OAUTH_FAILURE_REDIRECT}&provider={provider_id}&reason=invalid_flow",
+            status_code=302,
+        )
+
     wallet = str(payload.get("wallet", ""))[:64]
-    if not wallet:
+    if flow == "link" and not wallet:
         return RedirectResponse(
             url=f"{OAUTH_FAILURE_REDIRECT}&provider={provider_id}&reason=missing_wallet",
             status_code=302,
@@ -307,32 +358,74 @@ async def oauth_callback(
             status_code=302,
         )
 
-    # 4. Persist the link
+    # 4. Persist — dispatch on flow
+    if flow == "link":
+        try:
+            from auth.notification_store import link_provider
+            await link_provider(
+                wallet=wallet,
+                provider_id=provider.id,
+                provider_user_id=provider_user_id,
+                email=email,
+                username=username,
+                email_verified=verified,
+            )
+        except Exception as e:
+            log.error("[oauth] persist link failed %s: %s", provider_id, e)
+            return RedirectResponse(
+                url=f"{OAUTH_FAILURE_REDIRECT}&provider={provider_id}&reason=persist_failed",
+                status_code=302,
+            )
+
+        log.info(
+            "[oauth] linked wallet=%s provider=%s email=%s verified=%s",
+            wallet[:10] + "...", provider.id, email, verified,
+        )
+        sep = "&" if "?" in OAUTH_SUCCESS_REDIRECT else "?"
+        return RedirectResponse(
+            url=f"{OAUTH_SUCCESS_REDIRECT}{sep}provider={provider.id}",
+            status_code=302,
+        )
+
+    # flow == "signin" — spectator signup
     try:
-        from auth.notification_store import link_provider
-        await link_provider(
-            wallet=wallet,
-            provider_id=provider.id,
+        from auth.spectator import create_or_get_spectator
+        spec = await create_or_get_spectator(
+            provider=provider.id,
             provider_user_id=provider_user_id,
             email=email,
             username=username,
             email_verified=verified,
         )
     except Exception as e:
-        log.error("[oauth] persist link failed %s: %s", provider_id, e)
+        log.error("[oauth] spectator create failed %s: %s", provider_id, e)
         return RedirectResponse(
-            url=f"{OAUTH_FAILURE_REDIRECT}&provider={provider_id}&reason=persist_failed",
+            url=f"{OAUTH_FAILURE_REDIRECT}&provider={provider_id}&reason=spectator_failed",
             status_code=302,
         )
 
     log.info(
-        "[oauth] linked wallet=%s provider=%s email=%s verified=%s",
-        wallet[:10] + "...", provider.id, email, verified,
+        "[oauth] spectator signin provider=%s email=%s new=%s agent_id=%s",
+        provider.id, email, spec.get("new"), spec.get("agent_id"),
     )
-    return RedirectResponse(
-        url=f"{OAUTH_SUCCESS_REDIRECT}&provider={provider.id}",
-        status_code=302,
+
+    # Hand api_key back via URL fragment — never logged by intermediate
+    # servers, never sent back to the origin. Frontend JS reads
+    # ``window.location.hash`` and stores the value in localStorage.
+    fragment_params = {
+        "signin": "ok",
+        "provider": provider.id,
+        "api_key": spec.get("api_key", ""),
+        "agent_id": spec.get("agent_id", ""),
+        "account_type": spec.get("account_type", ""),
+        "new": "1" if spec.get("new") else "0",
+    }
+    fragment = urlencode(fragment_params)
+    base_redirect = os.getenv(
+        "OAUTH_SIGNIN_REDIRECT",
+        "https://maxiaworld.app/account",
     )
+    return RedirectResponse(url=f"{base_redirect}#{fragment}", status_code=302)
 
 
 @router.post("/{provider_id}/unlink")
