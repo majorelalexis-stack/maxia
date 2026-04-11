@@ -174,6 +174,29 @@ async def mission_email_outreach(mem: dict, actions: dict) -> None:
                 # Mark contact as contacted
                 contact["status"] = "contacted"
                 contact["contacted_date"] = datetime.now().isoformat()
+                try:
+                    from memory import log_action
+                    log_action(
+                        "email_outreach_sent",
+                        target=email_addr,
+                        details=f"to {name}: {email_content['subject'][:100]}",
+                    )
+                except Exception as _e:
+                    log.debug("[OUTREACH] log_action failed: %s", _e)
+                try:
+                    from vector_memory_local import vmem as _vmem
+                    if _vmem:
+                        _vmem.store_contact(
+                            username=name,
+                            platform="email",
+                            info=(
+                                f"{email_addr}. Outreach "
+                                f"{datetime.now().strftime('%Y-%m-%d')}: "
+                                f"{email_content['subject'][:120]}"
+                            ),
+                        )
+                except Exception as _e:
+                    log.debug("[OUTREACH] store_contact failed: %s", _e)
             else:
                 error = result.get("error", "unknown")
                 log.warning("[OUTREACH] Send failed for %s: %s", name, error)

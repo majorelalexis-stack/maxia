@@ -14,7 +14,14 @@ from typing import Optional
 
 import httpx
 
-from config_local import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_NUM_CTX
+from config_local import (
+    OLLAMA_KEEP_ALIVE,
+    OLLAMA_MODEL,
+    OLLAMA_MODEL_FAST,
+    OLLAMA_MODEL_MAIN,
+    OLLAMA_NUM_CTX,
+    OLLAMA_URL,
+)
 from agents import AgentConfig, MAXIA_KNOWLEDGE
 
 log = logging.getLogger("ceo")
@@ -87,23 +94,31 @@ async def ask(
     await _ensure_gpu_free()
     last_llm_call = time.time()
 
+    # Hybrid routing: respect agent.model if set, else MAIN.
+    # Instruct-2507 variants are non-thinking — /think prefix is ignored
+    # but we still disable think=True at the API level to avoid empty responses.
+    model = agent.model or OLLAMA_MODEL_MAIN
+    is_instruct_2507 = "instruct-2507" in model.lower()
+    effective_think = agent.think and not is_instruct_2507
+
     # Build system prompt with optional knowledge injection
     system = agent.system_prompt
     if knowledge:
         system = f"{system}\n\n--- KNOWLEDGE BASE ---\n{knowledge[:3000]}"
 
     # For think mode: prepend /think to the prompt (Qwen3.5 feature)
-    effective_prompt = f"/think\n{prompt}" if agent.think else prompt
+    effective_prompt = f"/think\n{prompt}" if effective_think else prompt
 
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(timeout=agent.timeout) as client:
                 resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
-                    "model": OLLAMA_MODEL,
+                    "model": model,
                     "prompt": effective_prompt,
                     "system": system,
                     "stream": False,
-                    "think": agent.think,
+                    "think": effective_think,
+                    "keep_alive": OLLAMA_KEEP_ALIVE,
                     "options": {
                         "num_predict": agent.max_tokens,
                         "temperature": agent.temperature,
@@ -136,23 +151,30 @@ async def llm(
     max_tokens: int = 1000,
     retries: int = 2,
     timeout: int = 180,
+    model: Optional[str] = None,
 ) -> str:
     """Legacy Ollama call. think=False for Qwen3 (otherwise empty response).
-    Auto-switch: stops Kaspa miner before call. Restart managed by main loop."""
+
+    Hybrid: ``model=None`` → MAIN (MoE 30B-A3B). Pass ``OLLAMA_MODEL_FAST``
+    to force the fast dense 14B when latency matters more than depth.
+    Auto-switch: stops Kaspa miner before call. Restart managed by main loop.
+    """
     global last_llm_call
 
     await _ensure_gpu_free()
     last_llm_call = time.time()
 
+    chosen_model = model or OLLAMA_MODEL_MAIN
     full = f"{system}\n\n{prompt}" if system else prompt
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(f"{OLLAMA_URL}/api/generate", json={
-                    "model": OLLAMA_MODEL,
+                    "model": chosen_model,
                     "prompt": full,
                     "stream": False,
                     "think": False,
+                    "keep_alive": OLLAMA_KEEP_ALIVE,
                     "options": {"num_predict": max_tokens, "temperature": 0.7, "num_ctx": OLLAMA_NUM_CTX},
                 })
                 resp.raise_for_status()

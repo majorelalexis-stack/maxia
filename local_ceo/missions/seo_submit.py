@@ -195,3 +195,12 @@ async def mission_seo_submit(mem: dict, actions: dict) -> None:
     mem["_seo_submit_last_date"] = today
     actions["counts"]["seo_submit"] = 1
     log.info("[seo_submit] reminder sent for %s", entry["slug"])
+    try:
+        from memory import log_action
+        log_action(
+            "seo_submit_reminder",
+            target=entry["slug"],
+            details=entry["url"],
+        )
+    except Exception as _e:
+        log.debug("[seo_submit] log_action failed: %s", _e)

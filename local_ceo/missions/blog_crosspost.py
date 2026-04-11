@@ -280,6 +280,11 @@ async def mission_blog_crosspost(mem: dict, actions: dict) -> None:
             mem.setdefault("blog_crossposts_log", []).append({
                 "platform": "dev.to", "slug": slug, "url": url, "date": today,
             })
+            try:
+                from memory import log_action
+                log_action("blog_crosspost_devto", target=slug, details=url)
+            except Exception as _e:
+                log.debug("[crosspost] log_action dev.to failed: %s", _e)
 
     if slug in pending_hashnode:
         url = await _hashnode_publish(title, markdown, canonical, DEFAULT_TAGS)
@@ -289,6 +294,11 @@ async def mission_blog_crosspost(mem: dict, actions: dict) -> None:
             mem.setdefault("blog_crossposts_log", []).append({
                 "platform": "hashnode", "slug": slug, "url": url, "date": today,
             })
+            try:
+                from memory import log_action
+                log_action("blog_crosspost_hashnode", target=slug, details=url)
+            except Exception as _e:
+                log.debug("[crosspost] log_action hashnode failed: %s", _e)
 
     state["dev_to"] = sorted(devto_done)
     state["hashnode"] = sorted(hashnode_done)

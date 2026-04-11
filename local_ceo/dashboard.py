@@ -9,9 +9,9 @@ Sources de verite (CEO V3+V9):
 - ceo_main.log      : logs temps reel du CEO V3 (FileHandler dans ceo_main.py)
 - VPS /api/ceo/messages/status : stats bridge Discord/Forum
 """
-import json, os, time, sqlite3, urllib.parse
+import json, os, time, sqlite3, urllib.parse, traceback
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 
 _DIR = Path(__file__).parent
 _MEMORY_FILE = _DIR / "ceo_memory.json"
@@ -19,6 +19,8 @@ _STATE_DB = _DIR / "ceo_state.db"  # CEO V3 canonical SQL DB
 _ACTIONS_TODAY_FILE = _DIR / "actions_today.json"
 _LOG_FILE = _DIR / "ceo_main.log"  # written by ceo_main.py FileHandler
 _CONTROL_FILE = _DIR / "ceo_control.json"  # pause/resume + settings
+_ALEXIS_CHAT_FILE = _DIR / "alexis_chat_log.json"  # persistent chat Alexis <-> CEO
+_ALEXIS_CHAT_MAX_TURNS = 200  # rolling cap (~100 exchanges)
 
 # Bridge VPS (Discord / Forum / Inbox auto-reply)
 try:
@@ -72,6 +74,140 @@ def _load_control() -> dict:
 
 def _save_control(ctrl: dict):
     _CONTROL_FILE.write_text(json.dumps(ctrl, indent=2), encoding="utf-8")
+
+
+# ─────────────────────────────────────────────────────────────
+#  Alexis <-> CEO chat (local web interface, replaces Telegram)
+# ─────────────────────────────────────────────────────────────
+
+
+def _load_alexis_chat() -> list:
+    """Return the persistent chat history as a list of {role, content, ts}."""
+    try:
+        if _ALEXIS_CHAT_FILE.exists():
+            data = json.loads(_ALEXIS_CHAT_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return []
+
+
+def _save_alexis_chat(history: list) -> None:
+    """Persist the chat history, capping at ``_ALEXIS_CHAT_MAX_TURNS`` entries."""
+    trimmed = history[-_ALEXIS_CHAT_MAX_TURNS:]
+    try:
+        _ALEXIS_CHAT_FILE.write_text(
+            json.dumps(trimmed, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def _alexis_chat_reply(user_message: str) -> dict:
+    """Call the CEO local legacy flow (user_id=None) and append both turns to
+    the persistent history. Returns ``{reply, latency_ms, history_len, error?}``.
+
+    Runs the async ``answer_user_message`` via ``asyncio.run``. Never raises —
+    on any failure returns ``{error: ...}`` so the dashboard stays responsive.
+    """
+    import asyncio
+    import sys as _sys_local
+    _sys_local.path.insert(0, str(_DIR))
+
+    msg = (user_message or "").strip()
+    if not msg:
+        return {"error": "empty message"}
+    if len(msg) > 4000:
+        return {"error": "message too long (max 4000 chars)"}
+
+    # Preflight: if httpx is missing, we know the LLM call will fail.
+    # Surface this as a clear error instead of a confusing fallback.
+    try:
+        import httpx  # noqa: F401
+    except ImportError:
+        return {
+            "error": (
+                "httpx not installed in this Python. Dashboard was launched "
+                "with a Python that lacks MAXIA dependencies. Relaunch with: "
+                f"python {_DIR / 'dashboard.py'} using the same interpreter "
+                "that runs ceo_main.py."
+            ),
+            "reply": "",
+            "latency_ms": 0,
+            "history_len": len(_load_alexis_chat()),
+        }
+
+    history = _load_alexis_chat()
+
+    # Legacy flow expects history items as {role, content} — strip timestamps.
+    # Cap to last 6 turns (3 user + 3 assistant): longer history + the
+    # RUNTIME_STATE blob + KNOWLEDGE block overflow qwen3's 8192 ctx
+    # window, causing empty replies or hallucinations. We still keep
+    # the full history on disk for audit, we just don't send it all to
+    # the LLM every turn.
+    hist_for_llm = [
+        {"role": h.get("role", "user"), "content": (h.get("content", "") or "")[:400]}
+        for h in history[-6:]
+    ]
+
+    # Load the live memory + today's counters from disk so the chat
+    # sees the same RUNTIME_STATE as the Telegram channel handler. The
+    # dashboard runs in a separate process from ceo_main.py, so we
+    # cannot share in-memory dicts — disk is the sync point.
+    mem_snapshot = None
+    actions_snapshot = None
+    try:
+        from memory import load_memory, load_actions_today
+        mem_snapshot = load_memory()
+        actions_snapshot = load_actions_today()
+    except Exception as _e:
+        print(f"[dashboard] runtime snapshot failed: {_e}", flush=True)
+
+    t0 = time.time()
+    reply = ""
+    error = None
+    try:
+        from missions.telegram_smart_reply import answer_user_message
+        reply = asyncio.run(answer_user_message(
+            user_message=msg,
+            history=hist_for_llm,
+            language_code=None,
+            user_id=None,     # <-- critical: None = legacy flow = Alexis assistant
+            channel="web",
+            mem=mem_snapshot,
+            actions_today=actions_snapshot,
+        ))
+    except Exception as e:
+        tb = traceback.format_exc(limit=3)
+        error = f"{type(e).__name__}: {e}\n{tb}"
+        reply = "Sorry, the local CEO could not generate a reply. Check the dashboard stderr."
+        try:
+            print(f"[dashboard] chat error: {error}", flush=True)
+        except Exception:
+            pass
+
+    latency_ms = int((time.time() - t0) * 1000)
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    history.append({"role": "user", "content": msg, "ts": now_iso})
+    history.append({
+        "role": "assistant",
+        "content": reply,
+        "ts": now_iso,
+        "latency_ms": latency_ms,
+    })
+    _save_alexis_chat(history)
+
+    out = {
+        "reply": reply,
+        "latency_ms": latency_ms,
+        "history_len": len(history),
+    }
+    if error:
+        out["error"] = error
+    return out
 
 
 def _read_log(lines: int = 50) -> list:
@@ -367,6 +503,21 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
     <button class="btn btn-danger btn-small" onclick="clearMemory()">Reset memoire</button>
   </div>
 </h1>
+
+<!-- Alexis <-> CEO chat (local, replaces Telegram bot) -->
+<div class="section" id="alexis_chat">
+  <h2 style="display:flex;justify-content:space-between;align-items:center">
+    <span>Chat avec le CEO local (qwen3:30b-a3b + RAG 155 chunks)</span>
+    <button class="btn btn-small btn-danger" onclick="clearAlexisChat()">Clear</button>
+  </h2>
+  <div id="chat_bubbles" style="background:#0a0a12;border-radius:6px;padding:12px;height:320px;overflow-y:auto;font-size:13px;line-height:1.5;margin-bottom:10px"></div>
+  <div style="display:flex;gap:8px;align-items:flex-end">
+    <textarea id="chat_input" rows="2" placeholder="Pose une question, demande un draft, colle une reponse a reformuler... (Ctrl+Enter pour envoyer)" style="flex:1;background:#0a0a12;color:#e0e0e0;border:1px solid #252535;border-radius:6px;padding:10px;font-family:inherit;font-size:13px;resize:vertical;min-height:44px"></textarea>
+    <button id="chat_send" class="btn" style="background:#00ff88;color:#000;padding:10px 20px" onclick="sendAlexisChat()">Send</button>
+  </div>
+  <div id="chat_status" style="color:#555;font-size:11px;margin-top:6px">&nbsp;</div>
+</div>
+
 <div class="grid" id="kpis"></div>
 
 <div class="section" id="sales_section">
@@ -448,6 +599,110 @@ td{padding:4px 6px;border-bottom:1px solid #1a1a2a;max-width:180px;overflow:hidd
 <div class="section"><h2>Logs</h2><div class="log-box" id="logs"></div></div>
 <div class="refresh" id="refresh"></div>
 <script>
+// ─── Alexis <-> CEO chat (local) ─────────────────────────────
+function escapeHtml(s){
+  s = String(s == null ? '' : s);
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\x22/g,'&quot;').replace(/'/g,'&#39;');
+}
+function renderChatBubbles(history){
+  var box=document.getElementById('chat_bubbles');
+  if(!box) return;
+  if(!history || history.length===0){
+    box.innerHTML='<div style="color:#555;text-align:center;padding:20px">Chat vide. Ecris ta premiere question au CEO ci-dessous.</div>';
+    return;
+  }
+  var html='';
+  history.forEach(function(t){
+    var role=t.role||'user';
+    var content=escapeHtml(t.content||'');
+    var ts=t.ts||'';
+    var latency=t.latency_ms?' <span style="color:#555">('+t.latency_ms+'ms)</span>':'';
+    if(role==='user'){
+      html+='<div style="display:flex;justify-content:flex-end;margin:8px 0">'+
+        '<div style="background:#0066cc33;border:1px solid #0066cc;border-radius:10px 10px 2px 10px;padding:8px 12px;max-width:75%;color:#cce5ff;white-space:pre-wrap">'+content+
+        '<div style="color:#888;font-size:10px;margin-top:4px">'+ts+'</div></div></div>';
+    }else{
+      html+='<div style="display:flex;justify-content:flex-start;margin:8px 0">'+
+        '<div style="background:#00ff8822;border:1px solid #00ff88;border-radius:10px 10px 10px 2px;padding:8px 12px;max-width:85%;color:#ccffdd;white-space:pre-wrap">'+content+
+        '<div style="color:#888;font-size:10px;margin-top:4px">'+ts+latency+'</div></div></div>';
+    }
+  });
+  box.innerHTML=html;
+  box.scrollTop=box.scrollHeight;
+}
+async function loadAlexisChat(){
+  try{
+    var r=await fetch('/api/chat/alexis/history');
+    var d=await r.json();
+    renderChatBubbles(d.history||[]);
+  }catch(e){}
+}
+async function sendAlexisChat(){
+  var input=document.getElementById('chat_input');
+  var btn=document.getElementById('chat_send');
+  var status=document.getElementById('chat_status');
+  var msg=(input.value||'').trim();
+  if(!msg) return;
+  btn.disabled=true;
+  btn.style.opacity='0.5';
+  var t0=Date.now();
+  status.textContent='CEO is thinking... (~3-5s with qwen3:30b)';
+  // Optimistic render of user turn
+  var cur=document.getElementById('chat_bubbles');
+  cur.innerHTML+='<div style="display:flex;justify-content:flex-end;margin:8px 0">'+
+    '<div style="background:#0066cc33;border:1px solid #0066cc;border-radius:10px 10px 2px 10px;padding:8px 12px;max-width:75%;color:#cce5ff;white-space:pre-wrap">'+escapeHtml(msg)+
+    '<div style="color:#888;font-size:10px;margin-top:4px">sending...</div></div></div>';
+  cur.scrollTop=cur.scrollHeight;
+  try{
+    var r=await fetch('/api/chat/alexis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    var d=await r.json();
+    if(d.error && !d.reply){
+      status.textContent='Error: '+d.error;
+    }else{
+      input.value='';
+      var ms=Date.now()-t0;
+      status.textContent='OK — reply in '+(d.latency_ms||ms)+'ms, history: '+(d.history_len||'?')+' turns'+(d.error?' (warn: '+d.error+')':'');
+    }
+    await loadAlexisChat();
+  }catch(e){
+    status.textContent='Network error: '+e;
+  }finally{
+    btn.disabled=false;
+    btn.style.opacity='1';
+    input.focus();
+  }
+}
+async function clearAlexisChat(){
+  if(!confirm('Clear the chat history with the local CEO?')) return;
+  try{
+    await fetch('/api/chat/alexis/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    await loadAlexisChat();
+  }catch(e){}
+}
+// Init immediately — the script tag is at the bottom of the body so the DOM
+// elements above (chat_bubbles, chat_input, chat_send) already exist.
+// We do NOT rely on DOMContentLoaded because it may have already fired by
+// the time this inline script runs, which would skip the init entirely.
+try{
+  loadAlexisChat();
+  var _chatInput=document.getElementById('chat_input');
+  if(_chatInput){
+    _chatInput.addEventListener('keydown',function(e){
+      if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+        e.preventDefault();
+        sendAlexisChat();
+      }
+    });
+  }
+  // Poll history every 30s in case CEO writes unsolicited
+  setInterval(loadAlexisChat,30000);
+  console.log('[chat] init OK');
+}catch(_e){
+  console.error('[chat] init failed:',_e);
+  var _box=document.getElementById('chat_bubbles');
+  if(_box) _box.innerHTML='<div style="color:#ff4444;padding:20px">Chat init failed: '+String(_e)+' — hard refresh the page (Ctrl+F5)</div>';
+}
+
 let isPaused=false;
 async function load(){
   try{
@@ -732,6 +987,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/dashboard":
             self._json_response(_get_dashboard_data())
+        elif self.path == "/api/chat/alexis/history":
+            self._json_response({"history": _load_alexis_chat()})
         elif self.path.startswith("/api/sales/conversation"):
             # GET /api/sales/conversation?id=email:foo@bar.com
             try:
@@ -791,6 +1048,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if self.path == "/api/chat/alexis":
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = json.loads(self.rfile.read(length)) if length else {}
+            except Exception:
+                self._json_response({"error": "invalid JSON"})
+                return
+            msg = (body.get("message", "") or "").strip()
+            if not msg:
+                self._json_response({"error": "empty message"})
+                return
+            result = _alexis_chat_reply(msg)
+            self._json_response(result)
+            return
+        if self.path == "/api/chat/alexis/clear":
+            _save_alexis_chat([])
+            self._json_response({"cleared": True})
+            return
         if self.path == "/api/control":
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length)) if length else {}
@@ -844,8 +1119,40 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    import sys as _sys_main
+    # Preflight: warn if this Python can't reach the CEO local LLM stack.
+    # Alexis' PC has two Python 3.12 installs — the Windows Store one lacks
+    # MAXIA deps. The correct interpreter is the one that runs ceo_main.py.
+    try:
+        import httpx  # noqa: F401
+        print(f"[Dashboard] httpx OK — interpreter: {_sys_main.executable}")
+    except ImportError:
+        _windows_store = (
+            "WindowsApps" in _sys_main.executable
+            or "PythonSoftwareFoundation" in _sys_main.executable
+        )
+        print(
+            "[Dashboard] WARNING: httpx not installed in this Python.\n"
+            "  The chat section will NOT be able to reach the CEO LLM.\n"
+            f"  Current interpreter: {_sys_main.executable}\n"
+        )
+        if _windows_store:
+            print(
+                "  This looks like the Windows Store Python.\n"
+                "  Use the installer Python instead — try:\n"
+                "    start_dashboard.bat  (in this folder)\n"
+                "  or manually:\n"
+                "    \"C:\\Users\\Mini pc\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" "
+                f"\"{__file__}\""
+            )
+        else:
+            print(
+                "  Install httpx in this interpreter:\n"
+                f"    \"{_sys_main.executable}\" -m pip install httpx requests\n"
+                "  or relaunch via start_dashboard.bat to use the correct Python."
+            )
     print("[Dashboard] http://localhost:8888")
-    server = HTTPServer(("127.0.0.1", 8888), DashboardHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", 8888), DashboardHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

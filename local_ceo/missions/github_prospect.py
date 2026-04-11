@@ -197,6 +197,28 @@ async def mission_github_prospect(mem: dict, actions: dict) -> None:
                 "lang": prospect.lang,
                 "status": "sent",
             })
+            try:
+                from memory import log_action
+                log_action(
+                    "gh_prospect_sent",
+                    target=prospect.email,
+                    details=f"to @{prospect.login} ({prospect.country}, {prospect.lang}): {subject[:100]}",
+                )
+            except Exception as _e:
+                log.debug("[gh_prospect] log_action failed: %s", _e)
+            try:
+                from vector_memory_local import vmem as _vmem
+                if _vmem:
+                    _vmem.store_contact(
+                        username=prospect.login,
+                        platform="github",
+                        info=(
+                            f"{prospect.email} ({prospect.country}, {prospect.lang}). "
+                            f"Cold-emailed {datetime.now().strftime('%Y-%m-%d')}: {subject[:120]}"
+                        ),
+                    )
+            except Exception as _e:
+                log.debug("[gh_prospect] store_contact failed: %s", _e)
         except (BlockedByCompliance, BlockedByConsent) as e:
             skipped += 1
             log.info("[gh_prospect] blocked %s: %s", prospect.email, e)
@@ -218,6 +240,15 @@ async def mission_github_prospect(mem: dict, actions: dict) -> None:
         "[gh_prospect] done: %d sent, %d skipped, %d errors (%d prospects found)",
         sent, skipped, errors, len(prospects),
     )
+    try:
+        from memory import log_action
+        log_action(
+            "gh_prospect_run",
+            target="daily",
+            details=f"sent={sent} skipped={skipped} errors={errors} found={len(prospects)} topics={','.join(topics)}",
+        )
+    except Exception as _e:
+        log.debug("[gh_prospect] log_action run-summary failed: %s", _e)
 
     # Keep history bounded (last 500 sends)
     if len(mem.get("github_prospects", [])) > 500:

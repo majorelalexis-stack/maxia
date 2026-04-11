@@ -7,9 +7,32 @@ GitHub prospector email, community news post, blog crosspost, weekly report,
 Reddit watch, SEO submit reminder).
 """
 import os
+from datetime import date, datetime
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def current_email_quota() -> int:
+    """Return the email outreach cap effective today.
+
+    Linear ramp from ``EMAIL_QUOTA_FLOOR`` to ``MAX_EMAILS_DAY`` over
+    ``EMAIL_RAMP_UP_DAYS`` calendar days starting at ``EMAIL_RAMP_UP_START``.
+    Defensive on parse errors: falls back to the floor.
+    """
+    try:
+        start = datetime.strptime(EMAIL_RAMP_UP_START, "%Y-%m-%d").date()
+    except ValueError:
+        return EMAIL_QUOTA_FLOOR
+    today = date.today()
+    elapsed = (today - start).days
+    if elapsed <= 0:
+        return EMAIL_QUOTA_FLOOR
+    if elapsed >= EMAIL_RAMP_UP_DAYS:
+        return MAX_EMAILS_DAY
+    span = MAX_EMAILS_DAY - EMAIL_QUOTA_FLOOR
+    return EMAIL_QUOTA_FLOOR + int(span * elapsed / EMAIL_RAMP_UP_DAYS)
 
 # ══════════════════════════════════════════
 # VPS connection
@@ -22,25 +45,40 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")  # client bot — NE PAS utiliser pour le CEO
-TELEGRAM_CEO_CHAT_ID = os.getenv("TELEGRAM_CEO_CHAT_ID", "")  # "MAXIA CEO Alert" — pour tweets, go/no, rapports
+TELEGRAM_CEO_CHAT_ID = os.getenv("TELEGRAM_CEO_CHAT_ID", "")  # channel @MAXIA_alerts — go/no, rapports
+# Alexis's own user_id. Used by _is_from_alexis() so direct DMs with
+# @MAXIA_AI_bot still recognize him as CEO even though CEO_CHAT_ID now
+# points to the separate channel.
+TELEGRAM_ALEXIS_USER_ID = os.getenv("TELEGRAM_ALEXIS_USER_ID", "")
 
 # ══════════════════════════════════════════
-# Ollama — single model qwen3.5:27b (dense 27.8B, multimodal, 256K ctx)
-# Replaces the old 3-model setup (qwen3:14b + qwen3.5:9b + qwen2.5vl:7b)
-# qwen3.5:27b handles text + vision in one model = 17GB VRAM, no swapping
+# Ollama — hybrid setup for 7900 XT 20 GB + 6 GB RAM overflow
+# MAIN: qwen3:30b-a3b-instruct-2507-q4_K_M (MoE 3.3B actifs, 19 GB, ~30 tok/s)
+#       → STRATEGIST / ANALYST / CHAT (long-form, reasoning, synthèse FR)
+# FAST: qwen3:14b (9.3 GB, ~60-75 tok/s)
+#       → WRITER / MONITOR (tweets, news courtes, health, smart_reply)
+# Un seul modèle résident à la fois via keep_alive, swap ~5s.
 # ══════════════════════════════════════════
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:27b")
-VISION_MODEL = os.getenv("VISION_MODEL", "qwen3.5:27b")  # same model — native multimodal
+OLLAMA_MODEL_MAIN = os.getenv(
+    "OLLAMA_MODEL_MAIN", "qwen3:30b-a3b-instruct-2507-q4_K_M"
+)
+OLLAMA_MODEL_FAST = os.getenv("OLLAMA_MODEL_FAST", "qwen3:14b")
 
-# Backward compat — all point to the single model
-OLLAMA_CEO_MODEL = OLLAMA_MODEL
-OLLAMA_EXECUTOR_MODEL = OLLAMA_MODEL
-OLLAMA_VISION_MODEL = OLLAMA_MODEL  # was qwen2.5vl:7b, now same model
-OLLAMA_BROWSER_MODEL = OLLAMA_MODEL
-OLLAMA_MAX_LOADED_MODELS = 1  # single model, no swapping
-OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))  # save VRAM (default 8K, increase if needed)
-OLLAMA_FLASH_ATTENTION = os.getenv("OLLAMA_FLASH_ATTENTION", "1") == "1"  # faster inference, less VRAM
+# Default model (backward compat): callers qui n'ont pas d'AgentConfig.model
+# utilisent le MAIN. Les missions critiques (WRITER/MONITOR) override via agent.model.
+OLLAMA_MODEL = OLLAMA_MODEL_MAIN
+VISION_MODEL = os.getenv("VISION_MODEL", OLLAMA_MODEL_MAIN)
+
+# Backward compat
+OLLAMA_CEO_MODEL = OLLAMA_MODEL_MAIN
+OLLAMA_EXECUTOR_MODEL = OLLAMA_MODEL_FAST
+OLLAMA_VISION_MODEL = OLLAMA_MODEL_MAIN
+OLLAMA_BROWSER_MODEL = OLLAMA_MODEL_FAST
+OLLAMA_MAX_LOADED_MODELS = 1  # swap MAIN/FAST via keep_alive, 1 résident à la fois
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))  # 8k avec flash_attn + kv_q8_0
+OLLAMA_FLASH_ATTENTION = os.getenv("OLLAMA_FLASH_ATTENTION", "1") == "1"
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")  # MAIN stays loaded 30 min
 
 # Mistral (fallback cloud — rarement utilise)
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
@@ -61,8 +99,16 @@ BROWSER_PROFILE_DIR = os.getenv("BROWSER_PROFILE_DIR", os.path.expanduser("~/.ma
 # Limites — STRICTES
 # ══════════════════════════════════════════
 MAX_TWEETS_DAY = 1  # 1 seul tweet feature/jour
-MAX_EMAILS_DAY = 5  # opportunites + rapport + alertes
-MAX_ACTIONS_DAY = 50  # scans + moderation + health checks
+# Email outreach quota with ramp-up. The "max" is the steady-state cap
+# reached after EMAIL_RAMP_UP_DAYS days from EMAIL_RAMP_UP_START. Until
+# then, the effective cap grows linearly from EMAIL_QUOTA_FLOOR to
+# MAX_EMAILS_DAY. This avoids spiking SMTP volume in one shot when going
+# from 5/day to 15/day, which Gmail/Outlook flag as spam.
+MAX_EMAILS_DAY = 15  # was 5, scaled 2026-04-10
+EMAIL_QUOTA_FLOOR = 5  # starting point of the ramp
+EMAIL_RAMP_UP_DAYS = int(os.getenv("EMAIL_RAMP_UP_DAYS", "14"))
+EMAIL_RAMP_UP_START = os.getenv("EMAIL_RAMP_UP_START", "2026-04-10")  # ISO date
+MAX_ACTIONS_DAY = 100  # was 50, doubled 2026-04-10 to match scaled outreach
 
 # ── PROPOSE, DON'T POST ──
 # IMPORTANT: CEO never posts directly. It proposes content,

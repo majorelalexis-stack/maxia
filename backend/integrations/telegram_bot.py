@@ -28,6 +28,12 @@ from integrations.telegram_i18n import (
 logger = logging.getLogger("telegram_bot")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+# Disabled by default 2026-04-11: the local CEO's telegram_router is
+# now the single Telegram long-poller for the @MAXIA_AI_bot token. Two
+# pollers on the same token fight for getUpdates and return 409
+# Conflict, breaking every approval flow. Set TELEGRAM_BOT_ENABLED=1
+# explicitly if you decide to hand Telegram polling back to the VPS.
+BOT_ENABLED = os.getenv("TELEGRAM_BOT_ENABLED", "0") == "1"
 MINIAPP_URL = "https://maxiaworld.app/miniapp"
 _BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 _last_update_id = 0
@@ -201,6 +207,13 @@ async def setup_bot_menu():
 async def run_telegram_bot():
     """Long polling loop — runs as a background task."""
     global _last_update_id, _running
+
+    if not BOT_ENABLED:
+        logger.info(
+            "[TG Bot] VPS Telegram poller disabled (TELEGRAM_BOT_ENABLED!=1). "
+            "Local CEO telegram_router is the sole poller."
+        )
+        return
 
     if not BOT_TOKEN or len(BOT_TOKEN) < 20:
         logger.info("[TG Bot] TELEGRAM_BOT_TOKEN not set or invalid — bot disabled")

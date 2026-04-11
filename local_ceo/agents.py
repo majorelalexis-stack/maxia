@@ -12,6 +12,9 @@ Also loads the MAXIA knowledge base and defines shared constants used by mission
 import logging
 import os
 from dataclasses import dataclass
+from typing import Optional
+
+from config_local import OLLAMA_MODEL_FAST, OLLAMA_MODEL_MAIN
 
 log = logging.getLogger("ceo")
 
@@ -22,15 +25,29 @@ log = logging.getLogger("ceo")
 
 @dataclass(frozen=True)
 class AgentConfig:
-    """Configuration for a virtual agent. Same model, different prompt/params."""
+    """Configuration for a virtual agent.
+
+    Each agent can pin its own Ollama model via ``model``. If ``None``,
+    the caller falls back to the MAIN model. Hybrid routing is managed
+    in ``llm.ask()`` — tasks needing long reasoning stay on MAIN, fast
+    content generation and classification use FAST.
+    """
     name: str
     system_prompt: str
     think: bool        # Qwen3.5 /think mode
     max_tokens: int
     temperature: float
     timeout: int       # seconds
+    model: Optional[str] = None  # None = use OLLAMA_MODEL_MAIN
 
 
+# Bench du 2026-04-10 sur 7900 XT 20 GB + Ollama 0.20.4 :
+#   MAIN (qwen3:30b-a3b-instruct-2507-q4_K_M, MoE 3.3B actifs) = 106.73 tok/s
+#   FAST (qwen3:14b, dense 14B)                                =  54.48 tok/s
+# Le MoE bat le dense 14B malgre 2x plus de params totaux parce que
+# seuls 3.3B s'activent par token. Consequence : hybrid inutile ici,
+# on route TOUT sur MAIN. OLLAMA_MODEL_FAST reste defini comme
+# fallback de secours si MAIN indisponible ou si on doit liberer VRAM.
 STRATEGIST = AgentConfig(
     name="strategist",
     system_prompt=(
@@ -42,7 +59,8 @@ STRATEGIST = AgentConfig(
     think=True,
     max_tokens=1000,
     temperature=0.3,
-    timeout=300,
+    timeout=120,  # 300->120 : 107 tok/s rend les longs timeouts inutiles
+    model=OLLAMA_MODEL_MAIN,
 )
 
 WRITER = AgentConfig(
@@ -56,7 +74,8 @@ WRITER = AgentConfig(
     think=False,
     max_tokens=300,
     temperature=0.7,
-    timeout=60,
+    timeout=60,  # 300 tokens @ 107 tok/s = 2.8s, 60s large
+    model=OLLAMA_MODEL_MAIN,
 )
 
 ANALYST = AgentConfig(
@@ -71,7 +90,8 @@ ANALYST = AgentConfig(
     think=True,
     max_tokens=500,
     temperature=0.5,
-    timeout=120,
+    timeout=90,
+    model=OLLAMA_MODEL_MAIN,
 )
 
 MONITOR = AgentConfig(
@@ -83,7 +103,8 @@ MONITOR = AgentConfig(
     think=False,
     max_tokens=200,
     temperature=0.1,
-    timeout=30,
+    timeout=30,  # 200 tokens @ 107 tok/s = 1.9s
+    model=OLLAMA_MODEL_MAIN,
 )
 
 CHAT = AgentConfig(
@@ -98,7 +119,8 @@ CHAT = AgentConfig(
     think=True,
     max_tokens=500,
     temperature=0.5,
-    timeout=120,
+    timeout=90,
+    model=OLLAMA_MODEL_MAIN,
 )
 
 ALL_AGENTS: tuple[AgentConfig, ...] = (STRATEGIST, WRITER, ANALYST, MONITOR, CHAT)

@@ -409,6 +409,15 @@ async def _handle_one(client: httpx.AsyncClient, msg: dict) -> None:
         "[vps_bridge] msg=%s REPLIED channel=%s user=%s (%d chars)",
         msg_id, channel, user_id[:32] if user_id else "?", len(response_text),
     )
+    try:
+        from memory import log_action
+        log_action(
+            "vps_bridge_reply",
+            target=f"{channel}:{user_id[:32] if user_id else '?'}",
+            details=f"{response_text[:150]}",
+        )
+    except Exception as _e:
+        log.debug("[vps_bridge] log_action failed: %s", _e)
 
 
 async def mission_vps_bridge(mem: dict, actions: dict) -> None:

@@ -173,6 +173,15 @@ async def mission_bounty_poster(mem: dict, actions: dict) -> None:
         )
         if ok:
             posted += 1
+            try:
+                from memory import log_action
+                log_action(
+                    "bounty_posted",
+                    target=tpl["category"],
+                    details=f"{title[:80]} budget={tpl['budget_usdc']}USDC",
+                )
+            except Exception as _e:
+                log.debug("[BountyPoster] log_action failed: %s", _e)
         await asyncio.sleep(2)
 
     state["last_run"] = today

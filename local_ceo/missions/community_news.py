@@ -22,7 +22,6 @@ Rate limiting:
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -36,8 +35,12 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)
 )))
 _BACKEND_DIR = os.path.join(_REPO_ROOT, "backend")
+# IMPORTANT: append (not insert) so ``backend/agents/`` package does NOT
+# shadow ``local_ceo/agents.py``. The only import we need from backend is
+# ``marketing.discord_outreach`` which is unique to backend, so being at
+# the tail of sys.path is enough.
 if _BACKEND_DIR not in sys.path:
-    sys.path.insert(0, _BACKEND_DIR)
+    sys.path.append(_BACKEND_DIR)
 
 OUTREACH_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -48,8 +51,8 @@ DAILY_HOUR: int = 9                     # local time
 POST_MAX_CHARS: int = 1000
 
 
-def _load_announcements_channel() -> Optional[tuple[str, str]]:
-    """Return (guild_id, announcements_channel_id) from memory_prod."""
+def _load_announcements_channel() -> Optional[tuple[str, str, str]]:
+    """Return (guild_name, guild_id, announcements_channel_id) from memory_prod."""
     try:
         with open(OUTREACH_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -62,12 +65,13 @@ def _load_announcements_channel() -> Optional[tuple[str, str]]:
         .get("discord_ceo", {})
         .get("community_server", {})
     )
+    guild_name = community.get("name", "") or community.get("guild_name", "")
     guild_id = community.get("guild_id", "")
     channels = community.get("channels", {}) or {}
     channel_id = channels.get("announcements") or channels.get("general")
     if not guild_id or not channel_id:
         return None
-    return guild_id, channel_id
+    return guild_name, guild_id, channel_id
 
 
 async def _fetch_live_stats() -> dict:
@@ -163,28 +167,172 @@ async def _send_to_discord(channel_id: str, content: str) -> bool:
         return False
 
 
-async def mission_community_news(mem: dict, actions: dict) -> None:
-    """Post daily community news in MAXIA Community #announcements."""
+async def _request_orange_approval(
+    content: str,
+    guild_name: str,
+    guild_id: str,
+    channel_id: str,
+) -> str:
+    """Send a GO/NO approval request and wait via the shared telegram_router.
+
+    The router is the single Telegram long-poller for the whole local CEO.
+    We only send the message + edit it with the final verdict; the router
+    dispatches the callback_query to our waiter.
+    """
+    import httpx
+    from config_local import (
+        APPROVAL_TIMEOUT_ORANGE_S,
+        TELEGRAM_BOT_TOKEN,
+        TELEGRAM_CEO_CHAT_ID,
+    )
+    from telegram_router import await_approval
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CEO_CHAT_ID:
+        log.warning("[community_news] Telegram not configured — skip approval")
+        return "timeout"
+
+    action_id = f"community_news_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    api_base = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+
+    preview = content[:900]
+    server_label = guild_name or f"guild {guild_id}"
+    text = (
+        f"\U0001f7e0 *ORANGE* — Post daily community news\n\n"
+        f"*Serveur:* {server_label} (`{guild_id}`)\n"
+        f"*Channel:* `#announcements` (`{channel_id}`)\n"
+        f"*Longueur:* {len(content)} chars\n\n"
+        f"*Draft:*\n```\n{preview}\n```\n\n"
+        f"Approuver ce post Discord ?"
+    )
+    keyboard = {
+        "inline_keyboard": [[
+            {"text": "\u2705 GO", "callback_data": f"approve:{action_id}"},
+            {"text": "\u274c NO", "callback_data": f"reject:{action_id}"},
+        ]]
+    }
+
+    message_id: Optional[int] = None
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            resp = await client.post(
+                f"{api_base}/sendMessage",
+                json={
+                    "chat_id": TELEGRAM_CEO_CHAT_ID,
+                    "text": text,
+                    "parse_mode": "Markdown",
+                    "reply_markup": keyboard,
+                },
+            )
+            if resp.status_code != 200:
+                log.warning("[community_news] Telegram sendMessage HTTP %s: %s",
+                            resp.status_code, resp.text[:200])
+                return "timeout"
+            try:
+                message_id = int(resp.json().get("result", {}).get("message_id", 0)) or None
+            except Exception:
+                message_id = None
+        except Exception as e:
+            log.warning("[community_news] Telegram send error: %s", e)
+            return "timeout"
+
+        verdict = await await_approval(action_id, APPROVAL_TIMEOUT_ORANGE_S)
+
+        if message_id:
+            stamp = datetime.now().strftime("%H:%M:%S")
+            if verdict == "human":
+                banner = f"\u2705 *APPROUVE a {stamp}*"
+            elif verdict == "denied":
+                banner = f"\u274c *REFUSE a {stamp}*"
+            else:
+                banner = f"\u23f1 *TIMEOUT a {stamp}*"
+            new_text = f"{banner}\n\n{text}"
+            if len(new_text) > 4000:
+                new_text = new_text[:4000] + "..."
+            try:
+                await client.post(
+                    f"{api_base}/editMessageText",
+                    json={
+                        "chat_id": TELEGRAM_CEO_CHAT_ID,
+                        "message_id": message_id,
+                        "text": new_text,
+                        "parse_mode": "Markdown",
+                    },
+                    timeout=10,
+                )
+            except Exception as e:
+                log.debug("[community_news] editMessageText failed: %s", e)
+
+    return verdict
+
+
+async def mission_community_news(
+    mem: dict,
+    actions: dict,
+    *,
+    force: bool = False,
+) -> None:
+    """Post daily community news in MAXIA Community #announcements.
+
+    Flow:
+      1. Fetch live stats (prices, marketplace, oracle).
+      2. Ask WRITER LLM for a short Discord-safe post.
+      3. Send GO/NO approval request to Alexis on Telegram (ORANGE).
+      4. If approved → POST to Discord, else log and skip.
+
+    Args:
+        mem: persistent memory dict (daily dedupe, post history).
+        actions: daily counters.
+        force: if ``True``, bypass hour + daily-dedupe checks. Used by
+            ``test_community_news_now.py`` to trigger a one-shot test.
+    """
     today = datetime.now().strftime("%Y-%m-%d")
-    if mem.get("_community_news_last_date") == today:
-        return
-    if datetime.now().hour != DAILY_HOUR:
-        return
+    if not force:
+        if mem.get("_community_news_last_date") == today:
+            return
+        if datetime.now().hour != DAILY_HOUR:
+            return
 
     channel = _load_announcements_channel()
     if channel is None:
         log.warning("[community_news] no announcements channel info — skip")
         return
-    guild_id, channel_id = channel
+    guild_name, guild_id, channel_id = channel
 
     stats = await _fetch_live_stats()
     content = await _generate_post_text(stats)
+    log.info("[community_news] draft ready (%d chars), requesting approval", len(content))
+
+    verdict = await _request_orange_approval(content, guild_name, guild_id, channel_id)
+
+    # Dedupe immediately after verdict, regardless of outcome. "We tried
+    # today, don't retry until tomorrow." Without this, denied/timeout
+    # fell through without setting the flag and the mission refired every
+    # scheduler loop (~1 min) for the rest of hour 9, flooding Telegram.
+    mem["_community_news_last_date"] = today
+
+    try:
+        from memory import log_action
+        log_action(
+            "community_news_approval",
+            target=verdict,
+            details=f"{guild_name}#announcements draft {len(content)} chars",
+        )
+    except Exception as _e:
+        log.debug("[community_news] log_action verdict failed: %s", _e)
+
+    if verdict == "denied":
+        log.info("[community_news] DENIED by Alexis — skip post")
+        return
+    if verdict == "timeout":
+        log.warning("[community_news] approval TIMEOUT — skip post (no auto-publish)")
+        return
+    # "human" (approved) or "auto" (vert, shouldn't happen here) → publish
+    log.info("[community_news] approved (%s) — posting to Discord", verdict)
 
     ok = await _send_to_discord(channel_id, content)
     if not ok:
         return
 
-    mem["_community_news_last_date"] = today
     mem.setdefault("community_news_posts", []).append({
         "date": today,
         "channel_id": channel_id,
@@ -193,6 +341,15 @@ async def mission_community_news(mem: dict, actions: dict) -> None:
     })
     if len(mem["community_news_posts"]) > 200:
         mem["community_news_posts"] = mem["community_news_posts"][-200:]
+    try:
+        from memory import log_action
+        log_action(
+            "community_news_posted",
+            target=f"{guild_name}#announcements",
+            details=f"posted {len(content)} chars to channel {channel_id}",
+        )
+    except Exception as _e:
+        log.debug("[community_news] log_action posted failed: %s", _e)
 
     actions["counts"]["community_news"] = 1
     log.info("[community_news] posted daily update (%d chars)", len(content))

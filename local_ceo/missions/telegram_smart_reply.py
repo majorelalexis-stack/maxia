@@ -177,6 +177,171 @@ def _build_knowledge_blob(query: str | None = None) -> str:
     return _build_static_blob()
 
 
+def _build_runtime_state_blob(
+    mem: Optional[dict] = None,
+    actions_today: Optional[dict] = None,
+    max_chars: int = 1800,
+) -> str:
+    """Build a RUNTIME_STATE block describing what the CEO actually did.
+
+    This is the missing piece that was causing the LLM to hallucinate
+    "I don't do anything without approval" — before this blob existed the
+    chat prompt only contained static product docs, not live mission state.
+
+    The block surfaces:
+      * Today's ``actions_today["counts"]`` (what ran this hour/day)
+      * Recent entries of the key ``mem`` lists (github_prospects,
+        disboard_bumps, outreach_sent, community_news_posts, health_alerts)
+      * Top 10 actions from SQLite ``actions`` table for today
+      * A fixed map of AUTO vs APPROVAL-REQUIRED missions so the LLM can
+        answer "do you do X automatically" correctly.
+    """
+    from datetime import datetime
+    parts: list[str] = []
+    parts.append("=== RUNTIME STATE (ground truth for 'what did you do' questions) ===")
+    parts.append(f"Now: {datetime.now().strftime('%Y-%m-%d %H:%M')} local")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # Exact counts for today — derived from both mem and actions_today,
+    # so the LLM doesn't confuse daily caps with actual sends. Put this
+    # FIRST, before the mission list, so qwen3 reads the real numbers
+    # before it sees "daily cap of 30" and gets lazy.
+    # Human-friendly labels so the LLM can match them to natural-language
+    # questions ("combien de cold emails" → "GitHub cold emails sent").
+    LABEL_MAP = {
+        "github_prospects": "GitHub cold emails sent (gh_prospect mission)",
+        "outreach_sent": "Outreach emails sent (email_outreach mission)",
+        "community_news_posts": "Community news Discord posts published",
+        "weekly_reports": "Weekly reports sent to Alexis",
+        "disboard_bumps": "Disboard bump reminders sent (Telegram)",
+        "health_checks": "Health checks performed",
+        "health_report_sent": "Health reports sent by email",
+        "moderation_done": "Forum moderation passes",
+        "report_sent": "Daily reports sent by email",
+        "reddit_watch": "Reddit subreddits scanned",
+        "tweet_feature": "Tweets posted (Twitter disabled)",
+        "opportunities_sent": "Opportunity scores sent",
+    }
+    exact_counts: dict[str, int] = {}
+    if mem and isinstance(mem, dict):
+        for key in ("github_prospects", "outreach_sent", "community_news_posts", "weekly_reports"):
+            items = mem.get(key) or []
+            n_today = 0
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                d = str(it.get("date", ""))[:10]
+                if d == today_str:
+                    n_today += 1
+                    continue
+                ts = it.get("ts")
+                if isinstance(ts, (int, float)):
+                    try:
+                        if datetime.fromtimestamp(ts).strftime("%Y-%m-%d") == today_str:
+                            n_today += 1
+                    except Exception:
+                        pass
+            if n_today:
+                exact_counts[key] = n_today
+    if actions_today and isinstance(actions_today, dict):
+        for k, v in (actions_today.get("counts") or {}).items():
+            if v and k not in exact_counts:
+                exact_counts[k] = v
+    parts.append("")
+    parts.append(f"EXACT counts for today ({today_str}) — these are the REAL numbers, not caps:")
+    if exact_counts:
+        for k, v in sorted(exact_counts.items()):
+            label = LABEL_MAP.get(k, k)
+            parts.append(f"  {label}: {v}")
+        parts.append("")
+        parts.append(
+            "Note: 'GitHub cold emails' = 'gh_prospect' = 'github_prospects' "
+            "= 'prospects GitHub contactes' — they all refer to the same "
+            "thing. When the user asks about cold emails, prospection, "
+            "github outreach, or prospects, use the 'GitHub cold emails "
+            "sent' count above."
+        )
+    else:
+        parts.append("  (no tracked actions yet today — the answer to 'how many X today' is 0)")
+    parts.append(
+        "IMPORTANT: these numbers are the EXACT count of actions "
+        "performed today. Do NOT confuse them with daily caps or quotas. "
+        "If a count is absent, the value is 0 (zero), not the cap. "
+        "Never invent a number that is not in this block."
+    )
+
+    # Autonomous vs approval-required missions (reference, for 'do you
+    # do X automatically' questions — NOT counts)
+    parts.append("")
+    parts.append("Autonomous missions (reference schedule, NOT counts):")
+    parts.append(
+        "  gh_prospect (daily 10h, cap 30/day), disboard_bump "
+        "(hourly 9-21h, cap 8/day), health_check (5min), moderation "
+        "(hourly), reddit_watch (hourly, read-only), skill_scout "
+        "(daily), seo_submit (Mon/Wed/Fri 10h), blog (Mon 8h), "
+        "blog_crosspost (14h daily), weekly_report (Mon 9h), "
+        "vps_bridge (every 30s), self_reflect (22h daily)"
+    )
+    parts.append("Approval-required missions:")
+    parts.append(
+        "  community_news (daily 9h, ORANGE, needs GO click), "
+        "email_outreach drafts (DRAFT mode, Alexis reviews), "
+        "strategic pivots"
+    )
+
+    # (Today's counters section removed — it was redundant with EXACT
+    # counts above and caused qwen3 to double-count or confuse keys.)
+
+    # mem recent lists — details for the most recent items so the LLM
+    # can cite specific prospects/timestamps when asked.
+    if mem and isinstance(mem, dict):
+        for key, label in [
+            ("github_prospects", "GitHub prospect details (last 3)"),
+            ("outreach_sent", "Outreach email details (last 3)"),
+            ("disboard_bumps", "Disboard bump details (last 3)"),
+            ("community_news_posts", "Community news post details (last 3)"),
+            ("health_alerts", "Health alert details (last 3)"),
+            ("weekly_reports", "Weekly report details (last 3)"),
+        ]:
+            items = mem.get(key) or []
+            if items:
+                parts.append("")
+                parts.append(f"{label}:")
+                for item in items[-3:]:
+                    if isinstance(item, dict):
+                        compact = ", ".join(
+                            f"{k}={str(v)[:60]}"
+                            for k, v in item.items()
+                            if k not in {"body", "text", "html", "preview"}
+                        )
+                        parts.append(f"  - {compact[:300]}")
+                    else:
+                        parts.append(f"  - {str(item)[:300]}")
+
+    # SQLite actions table (today)
+    try:
+        from memory import get_today_actions
+        sql_actions = get_today_actions() or []
+        if sql_actions:
+            parts.append("")
+            parts.append(
+                f"SQLite actions table today ({len(sql_actions)} rows, last 10):"
+            )
+            for row in sql_actions[-10:]:
+                if isinstance(row, dict):
+                    parts.append(
+                        f"  - {row.get('type','?')}: target={row.get('target','?')} "
+                        f"details={(row.get('details') or '')[:120]}"
+                    )
+    except Exception as _e:
+        parts.append(f"(SQLite actions unavailable: {_e})")
+
+    blob = "\n".join(parts)
+    if len(blob) > max_chars:
+        blob = blob[:max_chars] + "\n... (truncated)"
+    return blob
+
+
 def _detect_lang(language_code: Optional[str]) -> str:
     """Normalize Telegram language_code to a short hint for the LLM prompt."""
     if not isinstance(language_code, str) or not language_code:
@@ -280,6 +445,8 @@ async def answer_user_message(
     language_code: Optional[str] = None,
     user_id: Optional[str] = None,
     channel: str = "telegram",
+    mem: Optional[dict] = None,
+    actions_today: Optional[dict] = None,
 ) -> str:
     """Return a grounded answer in the user's language.
 
@@ -311,18 +478,39 @@ async def answer_user_message(
         # Fall through to legacy if the agent refused to handle it
 
     knowledge = _build_knowledge_blob(query=user_message)
+    runtime_state = _build_runtime_state_blob(mem=mem, actions_today=actions_today)
     lang_name = _detect_lang(language_code)
     history_text = _format_history(history)
 
     system = (
-        "You are the MAXIA CEO assistant. You answer questions about the "
-        "MAXIA AI-to-AI marketplace. Use ONLY the facts provided in the "
-        "KNOWLEDGE block below. If the answer is not in the knowledge, say "
-        "you don't know and suggest visiting https://maxiaworld.app. Be "
-        "concise (max 200 words). Never invent endpoint names, token "
-        "counts, or partner names.\n\n"
+        "You are the MAXIA CEO assistant talking to Alexis, the founder. "
+        "You operate a fleet of autonomous missions AND missions that "
+        "require Alexis's explicit approval. The RUNTIME_STATE block "
+        "below is the ground truth for any question about what you did, "
+        "what ran today, what prospects you contacted, how many emails "
+        "you sent, etc. The KNOWLEDGE block describes the MAXIA product "
+        "itself (features, endpoints, tokens) and should be used for "
+        "questions about the platform.\n\n"
+        "Rules:\n"
+        "1. Questions like 'tu as fait quoi', 'combien', 'quand', "
+        "'qu'est-ce qui a marche' → answer from RUNTIME_STATE with "
+        "exact numbers. Do NOT invent counts.\n"
+        "2. Questions about MAXIA features, endpoints, tokens, pricing "
+        "→ use KNOWLEDGE.\n"
+        "3. NEVER say 'I don't do anything without approval' as a "
+        "blanket statement — check RUNTIME_STATE for the list of "
+        "autonomous missions.\n"
+        "4. When Alexis asks you to DO something new that's not a "
+        "currently-running mission, confirm and say you queue it "
+        "(you cannot actually trigger new code).\n"
+        "5. If the answer is not in RUNTIME_STATE or KNOWLEDGE, say so "
+        "and suggest visiting https://maxiaworld.app.\n"
+        "6. Be concise (max 200 words). No emoji. No markdown except "
+        "**bold**. Never invent endpoint names, token counts, "
+        "or partner names.\n\n"
+        f"{runtime_state}\n\n"
         f"KNOWLEDGE:\n{knowledge}\n\n"
-        f"Respond in {lang_name}. No emoji. No markdown except **bold**."
+        f"Respond in {lang_name}."
     )
 
     prompt = f"Conversation so far:\n{history_text}\n\nUser: {user_message}\n\nAssistant:"

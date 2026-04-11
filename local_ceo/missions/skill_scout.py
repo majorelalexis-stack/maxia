@@ -33,7 +33,7 @@ def _load_state() -> dict:
                 return json.loads(f.read())
     except Exception:
         pass
-    return {"last_run": "", "listed_skills": []}
+    return {"last_run": "", "listed_skills": [], "auth_failed_until": ""}
 
 
 def _save_state(state: dict) -> None:
@@ -42,6 +42,27 @@ def _save_state(state: dict) -> None:
             f.write(json.dumps(state, indent=2, ensure_ascii=False))
     except Exception as e:
         log.error("[SkillScout] Save state error: %s", e)
+
+
+async def _preflight_auth() -> bool:
+    """Validate CEO_API_KEY against the VPS BEFORE running the expensive LLM step.
+
+    Hits a cheap GET endpoint (`/api/agent/skills/soul`) which uses the same
+    ``_validate_api_key`` dependency as ``/skills/learn``. If auth fails here,
+    the LLM extraction (~6 min on local GPU) is skipped entirely.
+    """
+    if not CEO_API_KEY or not CEO_API_KEY.startswith("maxia_"):
+        return False
+    headers = {"X-API-Key": CEO_API_KEY}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{VPS_URL}/api/agent/skills/soul", headers=headers
+            )
+            return resp.status_code == 200
+    except Exception as e:
+        log.debug("[SkillScout] Preflight error: %s", e)
+        return False
 
 
 async def _fetch_trending_repos() -> list:
@@ -173,6 +194,15 @@ async def _list_skill_on_marketplace(skill: dict) -> bool:
             })
             if resp.status_code in (200, 201):
                 log.info("[SkillScout] Listed free skill: %s", skill["skill_name"])
+                try:
+                    from memory import log_action
+                    log_action(
+                        "skill_scout_listed",
+                        target=skill["skill_name"],
+                        details=f"free listing on marketplace",
+                    )
+                except Exception as _e:
+                    log.debug("[SkillScout] log_action failed: %s", _e)
                 return True
             else:
                 log.warning("[SkillScout] Export failed: %s", resp.text[:100])
@@ -189,6 +219,31 @@ async def mission_skill_scout(mem: dict, actions: dict) -> None:
     today = datetime.now().strftime("%Y-%m-%d")
     if state.get("last_run") == today:
         log.info("[SkillScout] Already ran today — skip")
+        return
+
+    # Skip until date if a previous run hit 401 — avoids wasting 6 min of LLM time
+    auth_blocked_until = state.get("auth_failed_until", "")
+    if auth_blocked_until and auth_blocked_until >= today:
+        log.info(
+            "[SkillScout] Auth blocked until %s — skip (fix CEO_API_KEY in .env)",
+            auth_blocked_until,
+        )
+        return
+
+    # Preflight: validate CEO_API_KEY BEFORE spending 6 min on LLM extraction
+    if not await _preflight_auth():
+        log.warning(
+            "[SkillScout] Preflight auth failed — CEO_API_KEY invalid or VPS "
+            "rejected it. Mission disabled for 7 days. Fix CEO_API_KEY in "
+            "local_ceo/.env (must start with 'maxia_')."
+        )
+        # Block for 7 days so we don't spam logs / burn GitHub quota
+        from datetime import timedelta
+        state["auth_failed_until"] = (
+            datetime.now() + timedelta(days=7)
+        ).strftime("%Y-%m-%d")
+        state["last_run"] = today
+        _save_state(state)
         return
 
     log.info("[SkillScout] Starting daily scan...")

@@ -237,3 +237,21 @@ async def mission_strategy_review(mem: dict, actions: dict) -> None:
 
     actions["counts"]["strategy_review"] = 1
     log.info("[STRATEGY] Weekly review done — score %d/100, pivot=%s", score, needs_pivot)
+    try:
+        from memory import log_action
+        log_action(
+            "strategy_review",
+            target=f"week_{week_num}",
+            details=f"score={score}/100 pivot={needs_pivot} insight={key_insight[:150]}",
+        )
+    except Exception as _e:
+        log.debug("[STRATEGY] log_action failed: %s", _e)
+    try:
+        from vector_memory_local import vmem as _vmem
+        if _vmem and key_insight:
+            _vmem.store_decision(
+                f"Week {week_num}: {key_insight}",
+                cycle=week_num,
+            )
+    except Exception as _e:
+        log.debug("[STRATEGY] store_decision failed: %s", _e)

@@ -37,6 +37,23 @@ log = logging.getLogger("ceo")
 _HERE = Path(__file__).parent
 _COLLECTION_NAME = "knowledge_docs"
 
+# Side collections managed by vector_memory_local. Queried in parallel
+# with knowledge_docs when ``hybrid_retrieve_multi`` is used so the
+# chat can surface recent actions, strategic decisions, self-learnings,
+# and contact notes alongside static product docs.
+_SIDE_COLLECTIONS = ("actions", "decisions", "learnings", "contacts")
+# Per-collection score weight applied to vector hits. Larger = more
+# influence on final ranking. Product docs stay baseline 1.0, runtime
+# actions boosted slightly so "what did you do today" answers surface
+# recent behaviour instead of marketing copy.
+_COLLECTION_WEIGHTS = {
+    "knowledge_docs": 1.0,
+    "actions": 1.3,
+    "learnings": 1.25,
+    "decisions": 1.15,
+    "contacts": 0.85,
+}
+
 # Default corpus (relative to the local_ceo/ directory).
 # NOTE: keep the list small — larger corpora dilute retrieval quality
 # without a reranker. The POC showed 134 chunks is the sweet spot.
@@ -286,6 +303,34 @@ def _extract_query_keywords(query: str) -> list[str]:
     return out
 
 
+_side_coll_cache: dict[str, Any] = {}
+
+
+def _get_side_collection(name: str) -> Any:
+    """Fetch one of the auxiliary ChromaDB collections managed by
+    ``vector_memory_local`` (actions, decisions, learnings, contacts).
+
+    Shares the same ChromaDB client as ``_get_collection()`` to avoid
+    double-opening the persistent directory. Results are cached per
+    collection name for the process lifetime.
+    """
+    if name in _side_coll_cache:
+        return _side_coll_cache[name]
+    try:
+        from vector_memory_local import vmem
+        if not vmem._ok or vmem._client is None:
+            return None
+        coll = vmem._client.get_or_create_collection(
+            name=name,
+            metadata={"hnsw:space": "cosine"},
+        )
+        _side_coll_cache[name] = coll
+        return coll
+    except Exception as e:
+        log.warning("[rag] side collection '%s' init failed: %s", name, e)
+        return None
+
+
 def hybrid_retrieve(query: str, k: int = 6) -> list[dict]:
     """Vector top-k*2 + keyword overlay, deduplicated and sorted by score.
 
@@ -343,17 +388,96 @@ def hybrid_retrieve(query: str, k: int = 6) -> list[dict]:
     ]
 
 
+def hybrid_retrieve_multi(
+    query: str,
+    k: int = 6,
+    collections: Iterable[str] = ("knowledge_docs", "actions", "decisions", "learnings", "contacts"),
+) -> list[dict]:
+    """Multi-collection retrieval.
+
+    Queries the main ``knowledge_docs`` collection via :func:`hybrid_retrieve`
+    (vector + keyword overlay) plus each side collection via vector search
+    only. Per-collection score weights from ``_COLLECTION_WEIGHTS`` are
+    applied so runtime data (actions, learnings, decisions) can outrank
+    static marketing copy for questions about what the CEO actually did.
+
+    Returns a merged list of ``{"text","source","score","collection"}``
+    dicts sorted by weighted score, truncated to ``k``.
+    """
+    if not isinstance(query, str) or not query.strip():
+        return []
+
+    merged: list[tuple[str, str, float, str]] = []  # text, source, score, coll
+
+    # 1. Main knowledge_docs via the existing hybrid_retrieve (vector + keyword)
+    if "knowledge_docs" in collections:
+        w = _COLLECTION_WEIGHTS.get("knowledge_docs", 1.0)
+        for h in hybrid_retrieve(query, k=k):
+            merged.append((h["text"], h["source"], h["score"] * w, "knowledge_docs"))
+
+    # 2. Side collections via vector search only (no keyword cache for them)
+    for name in collections:
+        if name == "knowledge_docs":
+            continue
+        coll = _get_side_collection(name)
+        if coll is None:
+            continue
+        try:
+            cnt = coll.count()
+            if cnt == 0:
+                continue
+            n = min(k, cnt)
+            r = coll.query(query_texts=[query], n_results=n)
+            docs = (r.get("documents") or [[]])[0]
+            dists = (r.get("distances") or [[]])[0]
+            metas = (r.get("metadatas") or [[]])[0]
+            w = _COLLECTION_WEIGHTS.get(name, 1.0)
+            for d, m, dist in zip(docs, metas, dists):
+                if not d:
+                    continue
+                base = max(0.0, 1.0 - float(dist))
+                # Only keep decent matches — cosine distance > 1.0 means
+                # the vectors are further than orthogonal; retrieving them
+                # would just add noise to the prompt.
+                if base < 0.15:
+                    continue
+                source = f"{name}/{(m or {}).get('source','')}".rstrip("/")
+                merged.append((str(d), source, base * w, name))
+        except Exception as e:
+            log.debug("[rag] side collection '%s' query failed: %s", name, e)
+
+    # 3. Dedup by text prefix, keep max score
+    dedup: dict[str, tuple[str, str, float, str]] = {}
+    for text, source, score, coll_name in merged:
+        key = text[:80]
+        prev = dedup.get(key)
+        if prev is None or prev[2] < score:
+            dedup[key] = (text, source, score, coll_name)
+
+    sorted_hits = sorted(dedup.values(), key=lambda x: -x[2])[:k]
+    return [
+        {"text": t, "source": s, "score": round(sc, 3), "collection": c}
+        for (t, s, sc, c) in sorted_hits
+    ]
+
+
 def build_rag_context(
     query: str,
     max_chars: int = 2500,
     header: str | None = None,
+    use_multi: bool = True,
 ) -> str:
     """Build a prompt-ready context block from retrieved chunks.
+
+    With ``use_multi=True`` (default), queries all 5 ChromaDB collections
+    (knowledge_docs + actions + decisions + learnings + contacts) so the
+    chat surfaces runtime activity alongside product docs. Set to False
+    to restore the legacy single-collection behaviour.
 
     Returns an empty string if nothing is retrieved — callers should
     detect this and fall back to their static blob.
     """
-    hits = hybrid_retrieve(query, k=6)
+    hits = hybrid_retrieve_multi(query, k=6) if use_multi else hybrid_retrieve(query, k=6)
     if not hits:
         return ""
     parts: list[str] = []

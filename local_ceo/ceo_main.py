@@ -54,7 +54,8 @@ from missions.scout import mission_scout_scan, mission_scout_execute_approved
 from missions.email_check import mission_check_alexis_emails, mission_changelog_forum
 from missions.email_outreach import mission_email_outreach
 from missions.strategy import mission_strategy_review
-from missions.telegram_chat import mission_telegram_chat
+from missions.telegram_chat import handle_update as telegram_handle_update
+import telegram_router
 from missions.blog import mission_blog_post
 from missions.visual_audit import mission_visual_audit
 from missions.skill_scout import mission_skill_scout
@@ -69,6 +70,7 @@ from missions.blog_crosspost import mission_blog_crosspost
 from missions.weekly_report import mission_weekly_report
 from missions.reddit_watch import mission_reddit_watch
 from missions.seo_submit import mission_seo_submit
+from missions.self_reflect import mission_self_reflect
 # telegram_smart_reply is a library, called from telegram_chat.py — not a scheduled mission
 
 # ── Phase 1 mission (2026-04-09): CEO responds on every channel via VPS bridge ──
@@ -135,6 +137,14 @@ async def run():
 
     mem = load_memory()
     mem.setdefault("todays_opportunities", [])
+
+    # Start the single Telegram long-poller (the router). It runs as a
+    # background task for the entire CEO process lifetime and dispatches
+    # incoming updates to handle_update() below. Any mission that needs
+    # a GO/NO approval calls telegram_router.await_approval(action_id).
+    telegram_router.register_message_handler(telegram_handle_update)
+    telegram_router.start_router(mem, load_actions_today())
+
     last_health = 0
     last_mining_stats = 0
     last_moderation = 0
@@ -289,6 +299,14 @@ async def run():
                                   mission_weekly_report(mem, actions),
                                   mem, actions)
 
+            # Daily self-reflection (22h, 1x/jour) — reads the day's
+            # SQLite actions + mem counters, extracts 3-5 insights via
+            # qwen3 STRATEGIST, stores them in learnings (SQLite + RAG).
+            if hour == 22 and mem.get("_self_reflect_last_date") != dt_now.strftime("%Y-%m-%d"):
+                await run_mission("self_reflect",
+                                  mission_self_reflect(mem, actions),
+                                  mem, actions)
+
             # V9-7 Reddit watch (every hour, max once)
             if now - mem.get("_reddit_watch_last_run", 0) >= 3600:
                 await run_mission("reddit_watch",
@@ -331,10 +349,8 @@ async def run():
                 except Exception as e:
                     log.debug("[PROSPECT] Search error: %s", e)
 
-            # Mission 20: Telegram Chat — poll messages from Alexis (toutes les 2 min)
-            if now - mem.get("_last_telegram_poll", 0) >= 120:
-                await run_mission("telegram_chat", mission_telegram_chat(mem, actions), mem, actions)
-                mem["_last_telegram_poll"] = now
+            # Mission 20: Telegram Chat — handled by the telegram_router
+            # background task started at boot. No per-cycle polling here.
 
             # Phase 1: VPS Bridge — auto-reply to Discord/Forum/Inbox (every 30s)
             if now - mem.get("_vps_bridge_last_run", 0) >= 30:

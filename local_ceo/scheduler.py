@@ -15,7 +15,8 @@ import httpx
 
 from config_local import (
     VPS_URL, ADMIN_KEY, ALEXIS_EMAIL,
-    MAX_EMAILS_DAY, OFF_DAYS_PER_WEEK,
+    OFF_DAYS_PER_WEEK,
+    current_email_quota,
 )
 
 log = logging.getLogger("ceo")
@@ -75,15 +76,25 @@ async def run_mission(name: str, coro, mem: dict, actions: dict) -> bool:
         "runs": 0, "errors": 0, "last_duration": 0, "last_error": "",
     })
 
-    # Check email quota (max 5 mails/jour)
+    # Check email quota — uses current_email_quota() so the cap ramps up
+    # progressively over EMAIL_RAMP_UP_DAYS days, then multiplied by the
+    # reputation tracker (0.33-1.0) so a high bounce rate auto-throttles us
+    # before OVH/Gmail blacklists the domain.
     if "mail" in name or "report" in name or "opportunities" in name:
         mail_count = (
             actions["counts"].get("health_report_sent", 0) +
             actions["counts"].get("report_sent", 0) +
             actions["counts"].get("opportunities_sent", 0)
         )
-        if mail_count >= MAX_EMAILS_DAY:
-            log.debug("[HOOK] %s skipped — email quota %d/%d", name, mail_count, MAX_EMAILS_DAY)
+        try:
+            from email_reputation import get_quota_multiplier
+            mult = get_quota_multiplier()
+        except Exception:
+            mult = 1.0
+        cap = max(1, int(current_email_quota() * mult))
+        if mail_count >= cap:
+            log.debug("[HOOK] %s skipped — email quota %d/%d (mult=%.2f)",
+                      name, mail_count, cap, mult)
             return False
 
     # -- EXECUTE --

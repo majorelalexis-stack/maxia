@@ -32,5 +32,14 @@ async def mission_blog_post(mem: dict, actions: dict) -> None:
         slug = result.get("slug", "")
         log.info("[BLOG] Article publie avec succes (slug: %s)", slug)
         actions["counts"]["blog_posted"] = 1
+        try:
+            from memory import log_action
+            log_action(
+                "blog_posted",
+                target=slug,
+                details=result.get("title", ""),
+            )
+        except Exception as _e:
+            log.debug("[BLOG] log_action failed: %s", _e)
     else:
         log.info("[BLOG] Pas d'article publie (deja poste ou erreur Ollama/VPS)")

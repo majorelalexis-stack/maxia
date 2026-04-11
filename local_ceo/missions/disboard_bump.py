@@ -142,3 +142,12 @@ async def mission_disboard_bump(mem: dict, actions: dict) -> None:
     actions["counts"]["disboard_bumps"] = sent_today + 1
     log.info("[disboard_bump] reminder sent (%d/%d today)",
              sent_today + 1, MAX_BUMPS_PER_DAY)
+    try:
+        from memory import log_action
+        log_action(
+            "disboard_bump",
+            target="telegram_bot",
+            details=f"reminder {sent_today + 1}/{MAX_BUMPS_PER_DAY} today",
+        )
+    except Exception as _e:
+        log.debug("[disboard_bump] log_action failed: %s", _e)
