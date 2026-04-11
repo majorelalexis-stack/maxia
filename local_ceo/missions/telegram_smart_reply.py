@@ -415,15 +415,37 @@ async def _sales_reply(
         if code in ("en", "fr", "es", "de", "it", "pt", "ja", "ko", "zh", "ar"):
             lang = code
 
+    # Tier-aware pitch selection. We infer the prospect's country from
+    # their Telegram language_code (e.g. ``fr-FR`` → ``FR`` → LICENSE
+    # tier → developer pitch). If inference fails, the default "full"
+    # pitch is used (benefit of the doubt).
+    prospect_tier: str = "unknown"
+    try:
+        from local_ceo.lead_tier import (
+            infer_country,
+            get_tier_for_country,
+        )
+        country_code = infer_country(language_code=language_code)
+        tier_info = get_tier_for_country(country_code)
+        prospect_tier = tier_info.get("tier") or "unknown"
+        log.info(
+            "[smart_reply] prospect %s: lang=%s → country=%s tier=%s pitch=%s",
+            user_id, language_code, country_code or "?",
+            prospect_tier, tier_info.get("pitch_mode"),
+        )
+    except Exception as e:
+        log.debug("[smart_reply] tier detection failed: %s", e)
+
     # Snapshot previous stage to detect transition INTO closing (avoids
     # firing the alert on every subsequent turn while still in closing).
     prev_state = agent.get_state(conversation_id)
     prev_stage = prev_state.stage.value if prev_state else None
 
     try:
-        reply, stage = await agent.reply(
+        reply, stage = await agent.reply_for_tier(
             conversation_id=conversation_id,
             user_message=user_message,
+            tier=prospect_tier,
             channel=channel,
             user_id=user_id,
             lang=lang,

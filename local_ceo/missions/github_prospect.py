@@ -157,6 +157,48 @@ async def mission_github_prospect(mem: dict, actions: dict) -> None:
         mem["_github_prospect_last_run"] = now.strftime("%Y-%m-%d")
         return
 
+    # ── Tier-aware prioritization ───────────────────────────────
+    # Sort prospects so ALLOWED jurisdictions (UAE, CH, PH, LATAM, ...)
+    # get contacted first, LICENSE (US/UE/UK/JP/...) second, and
+    # CAUTION tier last. HARD tier prospects are dropped entirely so
+    # the LLM never wastes tokens drafting an email we cannot send.
+    # Followers count is used as a secondary sort to surface
+    # higher-impact devs within the same tier.
+    try:
+        from local_ceo.lead_tier import score_bonus, get_tier
+
+        def _priority(p) -> tuple[int, int]:
+            tier = get_tier(getattr(p, "country", "") or "")
+            return (
+                score_bonus(tier),
+                int(getattr(p, "followers", 0) or 0),
+            )
+
+        # Drop hard-stop prospects up-front.
+        before = len(prospects)
+        prospects = [
+            p for p in prospects
+            if get_tier(getattr(p, "country", "") or "") != "hard"
+        ]
+        dropped_hard = before - len(prospects)
+        if dropped_hard:
+            log.info(
+                "[gh_prospect] dropped %d HARD-tier prospects before ranking",
+                dropped_hard,
+            )
+
+        # Highest priority first (descending).
+        prospects = sorted(prospects, key=_priority, reverse=True)
+
+        # Log the top-5 for audit.
+        preview = [
+            f"{p.login}({p.country or '?'},+{score_bonus(get_tier(p.country or ''))})"
+            for p in prospects[:5]
+        ]
+        log.info("[gh_prospect] top-5 tier-ranked: %s", ", ".join(preview))
+    except Exception as e:
+        log.debug("[gh_prospect] tier-aware ranking skipped: %s", e)
+
     engine = EmailOutreach()
     sent = 0
     skipped = 0

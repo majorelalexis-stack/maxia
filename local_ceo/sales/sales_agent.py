@@ -313,9 +313,97 @@ class MaxiaSalesAgent:
             self.model,
         )
 
-    def _build_catalog_blob(self, catalog: dict) -> str:
-        """Serialize the catalog to a compact text block for prompt injection."""
+    async def refresh_gpu_tiers_from_live(self) -> bool:
+        """Pull live GPU tiers from the VPS and regenerate the catalog blob.
+
+        Safe to call anytime. Non-fatal on network failure — if the fetch
+        returns no tiers we keep the previously loaded (static) catalog
+        and log a warning. Callers are the CEO scheduler (periodic) and
+        optionally the first ``reply()`` call.
+        """
+        try:
+            from local_ceo.live_prices import get_live_gpu_tiers  # type: ignore
+        except Exception as e:
+            log.warning("[MaxiaSalesAgent] live_prices unavailable: %s", e)
+            return False
+
+        try:
+            tiers = await get_live_gpu_tiers()
+        except Exception as e:
+            log.warning("[MaxiaSalesAgent] live gpu tiers fetch failed: %s", e)
+            return False
+
+        if not tiers:
+            log.warning("[MaxiaSalesAgent] live gpu tiers empty — keeping static catalog")
+            return False
+
+        self._catalog["gpu_tiers"] = tiers
+        self._catalog_blob = self._build_catalog_blob(self._catalog)
+        log.info(
+            "[MaxiaSalesAgent] live GPU tiers applied: %d tiers, blob=%d chars",
+            len(tiers), len(self._catalog_blob),
+        )
+        return True
+
+    def _build_catalog_blob(self, catalog: dict, pitch_mode: str = "full") -> str:
+        """Serialize the catalog to a compact text block for prompt injection.
+
+        ``pitch_mode`` controls which product surface gets mentioned:
+
+        * ``"full"`` — default, every section. Used for ALLOWED tier
+          jurisdictions and unknown tier (benefit of the doubt).
+        * ``"developer"`` — strips token swap fees, escrow contract
+          details, and tokenized-stock language. Keeps marketplace
+          commission (non-custodial), GPU rental, AI services,
+          enterprise features, security, differentiators. Used for
+          LICENSE tier jurisdictions (US / UE / UK / CA / JP / SG /
+          HK / AU / KR / BR) where custodial crypto trading requires
+          a licence MAXIA does not yet hold.
+        * ``"readonly"`` — only AI services catalog, free tier, how
+          to start (API sandbox), security. No fees, no trading, no
+          GPU rental. Used for CAUTION tier.
+        * ``"blocked"`` — empty blob, should never reach the LLM.
+        """
+        pitch_mode = (pitch_mode or "full").lower()
+        if pitch_mode not in ("full", "developer", "readonly", "blocked"):
+            pitch_mode = "full"
+
+        # Fast path: blocked tier produces a hard-stop blob. Callers
+        # should avoid calling the agent at all for blocked prospects
+        # but this prevents an accidental outreach from leaking any
+        # product surface.
+        if pitch_mode == "blocked":
+            return (
+                "This jurisdiction is on the MAXIA compliance hard-stop "
+                "list. Do not describe any product. Do not answer. "
+                "Reply with: 'MAXIA is not available in your region.'"
+            )
+
+        is_full = pitch_mode == "full"
+        is_developer = pitch_mode == "developer"
+        is_readonly = pitch_mode == "readonly"
+
         lines: list[str] = []
+
+        # Header banner — makes the LLM aware of the restriction.
+        if is_developer:
+            lines.append(
+                "PITCH MODE: DEVELOPER EDITION — marketplace + GPU + API + "
+                "enterprise only. NEVER mention token swap fees, crypto "
+                "trading, tokenized stocks, DeFi yields, or custodial "
+                "features. MAXIA is pitched as a non-custodial developer "
+                "platform in this jurisdiction."
+            )
+            lines.append("")
+        elif is_readonly:
+            lines.append(
+                "PITCH MODE: READ-ONLY SANDBOX — describe the public API "
+                "catalog, the 100 req/day free tier, and how to get an "
+                "API key. Do NOT describe fees, trading, GPU rental, "
+                "escrow, or any paid feature. Invite them to read docs."
+            )
+            lines.append("")
+
         company = catalog.get("company", {})
         lines.append(f"COMPANY: {company.get('name', 'MAXIA')} — {company.get('tagline', '')}")
         lines.append(f"WEBSITE: {company.get('website', 'https://maxiaworld.app')}")
@@ -328,32 +416,39 @@ class MaxiaSalesAgent:
                 f"{stats.get('ai_services_native', 17)} native AI services, "
                 f"{stats.get('tokens_supported', 65)} tokens."
             )
+
+        # Chain list — fine in every mode, it's public information.
         chains = catalog.get("blockchains_live", [])
-        lines.append(f"CHAINS LIVE: {', '.join(chains)}")
-        # IMPORTANT: keep the two fee tables visually distant and give the
-        # tiers different prefixes so the model does NOT mix them up. This
-        # is a direct fix for a hallucination where the 0.10% SWAP fee was
-        # quoted as a 0.10% ESCROW fee in an email draft.
+        if chains and not is_readonly:
+            lines.append(f"CHAINS LIVE: {', '.join(chains)}")
+
+        # ── Marketplace commission (non-custodial — safe for developer
+        #    tier). IMPORTANT: keep the two fee tables visually distant
+        #    so the LLM does not mix up swap vs escrow rates (past bug).
         tiers = catalog.get("commission_tiers", {}).get("marketplace_and_escrow", [])
-        if tiers:
+        if tiers and (is_full or is_developer):
             lines.append("")
-            lines.append("=== FEE STRUCTURE #1 — MARKETPLACE & ESCROW ===")
+            lines.append("=== FEE STRUCTURE #1 — MARKETPLACE COMMISSION ===")
             lines.append("(paid when an agent BUYS a service from another agent)")
             for t in tiers:
                 lines.append(
-                    f"  - ESCROW-{t['tier']}: {t['rate_pct']}% "
+                    f"  - MARKETPLACE-{t['tier']}: {t['rate_pct']}% "
                     f"for transactions {t['volume_range_usd']} USD"
                 )
+
+        # ── Token swap fees — FULL TIER ONLY (custodial trading).
         swap_tiers = catalog.get("commission_tiers", {}).get("token_swap", [])
-        if swap_tiers:
+        if swap_tiers and is_full:
             lines.append("")
             lines.append("=== FEE STRUCTURE #2 — TOKEN SWAP (DIFFERENT FROM ABOVE) ===")
             lines.append("(paid when an agent swaps one crypto token for another)")
             for t in swap_tiers:
                 lines.append(f"  - SWAP-{t['tier']}: {t['rate_pct']}%")
-            lines.append("NOTE: SWAP fees are SEPARATE from ESCROW fees. Never mix them.")
+            lines.append("NOTE: SWAP fees are SEPARATE from MARKETPLACE fees. Never mix them.")
+
+        # ── Escrow contract details — FULL TIER ONLY.
         escrow = catalog.get("escrow_contracts", {})
-        if escrow:
+        if escrow and is_full:
             sol = escrow.get("solana", {})
             base = escrow.get("base", {})
             lines.append(
@@ -361,16 +456,24 @@ class MaxiaSalesAgent:
                 f"Base Solidity {base.get('contract', '')[:12]}..., "
                 f"auto-refund {sol.get('auto_refund_hours', 48)}h."
             )
+
+        # ── AI services catalog — safe in all non-blocked tiers.
         services = catalog.get("ai_services_native", [])
         if services:
+            lines.append("")
             lines.append(f"AI SERVICES ({len(services)}):")
             for s in services[:12]:
                 lines.append(f"  - {s['name']}: {s['desc'][:100]}")
+
+        # ── GPU rental — safe in full and developer tiers.
         gpus = catalog.get("gpu_tiers", [])
-        if gpus:
+        if gpus and (is_full or is_developer):
+            lines.append("")
             lines.append("GPU RENTAL (via Akash, 15% markup):")
             for g in gpus:
                 lines.append(f"  - {g['tier']} {g['vram_gb']}GB: ${g['price_per_hour_usd']}/h")
+
+        # ── Free tier — safe in every non-blocked pitch mode.
         free = catalog.get("free_tier", {})
         if free:
             lines.append("")
@@ -379,32 +482,33 @@ class MaxiaSalesAgent:
             if feats:
                 for f in feats[:5]:
                     lines.append(f"  - {f}")
-        # Enterprise features — critical to avoid the bot claiming MAXIA
-        # does not have SSO/OIDC/audit when it actually does.
+
+        # ── Enterprise features — full + developer.
         enterprise = catalog.get("enterprise_features", [])
-        if enterprise:
+        if enterprise and (is_full or is_developer):
             lines.append("")
             lines.append(f"ENTERPRISE FEATURES ({len(enterprise)}):")
             for feat in enterprise:
                 lines.append(f"  - {feat}")
-        # Security grounding — the bot is often asked about trust.
+
+        # ── Security — safe in every pitch mode; trust signal.
         security = catalog.get("security", {})
         if security:
             lines.append("")
             lines.append("SECURITY:")
             for k, v in security.items():
                 lines.append(f"  - {k}: {str(v)[:140]}")
-        # Competitor framing — tells the bot HOW to answer "vs X" questions
-        # without inventing the other side's numbers.
+
+        # ── Differentiators — full + developer.
         diffs = catalog.get("differentiators_vs_competitors", {})
-        if diffs:
+        if diffs and (is_full or is_developer):
             lines.append("")
             lines.append("DIFFERENTIATORS (use these to frame vs-competitor "
                          "questions; describe MAXIA's side only):")
             for k, v in diffs.items():
                 lines.append(f"  - {k}: {str(v)[:220]}")
-        # Competitor pricing policy — explicit canned safe response and
-        # forbidden phrase list to suppress invented benchmarks.
+
+        # ── Competitor pricing policy — always inject, it's a guardrail.
         policy = catalog.get("competitor_pricing_policy", {})
         if policy:
             lines.append("")
@@ -418,22 +522,132 @@ class MaxiaSalesAgent:
                 lines.append("  FORBIDDEN PHRASES (never produce these):")
                 for ph in forbidden:
                     lines.append(f"    * {ph}")
+
+        # ── How to start — every mode (different content per mode).
         how = catalog.get("how_to_start", {})
         if how:
             lines.append("")
             lines.append("HOW TO START:")
             for k, v in how.items():
                 lines.append(f"  {k}: {v}")
+
+        # ── Never-say list — always inject, it's a guardrail.
         never = catalog.get("never_say", [])
         if never:
             lines.append("")
             lines.append("NEVER SAY:")
             for n in never:
                 lines.append(f"  - {n}")
+
+        # ── Extra tier-specific never-say guardrails.
+        if is_developer:
+            lines.append(
+                "  - Do NOT describe token swap, crypto trading, tokenized "
+                "stocks, DeFi yields, escrow mechanics, or any custodial "
+                "feature. MAXIA has these features but they are not "
+                "available in this jurisdiction without a license."
+            )
+        if is_readonly:
+            lines.append(
+                "  - Do NOT describe any paid feature. Point the user to "
+                "the public API docs and the 100 req/day free tier only."
+            )
+
         blob = "\n".join(lines)
         if len(blob) > MAX_CATALOG_CHARS:
             blob = blob[:MAX_CATALOG_CHARS] + "\n... (truncated)"
         return blob
+
+    # ── Pitch mode cache ──────────────────────────────────────────
+    #
+    # ``_build_catalog_blob`` is cheap (~2 ms) but ``reply()`` runs it
+    # on every call indirectly via ``_generate_reply``. To support
+    # tier-aware pitching without hot-path overhead, we cache one blob
+    # per pitch_mode and swap it in just before the LLM call.
+
+    def _get_blob_for_mode(self, pitch_mode: str) -> str:
+        """Return a cached catalog blob for the requested pitch mode.
+        Lazily builds on first use per mode. The default ``full`` blob
+        is already stored in ``self._catalog_blob`` by ``__init__``."""
+        mode = (pitch_mode or "full").lower()
+        if mode == "full":
+            return self._catalog_blob
+        cache = getattr(self, "_blob_cache_by_mode", None)
+        if cache is None:
+            cache = {}
+            self._blob_cache_by_mode = cache
+        blob = cache.get(mode)
+        if blob is None:
+            blob = self._build_catalog_blob(self._catalog, pitch_mode=mode)
+            cache[mode] = blob
+            log.info(
+                "[MaxiaSalesAgent] cached %s blob (%d chars)",
+                mode, len(blob),
+            )
+        return blob
+
+    def invalidate_pitch_cache(self) -> None:
+        """Clear all cached non-full blobs. Call after
+        ``refresh_gpu_tiers_from_live`` so the developer/readonly
+        blobs also reflect the new GPU prices."""
+        self._blob_cache_by_mode = {}
+
+    async def reply_for_tier(
+        self,
+        conversation_id: str,
+        user_message: str,
+        tier: str,
+        channel: str = "telegram",
+        user_id: str = "",
+        lang: Optional[str] = None,
+    ) -> tuple[str, Stage]:
+        """Tier-aware wrapper around ``reply()``.
+
+        Maps a jurisdiction tier (``allowed`` / ``license`` / ``caution``
+        / ``hard`` / ``unknown``) to a pitch mode (``full`` / ``developer``
+        / ``readonly`` / ``blocked`` / ``full``), swaps the catalog blob
+        for the duration of the call, then restores the full blob so
+        the instance stays reusable across prospects with different tiers.
+
+        ``hard`` tier returns a canned rejection without ever reaching
+        the LLM — no outreach, no API call, no log spam.
+        """
+        # Map tier → pitch mode via lead_tier (single source of truth).
+        try:
+            from local_ceo.lead_tier import get_pitch_mode  # type: ignore
+            pitch_mode = get_pitch_mode(tier)
+        except Exception:
+            pitch_mode = "full"
+
+        if pitch_mode == "blocked":
+            log.info(
+                "[MaxiaSalesAgent] blocked tier=%s conversation=%s — canned rejection",
+                tier, conversation_id,
+            )
+            return (
+                "MAXIA is not available in your region. "
+                "Please contact support@maxiaworld.app if you believe this is in error.",
+                Stage.INTRO,
+            )
+
+        # Hot-swap the blob for the duration of the single reply() call.
+        target_blob = self._get_blob_for_mode(pitch_mode)
+        original_blob = self._catalog_blob
+        try:
+            self._catalog_blob = target_blob
+            log.info(
+                "[MaxiaSalesAgent] reply_for_tier tier=%s pitch=%s blob=%d chars",
+                tier, pitch_mode, len(target_blob),
+            )
+            return await self.reply(
+                conversation_id=conversation_id,
+                user_message=user_message,
+                channel=channel,
+                user_id=user_id,
+                lang=lang,
+            )
+        finally:
+            self._catalog_blob = original_blob
 
     # ── Public API ────────────────────────────────────────────────
 

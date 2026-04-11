@@ -8,14 +8,33 @@ import httpx
 import time
 import json
 
-# Prix MAXIA actuels (a synchroniser avec le VPS)
-MAXIA_PRICES = {
-    "gpu_rtx4090": 0.69,      # $/h
-    "gpu_a100": 1.79,
+# Conservative fallback prices. The real values come from the VPS via
+# ``local_ceo.live_prices.get_live_maxia_prices()`` on every call to
+# ``check_competitor_prices``. These are only used if the VPS is
+# unreachable at the moment of the check (so competitor alerts always
+# compare against *something* sensible instead of crashing).
+_HARDCODED_FALLBACK = {
+    "gpu_rtx4090": 0.46,       # $/h (last observed live value, 2026-04-11)
+    "gpu_a100": 1.19,
     "gpu_h100": 2.69,
-    "swap_fee_bps": 50,        # 0.5%
-    "audit_basic": 9.99,
+    "swap_fee_bps": 10,        # 0.10% (bronze tier)
+    "audit_basic": 4.99,
 }
+
+MAXIA_PRICES = dict(_HARDCODED_FALLBACK)  # kept for legacy imports
+
+
+async def _load_maxia_prices() -> dict:
+    """Return live MAXIA prices if available, else the hardcoded
+    fallback. Never raises."""
+    try:
+        from local_ceo.live_prices import get_live_maxia_prices  # type: ignore
+        live = await get_live_maxia_prices()
+        if live:
+            return live
+    except Exception:
+        pass
+    return dict(_HARDCODED_FALLBACK)
 
 # Sources concurrentes a surveiller
 COMPETITORS = {
@@ -31,6 +50,7 @@ COMPETITORS = {
 
 async def check_competitor_prices(browser) -> list:
     """Scrape les prix concurrents et compare avec MAXIA."""
+    live_prices = await _load_maxia_prices()
     alerts = []
     for category, sources in COMPETITORS.items():
         for source in sources:
@@ -41,7 +61,7 @@ async def check_competitor_prices(browser) -> list:
                 prices = re.findall(r'\$(\d+\.?\d*)/h', text)
                 if prices:
                     lowest = min(float(p) for p in prices)
-                    maxia_price = MAXIA_PRICES.get(f"gpu_rtx4090", 999)
+                    maxia_price = float(live_prices.get("gpu_rtx4090", 999))
                     if lowest < maxia_price:
                         alerts.append({
                             "competitor": source["name"],
