@@ -38,7 +38,7 @@ class Maxia:
 
     Args:
         api_key: Your MAXIA API key (``maxia_...``). Only needed for
-            authenticated endpoints (swap, register, sell, execute).
+            authenticated endpoints (register, sell, execute).
             Public endpoints work without a key.
         base_url: Base URL of the MAXIA API. Defaults to production.
         timeout: Request timeout in seconds. Defaults to 30.
@@ -144,76 +144,6 @@ class Maxia:
         """
         return self._get("/api/public/crypto/prices")
 
-    def tokens(self) -> list:
-        """List all tokens available for swaps.
-
-        Returns:
-            List of token dicts with symbol, name, chain, and address.
-
-        Example::
-
-            m = Maxia()
-            for t in m.tokens():
-                print(t["symbol"], t["chain"])
-        """
-        return self._get("/api/public/crypto/tokens")
-
-    def quote(self, from_token: str, to_token: str, amount: float) -> dict:
-        """Get a swap quote with MAXIA commission included.
-
-        Args:
-            from_token: Source token symbol (e.g. ``"SOL"``).
-            to_token: Destination token symbol (e.g. ``"USDC"``).
-            amount: Amount of ``from_token`` to swap.
-
-        Returns:
-            Dict with ``from_token``, ``to_token``, ``amount_in``,
-            ``amount_out``, ``commission``, etc.
-
-        Example::
-
-            m = Maxia()
-            q = m.quote("SOL", "USDC", 1.0)
-            print(f"1 SOL = {q['amount_out']} USDC")
-        """
-        return self._get(
-            "/api/public/crypto/quote",
-            params={"from_token": from_token, "to_token": to_token, "amount": amount},
-        )
-
-    def stocks(self) -> dict:
-        """List all available tokenized stocks with prices.
-
-        Returns:
-            Dict with stock listings (25 multi-chain stocks via
-            xStocks/Ondo/Dinari).
-
-        Example::
-
-            m = Maxia()
-            data = m.stocks()
-            for s in data.get("stocks", []):
-                print(s["symbol"], s["price"])
-        """
-        return self._get("/api/public/stocks")
-
-    def stock_price(self, symbol: str) -> dict:
-        """Get the real-time price of a tokenized stock.
-
-        Args:
-            symbol: Stock ticker (e.g. ``"AAPL"``, ``"TSLA"``).
-
-        Returns:
-            Dict with ``symbol``, ``price``, ``change_24h``, etc.
-
-        Example::
-
-            m = Maxia()
-            p = m.stock_price("AAPL")
-            print(f"Apple: ${p['price']}")
-        """
-        return self._get(f"/api/public/stocks/price/{symbol}")
-
     def gpu_tiers(self) -> dict:
         """Get live GPU pricing and availability.
 
@@ -231,32 +161,6 @@ class Maxia:
                 print(t["name"], f"${t['price_per_hour']}/h")
         """
         return self._get("/api/public/gpu/tiers")
-
-    def defi_yield(self, asset: str = "USDC", chain: str = "", limit: int = 10) -> dict:
-        """Find the best DeFi yields for an asset.
-
-        Args:
-            asset: Token symbol (e.g. ``"USDC"``, ``"ETH"``, ``"SOL"``).
-                Use ``"ALL"`` for all assets.
-            chain: Filter by chain (e.g. ``"solana"``, ``"ethereum"``).
-                Empty string for all chains.
-            limit: Max number of results to return.
-
-        Returns:
-            Dict with ``yields`` list sorted by APY. Each entry has
-            ``protocol``, ``chain``, ``apy``, ``tvl_usd``, etc.
-
-        Example::
-
-            m = Maxia()
-            data = m.defi_yield("USDC", chain="solana")
-            for y in data.get("yields", []):
-                print(y["protocol"], f"{y['apy']}% APY")
-        """
-        params = {"asset": asset, "limit": limit}
-        if chain:
-            params["chain"] = chain
-        return self._get("/api/public/defi/best-yield", params=params)
 
     def sentiment(self, token: str = "BTC") -> dict:
         """Get crypto sentiment analysis for a token.
@@ -554,38 +458,6 @@ class Maxia:
             body["message"] = message
         return self._post("/api/public/negotiate", json=body)
 
-    def swap(self, from_token: str, to_token: str, amount: float, wallet: str) -> dict:
-        """Execute a crypto swap.
-
-        Supports 71 tokens across 5000+ pairs. Commission tiers:
-        BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01%.
-
-        Args:
-            from_token: Source token symbol (e.g. ``"SOL"``).
-            to_token: Destination token symbol (e.g. ``"USDC"``).
-            amount: Amount of ``from_token`` to swap.
-            wallet: Your wallet address.
-
-        Returns:
-            Dict with swap result, ``tx_signature``, ``amount_out``, etc.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            result = m.swap("SOL", "USDC", 1.0, "YourWallet...")
-            print(result["amount_out"])
-        """
-        self._require_key()
-        return self._post(
-            "/api/public/crypto/swap",
-            json={
-                "from_token": from_token,
-                "to_token": to_token,
-                "amount": amount,
-                "wallet": wallet,
-            },
-        )
-
     # ------------------------------------------------------------------
     # Prepaid Credits (off-chain micropayments, zero gas)
     # ------------------------------------------------------------------
@@ -628,81 +500,6 @@ class Maxia:
             "payment_tx": payment_tx,
             "amount_usdc": amount_usdc,
             "chain": chain,
-        })
-
-    # ------------------------------------------------------------------
-    # Solana DeFi (Lending, Borrowing, Staking)
-    # ------------------------------------------------------------------
-
-    def defi_lending(self) -> dict:
-        """List Solana lending protocols with live APY rates.
-
-        Example::
-
-            m = Maxia()
-            for p in m.defi_lending()["protocols"]:
-                print(p["name"], p["supply_apy"].get("USDC", 0))
-        """
-        return self._get("/api/defi/lending")
-
-    def defi_best_rate(self, asset: str = "USDC") -> dict:
-        """Find the best lending rate for an asset across all protocols.
-
-        Example::
-
-            m = Maxia()
-            best = m.defi_best_rate("USDC")
-            print(f"Best: {best['best_supply']['protocol']} at {best['best_supply']['apy']}%")
-        """
-        return self._get("/api/defi/lending/best", params={"asset": asset})
-
-    def defi_staking(self) -> dict:
-        """List Solana liquid staking protocols (Marinade, Jito, BlazeStake).
-
-        Example::
-
-            m = Maxia()
-            for p in m.defi_staking()["protocols"]:
-                print(p["name"], f"{p['apy']}% APY")
-        """
-        return self._get("/api/defi/staking")
-
-    def defi_lend(self, protocol: str, asset: str, amount: float, wallet: str) -> dict:
-        """Lend an asset to earn interest. Returns unsigned tx for wallet signing.
-
-        Args:
-            protocol: Lending protocol (``"kamino"``, ``"solend"``, ``"marginfi"``).
-            asset: Asset to lend (``"USDC"``, ``"SOL"``).
-            amount: Amount to lend.
-            wallet: Solana wallet address.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            tx = m.defi_lend("kamino", "USDC", 100.0, "So1ana...")
-            print(tx["transaction_b64"])  # Sign with wallet
-        """
-        self._require_key()
-        return self._post("/api/defi/lend", json={
-            "protocol": protocol, "asset": asset, "amount": amount, "wallet": wallet,
-        })
-
-    def defi_stake(self, protocol: str, amount: float, wallet: str) -> dict:
-        """Stake SOL via liquid staking (Marinade, Jito, BlazeStake).
-
-        Args:
-            protocol: Staking protocol (``"marinade"``, ``"jito"``, ``"blazestake"``).
-            amount: SOL amount to stake.
-            wallet: Solana wallet address.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            tx = m.defi_stake("marinade", 1.0, "So1ana...")
-        """
-        self._require_key()
-        return self._post("/api/defi/stake", json={
-            "protocol": protocol, "amount": amount, "wallet": wallet,
         })
 
     # ------------------------------------------------------------------
@@ -1011,106 +808,3 @@ class Maxia:
             "address": address,
         })
 
-    # ------------------------------------------------------------------
-    # DCA Bot (Dollar-Cost Averaging)
-    # ------------------------------------------------------------------
-
-    def dca_create(self, to_token: str, amount_usdc: float, frequency: str = "weekly", wallet: str = None) -> dict:
-        """Create a DCA order to buy a token automatically at regular intervals.
-
-        Args:
-            to_token: Token to buy (e.g. ``"SOL"``, ``"ETH"``, ``"BTC"``).
-            amount_usdc: Amount in USDC per execution (1-1000).
-            frequency: How often (``"daily"``, ``"weekly"``, ``"biweekly"``,
-                ``"monthly"``).
-            wallet: Wallet address to receive tokens.
-
-        Returns:
-            Dict with ``order_id``, ``next_run``, ``current_price``, etc.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            order = m.dca_create("SOL", 10.0, "weekly", "ABc...xyz")
-            print(order["order_id"])
-        """
-        self._require_key()
-        body = {"to_token": to_token, "amount_usdc": amount_usdc, "frequency": frequency}
-        if wallet is not None:
-            body["wallet"] = wallet
-        return self._post("/api/dca/create", json=body)
-
-    def dca_list(self, status: str = None) -> dict:
-        """List your DCA orders.
-
-        Args:
-            status: Filter by status (``"active"``, ``"paused"``,
-                ``"cancelled"``).
-
-        Returns:
-            Dict with ``orders`` list.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            orders = m.dca_list()
-            for o in orders["orders"]:
-                print(o["to_token"], o["amount_usdc"], o["frequency"])
-        """
-        self._require_key()
-        params = {}
-        if status is not None:
-            params["status"] = status
-        return self._get("/api/dca/my", params=params if params else None)
-
-    def dca_executions(self, order_id: str, limit: int = 20) -> dict:
-        """Get execution history for a DCA order.
-
-        Args:
-            order_id: The DCA order ID.
-            limit: Max executions to return (default 20).
-
-        Returns:
-            Dict with ``executions`` list showing price, amount, timestamp.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            execs = m.dca_executions("dca_abc123")
-            for e in execs["executions"]:
-                print(e["price_usdc"], e["received"])
-        """
-        self._require_key()
-        return self._get(f"/api/dca/executions/{order_id}", params={"limit": limit})
-
-    def dca_cancel(self, order_id: str) -> dict:
-        """Cancel a DCA order.
-
-        Args:
-            order_id: The DCA order ID to cancel.
-
-        Returns:
-            Dict with success status.
-
-        Example::
-
-            m = Maxia(api_key="maxia_abc...")
-            m.dca_cancel("dca_abc123")
-        """
-        self._require_key()
-        return self._delete(f"/api/dca/{order_id}")
-
-    def dca_stats(self) -> dict:
-        """Get public DCA statistics.
-
-        Returns:
-            Dict with ``active_bots``, ``total_invested_usdc``,
-            ``supported_tokens``.
-
-        Example::
-
-            m = Maxia()
-            stats = m.dca_stats()
-            print(stats["active_bots"], stats["total_invested_usdc"])
-        """
-        return self._get("/api/dca/stats")

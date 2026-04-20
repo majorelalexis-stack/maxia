@@ -363,10 +363,7 @@ async def send_outbound_prospect(
     """Genere et envoie un email de prospection personnalise via LLM local.
 
     ``context`` = ce qu'on sait du prospect (projet, besoin, plateforme).
-    ``country`` = ISO-2 country code. When the prospect lives in a
-    license/caution tier jurisdiction (US, EU, UK, JP, ...) the prompt
-    is swapped for a US_SAFE variant and the LLM output is post-filtered
-    to strip any residual forbidden language (swap, stocks, bridge, ...).
+    ``country`` = ISO-2 country code (unused in v2 — US fully open).
     """
     _reset_daily()
     if _stats["outbound_today"] >= MAX_OUTBOUND_DAY:
@@ -374,48 +371,18 @@ async def send_outbound_prospect(
     if not EMAIL_PASSWORD:
         return {"success": False, "error": "Email non configure"}
 
-    # US_SAFE mode detection — fail-open on unknown country
-    us_safe = False
-    try:
-        from us_safe_content import is_us_safe_required
-        us_safe = is_us_safe_required(country_code=country)
-    except Exception as _e:
-        pass  # unavailable → default catalog
-
-    if us_safe:
-        try:
-            from us_safe_content import us_safe_prompt_rules
-            extra_rules = us_safe_prompt_rules()
-        except Exception:
-            extra_rules = ""
-        prompt = (
-            f"You represent MAXIA — an AI-to-AI service marketplace on "
-            f"15 blockchains with MCP tools, GPU rental (Akash), 17 "
-            f"native AI services, enterprise SSO, and a free-tier API "
-            f"(100 req/day). Write a SHORT cold email to {name}.\n"
-            f"Context about them: {context[:500]}\n\n"
-            f"{extra_rules}\n"
-            f"- Subject: max 8 words, personalized to their project.\n"
-            f"- Body: max 150 words. Focus on the API + MCP + GPU value "
-            f"proposition. NO crypto trading language.\n"
-            f"- CTA: visit maxiaworld.app or reply to discuss MCP / GPU "
-            f"integration.\n"
-            f"- Sign as 'MAXIA Team'.\n"
-            f"Format: first line = subject, rest = body."
-        )
-    else:
-        prompt = (
-            f"You are the CEO of MAXIA (AI-to-AI marketplace on 15 blockchains, USDC payments, "
-            f"65 tokens, GPU rental, MCP tools, escrow). Write a SHORT cold email to {name}.\n"
-            f"Context about them: {context[:500]}\n\n"
-            f"Rules:\n"
-            f"- Subject: max 8 words, personalized to their project\n"
-            f"- Body: max 150 words, explain what MAXIA can do for THEM specifically\n"
-            f"- Include a clear CTA (visit maxiaworld.app, reply to discuss, etc.)\n"
-            f"- Professional, not salesy, developer-friendly tone\n"
-            f"- Sign as 'MAXIA Team'\n"
-            f"Format: first line = subject, rest = body."
-        )
+    prompt = (
+        f"You represent MAXIA — an AI infrastructure protocol on 15 blockchains: "
+        f"AI-to-AI service marketplace, MCP tools (46), GPU rental via Akash, "
+        f"on-chain USDC escrow, 17 native AI services, enterprise SSO, free-tier API "
+        f"(100 req/day). Write a SHORT cold email to {name}.\n"
+        f"Context about them: {context[:500]}\n\n"
+        f"- Subject: max 8 words, personalized to their project.\n"
+        f"- Body: max 150 words. Focus on API + MCP + GPU value proposition.\n"
+        f"- CTA: visit maxiaworld.app or reply to discuss MCP / GPU integration.\n"
+        f"- Professional, developer-friendly tone. Sign as 'MAXIA Team'.\n"
+        f"Format: first line = subject, rest = body."
+    )
     reply = await llm_fn(prompt, max_tokens=300)
     if not reply or len(reply) < 20:
         return {"success": False, "error": "LLM generated empty email"}
@@ -424,30 +391,12 @@ async def send_outbound_prospect(
     subject = lines[0].replace("Subject:", "").strip().strip('"')
     body = lines[1].strip() if len(lines) > 1 else reply
 
-    # US_SAFE post-filter — strip forbidden sentences from subject + body
-    if us_safe:
-        try:
-            from us_safe_content import scrub_us_forbidden, validate_us_safe
-            body, body_hits = scrub_us_forbidden(body)
-            subject, subj_hits = scrub_us_forbidden(subject)
-            total_hits = body_hits + subj_hits
-            if total_hits > 0:
-                print(f"[Email] US_SAFE scrubbed {total_hits} forbidden sentence(s) for {to}")
-            check = validate_us_safe(body + "\n" + subject)
-            if not check["ok"]:
-                return {
-                    "success": False,
-                    "error": f"US_SAFE post-validation failed: {check['matches']}",
-                }
-        except Exception as _e:
-            pass
-
     if not subject or len(body) < 20:
-        return {"success": False, "error": "Empty after US_SAFE scrub — model wrote only forbidden content"}
+        return {"success": False, "error": "Empty email generated"}
 
     result = await send_outbound(to, subject, body)
     if result.get("success"):
-        print(f"[Email] Outbound to {to}: {subject[:40]} (us_safe={us_safe})")
+        print(f"[Email] Outbound to {to}: {subject[:40]}")
     return result
 
 
