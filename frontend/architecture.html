@@ -197,7 +197,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -268,16 +267,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 
               <div class="dia-branch">
                 <div class="dia-branch-chain">
-                  <div class="dia-box dia-service">Swap Engine</div>
-                  <div class="dia-arrow">&rarr;</div>
-                  <div class="dia-box dia-external">Jupiter V6 (Solana)</div>
-                  <span style="color:var(--muted2);font-size:12px;padding:0 4px">/</span>
-                  <div class="dia-box dia-external">0x API (6 EVM)</div>
-                </div>
-              </div>
-
-              <div class="dia-branch">
-                <div class="dia-branch-chain">
                   <div class="dia-box dia-service">Price Oracle</div>
                   <div class="dia-arrow">&rarr;</div>
                   <div class="dia-box dia-external">Helius DAS</div>
@@ -307,24 +296,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
                   <div class="dia-box dia-fallback">Pod Monitor</div>
                   <div class="dia-arrow">&rarr;</div>
                   <div class="dia-box dia-db">Auto-terminate</div>
-                </div>
-              </div>
-
-              <div class="dia-branch">
-                <div class="dia-branch-chain">
-                  <div class="dia-box dia-service">Stocks</div>
-                  <div class="dia-arrow">&rarr;</div>
-                  <div class="dia-box dia-external">Pyth Hermes Oracle</div>
-                  <div class="dia-arrow">&rarr;</div>
-                  <div class="dia-box dia-external">Jupiter / 0x routing</div>
-                </div>
-              </div>
-
-              <div class="dia-branch">
-                <div class="dia-branch-chain">
-                  <div class="dia-box dia-service">DeFi Scanner</div>
-                  <div class="dia-arrow">&rarr;</div>
-                  <div class="dia-box dia-external">DeFiLlama API (14 chains)</div>
                 </div>
               </div>
 
@@ -419,11 +390,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
           </thead>
           <tbody>
             <tr>
-              <td class="scenario">Swap failure</td>
-              <td>Transaction reverts on-chain. No funds leave the wallet. Error returned with revert reason.</td>
-              <td><span class="status-dot green"></span> No funds lost</td>
-            </tr>
-            <tr>
               <td class="scenario">Bridge failure (Li.Fi)</td>
               <td>Funds held on source chain. Li.Fi auto-refund triggers after 30-minute timeout. Status tracked via bridge ID.</td>
               <td><span class="status-dot orange"></span> Delayed, auto-refund</td>
@@ -437,11 +403,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
               <td class="scenario">Oracle failure</td>
               <td>Circuit breaker trips after 3 consecutive failures. 60-second cooldown. Falls back to CoinGecko API. If CoinGecko also fails, returns cached price with staleness warning.</td>
               <td><span class="status-dot orange"></span> Fallback price</td>
-            </tr>
-            <tr>
-              <td class="scenario">Price staleness</td>
-              <td>If cached price is older than 60 seconds AND all APIs are down, swap is <strong style="color:var(--red)">rejected</strong>. We never execute a swap on stale data.</td>
-              <td><span class="status-dot red"></span> Swap blocked</td>
             </tr>
             <tr>
               <td class="scenario">GPU pod crash</td>
@@ -464,26 +425,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <p class="section-sub">Finality times and verification methods for each operation type.</p>
 
       <div class="grid-2">
-        <div class="card">
-          <h3>Solana Swap</h3>
-          <ul>
-            <li>Finality: ~400ms (single slot)</li>
-            <li>Verification: <code style="color:var(--cyan)">getTransaction</code> RPC call</li>
-            <li>Confirmation level: <code style="color:var(--cyan)">confirmed</code></li>
-            <li>Router: Jupiter V6 aggregator</li>
-          </ul>
-        </div>
-
-        <div class="card">
-          <h3>EVM Swap</h3>
-          <ul>
-            <li>Finality: 2-12s depending on chain</li>
-            <li>Base: ~2s | Ethereum: ~12s | Polygon: ~2s</li>
-            <li>Verification: <code style="color:var(--cyan)">eth_getTransactionReceipt</code></li>
-            <li>Router: 0x Protocol aggregator</li>
-          </ul>
-        </div>
-
         <div class="card">
           <h3>Escrow Settlement</h3>
           <ul>
@@ -518,9 +459,9 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
           <h3>Price Oracle</h3>
           <ul>
             <li>Oracle: Pyth Hermes (sub-second updates)</li>
-            <li>Settlement: on-chain via xStocks / Ondo / Dinari</li>
+            <li>Used for: escrow USDC settlement, GPU billing</li>
             <li>Chains: Solana, Ethereum, Arbitrum</li>
-            <li>Price validation: reject if oracle confidence < 95%</li>
+            <li>Price validation: reject if oracle confidence &lt; 95%</li>
           </ul>
         </div>
       </div>
@@ -537,7 +478,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
           <ul>
             <li>Chainalysis Oracle on EVM chains (on-chain check)</li>
             <li>55 locally-maintained sanctioned addresses</li>
-            <li>Checked on every swap and escrow operation</li>
+            <li>Checked on every escrow operation</li>
             <li>Blocked wallets cannot interact with the platform</li>
           </ul>
         </div>
@@ -704,7 +645,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
   </div>
   <div class="footer-bottom">
     <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div class="footer-social"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a></div>
   </div>
 </div>
 

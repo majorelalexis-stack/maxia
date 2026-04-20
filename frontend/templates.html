@@ -4,12 +4,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' wss: ws: https:; frame-ancestors 'none'">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="MAXIA Agent Templates — Launch autonomous AI agents in 3 clicks. Trading bots, sentiment analyzers, content creators, DeFi yield hunters, and more.">
+<meta name="description" content="MAXIA Agent Templates — Launch autonomous AI agents in 3 clicks. Sentiment analyzers, content creators, data researchers, and more.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://maxiaworld.app/templates">
 <title>MAXIA — Agent Templates</title>
 <meta property="og:title" content="MAXIA Agent Templates — No-Code AI Agent Builder">
-<meta property="og:description" content="Choose a template, configure parameters, deploy an autonomous AI agent. Trading bots, sentiment analyzers, DeFi yield hunters — no code required.">
+<meta property="og:description" content="Choose a template, configure parameters, deploy an autonomous AI agent. Sentiment analyzers, content creators, data researchers — no code required.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://maxiaworld.app/templates">
 <meta property="og:image" content="https://maxiaworld.app/og-image.png">
@@ -110,7 +110,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 .cat-trading{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.15)}
 .cat-analysis{background:rgba(124,58,237,.1);color:var(--purple);border:1px solid rgba(124,58,237,.15)}
 .cat-content{background:rgba(244,63,94,.1);color:var(--rose);border:1px solid rgba(244,63,94,.15)}
-.cat-defi{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.15)}
 .cat-research{background:rgba(245,158,11,.1);color:var(--gold);border:1px solid rgba(245,158,11,.15)}
 .tmpl-desc{font-size:13px;color:var(--muted);line-height:1.6}
 
@@ -211,7 +210,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -358,7 +356,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
-      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
       <a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
@@ -372,20 +369,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 
   /* ─── Fallback presets (used if API is unavailable) ─── */
   var FALLBACK_PRESETS = [
-    {
-      id: 'trading_bot',
-      name: 'Trading Bot',
-      category: 'trading',
-      icon: '&#128202;',
-      description: 'Monitors token prices and executes swaps when thresholds are reached.',
-      config_schema: {
-        token_pair: { type: 'string', default: 'SOL/USDC', description: 'Token pair to monitor' },
-        buy_threshold: { type: 'number', default: 5, description: 'Buy when price drops by this percentage' },
-        sell_threshold: { type: 'number', default: 10, description: 'Sell when price rises by this percentage' },
-        max_trade_usd: { type: 'number', default: 100, description: 'Maximum trade size in USD' },
-        auto_execute: { type: 'boolean', default: false, description: 'Execute trades automatically without confirmation' }
-      }
-    },
     {
       id: 'sentiment_analyzer',
       name: 'Sentiment Analyzer',
@@ -414,20 +397,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       }
     },
     {
-      id: 'defi_yield_hunter',
-      name: 'Marketplace Price Monitor',
-      category: 'defi',
-      icon: '&#127793;',
-      description: 'Scans DeFi pools for high-yield opportunities.',
-      config_schema: {
-        chains: { type: 'array', default: 'solana,base,ethereum', description: 'Comma-separated chains to scan' },
-        min_apy: { type: 'number', default: 8, description: 'Minimum APY percentage to report' },
-        min_tvl_usd: { type: 'number', default: 100000, description: 'Minimum TVL in USD for pool to qualify' },
-        include_risky: { type: 'boolean', default: false, description: 'Include high-risk or unaudited pools' },
-        report_interval_hours: { type: 'number', default: 12, description: 'Hours between yield reports' }
-      }
-    },
-    {
       id: 'data_researcher',
       name: 'Data Researcher',
       category: 'research',
@@ -451,7 +420,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
         wallets: { type: 'array', default: '', description: 'Comma-separated wallet addresses to track' },
         report_time_utc: { type: 'string', default: '08:00', description: 'Daily report time in UTC (HH:MM)' },
         include_pnl: { type: 'boolean', default: true, description: 'Include profit/loss calculations' },
-        include_defi: { type: 'boolean', default: true, description: 'Include DeFi positions in report' },
+        include_all_chains: { type: 'boolean', default: true, description: 'Include all supported chains in report' },
         alert_threshold_pct: { type: 'number', default: 10, description: 'Alert when portfolio changes by this percentage' }
       }
     }

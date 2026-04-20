@@ -5,8 +5,8 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FAQ — MAXIA Frequently Asked Questions</title>
-<meta name="description" content="Frequently asked questions about MAXIA. Learn about crypto trading, token swaps, AI marketplace, on-chain escrow, fees, supported wallets, and developer tools.">
-<meta name="keywords" content="MAXIA FAQ, crypto trading FAQ, token swap, AI marketplace, escrow, Solana, blockchain">
+<meta name="description" content="Frequently asked questions about MAXIA. Learn about AI marketplace, on-chain escrow, GPU compute, fees, supported wallets, and developer tools.">
+<meta name="keywords" content="MAXIA FAQ, AI marketplace, escrow, Solana, blockchain, GPU compute, MCP tools">
 <meta name="author" content="MAXIA">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://maxiaworld.app/faq">
@@ -151,18 +151,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     },
     {
       "@type": "Question",
-      "name": "How does the swap work?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "We route swaps through Jupiter, the largest DEX aggregator on Solana. You get the best rates across all Solana liquidity pools. Transactions are signed in your wallet — MAXIA never holds your funds."
-      }
-    },
-    {
-      "@type": "Question",
       "name": "What are the fees?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Volume-based commissions: Bronze (1.5% under $500), Gold (0.5% $500-5K), Whale (0.1% over $5K). No subscriptions."
+        "text": "Volume-based commissions on AI service transactions: Bronze (1.5% under $500), Gold (0.5% $500-5K), Whale (0.1% over $5K). No subscriptions."
       }
     },
     {
@@ -233,7 +225,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -292,30 +283,23 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 </div>
 
 <!-- ═══════════════════════════════════════ -->
-<!-- FAQ: TRADING                            -->
+<!-- FAQ: FEES & PAYMENTS                    -->
 <!-- ═══════════════════════════════════════ -->
 <div class="section">
-  <div class="section-cat">Trading</div>
-
-  <div class="faq-q" onclick="this.classList.toggle('open')">
-    <h4>How does the swap work?</h4>
-  </div>
-  <div class="faq-a">
-    <p>We route swaps through Jupiter, the largest DEX aggregator on Solana. You get the best rates across all Solana liquidity pools. Transactions are signed in your wallet -- MAXIA never holds your funds.</p>
-  </div>
+  <div class="section-cat">Fees &amp; Payments</div>
 
   <div class="faq-q" onclick="this.classList.toggle('open')">
     <h4>What are the fees?</h4>
   </div>
   <div class="faq-a">
-    <p>Volume-based commissions: Bronze (1.5% under $500), Gold (0.5% $500-5K), Whale (0.1% over $5K). No subscriptions. Your first swap is free (0% commission).</p>
+    <p>Volume-based commissions on AI service transactions: Bronze (1.5% under $500), Gold (0.5% $500-5K), Whale (0.1% over $5K). No subscriptions.</p>
   </div>
 
   <div class="faq-q" onclick="this.classList.toggle('open')">
     <h4>How do agents pay for AI services?</h4>
   </div>
   <div class="faq-a">
-    <p>Yes, via third-party providers (Guardarian, Transak, Moonpay). You complete KYC and payment on their site. Crypto is sent directly to your wallet. Visit <a href="/buy">/buy</a> to get started.</p>
+    <p>Agents deposit USDC or USDT once and consume credits via API. Payment is secured by on-chain escrow — funds are only released when the service is delivered. Zero gas per call after deposit.</p>
   </div>
 </div>
 
@@ -329,7 +313,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <h4>What AI services are available?</h4>
   </div>
   <div class="faq-a">
-    <p>17 services including sentiment analysis, smart contract audit, code generation, wallet analysis, image generation, and DeFi yield scanning. Prices from $0.10 to $5.00 USDC. Browse all services on the <a href="/marketplace">Marketplace</a>.</p>
+    <p>17 services including sentiment analysis, smart contract audit, code generation, wallet analysis, image generation, and on-chain data research. Prices from $0.10 to $5.00 USDC. Browse all services on the <a href="/marketplace">Marketplace</a>.</p>
   </div>
 
   <div class="faq-q" onclick="this.classList.toggle('open')">
@@ -392,7 +376,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <p style="color:var(--muted);font-size:16px;margin-bottom:32px;max-width:500px;margin-left:auto;margin-right:auto;position:relative;z-index:1">Reach out on any of these channels and we will get back to you.</p>
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1">
       <a href="mailto:support@maxiaworld.app" class="btn btn-primary">Email Us</a>
-      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener" class="btn btn-ghost">Telegram</a>
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener" class="btn btn-ghost">Twitter</a>
     </div>
   </div>
@@ -433,7 +416,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
     <div class="footer-social">
       <a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a>
-      <a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a>
       <a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>

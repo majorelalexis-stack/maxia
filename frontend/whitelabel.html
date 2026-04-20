@@ -168,7 +168,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -198,7 +197,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 <section class="hero">
   <div class="hero-tag">PARTNER PROGRAM</div>
   <h1 class="hero-title">White-Label <span>MAXIA</span></h1>
-  <p class="hero-sub">Your brand, our infrastructure. Launch your own AI marketplace, swap engine, or GPU rental platform in days — not months.</p>
+  <p class="hero-sub">Your brand, our infrastructure. Launch your own AI marketplace or GPU rental platform in days — not months.</p>
   <div style="margin-top:32px">
     <a href="mailto:support@maxiaworld.app" class="btn btn-primary">Get Partner Key</a>
     <a href="#integration" class="btn btn-secondary">See Integration</a>
@@ -212,8 +211,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
   <div class="grid">
     <div class="card">
       <div class="card-icon">&#9889;</div>
-      <div class="card-name">Swap Engine</div>
-      <div class="card-desc">65 tokens, 5000+ pairs across 7 chains (Solana, Base, Ethereum, Polygon, Arbitrum, Avalanche, BNB). Jupiter + DEX aggregation built in.</div>
+      <div class="card-name">AI Marketplace</div>
+      <div class="card-desc">17 native AI services + community agents. Sentiment analysis, audits, code generation, wallet analysis. Pay in USDC across 15 chains.</div>
     </div>
     <div class="card">
       <div class="card-icon">&#128274;</div>
@@ -228,17 +227,17 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="card">
       <div class="card-icon">&#128200;</div>
       <div class="card-name">Agent Economy</div>
-      <div class="card-desc">25 stocks (AAPL, TSLA, NVDA...) tradeable on-chain via 3 providers (xStocks, Ondo, Dinari). Multi-chain settlement.</div>
+      <div class="card-desc">Autonomous AI agents discover, buy, and sell services. W3C DID identities, spend caps, OAuth scopes, and on-chain reputation scores.</div>
     </div>
     <div class="card">
       <div class="card-icon">&#127793;</div>
-      <div class="card-name">DeFi Scanner</div>
-      <div class="card-desc">Real-time yield opportunities, lending rates, and liquidity pool analytics across all supported chains.</div>
+      <div class="card-name">Oracle Prices</div>
+      <div class="card-desc">5-source price oracle with HFT streaming via Pyth SSE (&lt;1s), CoinGecko, Finnhub, Chainlink on-chain and Yahoo Finance fallback.</div>
     </div>
     <div class="card">
       <div class="card-icon">&#129302;</div>
       <div class="card-name">46 MCP Tools</div>
-      <div class="card-desc">Full Model Context Protocol server with 46 tools for AI agents: swap, escrow, GPU, prices, yields, stocks, and more.</div>
+      <div class="card-desc">Full Model Context Protocol server with 46 tools for AI agents: escrow, GPU, prices, marketplace discovery, agent identity, and more.</div>
     </div>
   </div>
 </section>
@@ -276,11 +275,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"X-Partner-Key"</span>: PARTNER_KEY,<br>
     &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"Authorization"</span>: <span class="cs">"Bearer YOUR_USER_JWT"</span>,<br>
     }<br><br>
-    <span class="cc"># Execute a swap — your users, your brand</span><br>
-    resp = httpx.post(f<span class="cs">"{BASE_URL}/api/public/swap"</span>, headers=headers, json={<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"from_token"</span>: <span class="cs">"SOL"</span>,<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"to_token"</span>: <span class="cs">"USDC"</span>,<br>
-    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"amount"</span>: <span class="cv">1.5</span>,<br>
+    <span class="cc"># Create an escrow — your users, your brand</span><br>
+    resp = httpx.post(f<span class="cs">"{BASE_URL}/api/public/escrow/create"</span>, headers=headers, json={<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"seller"</span>: <span class="cs">"SELLER_WALLET_ADDRESS"</span>,<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"amount"</span>: <span class="cv">100.0</span>,<br>
     &nbsp;&nbsp;&nbsp;&nbsp;<span class="cs">"chain"</span>: <span class="cs">"solana"</span>,<br>
     })<br><br>
     <span class="cc"># Rent a GPU</span><br>
@@ -344,7 +342,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
   </div>
   <div class="footer-bottom">
     <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div class="footer-social"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a></div>
   </div>
 </div>
 

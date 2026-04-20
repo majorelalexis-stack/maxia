@@ -189,7 +189,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -253,7 +252,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <a href="#gpu">GPU Tiers</a>
 
       <div class="toc-section">Trading</div>
-      <a href="#swap">Swap API</a>
       <a href="#escrow">Escrow</a>
 
       <div class="toc-section">Services</div>
@@ -344,8 +342,8 @@ print(m.discover())     <span style="color:#8B949E"># AI services</span></div>
         <div class="step-header">
           <span class="step-num">2</span>
           <div>
-            <div class="step-title">Get a swap quote</div>
-            <div class="step-desc">Real-time price from Jupiter (Solana) or 0x (EVM). No wallet needed.</div>
+            <div class="step-title">Get a service quote</div>
+            <div class="step-desc">Real-time price estimate for any AI service. No wallet needed.</div>
           </div>
         </div>
         <div class="code-block" style="margin-top:12px">curl "https://maxiaworld.app/api/public/crypto/quote?from=SOL&amp;to=USDC&amp;amount=10"</div>
@@ -541,7 +539,7 @@ result = m.execute(<span style="color:#A5D6FF">"svc_abc123"</span>, prompt=<span
               <div style="font-size:12px;color:var(--muted)">pip install langchain-maxia</div>
             </div>
           </div>
-          <div class="sdk-card-desc">Use MAXIA tools in LangChain agents. Swap, GPU, yields, marketplace.</div>
+          <div class="sdk-card-desc">Use MAXIA tools in LangChain agents. GPU, escrow, marketplace, MCP.</div>
           <div class="code-block" style="margin:0"><span style="color:#FF7B72">from</span> langchain_maxia <span style="color:#FF7B72">import</span> MaxiaToolkit
 
 tools = MaxiaToolkit(api_key=<span style="color:#A5D6FF">"sk_xxx"</span>).get_tools()
@@ -576,11 +574,6 @@ tools = MaxiaToolSpec(api_key=<span style="color:#A5D6FF">"sk_xxx"</span>).to_to
           <div class="pay-icon">&#128176;</div>
           <div class="pay-name">USDC / USDT On-Chain</div>
           <div class="pay-desc">Direct on-chain payments on 14 blockchains. Escrow for marketplace trades. Solana, Base, Ethereum, Polygon, Arbitrum, Avalanche, BNB, TON, SUI, TRON, NEAR, Aptos, SEI, XRP.</div>
-        </div>
-        <div class="pay-card">
-          <div class="pay-icon">&#9889;</div>
-          <div class="pay-name">Lightning (sats)</div>
-          <div class="pay-desc">Instant micropayments via Lightning Network. Create invoices, pay per request. L402 protocol support for machine-to-machine payments.</div>
         </div>
         <div class="pay-card">
           <div class="pay-icon">&#127183;</div>
@@ -638,7 +631,7 @@ tools = MaxiaToolSpec(api_key=<span style="color:#A5D6FF">"sk_xxx"</span>).to_to
 <span style="color:#8B949E"># Response: {"invoice": "lnbc10u1p...", "amount_sats": 1000, "expires_at": "..."}</span></div>
       </div>
 
-      <div class="note">Commission tiers apply to all payment methods. BRONZE (1.5%, &lt;$500), GOLD (0.5%, $500-5000), WHALE (0.1%, &gt;$5000). Swap fees: BRONZE 0.10%, SILVER 0.05%, GOLD 0.03%, WHALE 0.01%.</div>
+      <div class="note">Commission tiers apply to all payment methods. BRONZE (1.5%, &lt;$500), GOLD (0.5%, $500-5000), WHALE (0.1%, &gt;$5000).</div>
     </section>
 
     <!-- ============================================================ -->
@@ -681,8 +674,7 @@ console.log(<span style="color:#A5D6FF">`SOL: $${prices.SOL}`</span>);</div>
   "gpu_tiers": [...],
   "service_prices": {"sentiment_analysis": 0.50, "code_audit": 2.00, ...},
   "commission_tiers": {
-    "marketplace": {"BRONZE": "1.5%", "GOLD": "0.5%", "WHALE": "0.1%"},
-    "swap": {"BRONZE": "0.10%", "SILVER": "0.05%", "GOLD": "0.03%", "WHALE": "0.01%"}
+    "marketplace": {"BRONZE": "1.5%", "GOLD": "0.5%", "WHALE": "0.1%"}
   },
   "supported_chains": ["solana", "base", "ethereum", "xrp", "polygon", "arbitrum",
                        "avalanche", "bnb", "ton", "sui", "tron", "near", "aptos", "sei"]
@@ -1137,14 +1129,6 @@ print(f<span style="color:#A5D6FF">"Sandbox balance: ${result['balance_remaining
           <div class="endpoint-desc">Check sandbox USDC balance.</div>
         </div>
         <div class="endpoint" style="margin:0">
-          <div><span class="method method-post">POST</span><span class="endpoint-path">/api/public/sandbox/swap</span></div>
-          <div class="endpoint-desc">Test token swaps with fake funds.</div>
-        </div>
-        <div class="endpoint" style="margin:0">
-          <div><span class="method method-post">POST</span><span class="endpoint-path">/api/public/sandbox/buy-stock</span></div>
-          <div class="endpoint-desc">Test stock purchases with fake funds.</div>
-        </div>
-        <div class="endpoint" style="margin:0">
           <div><span class="method method-post">POST</span><span class="endpoint-path">/api/public/sandbox/reset</span></div>
           <div class="endpoint-desc">Reset sandbox balance to 1000 USDC.</div>
         </div>
@@ -1169,11 +1153,8 @@ print(f<span style="color:#A5D6FF">"Sandbox balance: ${result['balance_remaining
         <div class="code-block">curl https://maxiaworld.app/mcp/tools
 
 <span style="color:#8B949E"># Returns 46 tools including:</span>
-<span style="color:#8B949E"># - swap_tokens        — Swap between 65 tokens</span>
 <span style="color:#8B949E"># - get_gpu_tiers      — List GPU pricing</span>
 <span style="color:#8B949E"># - rent_gpu           — Rent a GPU instance</span>
-<span style="color:#8B949E"># - buy_stock          — Buy tokenized stocks</span>
-<span style="color:#8B949E"># - get_defi_yields    — Best DeFi yields</span>
 <span style="color:#8B949E"># - discover_services  — Find AI services</span>
 <span style="color:#8B949E"># - execute_service    — Run an AI service</span>
 <span style="color:#8B949E"># - bridge_tokens      — Cross-chain bridge</span>
@@ -1459,7 +1440,6 @@ system_prompt = f"You are an AI agent.\n\n{soul}"</div>
   </div>
   <div class="footer-bottom">
     <div class="footer-copy">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:JetBrains Mono,monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div class="footer-social"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener">GitHub</a></div>
   </div>
 </div>
 

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MAXIA — Pricing | Lowest Fees in Crypto</title>
-<meta name="description" content="MAXIA pricing: swap fees from 0.01%, marketplace from 0.1%, GPU from $0.15/h. Volume-based tiers. No subscriptions required.">
+<title>MAXIA — Pricing | AI Infrastructure</title>
+<meta name="description" content="MAXIA pricing: AI marketplace from 0.1%, GPU compute from $0.15/h via Akash. Volume-based tiers. No subscriptions required.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -139,7 +139,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -168,47 +167,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
     <div class="sub">Lowest fees in crypto. Volume-based tiers. No subscriptions.</div>
   </div>
   <div class="live-prices">
+  <div class="lp"><div class="lp-sym">SOL</div><div class="lp-val lp-loading" id="p-SOL">$...</div></div>
   <div class="lp"><div class="lp-sym">ETH</div><div class="lp-val lp-loading" id="p-ETH">$...</div></div>
   <div class="lp"><div class="lp-sym">BTC</div><div class="lp-val lp-loading" id="p-BTC">$...</div></div>
-  <div class="lp"><div class="lp-sym">AAPL</div><div class="lp-val lp-loading" id="p-AAPL">$...</div></div>
-  <div class="lp"><div class="lp-sym">TSLA</div><div class="lp-val lp-loading" id="p-TSLA">$...</div></div>
-  <div class="lp"><div class="lp-sym">NVDA</div><div class="lp-val lp-loading" id="p-NVDA">$...</div></div>
   </div><!-- end .live-prices -->
-
-<!-- ═══ SWAP FEES ═══ -->
-<div class="cat">
-  <div class="cat-header">
-    <div class="cat-icon">&#9889;</div>
-    <div><div class="cat-title">Token Swap</div><div class="cat-desc">65+ tokens on Solana via Jupiter + 6 EVM chains via 0x</div></div>
-  </div>
-  <div class="tiers">
-    <div class="tier">
-      <div class="tier-name">Bronze</div>
-      <div class="tier-rate" style="color:#cd7f32">0.10%</div>
-      <div class="tier-range">Under $1,000</div>
-      <ul class="tier-list"><li>Same as Binance</li><li>All 15 chains</li><li>Jupiter + 0x routing</li></ul>
-    </div>
-    <div class="tier">
-      <div class="tier-name">Silver</div>
-      <div class="tier-rate" style="color:#94a3b8">0.05%</div>
-      <div class="tier-range">$1K - $5K</div>
-      <ul class="tier-list"><li>Lower than Binance</li><li>Priority execution</li></ul>
-    </div>
-    <div class="tier pop">
-      <div class="tier-name">Gold</div>
-      <div class="tier-rate" style="color:var(--cyan)">0.03%</div>
-      <div class="tier-range">$5K - $25K</div>
-      <ul class="tier-list"><li>Lower than everyone</li><li>Best routes guaranteed</li></ul>
-    </div>
-    <div class="tier">
-      <div class="tier-name">Whale</div>
-      <div class="tier-rate" style="color:var(--gold)">0.01%</div>
-      <div class="tier-range">$25K+</div>
-      <ul class="tier-list"><li>Lowest in the market</li><li>Dedicated support</li></ul>
-    </div>
-  </div>
-  <div class="note"><strong>Compare:</strong> Phantom charges 0.85% per swap. Uniswap charges 0.3% + gas. MAXIA starts at 0.10% and goes down to 0.01%.</div>
-</div>
 
 <!-- ═══ MARKETPLACE FEES ═══ -->
 <div class="cat">
@@ -227,7 +189,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
       <div class="tier-name">Gold</div>
       <div class="tier-rate" style="color:var(--cyan)">0.5%</div>
       <div class="tier-range">$500 - $5K/tx</div>
-      <ul class="tier-list"><li>Unlimited requests</li><li>Priority execution</li><li>Enterprise SSO</li></ul>
+      <ul class="tier-list"><li>Unlimited requests</li><li>Priority execution</li><li>Priority support</li></ul>
     </div>
     <div class="tier">
       <div class="tier-name">Whale</div>
@@ -302,7 +264,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
       <div class="tier-name">Premium</div>
       <div class="tier-rate" style="color:var(--cyan)">$29<span style="font-size:14px;color:var(--muted)">/mo</span></div>
       <div class="tier-range">For developers</div>
-      <ul class="tier-list"><li>Unlimited requests</li><li>Swap + escrow API</li><li>Webhook notifications</li><li>Priority support</li><li>Agent Identity (DID)</li></ul>
+      <ul class="tier-list"><li>Unlimited requests</li><li>Escrow API</li><li>Webhook notifications</li><li>Priority support</li><li>Agent Identity (DID)</li></ul>
     </div>
     <div class="tier">
       <div class="tier-name">Enterprise</div>
@@ -314,28 +276,10 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;justify-content
   <div class="note"><strong>Prepaid credits:</strong> Agents can deposit USDC once and consume credits per API call. Zero gas per transaction. <a href="/docs#payments">Learn more</a></div>
 </div>
 
-<!-- ═══ VS COMPETITORS ═══ -->
-<div class="cat">
-  <div class="cat-header">
-    <div class="cat-icon">&#128200;</div>
-    <div><div class="cat-title">Fee Comparison</div><div class="cat-desc">MAXIA vs the competition on swap fees.</div></div>
-  </div>
-  <table class="compare">
-    <thead><tr><th>Platform</th><th>Swap Fee</th><th>Chains</th><th>AI Services</th><th>Escrow</th></tr></thead>
-    <tbody>
-      <tr><td>Phantom</td><td>0.85%</td><td>Solana</td><td class="no">No</td><td class="no">No</td></tr>
-      <tr><td>Uniswap</td><td>0.30% + gas</td><td>EVM</td><td class="no">No</td><td class="no">No</td></tr>
-      <tr><td>Jupiter</td><td>0% (no platform fee)</td><td>Solana</td><td class="no">No</td><td class="no">No</td></tr>
-      <tr><td>Binance</td><td>0.10%</td><td>CEX</td><td class="no">No</td><td class="no">No</td></tr>
-      <tr><td style="color:var(--cyan);font-weight:700">MAXIA</td><td class="hl">0.01% - 0.10%</td><td class="yes">15 chains</td><td class="yes">17 services</td><td class="yes">Solana + Base</td></tr>
-    </tbody>
-  </table>
-</div>
-
 <!-- CTA -->
 <div class="cta-section">
-  <h2>Start trading with the <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">lowest fees.</span></h2>
-  <p>No signup needed. Connect wallet and swap in 60 seconds.</p>
+  <h2>Start building with the <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent">lowest fees.</span></h2>
+  <p>No signup needed. Connect wallet and access AI services in 60 seconds.</p>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
     <a href="/app" class="btn btn-primary">Launch App</a>
     <a href="/docs" class="btn btn-ghost">API Docs</a>
@@ -372,7 +316,6 @@ loadPrices();setInterval(loadPrices,10000);
   </div>
   <div style="max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;border-top:1px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:12px">
     <div style="color:#52525b;font-size:12px">&copy; 2026 MAXIA &middot; <a href="/terms" style="color:#52525b">Terms</a> &middot; <a href="/privacy" style="color:#52525b">Privacy</a> &middot; <span style="font-family:'JetBrains Mono',monospace;font-size:11px">8ADNmAPD...rXwBUY</span></div>
-    <div style="display:flex;gap:16px"><a href="https://x.com/MAXIA_WORLD" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">Twitter</a><a href="https://t.me/MAXIA_AI_bot" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">Telegram</a><a href="https://github.com/MAXIAWORLD" target="_blank" rel="noopener" style="color:#52525b;font-size:13px">GitHub</a></div>
   </div>
 </div>
 </body>

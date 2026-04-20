@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MAXIA Trading</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--bg:#060a14;--bg2:#0c1222;--card:rgba(255,255,255,.05);--text:#e4e4e7;--muted:#a1a1aa;--cyan:#00e5ff;--green:#22c55e;--rose:#f43f5e;--purple:#7c3aed;--gold:#f59e0b}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -51,9 +50,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="tabs" id="tabs">
   <button class="tab active" data-tab="prices">Prices</button>
   <button class="tab" data-tab="swap">Swap</button>
-  <button class="tab" data-tab="defi">DeFi</button>
   <button class="tab" data-tab="trending">Trending</button>
-  <button class="tab" data-tab="buy">Buy</button>
 </div>
 
 <!-- PRICES -->
@@ -70,20 +67,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div id="swap-result"></div>
 </div>
 
-<!-- DEFI -->
-<div class="panel" id="p-defi">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-    <div class="section-title" style="margin:0">AI Services</div>
-    <select id="defi-asset" onchange="loadYields()" style="padding:6px 12px;background:#0c1222;border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:13px"><option>USDC</option><option>SOL</option><option>ETH</option><option>BTC</option><option>USDT</option></select>
-  </div>
-  <div style="display:flex;gap:4px;margin:10px 0">
-    <button class="tab defi-tab active" data-type="staking" onclick="switchDefiTab(this)">Staking</button>
-    <button class="tab defi-tab" data-type="lending" onclick="switchDefiTab(this)">Lending</button>
-    <button class="tab defi-tab" data-type="lp" onclick="switchDefiTab(this)">LP Pools</button>
-  </div>
-  <div id="defi-risk" style="font-size:11px;color:var(--green);margin-bottom:8px;padding:6px 10px;background:rgba(34,197,94,.08);border-radius:8px">Low risk — stable returns</div>
-  <div id="yields-list"><div class="empty">Loading yields...</div></div>
-</div>
 
 <!-- TRENDING -->
 <div class="panel" id="p-trending">
@@ -91,15 +74,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div id="trending-list"><div class="empty">Loading...</div></div>
 </div>
 
-<!-- BUY -->
-<div class="panel" id="p-buy">
-  <div class="section-title">USDC Payment</div>
-  <div class="input-group"><label>Token</label><select id="buy-token"></select></div>
-  <div class="input-group"><label>Amount</label><div style="display:flex;gap:8px"><input type="number" id="buy-amt" value="50" min="10" style="flex:1"><select id="buy-fiat" style="width:80px"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option><option>CAD</option><option>AUD</option><option>JPY</option><option>KRW</option><option>BRL</option><option>MXN</option></select></div></div>
-  <div class="input-group"><label>Your Wallet</label><input type="text" id="buy-wallet" placeholder="Solana or EVM address"></div>
-  <button class="btn" onclick="buyNow()">Buy Now</button>
-  <div id="buy-result"></div>
-</div>
 
 <script>
 var tg = window.Telegram && window.Telegram.WebApp;
@@ -136,10 +110,6 @@ async function loadPrices(){
   var swFrom=document.getElementById('sw-from'), swTo=document.getElementById('sw-to');
   ALL_TOKENS.forEach(function(t){swFrom.innerHTML+='<option>'+t+'</option>';swTo.innerHTML+='<option>'+t+'</option>';});
   swFrom.value='USDC';swTo.value='SOL';
-  // Populate buy token select with all tokens too
-  var buyToken=document.getElementById('buy-token');
-  ALL_TOKENS.forEach(function(t){buyToken.innerHTML+='<option>'+t+'</option>';});
-  buyToken.value='SOL';
   var tokens = ALL_TOKENS; // All tokens for prices
   try{
     var fetches = tokens.map(function(t){
@@ -172,26 +142,6 @@ async function getQuote(){
   return;
 }
 
-// ── AI SERVICES ──
-var _defiType = 'staking';
-
-function switchDefiTab(btn){
-  _defiType = btn.dataset.type;
-  document.querySelectorAll('.defi-tab').forEach(function(t){t.classList.remove('active')});
-  btn.classList.add('active');
-  var riskEl = document.getElementById('defi-risk');
-  if(_defiType==='staking'){riskEl.style.color='var(--green)';riskEl.style.background='rgba(34,197,94,.08)';riskEl.textContent='Low risk — stable staking returns';}
-  else if(_defiType==='lending'){riskEl.style.color='var(--cyan)';riskEl.style.background='rgba(0,229,255,.08)';riskEl.textContent='Medium risk — lending with protocol risk';}
-  else{riskEl.style.color='var(--gold)';riskEl.style.background='rgba(245,158,11,.08)';riskEl.textContent='High risk — LP pools with impermanent loss';}
-  loadYields();
-}
-
-async function loadYields(){
-  var el = document.getElementById('yields-list');
-  var asset = document.getElementById('defi-asset').value;
-  el.innerHTML='<div class="empty">DeFi yield aggregation is not available in this version of MAXIA.</div>';
-  return;
-}
 
 // ── TRENDING ──
 async function loadTrending(){
@@ -200,27 +150,12 @@ async function loadTrending(){
   return;
 }
 
-// ── BUY ──
-async function buyNow(){
-  var token = document.getElementById('buy-token').value;
-  var amt = parseFloat(document.getElementById('buy-amt').value);
-  var wallet = document.getElementById('buy-wallet').value.trim();
-  var el = document.getElementById('buy-result');
-  var isEVM=/^0x[0-9a-fA-F]{40}$/.test(wallet);var isSOL=/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet);
-  if(!wallet||(!isEVM&&!isSOL)){el.innerHTML='<div class="msg msg-err">Enter a valid Solana (32-44 chars) or EVM (0x...) wallet address</div>';return;}
-  var fiat = document.getElementById('buy-fiat').value;
-  if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 '+esc(fiat)+'</div>';return;}
-  if(amt>50000){el.innerHTML='<div class="msg msg-err">Maximum 50,000 '+esc(fiat)+'</div>';return;}
-  el.innerHTML='<div class="msg msg-err">Fiat on-ramp is not available in this version of MAXIA.</div>';
-  return;
-}
 
 // Load all data
 loadPrices();
-loadYields();
 loadTrending();
 setInterval(loadPrices, 10000);
-setInterval(function(){loadYields();loadTrending();}, 60000);
+setInterval(loadTrending, 60000);
 </script>
 </body>
 </html>

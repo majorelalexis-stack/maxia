@@ -764,14 +764,14 @@ body::before {
         <div class="stat-sub">Fractionne</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Fournisseurs</div>
-        <div class="stat-value gold">2</div>
-        <div class="stat-sub">xStocks + Ondo</div>
+        <div class="stat-label">Tiers GPU</div>
+        <div class="stat-value gold">6</div>
+        <div class="stat-sub">Akash Network</div>
       </div>
     </div>
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">📈 Actions Tokenisees (xStocks / Ondo via Jupiter)</div>
+        <div class="panel-title">📈 Services AI disponibles</div>
         <button class="btn btn-cyan btn-sm" onclick="loadStocks()">↺ Actualiser</button>
       </div>
       <div class="panel-body">
@@ -1694,33 +1694,6 @@ body::before {
           <div style="display:flex;gap:8px;margin-bottom:12px"><input type="text" id="t-signal-token" class="form-input" placeholder="Token (SOL, ETH...)" value="SOL" style="flex:1"><button class="btn btn-cyan" onclick="loadSignal()">Analyze</button></div>
           <div id="t-signal-result" style="color:var(--muted);font-size:13px">Enter a token and click Analyze</div>
         </div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">Copy Trading — Top Wallets</span><button class="panel-action" onclick="loadCopyWallets()">Rafraichir</button></div>
-      <div class="panel-body" style="padding:0"><table class="data-table" style="margin:0"><thead><tr><th>Wallet</th><th>PnL 7d</th><th>PnL 30d</th><th>Win Rate</th><th>Trades</th></tr></thead><tbody id="t-copy"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Loading...</td></tr></tbody></table></div>
-    </div>
-  </div>
-
-  <!-- ══ DEFI YIELDS ══ -->
-  <div class="page" id="page-yields">
-    <div class="stats-grid">
-      <div class="stat-card cyan"><div class="stat-label">Best APY</div><div class="stat-value cyan" id="yield-best">--</div></div>
-      <div class="stat-card purple"><div class="stat-label">Protocols Tracked</div><div class="stat-value purple" id="yield-protocols">--</div></div>
-      <div class="stat-card green"><div class="stat-label">Chains Covered</div><div class="stat-value green" id="yield-chains">--</div></div>
-    </div>
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Top USDC Yields</span>
-        <button class="panel-action" onclick="loadYields()">Refresh</button>
-      </div>
-      <div class="panel-body" style="padding:0">
-        <table class="data-table" style="margin:0">
-          <thead><tr><th>Protocol</th><th>Chain</th><th>APY</th><th>TVL</th><th>Risk</th></tr></thead>
-          <tbody id="yields-table">
-            <tr><td colspan="5" style="text-align:center;padding:30px"><div class="spinner"></div></td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
