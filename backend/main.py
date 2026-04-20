@@ -58,14 +58,13 @@ except ImportError:
 from core.config import AKASH_ENABLED
 from blockchain.solana_verifier import verify_transaction
 from core.security import check_content_safety, check_rate_limit, set_redis_client
-from core.geo_blocking import geo_block_middleware
 from core.redis_client import redis_client
 from core.config import (
     GPU_TIERS, COMMISSION_TIERS, get_commission_bps,
     TREASURY_ADDRESS, TREASURY_ADDRESS_BASE,
     TREASURY_ADDRESS_POLYGON, TREASURY_ADDRESS_ARBITRUM,
     TREASURY_ADDRESS_AVALANCHE, TREASURY_ADDRESS_BNB,
-    SUPPORTED_NETWORKS, X402_PRICE_MAP,
+    SUPPORTED_NETWORKS,
     SERVICE_PRICES,
 )
 _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get('local')):.2f}/h"
@@ -73,7 +72,6 @@ _gpu_cheapest = f"${min(t['base_price_per_hour'] for t in GPU_TIERS if not t.get
 # ── V12: EVM verifiers extracted to chain_verify_api.py ──
 from integrations.kiteai_client import kite_client
 from integrations.ap2_manager import ap2_manager
-from integrations.x402_middleware import x402_middleware
 
 # ── V10.1 — Agent Autonome (CEO VPS SUPPRIME — S20) ──
 # growth_agent, scout_agent, brain, scheduler, swarm: REMOVED from VPS
@@ -245,47 +243,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("[MAXIA] Billing flush loop error: %s", e)
 
-    # V12: New features (trading, marketplace, infra)
-    try:
-        from trading.trading_features import ensure_tables as ensure_trading_tables, check_whales, update_candles, copy_trade_worker
-        await ensure_trading_tables()
-        t6 = asyncio.create_task(check_whales())
-        t7 = asyncio.create_task(update_candles())
-        t_copy = asyncio.create_task(copy_trade_worker())
-        # Universal candle feeder — feeds ALL tokens (not just Pyth) every 5s
-        from trading.pyth_oracle import _universal_candle_feeder
-        asyncio.create_task(_universal_candle_feeder())
-    except Exception as e:
-        logger.error("[MAXIA] Trading features init error: %s", e)
-        t6 = t7 = None
-
-    # V12: DCA Bot — dollar-cost averaging automated trading
-    try:
-        from trading.dca_bot import ensure_tables as ensure_dca_tables, dca_worker
-        await ensure_dca_tables()
-        asyncio.create_task(dca_worker())
-        logger.info("[DCA] Bot worker started")
-    except Exception as e:
-        logger.error("[MAXIA] DCA bot init error: %s", e)
-
-    # V12: Grid Bot — grid trading at fixed price intervals
-    try:
-        from trading.grid_bot import ensure_tables as ensure_grid_tables, grid_worker
-        await ensure_grid_tables()
-        asyncio.create_task(grid_worker())
-        logger.info("[GRID] Bot worker started")
-    except Exception as e:
-        logger.error("[MAXIA] Grid bot init error: %s", e)
-
-    # V12: Auto-Compound DeFi — automated yield compounding
-    try:
-        from features.auto_compound import ensure_tables as ensure_compound_tables, compound_worker
-        await ensure_compound_tables()
-        asyncio.create_task(compound_worker())
-        logger.info("[Compound] Auto-compound worker started")
-    except Exception as e:
-        logger.error("[MAXIA] Auto-compound init error: %s", e)
-
     try:
         from marketplace.marketplace_features import ensure_tables as ensure_mkt_tables
         await ensure_mkt_tables()
@@ -310,30 +267,6 @@ async def lifespan(app: FastAPI):
 
     # V12: Volume 30d rolling reset (S33: extracted to lifespan_workers.py)
     t_volume = asyncio.create_task(volume_decay_worker(db))
-
-    # V12: Load persisted trading data (alerts + follows) from DB
-    try:
-        from trading.trading_tools import load_trading_data
-        await load_trading_data()
-    except Exception as e:
-        logger.error("[MAXIA] Trading data load error: %s", e)
-
-    # V12: Price alerts worker (notifies CLIENTS, not founder)
-    try:
-        from trading.trading_tools import alert_checker_worker
-        t_alerts = asyncio.create_task(alert_checker_worker())
-        logger.info("[MAXIA] Price alerts worker started (60s interval)")
-    except Exception as e:
-        logger.error("[MAXIA] Alert worker init error: %s", e)
-
-    # Token sniper worker (pump.fun scan every 30s) + ONE-51 tables
-    try:
-        from trading.token_sniper import sniper_worker, ensure_tables as ensure_sniper_tables
-        await ensure_sniper_tables()
-        asyncio.create_task(sniper_worker())
-        logger.info("[MAXIA] Token sniper worker started (30s interval)")
-    except Exception as e:
-        logger.error("[MAXIA] Sniper worker init error: %s", e)
 
     # Telegram bot (long polling + Mini App menu button)
     try:
@@ -465,7 +398,7 @@ async def lifespan(app: FastAPI):
             t.cancel()
         except Exception:
             pass
-    for t in [t_health, t6, t7, t_backup, t_dispute, t_telegram]:
+    for t in [t_health, t_backup, t_dispute, t_telegram]:
         try:
             if t:
                 t.cancel()
@@ -477,11 +410,6 @@ async def lifespan(app: FastAPI):
             t.cancel()
         except Exception:
             pass
-    # Cancel tasks that may not exist if their try/import failed
-    try:
-        t_alerts.cancel()
-    except (NameError, Exception):
-        pass
     # WS event stream periodic tasks
     try:
         from features.ws_events import stop_periodic_events
@@ -537,10 +465,6 @@ async def limit_body_size(request: Request, call_next):
     if content_length and int(content_length) > 5_000_000:
         return _JSONResponseGlobal(status_code=413, content={"error": "Request too large (max 5MB)"})
     return await call_next(request)
-
-
-# ── Geo-blocking: bloque les IPs US sur les routes stocks/trading (compliance) ──
-app.middleware("http")(geo_block_middleware)
 
 
 @app.middleware("http")
@@ -632,9 +556,6 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Wallet", "X-Signature", "X-Nonce", "X-Admin-Key", "X-CEO-Key", "X-API-Key", "X-Payment", "X-Payment-Network"],
     allow_credentials=_is_prod,  # credentials only with explicit origins
 )
-app.middleware("http")(x402_middleware)
-
-
 # ── Security Headers (PRO-J3: CSP with nonce) ──
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
@@ -854,30 +775,6 @@ if mcp_router:
 from features.analytics import router as analytics_router
 app.include_router(analytics_router)
 
-# V12: New features routers
-try:
-    from trading.trading_features import get_router as get_trading_router
-    app.include_router(get_trading_router())
-except Exception as e:
-    logger.error("[MAXIA] Trading router error: %s", e)
-try:
-    from trading.dca_bot import get_router as get_dca_router
-    app.include_router(get_dca_router())
-    logger.info("[DCA] Router monte — /api/dca/*")
-except Exception as e:
-    logger.error("[MAXIA] DCA router error: %s", e)
-try:
-    from trading.grid_bot import get_router as get_grid_router
-    app.include_router(get_grid_router())
-    logger.info("[GRID] Router monte — /api/grid/*")
-except Exception as e:
-    logger.error("[MAXIA] Grid router error: %s", e)
-try:
-    from features.auto_compound import get_router as get_compound_router
-    app.include_router(get_compound_router())
-    logger.info("[Compound] Router monte — /api/compound/*")
-except Exception as e:
-    logger.error("[MAXIA] Auto-compound router error: %s", e)
 try:
     from marketplace.marketplace_features import get_router as get_mkt_router
     app.include_router(get_mkt_router())
@@ -895,29 +792,11 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Email router error: %s", e)
 try:
-    from integrations.fiat_onramp import router as fiat_router
-    app.include_router(fiat_router)
-    logger.info("[Fiat] On-ramp Transak/Moonpay monte (3 endpoints)")
-except Exception as e:
-    logger.error("[MAXIA] Fiat router error: %s", e)
-try:
-    from trading.token_sniper import router as sniper_router
-    app.include_router(sniper_router)
-    logger.info("[Sniper] Token sniper pump.fun monte (5 endpoints)")
-except Exception as e:
-    logger.error("[MAXIA] Sniper router error: %s", e)
-try:
     from integrations.telegram_miniapp import router as tg_miniapp_router
     app.include_router(tg_miniapp_router)
     logger.info("[TG MiniApp] Telegram Mini App monte (9 endpoints)")
 except Exception as e:
     logger.error("[MAXIA] TG MiniApp router error: %s", e)
-try:
-    from trading.yield_aggregator import router as yield_router
-    app.include_router(yield_router)
-    logger.info("[Yield] Aggregator DeFi monte")
-except Exception as e:
-    logger.error("[MAXIA] Yield router error: %s", e)
 try:
     from features.rpc_service import router as rpc_router
     app.include_router(rpc_router)
@@ -948,13 +827,6 @@ try:
     logger.info("[Subscriptions] Streaming payments USDC monte")
 except Exception as e:
     logger.error("[MAXIA] Subscription router error: %s", e)
-try:
-    from trading.trading_tools import router as trading_router
-    app.include_router(trading_router)
-    logger.info("[Trading] Whale tracker, candles, signals, portfolio, alerts monte")
-except Exception as e:
-    logger.error("[MAXIA] Trading router error: %s", e)
-
 # V12: Fine-tuning LLM as a Service (Unsloth + RunPod)
 try:
     from gpu.finetune_service import router as finetune_router
@@ -980,13 +852,6 @@ try:
 except Exception as e:
     logger.error("[MAXIA] GOAT bridge error: %s", e)
 
-# V12: Solana DeFi (lending/borrowing/staking)
-try:
-    from trading.solana_defi import router as solana_defi_router
-    app.include_router(solana_defi_router)
-    logger.info("[DeFi] Solana DeFi (lending/borrowing/staking/LP) monte")
-except Exception as e:
-    logger.error("[MAXIA] Solana DeFi error: %s", e)
 
 # V12: LLM-as-a-Service (OpenAI-compatible, multi-provider)
 try:
@@ -1116,14 +981,6 @@ try:
 except Exception as e:
     logger.error("[MAXIA] Gamification router error: %s", e)
 
-# Jupiter Perps (P5)
-try:
-    from trading.perps_client import router as perps_router
-    app.include_router(perps_router)
-    logger.info("[Perps] Jupiter Perpetuals (read-only) monte")
-except Exception as e:
-    logger.error("[MAXIA] Perps router error: %s", e)
-
 # Token Launcher — Pump.fun (P6)
 try:
     from features.token_launcher import router as token_router
@@ -1148,14 +1005,6 @@ try:
     logger.info("[Referral] Referral + Badges monte")
 except Exception as e:
     logger.error("[MAXIA] Referral router error: %s", e)
-
-# V13+: EVM Multi-Chain Swap — 6 chains via 0x (Art.55)
-try:
-    from trading.evm_swap import router as evm_swap_router
-    app.include_router(evm_swap_router)
-    logger.info("[EVM-Swap] Multi-chain swap (6 chains, 36 tokens, 0x) monte")
-except Exception as e:
-    logger.error("[MAXIA] EVM swap error: %s", e)
 
 # V13+: Business Listings — AI Business Marketplace (Art.56)
 try:
@@ -1276,13 +1125,6 @@ try:
     logger.info("[StreamPay] Streaming Payments (pay-per-second) monte")
 except Exception as e:
     logger.error("[MAXIA] StreamPay router error: %s", e)
-try:
-    from blockchain.lightning_api import router as lightning_router
-    app.include_router(lightning_router)
-    logger.info("[Lightning] Bitcoin Lightning API monte")
-except Exception as e:
-    logger.error("[MAXIA] Lightning router error: %s", e)
-
 # V13+: Agent Subcontracting — delegation automatique (Art.58)
 try:
     from agents.agent_subcontract import router as subcontract_router
@@ -1374,7 +1216,7 @@ logger.info("[Staking] Staking + credit score + alerts routes monte")
 
 from routes.exchange_routes import router as exchange_inline_router
 app.include_router(exchange_inline_router)
-logger.info("[Exchange] Exchange + stocks + bridge + pricing routes monte")
+logger.info("[Exchange] Exchange + bridge + pricing routes monte")
 
 from enterprise.enterprise_routes import router as enterprise_inline_router
 app.include_router(enterprise_inline_router)

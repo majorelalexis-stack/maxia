@@ -1,0 +1,53 @@
+# graphifyy — paths excluded from the knowledge graph build.
+# Goal: keep only hand-written MAXIA source, skip vendored deps + build artifacts + generated files.
+
+# JS/TS dependencies & build output
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+
+# Python build artifacts
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Git & editor
+.git/
+.idea/
+.vscode/
+.claude/worktrees/
+
+# Temp / scratch
+temp-repos/
+hf-space-repo/
+frontend-backup-*/
+backend/graphify-out/
+graphify-out/
+
+# Vendored sub-projects that blow up the graph without adding value
+plugin-maxia-elizaos/
+eliza-plugin-maxia/
+
+# Lockfiles (not useful in the graph)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Cargo.lock
+
+# Binary / data
+*.db
+*.sqlite
+*.sqlite3
+*.mmdb
+*.log
+*.whl
+*.tar.gz

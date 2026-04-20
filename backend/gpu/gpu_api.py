@@ -261,9 +261,6 @@ async def get_solana_blockhash():
 @router.get("/api/public/prices")
 async def get_all_prices():
     """All current MAXIA prices — GPU, services, commissions. Updated live from source."""
-    from trading.crypto_swap import SWAP_COMMISSION_TIERS
-    from trading.tokenized_stocks import STOCK_COMMISSION_TIERS
-
     # GPU prices from Akash (primary) with markup
     gpu_tiers = GPU_TIERS
     try:
@@ -277,8 +274,6 @@ async def get_all_prices():
         "gpu_tiers": gpu_tiers,
         "service_prices": SERVICE_PRICES,
         "marketplace_commission_tiers": COMMISSION_TIERS,
-        "swap_commission_tiers": SWAP_COMMISSION_TIERS,
-        "stock_commission_tiers": STOCK_COMMISSION_TIERS,
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 

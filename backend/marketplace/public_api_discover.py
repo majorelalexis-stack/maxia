@@ -365,33 +365,12 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             logger.debug("Credits check failed: %s", e)
 
         if not paid_with_credits:
-            # Try L402 Lightning challenge (return 402 with invoice)
-            try:
-                from integrations.l402_middleware import create_l402_challenge, build_402_response
-                challenge = await create_l402_challenge(price, service_id)
-                if challenge.get("success"):
-                    return build_402_response(challenge)
-            except Exception as e:
-                logger.debug("L402 challenge failed, requiring on-chain: %s", e)
-
             raise HTTPException(400,
-                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit, "
-                "or use Lightning via L402). "
+                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit). "
                 f"Send USDC to Treasury on Solana first. Treasury: {TREASURY_ADDRESS}")
 
-    # Verify Lightning payment if charge_id provided
     if lightning_charge_id and not paid_with_credits:
         try:
-            from integrations.l402_middleware import verify_lightning_payment
-            ln_result = await verify_lightning_payment(lightning_charge_id, expected_usd=price)
-            if ln_result.get("verified"):
-                paid_with_lightning = True
-                logger.info("/execute paid with Lightning: %s sats for %s",
-                            ln_result.get("amount_sats"), service_id)
-            else:
-                raise HTTPException(402, f"Lightning payment not settled: {ln_result.get('error', 'unpaid')}")
-        except HTTPException:
-            raise
         except Exception as e:
             logger.error("Lightning verification error: %s", e)
             raise HTTPException(400, "Lightning payment verification failed")
@@ -972,18 +951,6 @@ async def _dispatch_real_service(service_id: str, prompt: str) -> str | None:
                 return json.dumps({"extracted": result, "service": "maxia-extract"}, indent=2)
         except Exception as e:
             logger.error("Real data extraction error: %s", e)
-        return None
-
-    # ── DeFi Yields ──
-    if service_id == "maxia-defi-yields":
-        try:
-            from trading.defi_scanner import get_best_yields
-            # Extract asset from prompt or default USDC
-            asset = _extract_token_from_prompt(prompt) if prompt else "USDC"
-            result = await asyncio.wait_for(get_best_yields(asset=asset, limit=10), timeout=15)
-            return json.dumps({"asset": asset, "yields": result, "count": len(result)}, indent=2)
-        except Exception as e:
-            logger.error("Real DeFi yields error: %s", e)
         return None
 
     # ── Web Scraper (real — with SSRF protection) ──

@@ -224,30 +224,6 @@ async def tg_prices(
         raise HTTPException(500, safe_error(e, "tg_prices"))
 
 
-@router.post("/swap/quote")
-async def tg_swap_quote(
-    body: dict,
-    x_tg_session: str = Header("", alias="X-TG-Session"),
-):
-    """Get a swap quote. Body: {from_token, to_token, amount}."""
-    _require_session(x_tg_session)
-
-    from_token = body.get("from_token", "").upper()
-    to_token = body.get("to_token", "").upper()
-    amount = float(body.get("amount", 0))
-
-    if not from_token or not to_token or amount <= 0:
-        raise HTTPException(400, "Required: from_token, to_token, amount (> 0)")
-
-    try:
-        from trading.crypto_swap import get_swap_quote
-
-        quote = await get_swap_quote(from_token, to_token, amount)
-        return quote
-    except Exception as e:
-        raise HTTPException(500, safe_error(e, "tg_swap"))
-
-
 @router.get("/portfolio")
 async def tg_portfolio(
     x_tg_session: str = Header("", alias="X-TG-Session"),
@@ -270,86 +246,6 @@ async def tg_portfolio(
         return result
     except Exception as e:
         raise HTTPException(500, safe_error(e, "tg_portfolio"))
-
-
-@router.get("/alerts")
-async def tg_alerts(
-    x_tg_session: str = Header("", alias="X-TG-Session"),
-):
-    """List active price alerts for the linked wallet."""
-    session = _require_session(x_tg_session)
-    wallet = session.get("wallet_address")
-
-    if not wallet:
-        return {"alerts": [], "count": 0, "error": "No wallet linked"}
-
-    try:
-        from trading.trading_tools import _alerts
-
-        wallet_alerts = [a for a in _alerts.values() if a.get("wallet") == wallet]
-        return {"alerts": wallet_alerts, "count": len(wallet_alerts)}
-    except Exception as e:
-        raise HTTPException(500, safe_error(e, "tg_alerts"))
-
-
-@router.post("/alerts")
-async def tg_create_alert(
-    body: dict,
-    x_tg_session: str = Header("", alias="X-TG-Session"),
-):
-    """Create a price alert. Body: {token, condition, target_price}."""
-    session = _require_session(x_tg_session)
-    wallet = session.get("wallet_address")
-    user_id = session.get("user_id")
-
-    if not wallet:
-        raise HTTPException(400, "No wallet linked. Re-authenticate with wallet_address.")
-
-    try:
-        from trading.trading_tools import AlertCreate, create_alert
-
-        req = AlertCreate(
-            token=body.get("token", ""),
-            condition=body.get("condition", "above"),
-            target_price=body.get("target_price"),
-            pct_change=body.get("pct_change"),
-            wallet=wallet,
-            telegram_chat_id=str(user_id),  # Auto-link Telegram user
-            repeat=body.get("repeat", False),
-        )
-        result = await create_alert(req)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, safe_error(e, "tg_create_alert"))
-
-
-@router.get("/yields")
-async def tg_yields(
-    x_tg_session: str = Header("", alias="X-TG-Session"),
-):
-    """Top DeFi yields for USDC."""
-    _require_session(x_tg_session)
-
-    try:
-        from trading.yield_aggregator import _fetch_all_yields
-
-        all_yields = await _fetch_all_yields()
-        usdc = sorted(
-            [y for y in all_yields if y.get("asset", "").upper() == "USDC"],
-            key=lambda y: y.get("apy", 0),
-            reverse=True,
-        )[:10]
-
-        return {
-            "yields": usdc,
-            "count": len(usdc),
-            "asset": "USDC",
-            "timestamp": int(time.time()),
-        }
-    except Exception as e:
-        raise HTTPException(500, safe_error(e, "tg_yields"))
 
 
 @router.get("/trending")

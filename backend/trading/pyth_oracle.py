@@ -250,18 +250,6 @@ async def _universal_candle_feeder():
                     update_twap(symbol, price)
                     _process_candle_tick(symbol, price, now)
                     fed += 1
-            # Also feed stock prices
-            try:
-                from trading.tokenized_stocks import fetch_stock_prices
-                stock_data = await fetch_stock_prices()
-                for sym, data in (stock_data or {}).items():
-                    price = data.get("price_usd", 0) if isinstance(data, dict) else 0
-                    if price > 0:
-                        update_twap(sym, price)
-                        _process_candle_tick(sym, price, now)
-                        fed += 1
-            except Exception:
-                pass
         except Exception as e:
             logger.error("[CandleFeeder] Error: %s", e)
         await asyncio.sleep(5)
@@ -1064,26 +1052,7 @@ async def api_price_live(symbol: str, mode: str = Query("normal", pattern="^(nor
     except Exception:
         pass
 
-    # Fallback: stock prices
     try:
-        from trading.tokenized_stocks import fetch_stock_prices
-        stocks = await fetch_stock_prices()
-        stock = stocks.get(sym, {})
-        price = stock.get("price_usd", 0) if isinstance(stock, dict) else 0
-        if price > 0:
-            return {
-                "price": price,
-                "confidence": 0,
-                "confidence_pct": 0,
-                "publish_time": int(time.time()),
-                "age_s": 0,
-                "stale": False,
-                "wide_confidence": False,
-                "source": "stock",
-                "symbol": sym,
-                "mode": mode,
-            }
-    except Exception:
         pass
 
     raise HTTPException(404, f"No price available for {sym}")
