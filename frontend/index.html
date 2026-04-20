@@ -2424,56 +2424,9 @@ async function loadDashboardStats() {
     } catch(e) { document.querySelector('.main').innerHTML = '<div class="topbar"><h2>Escrow</h2></div><div class="content" style="padding:24px"><p style="color:var(--muted)">Module escrow en preparation (smart contract V13).</p></div>'; }
   }
 
-  // ── Actions Tokenisees ──
-  async function loadStocks() {
-    try {
-      const r = await fetch('/api/public/stocks');
-      const d = await r.json();
-      document.getElementById('stocks-count').textContent = d.total || 0;
-      const tb = document.getElementById('stocks-body');
-      if (d.stocks && d.stocks.length > 0) {
-        tb.innerHTML = d.stocks.map(s => {
-          const changeColor = s.change_24h_pct > 0 ? 'var(--green)' : s.change_24h_pct < 0 ? '#FF4560' : 'var(--muted)';
-          const changeSign = s.change_24h_pct > 0 ? '+' : '';
-          return '<tr>' +
-            '<td style="font-weight:600">' + s.name + '</td>' +
-            '<td>' + s.symbol + '</td>' +
-            '<td style="color:var(--muted)">' + s.sector + '</td>' +
-            '<td style="color:var(--purple)">' + s.xstock + '</td>' +
-            '<td style="font-family:var(--font-mono)">$' + (s.price_usd || 0).toFixed(2) + '</td>' +
-            '<td style="color:' + changeColor + ';font-family:var(--font-mono)">' + changeSign + (s.change_24h_pct || 0).toFixed(2) + '%</td>' +
-            '</tr>';
-        }).join('');
-      } else {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Aucune action disponible</td></tr>';
-      }
-    } catch(e) {
-      console.error('loadStocks error:', e);
-    }
-  }
-
-  async function loadStockStats() {
-    try {
-      const r = await fetch('/api/stocks/stats');
-      const d = await r.json();
-      document.getElementById('ss-trades').textContent = d.total_trades || 0;
-      document.getElementById('ss-volume').textContent = (function(v){return v>0&&v<0.01?v.toFixed(4):v.toFixed(2)})(d.total_volume_usdc || 0);
-      document.getElementById('ss-commission').textContent = (d.total_commission_usdc || 0).toFixed(4);
-      document.getElementById('ss-holders').textContent = d.unique_holders || 0;
-    } catch(e) {}
-  }
-
-  // Charger les stocks quand on ouvre la page exchange
-  const origShowPage = window.showPage || function(){};
-  const _origShowPage = showPage;
-  const _showPagePatched = function(page, el) {
-    _origShowPage(page, el);
-    if (page === 'exchange') {
-      loadStocks();
-      loadStockStats();
-    }
-  };
-  showPage = _showPagePatched;
+  // Stocks removed in v2 — stubs prevent JS errors if page id still in DOM
+  function loadStocks() {}
+  function loadStockStats() {}
 
   // Charger stats reelles depuis l'API
   const [statsR, listingsR, auctionsR, mktR, swapR] = await Promise.all([

@@ -102,16 +102,15 @@ select{cursor:pointer;appearance:none;-webkit-appearance:none}
   </div>
   <div class="sidebar-body">
     <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
-    <div class="sidebar-section">Trade</div>
-    <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
-    <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
-    <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
-    <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
-    <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
-    <div class="sidebar-section">Explore</div>
+    <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-    <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
+    <a href="/app#trading" class="sidebar-link">&#128202; Agent Trading</a>
+    <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
+    <div class="sidebar-section">Explore</div>
+    <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
+    <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
+    <a href="/feed" class="sidebar-link">&#128240; Social Feed</a>
     <a href="/store" class="sidebar-link">&#128230; Integrations</a>
     <div class="sidebar-section">Community</div>
     <a href="/forum" class="sidebar-link">&#128172; Forum</a>
@@ -171,15 +170,9 @@ var cryptoSel=document.getElementById('crypto');
 ALL_TOKENS.forEach(function(t){cryptoSel.innerHTML+='<option value="'+t+'">'+t+'</option>';});
 cryptoSel.value='SOL';
 
-async function loadProviders(){
-  try{
-    var r=await fetch('/api/fiat/providers');
-    var d=await r.json();
-    var el=document.getElementById('providers');
-    el.innerHTML=(d.providers||[]).map(function(p){
-      return '<div class="prov '+(p.status==='active'?'active':'')+'">'+esc(p.name)+' ('+esc(p.fees)+')</div>';
-    }).join('');
-  }catch(e){console.error('loadProviders error:', e);}
+function loadProviders(){
+  var el=document.getElementById('providers');
+  if(el) el.innerHTML='<div style="color:var(--muted);padding:12px;text-align:center">Fiat on-ramp coming soon.</div>';
 }
 loadProviders();
 
@@ -196,27 +189,8 @@ async function buyNow(){
   if(amount>50000){res.style.display='block';res.innerHTML='<span style="color:var(--rose)">Maximum amount is 50,000 '+esc(fiat)+'</span>';return;}
 
   res.style.display='block';
-  res.innerHTML='<span style="color:var(--cyan)">Finding best provider...</span>';
-
-  try{
-    var r=await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:crypto,fiat_amount:amount,fiat_currency:fiat,wallet_address:wallet})});
-    var d=await r.json();
-
-    if(d.url){
-      var html='<div style="font-size:14px;color:var(--green);margin-bottom:8px">Provider: '+esc(d.provider)+' ('+esc(d.estimated_fees)+' fees)</div>';
-      html+='<a href="'+esc(d.url)+'" target="_blank" rel="noopener">Buy '+esc(crypto)+' with '+esc(fiat)+' &rarr;</a>';
-      if(d.alternatives&&d.alternatives.length>0){
-        html+='<div class="alts">Other providers: ';
-        d.alternatives.forEach(function(a){html+='<a href="'+esc(a.url)+'" target="_blank">'+esc(a.provider)+' ('+esc(a.fees)+')</a> ';});
-        html+='</div>';
-      }
-      res.innerHTML=html;
-    }else if(d.mode==='two_step'){
-      res.innerHTML='<div style="padding:16px;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.15);border-radius:12px"><div style="font-size:14px;margin-bottom:8px">'+esc(crypto)+' is not available for direct card purchase.</div><div style="color:var(--muted);font-size:13px;margin-bottom:12px"><b>Solution:</b> Buy USDC with card, then swap USDC &rarr; '+esc(crypto)+' (0.10% fee)</div><a href="javascript:void(0)" onclick="document.getElementById(\'crypto\').value=\'USDC\';buyNow()" class="result a" style="display:block;padding:12px;background:var(--cyan);color:#060a14;border-radius:10px;text-align:center;font-weight:600">Buy USDC instead &rarr;</a></div>';
-    }else{
-      res.innerHTML='<span style="color:var(--rose)">'+esc(d.detail||'Error')+'</span>';
-    }
-  }catch(e){console.error('buyNow error:', e);res.innerHTML='<span style="color:var(--rose)">Connection error</span>';}
+  res.style.display='block';
+  res.innerHTML='<div style="padding:16px;background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.2);border-radius:12px;color:var(--gold)">Fiat on-ramp is not available in this version of MAXIA. Use <a href="/app#escrow" style="color:var(--cyan)">on-chain USDC escrow</a> to pay for AI services.</div>';
 }
 </script>
 

@@ -168,17 +168,8 @@ async function getQuote(){
   var el = document.getElementById('swap-result');
   if(from===to){el.innerHTML='<div class="msg msg-err">Select different tokens</div>';return;}
   if(!amt||amt<=0){el.innerHTML='<div class="msg msg-err">Enter a valid amount</div>';return;}
-  el.innerHTML='<div class="msg msg-ok">Getting quote...</div>';
-  try{
-    var r = await fetch('/api/public/crypto/quote?from_token='+from+'&to_token='+to+'&amount='+amt);
-    var d = await r.json();
-    if(d.output_amount){
-      var outDec = d.output_amount >= 1 ? 4 : 8;
-      el.innerHTML='<div class="msg msg-ok"><b>'+amt+' '+from+' &rarr; '+d.output_amount.toFixed(outDec)+' '+to+'</b><br>Rate: 1 '+from+' = '+(d.rate||0).toFixed(6)+' '+to+'<br>Fee: '+(d.commission_pct||'0%')+'</div>';
-    } else {
-      el.innerHTML='<div class="msg msg-err">'+(d.error||d.detail||'Quote unavailable')+'</div>';
-    }
-  }catch(e){el.innerHTML='<div class="msg msg-err">Connection error</div>';}
+  el.innerHTML='<div class="msg msg-err">Token swap is not available in this version of MAXIA.</div>';
+  return;
 }
 
 // ── DEFI YIELDS ──
@@ -198,33 +189,15 @@ function switchDefiTab(btn){
 async function loadYields(){
   var el = document.getElementById('yields-list');
   var asset = document.getElementById('defi-asset').value;
-  try{
-    var r = await fetch('/api/public/defi/best-yield?asset='+asset+'&limit=20&type='+_defiType);
-    var d = await r.json();
-    var yields = d.yields || d.opportunities || [];
-    if(!yields.length){el.innerHTML='<div class="empty">No '+_defiType+' yields for '+esc(asset)+'</div>';return;}
-    el.innerHTML = yields.map(function(y){
-      var tvl = y.tvl_usd >= 1000000 ? '$'+(y.tvl_usd/1000000).toFixed(1)+'M' : y.tvl_usd >= 1000 ? '$'+(y.tvl_usd/1000).toFixed(0)+'K' : '';
-      var apyColor = y.apy > 50 ? 'gold' : 'green';
-      return '<div class="row"><div><div class="row-title">'+esc(y.project||y.protocol||'?')+'</div><div class="row-sub">'+esc(y.chain||'?')+(tvl?' — TVL '+tvl:'')+'</div></div><div class="row-val '+apyColor+'">'+((y.apy||0).toFixed(2))+'%</div></div>';
-    }).join('');
-  }catch(e){el.innerHTML='<div class="empty">Error loading yields</div>';}
+  el.innerHTML='<div class="empty">DeFi yield aggregation is not available in this version of MAXIA.</div>';
+  return;
 }
 
 // ── TRENDING ──
 async function loadTrending(){
   var el = document.getElementById('trending-list');
-  try{
-    var r = await fetch('/api/sniper/new-tokens?limit=15');
-    var d = await r.json();
-    var tokens = d.tokens || [];
-    if(!tokens.length){el.innerHTML='<div class="empty">No tokens detected yet</div>';return;}
-    el.innerHTML = tokens.map(function(t){
-      var link = t.url || ('https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint);
-      var boosts = t.boosts > 0 ? t.boosts + ' boosts' : 'new';
-      return '<a href="'+esc(link)+'" target="_blank" style="text-decoration:none;color:inherit"><div class="row"><div><div class="row-title" style="color:var(--cyan)">'+esc(t.name||t.symbol||t.mint.substring(0,10))+'</div><div class="row-sub">'+esc(t.chain||'solana')+'</div></div><div class="row-val gold">'+boosts+'</div></div></a>';
-    }).join('');
-  }catch(e){el.innerHTML='<div class="empty">Error loading trending</div>';}
+  el.innerHTML='<div class="empty">Token scanner not available in this version of MAXIA.</div>';
+  return;
 }
 
 // ── BUY ──
@@ -238,19 +211,8 @@ async function buyNow(){
   var fiat = document.getElementById('buy-fiat').value;
   if(!amt||amt<10){el.innerHTML='<div class="msg msg-err">Minimum 10 '+esc(fiat)+'</div>';return;}
   if(amt>50000){el.innerHTML='<div class="msg msg-err">Maximum 50,000 '+esc(fiat)+'</div>';return;}
-  el.innerHTML='<div class="msg msg-ok">Finding provider...</div>';
-  try{
-    var r = await fetch('/api/fiat/onramp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({crypto:token,fiat_amount:amt,fiat_currency:fiat,wallet_address:wallet})});
-    var d = await r.json();
-    if(d.url){
-      el.innerHTML='<a href="'+esc(d.url)+'" target="_blank" class="btn" style="margin-top:12px">Buy '+esc(token)+' via '+esc(d.provider)+' &rarr;</a><div style="font-size:12px;color:var(--muted);margin-top:8px">Fees: '+(d.estimated_fees||'?')+'</div>';
-      if(tg) tg.openLink(d.url);
-    } else if(d.mode==='two_step'){
-      el.innerHTML='<div class="msg msg-ok">'+esc(token)+' is not available for direct card purchase.<br><br><b>Solution:</b> Buy USDC with card, then swap to '+esc(token)+'.<br><br><a href="/buy" target="_blank" class="btn" style="margin-top:8px">Buy USDC first &rarr;</a></div>';
-    } else {
-      el.innerHTML='<div class="msg msg-err">'+esc(d.detail||'Error')+'</div>';
-    }
-  }catch(e){el.innerHTML='<div class="msg msg-err">Connection error</div>';}
+  el.innerHTML='<div class="msg msg-err">Fiat on-ramp is not available in this version of MAXIA.</div>';
+  return;
 }
 
 // Load all data

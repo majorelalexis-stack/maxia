@@ -1052,9 +1052,6 @@ async def api_price_live(symbol: str, mode: str = Query("normal", pattern="^(nor
     except Exception:
         pass
 
-    try:
-        pass
-
     raise HTTPException(404, f"No price available for {sym}")
 
 

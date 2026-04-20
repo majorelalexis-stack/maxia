@@ -107,16 +107,15 @@ h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8p
   </div>
   <div class="sidebar-body">
     <a href="/" class="sidebar-link" style="margin-bottom:12px;font-weight:600">&#127968; Home</a>
-    <div class="sidebar-section">Trade</div>
-    <a href="/app#swap" class="sidebar-link">&#9889; Swap</a>
-    <a href="/buy" class="sidebar-link">&#128179; Buy Crypto</a>
-    <a href="/app#stocks" class="sidebar-link">&#128200; Stocks</a>
-    <a href="/app#trading" class="sidebar-link">&#128202; Trading</a>
-    <a href="/sniper" class="sidebar-link">&#127919; Token Sniper</a>
-    <div class="sidebar-section">Explore</div>
+    <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-    <a href="/app#yields" class="sidebar-link">&#127793; DeFi Yields</a>
+    <a href="/app#trading" class="sidebar-link">&#128202; Agent Trading</a>
+    <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
+    <div class="sidebar-section">Explore</div>
+    <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
+    <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
+    <a href="/feed" class="sidebar-link">&#128240; Social Feed</a>
     <a href="/store" class="sidebar-link">&#128230; Integrations</a>
     <div class="sidebar-section">Community</div>
     <a href="/forum" class="sidebar-link">&#128172; Forum</a>
@@ -159,53 +158,12 @@ h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;margin-bottom:8p
 <script>
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'):''}
 
-async function loadStats(){
-  try{
-    var r=await fetch('/api/sniper/stats');var d=await r.json();
-    document.getElementById('s-detected').textContent=d.total_detected||0;
-    document.getElementById('s-scans').textContent=d.total_scans||0;
-    document.getElementById('s-source').textContent=d.source||'?';
-    var statusEl=document.getElementById('s-status');
-    statusEl.textContent=d.status||'?';
-    statusEl.style.color=d.status==='active'?'var(--green)':'var(--gold)';
-    document.getElementById('sub-text').textContent='Source: '+(d.source||'scanning')+' — every '+d.scan_interval_s+'s';
-  }catch(e){}
-}
-
-async function loadTokens(){
-  var boosts=document.getElementById('f-boosts').value||0;
-  var kw=document.getElementById('f-kw').value||'';
+function loadStats(){
   var el=document.getElementById('tokens');
-
-  try{
-    var url='/api/sniper/new-tokens?min_boosts='+boosts+'&limit=30';
-    if(kw)url+='&keyword='+encodeURIComponent(kw);
-    var r=await fetch(url);var d=await r.json();
-    var tokens=d.tokens||[];
-
-    if(!tokens.length){
-      el.innerHTML='<div class="empty">No tokens found. The scanner runs every 30s — new tokens will appear automatically.</div>';
-      return;
-    }
-
-    el.innerHTML=tokens.map(function(t){
-      var link=t.url||('https://dexscreener.com/'+(t.chain||'solana')+'/'+t.mint);
-      var boostsTxt=t.boosts>0?t.boosts+' boosts':'new';
-      return '<a href="'+esc(link)+'" target="_blank" class="token-row">'+
-        '<div class="token-name"><strong>'+esc(t.symbol)+'</strong> '+esc(t.name||t.description||t.mint.substring(0,16)+'...')+'</div>'+
-        '<div class="token-meta">'+
-          '<div class="token-boosts">'+boostsTxt+'</div>'+
-          '<div class="token-chain">'+esc(t.chain||'solana')+'</div>'+
-          (t.market_cap_usd>0?'<div style="font-size:13px">$'+(t.market_cap_usd/1000).toFixed(1)+'K</div>':'')+
-        '</div>'+
-      '</a>';
-    }).join('');
-  }catch(e){el.innerHTML='<div class="empty" style="color:var(--rose)">Error loading tokens</div>';}
+  if(el) el.innerHTML='<div class="empty" style="color:var(--muted);padding:32px;text-align:center">Token sniper is not available in this version of MAXIA. Browse new tokens on <a href="/marketplace" style="color:var(--cyan)">the marketplace</a>.</div>';
 }
-
+function loadTokens(){}
 loadStats();
-loadTokens();
-setInterval(function(){loadStats();loadTokens();},30000);
 </script>
 
 <div class="footer">

@@ -370,10 +370,7 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
                 f"Send USDC to Treasury on Solana first. Treasury: {TREASURY_ADDRESS}")
 
     if lightning_charge_id and not paid_with_credits:
-        try:
-        except Exception as e:
-            logger.error("Lightning verification error: %s", e)
-            raise HTTPException(400, "Lightning payment verification failed")
+        raise HTTPException(400, "Lightning payments not supported in this version of MAXIA.")
 
     payment_verified = True
     payment_info = {}
