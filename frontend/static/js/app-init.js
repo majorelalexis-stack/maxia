@@ -416,31 +416,12 @@ async function updateHomePrices(){
   try{var r=await fetch('/oracle/price/live/SOL?mode=hft');var d=await r.json();var e=document.getElementById('hp-sol');if(e)e.textContent='$'+d.price.toFixed(2);}catch(e){}
   try{var r=await fetch('/oracle/price/live/ETH?mode=hft');var d=await r.json();var e=document.getElementById('hp-eth');if(e)e.textContent='$'+d.price.toFixed(2);}catch(e){}
   try{var r=await fetch('/oracle/price/live/BTC?mode=hft');var d=await r.json();var e=document.getElementById('hp-btc');if(e)e.textContent='$'+d.price.toFixed(0);}catch(e){}
-  try{
-    var r=await fetch('/api/public/stocks');var d=await r.json();
-    var marketOpen = d && d.market_open === true;
-    var marketStatus = d && d.market_status || '';
-    var lastClose = d && d.last_open_iso || '';
-    var closedLabel = marketStatus === 'closed_weekend' ? 'Weekend close' : (marketStatus === 'closed_after_hours' ? 'After-hours' : 'Closed');
-    var tooltip = marketOpen ? 'Live US market' : (closedLabel + (lastClose ? ' • last ' + lastClose.slice(0,10) : ''));
-    (d.stocks||[]).forEach(function(s){
-      var e=document.getElementById('hp-'+s.symbol.toLowerCase());
-      if(e && s.price_usd>0){
-        if(marketOpen){
-          e.innerHTML='$'+s.price_usd.toFixed(2);
-        } else {
-          e.innerHTML='$'+s.price_usd.toFixed(2)+' <span style="font-size:9px;color:#f59e0b;font-weight:700;vertical-align:middle;padding:1px 5px;border-radius:4px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);margin-left:4px" title="'+tooltip+'">CLOSED</span>';
-        }
-        e.title = tooltip;
-      }
-    });
-  }catch(e){}
 }
 updateHomePrices();setInterval(updateHomePrices,5000);
 
 (function(){
   var el=document.getElementById('home-feed');if(!el)return;
-  var msgs=['Platform active — 15 chains, swap on 7','AI chat ready — try the chat button','25 tokenized stocks live','6-source oracle with Pyth + Chainlink','DCA, Grid, Sniper bots — real Jupiter swaps'];
+  var msgs=['AI infrastructure protocol — 15 chains','AI chat ready — try the chat button','AI-to-AI marketplace — 17 native services','6-source oracle with Pyth + Chainlink','GPU compute via Akash — from $0.35/h'];
   var i=0;setInterval(function(){el.textContent=msgs[i%msgs.length];i++;},4000);
   fetch('/api/public/marketplace-stats').then(function(r){return r.json()}).then(function(d){
     if(d.registered_agents>1)msgs.push(d.registered_agents+' agents registered');

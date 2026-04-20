@@ -446,9 +446,9 @@ async function loadYields(asset, btnEl) {
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Loading...</td></tr>';
 
   try {
-    var url = '/api/public/defi/best-yield?asset=' + encodeURIComponent(_yieldAsset) + '&limit=30';
-    if (_yieldType) url += '&type=' + encodeURIComponent(_yieldType);
-    var data = await api(url);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">DeFi yield aggregation is not available in this version of MAXIA.</td></tr>';
+    return;
+    var data = {yields: []};
     var pools = data.yields || data.pools || data.results || [];
     if (!Array.isArray(pools)) pools = [pools];
 
@@ -1070,8 +1070,10 @@ var _selectedStock = null;
 
 async function loadStocks() {
   var tbody = document.getElementById('stocks-tbody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Tokenized stocks are not available in this version of MAXIA.</td></tr>';
+  return;
   try {
-    var data = await api('/api/public/stocks');
+    var data = {stocks: []};
     var stocks = (data && data.stocks) || (Array.isArray(data) ? data : []);
 
     // Update oracle status badge

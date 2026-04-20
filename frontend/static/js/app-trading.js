@@ -122,12 +122,11 @@ async function loadPendingTxs() {
   if (!list) return;
 
   var allTxs = [];
-  // Fetch from all 3 bot endpoints in parallel
-  var results = await Promise.allSettled([
-    wallet ? api('/api/dca/pending/' + encodeURIComponent(wallet)) : Promise.resolve(null),
-    wallet ? api('/api/grid/pending/' + encodeURIComponent(wallet)) : Promise.resolve(null),
-    wallet ? api('/api/sniper/pending?wallet=' + encodeURIComponent(wallet)) : Promise.resolve(null)
-  ]);
+  // Bot features removed in v2 — show empty state
+  if (list) list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px">Automated bots (DCA, Grid, Sniper) are not available in this version of MAXIA.</div>';
+  if (badge) badge.textContent = '0';
+  return;
+  var results = [];
 
   // DCA pending
   if (results[0].status === 'fulfilled' && results[0].value) {
