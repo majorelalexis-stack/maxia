@@ -148,9 +148,7 @@ a{color:var(--cyan);text-decoration:none}
     <a href="/" class="nav-logo">MAXIA<span class="nav-badge">PREVIEW</span></a>
   </div>
   <div class="nav-links">
-    <a href="/app#swap">Swap</a>
     <a href="/buy">Buy Crypto</a>
-    <a href="/app#trading">Trading</a>
     <a href="/marketplace">Marketplace</a>
     <a href="/agents">Agent Economy</a>
     <a href="/pricing">Pricing</a>
@@ -170,8 +168,7 @@ a{color:var(--cyan);text-decoration:none}
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-    <a href="/app#trading" class="sidebar-link">&#128202; Agent Trading</a>
-    <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
+        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -205,8 +202,7 @@ a{color:var(--cyan);text-decoration:none}
     <div class="sidebar-section">AI Services</div>
     <a href="/marketplace" class="sidebar-link">&#128269; Marketplace</a>
     <a href="/app#gpu" class="sidebar-link">&#128421; GPU Cloud</a>
-    <a href="/app#trading" class="sidebar-link">&#128202; Agent Trading</a>
-    <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
+        <a href="https://t.me/MAXIA_AI_bot" class="sidebar-link" target="_blank">&#128241; Telegram Bot</a>
     <div class="sidebar-section">Explore</div>
     <a href="/agents" class="sidebar-link">&#129504; Agent Economy</a>
     <a href="/templates" class="sidebar-link">&#128640; Agent Templates</a>
@@ -320,7 +316,6 @@ a{color:var(--cyan);text-decoration:none}
 
     // Trading
     {group: "Trading (API key)", id: "swap-quote", name: "Swap Quote", method: "GET", path: "/crypto/swap-quote", desc: "Get a live swap quote with fees and slippage.", params: [{key:"from",val:"USDC",placeholder:"From token"},{key:"to",val:"SOL",placeholder:"To token"},{key:"amount",val:"10",placeholder:"Amount"}], auth: true},
-    {group: "Trading (API key)", id: "defi-yield", name: "Best DeFi Yield", method: "GET", path: "/defi/best-yield", desc: "Best yields across 60+ DeFi pools.", params: [{key:"asset",val:"USDC",placeholder:"Asset"},{key:"chain",val:"solana",placeholder:"Chain"}], auth: false},
     {group: "Trading (API key)", id: "wallet-analysis", name: "Wallet Analysis", method: "GET", path: "/wallet-analysis", desc: "Analyze a Solana wallet: holdings, balance, profile.", params: [{key:"address",val:"",placeholder:"Solana wallet address"}], auth: false},
   ];
 
@@ -695,20 +690,12 @@ a{color:var(--cyan);text-decoration:none}
 </script>
 <div class="footer">
   <div class="footer-inner">
-    <div class="footer-col">
-      <h4>Trade</h4>
-      <a href="/app#swap">Swap</a>
-      <a href="/buy">Buy Crypto</a>
-      <a href="/app#stocks">Stocks</a>
-      <a href="/app#trading">Trading</a>
-      <a href="/sniper">Token Sniper</a>
-    </div>
+    <div class="footer-col"><h4>AI Services</h4><a href="/marketplace">Marketplace</a><a href="/app#gpu">GPU Compute</a><a href="/agents">Agent Economy</a><a href="/docs">API Docs</a><a href="/register">Register Agent</a></div>
     <div class="footer-col">
       <h4>Explore</h4>
       <a href="/marketplace">Marketplace</a>
       <a href="/app#gpu">GPU Cloud</a>
-      <a href="/app#yields">DeFi Yields</a>
-      <a href="/store">Integrations</a>
+            <a href="/store">Integrations</a>
       <a href="/docs">API Docs</a>
     </div>
     <div class="footer-col">

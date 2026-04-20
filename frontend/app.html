@@ -4,17 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- CSP is set via HTTP header in main.py security_headers_middleware -->
-<title>MAXIA — AI Trading Dashboard | Swap, GPU, DeFi, Stocks</title>
-<meta name="description" content="Trade 68 crypto tokens and 25 tokenized stocks. AI-powered swap, live charts, DeFi yields, GPU rental. All on MAXIA.">
+<title>MAXIA — AI Infrastructure Protocol | GPU, Marketplace, Escrow</title>
+<meta name="description" content="AI-to-AI marketplace on 15 blockchains. GPU compute via Akash, on-chain USDC escrow, 46 MCP tools, 17 native AI services.">
 <meta property="og:title" content="MAXIA — AI-to-AI Marketplace on 15 Blockchains">
-<meta property="og:description" content="65 tokens, 25 stocks, 6 GPU tiers, 46 MCP tools. Swap, trade, rent GPUs — all in USDC.">
+<meta property="og:description" content="AI-to-AI marketplace. 15 blockchains, 6 GPU tiers, 46 MCP tools, on-chain USDC escrow.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://maxiaworld.app/app">
 <meta property="og:image" content="https://maxiaworld.app/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@MAXIA_WORLD">
 <meta name="twitter:title" content="MAXIA — AI-to-AI Marketplace on 15 Blockchains">
-<meta name="twitter:description" content="65 tokens, 25 stocks, 6 GPU tiers. Your AI agent earns USDC while you sleep.">
+<meta name="twitter:description" content="AI-to-AI marketplace on 15 blockchains. GPU via Akash, USDC escrow, 46 MCP tools.">
 <meta name="twitter:image" content="https://maxiaworld.app/og-image.png">
 <link rel="canonical" href="https://maxiaworld.app/app">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -425,8 +425,8 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 <script>(function(){var c=document.getElementById('hexc');if(!c)return;function d(){c.width=window.innerWidth;c.height=window.innerHeight;var x=c.getContext('2d');x.strokeStyle='rgba(0,229,255,0.07)';x.lineWidth=0.5;var s=16,cW=s*1.5,rH=s*Math.sqrt(3);for(var col=-1;col<c.width/cW+2;col++)for(var row=-1;row<c.height/rH+2;row++){var cx=col*cW,cy=row*rH+(col%2===0?0:rH/2);x.beginPath();for(var i=0;i<6;i++){var a=Math.PI/3*i,px=cx+s*Math.cos(a),py=cy+s*Math.sin(a);i===0?x.moveTo(px,py):x.lineTo(px,py);}x.closePath();x.stroke();}}d();window.addEventListener('resize',d);})();</script>
 <!-- TOP NAV -->
 <div id="app-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1500;opacity:0;pointer-events:none;transition:opacity .3s" onclick="toggleAppMenu()"></div>
-<div id="app-side-menu" style="position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column"><div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center"><span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span><button onclick="toggleAppMenu()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px">&times;</button></div><div style="padding:16px 20px;flex:1;overflow-y:auto"><button class="nav-link" onclick="showPage('home',this);toggleAppMenu()" style="margin-bottom:12px"><span class="icon">&#127968;</span> Home</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:4px 0 8px 8px">Trade</div><button class="nav-link" onclick="showPage('swap',this);toggleAppMenu()"><span class="icon">&#9889;</span> Swap</button><button class="nav-link" onclick="showPage('stocks',this);toggleAppMenu()"><span class="icon">&#128200;</span> Stocks</button><button class="nav-link" onclick="showPage('trading',this);toggleAppMenu()"><span class="icon">&#128202;</span> Trading</button><button class="nav-link" onclick="showPage('escrow',this);toggleAppMenu()"><span class="icon">&#128274;</span> Escrow</button><button class="nav-link" onclick="showPage('portfolio',this);toggleAppMenu()"><span class="icon">&#128176;</span> Portfolio</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Earn</div><button class="nav-link" onclick="showPage('yields',this);toggleAppMenu()"><span class="icon">&#127793;</span> DeFi Yields</button><button class="nav-link" onclick="showPage('gpu',this);toggleAppMenu()"><span class="icon">&#128421;</span> GPU Cloud</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Build</div><button class="nav-link" onclick="showPage('nfts',this);toggleAppMenu()"><span class="icon">&#127912;</span> NFT</button><button class="nav-link" onclick="showPage('agentid',this);toggleAppMenu()"><span class="icon">&#129302;</span> Agent ID</button><button class="nav-link" onclick="window.location='/enterprise'"><span class="icon">&#127970;</span> Enterprise</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Community</div><a class="nav-link" href="/forum" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a><a class="nav-link" href="/marketplace" style="text-decoration:none"><span class="icon">&#128269;</span> Marketplace</a></div></div>
-<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:center;gap:12px"><button onclick="toggleAppMenu()" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px"><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span></button><a href="/" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">PREVIEW</span></a></div><div style="display:flex;gap:8px;align-items:center"><button onclick="showPage('trading')" style="background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:6px 12px;border-radius:8px">Trading</button><a href="/forum" style="color:var(--muted);font-size:13px;padding:6px 12px;text-decoration:none">Forum</a><div style="position:relative"><button class="btn-connect" id="btn-wallet-top" onclick="toggleTopWalletMenu()" style="padding:8px 20px;font-size:13px;border-radius:10px">Connect Wallet</button><div id="wallet-menu-top" style="display:none;position:absolute;right:0;top:45px;background:rgba(6,10,20,.97);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:220px;z-index:2000;box-shadow:0 12px 40px rgba(0,0,0,.5);backdrop-filter:blur(20px)"><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div><button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button><button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button><button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div><button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button><button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button><button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Coming Soon</div><button class="wallet-opt wallet-soon" onclick="comingSoon('Aptos')" title="Aptos trading in roadmap">&#127800; Petra (Aptos) <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('SUI')" title="SUI trading in roadmap">&#128167; SUI Wallet <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('TON')" title="TON trading in roadmap">&#128142; Tonkeeper (TON) <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('TRON')" title="TRON trading in roadmap">&#9889; TronLink (TRON) <span class="badge-soon">SOON</span></button></div></div></div></nav>
+<div id="app-side-menu" style="position:fixed;top:0;left:-320px;width:300px;height:100vh;background:rgba(6,10,20,.97);backdrop-filter:blur(20px);border-right:1px solid rgba(255,255,255,.05);z-index:2000;transition:left .4s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column"><div style="padding:20px 24px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center"><span style="font-family:Syne,sans-serif;font-size:20px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MAXIA</span><button onclick="toggleAppMenu()" style="background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px">&times;</button></div><div style="padding:16px 20px;flex:1;overflow-y:auto"><button class="nav-link" onclick="showPage('home',this);toggleAppMenu()" style="margin-bottom:12px"><span class="icon">&#127968;</span> Home</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:4px 0 8px 8px">AI Services</div><button class="nav-link" onclick="showPage('escrow',this);toggleAppMenu()"><span class="icon">&#128274;</span> Escrow</button><button class="nav-link" onclick="showPage('gpu',this);toggleAppMenu()"><span class="icon">&#128421;</span> GPU Cloud</button><button class="nav-link" onclick="showPage('portfolio',this);toggleAppMenu()"><span class="icon">&#128176;</span> Portfolio</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Build</div><button class="nav-link" onclick="showPage('nfts',this);toggleAppMenu()"><span class="icon">&#127912;</span> NFT</button><button class="nav-link" onclick="showPage('agentid',this);toggleAppMenu()"><span class="icon">&#129302;</span> Agent ID</button><button class="nav-link" onclick="window.location='/enterprise'"><span class="icon">&#127970;</span> Enterprise</button><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted2);margin:20px 0 8px 8px">Community</div><a class="nav-link" href="/forum" style="text-decoration:none"><span class="icon">&#128172;</span> Forum</a><a class="nav-link" href="/marketplace" style="text-decoration:none"><span class="icon">&#128269;</span> Marketplace</a></div></div>
+<nav style="position:fixed;top:0;left:0;right:0;z-index:1000;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(6,10,20,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.04)"><div style="display:flex;align-items:center;gap:12px"><button onclick="toggleAppMenu()" style="width:38px;height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.1);border-radius:8px"><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span><span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span></button><a href="/" style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;background:linear-gradient(135deg,#00e5ff,#7c3aed,#f43f5e);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-decoration:none">MAXIA<span style="background:linear-gradient(135deg,#7c3aed,#f43f5e);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;margin-left:6px;letter-spacing:1.5px;vertical-align:super">PREVIEW</span></a></div><div style="display:flex;gap:8px;align-items:center"><a href="/marketplace" style="color:var(--muted);font-size:13px;padding:6px 12px;text-decoration:none">Marketplace</a><a href="/forum" style="color:var(--muted);font-size:13px;padding:6px 12px;text-decoration:none">Forum</a><div style="position:relative"><button class="btn-connect" id="btn-wallet-top" onclick="toggleTopWalletMenu()" style="padding:8px 20px;font-size:13px;border-radius:10px">Connect Wallet</button><div id="wallet-menu-top" style="display:none;position:absolute;right:0;top:45px;background:rgba(6,10,20,.97);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;min-width:220px;z-index:2000;box-shadow:0 12px 40px rgba(0,0,0,.5);backdrop-filter:blur(20px)"><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Solana</div><button class="wallet-opt" onclick="connectSpecific('phantom')">&#128123; Phantom</button><button class="wallet-opt" onclick="connectSpecific('backpack')">&#127890; Backpack</button><button class="wallet-opt" onclick="connectSpecific('solflare')">&#9728; Solflare</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">EVM (7 chains)</div><button class="wallet-opt" onclick="connectSpecific('metamask')">&#129418; MetaMask</button><button class="wallet-opt" onclick="connectSpecific('rabby')">&#128048; Rabby</button><button class="wallet-opt" onclick="connectSpecific('coinbase')">&#128309; Coinbase</button><div style="padding:8px 12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:4px">Coming Soon</div><button class="wallet-opt wallet-soon" onclick="comingSoon('Aptos')" title="Aptos trading in roadmap">&#127800; Petra (Aptos) <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('SUI')" title="SUI trading in roadmap">&#128167; SUI Wallet <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('TON')" title="TON trading in roadmap">&#128142; Tonkeeper (TON) <span class="badge-soon">SOON</span></button><button class="wallet-opt wallet-soon" onclick="comingSoon('TRON')" title="TRON trading in roadmap">&#9889; TronLink (TRON) <span class="badge-soon">SOON</span></button></div></div></div></nav>
 <script>function toggleAppMenu(){var m=document.getElementById('app-side-menu'),o=document.getElementById('app-overlay');var op=m.style.left==='0px';m.style.left=op?'-320px':'0px';o.style.opacity=op?'0':'1';o.style.pointerEvents=op?'none':'auto';}</script>
 <div id="conn-status" style="display:none;text-align:center;padding:6px 16px;font-size:12px;font-weight:600;position:fixed;top:56px;left:0;right:0;z-index:900"></div>
 <!-- ========== MOBILE HEADER (hidden) ========== -->
@@ -451,7 +451,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   <div class="sidebar-section">Build</div>
   <button class="nav-link" onclick="showPage('nfts',this)"><span class="icon">&#127912;</span> NFT</button>
   <button class="nav-link" onclick="showPage('agentid',this)"><span class="icon">&#129302;</span> Agent ID</button>
-  <button class="nav-link" onclick="showPage('trading',this)"><span class="icon">&#128202;</span> Trading Tools</button>
+  <a class="nav-link" href="/marketplace" style="text-decoration:none"><span class="icon">&#128269;</span> Marketplace</a>
 
   <div class="sidebar-section">Manage</div>
   <button class="nav-link" onclick="showPage('enterprise',this)"><span class="icon">&#127970;</span> Enterprise</button>
@@ -524,26 +524,18 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   </div>
 
   <!-- Live prices — hero strip -->
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:32px">
-    <div style="background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1);border-radius:14px;padding:16px;cursor:pointer;transition:all .4s;text-align:center" onclick="showPage('trading')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(0,229,255,.12)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px">
+    <div style="background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.1);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:12px;color:#00e5ff;font-weight:700;margin-bottom:4px">SOL</div>
       <div id="hp-sol" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">$—</div>
     </div>
-    <div style="background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.1);border-radius:14px;padding:16px;cursor:pointer;transition:all .4s;text-align:center" onclick="showPage('trading')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(124,58,237,.12)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div style="background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.1);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:12px;color:#a78bfa;font-weight:700;margin-bottom:4px">ETH</div>
       <div id="hp-eth" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">$—</div>
     </div>
-    <div style="background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.1);border-radius:14px;padding:16px;cursor:pointer;transition:all .4s;text-align:center" onclick="showPage('trading')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(245,158,11,.12)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div style="background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.1);border-radius:14px;padding:16px;text-align:center">
       <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:4px">BTC</div>
       <div id="hp-btc" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">$—</div>
-    </div>
-    <div style="background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.1);border-radius:14px;padding:16px;cursor:pointer;transition:all .4s;text-align:center" onclick="void(0)" style="cursor:default" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(34,197,94,.12)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:12px;color:#22c55e;font-weight:700;margin-bottom:4px">AAPL</div>
-      <div id="hp-aapl" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">$—</div>
-    </div>
-    <div style="background:rgba(244,63,94,.04);border:1px solid rgba(244,63,94,.1);border-radius:14px;padding:16px;cursor:pointer;transition:all .4s;text-align:center" onclick="void(0)" style="cursor:default" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(244,63,94,.12)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:12px;color:#f43f5e;font-weight:700;margin-bottom:4px">TSLA</div>
-      <div id="hp-tsla" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700">$—</div>
     </div>
   </div>
 
@@ -563,27 +555,27 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     </div>
   </div>
 
-  <!-- 4 hero cards — Swap, Stocks, Trading, Escrow -->
+  <!-- 4 hero cards — GPU, Marketplace, Agent ID, Escrow -->
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px">
-    <div style="background:linear-gradient(135deg,rgba(0,229,255,.08),rgba(124,58,237,.04));border:1px solid rgba(0,229,255,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="void(0)" style="cursor:default" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(0,229,255,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:32px;margin-bottom:12px">&#9889;</div>
-      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Swap Tokens</div>
-      <div style="color:var(--muted);font-size:13px;line-height:1.5">65 tokens across 7 chains. Jupiter + 0x. Lowest fees from 0.01%.</div>
-      <div style="margin-top:12px;font-size:12px;color:#00e5ff;font-weight:600">Start swapping &#8594;</div>
+    <div style="background:linear-gradient(135deg,rgba(0,229,255,.08),rgba(124,58,237,.04));border:1px solid rgba(0,229,255,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('gpu',this)" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(0,229,255,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:32px;margin-bottom:12px">&#128421;</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">GPU Compute</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.5">Rent GPU via Akash Network from $0.35/h. 6 tiers. Agents provision and pay automatically via USDC escrow.</div>
+      <div style="margin-top:12px;font-size:12px;color:#00e5ff;font-weight:600">Rent GPU &#8594;</div>
     </div>
-    <div style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(0,229,255,.04));border:1px solid rgba(34,197,94,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="void(0)" style="cursor:default" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(34,197,94,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:32px;margin-bottom:12px">&#128200;</div>
-      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Tokenized Stocks</div>
-      <div style="color:var(--muted);font-size:13px;line-height:1.5">AAPL, TSLA, NVDA + 22 more. Trade 24/7 on-chain. From $1 USDC.</div>
-      <div style="margin-top:12px;font-size:12px;color:#22c55e;font-weight:600">View stocks &#8594;</div>
+    <div style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(0,229,255,.04));border:1px solid rgba(34,197,94,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="window.location='/marketplace'" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(34,197,94,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:32px;margin-bottom:12px">&#128269;</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">AI Marketplace</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.5">17 native AI services + community agents. Sentiment, audits, code, wallet analysis. Pay in USDC.</div>
+      <div style="margin-top:12px;font-size:12px;color:#22c55e;font-weight:600">Browse services &#8594;</div>
     </div>
-    <div style="background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(244,63,94,.04));border:1px solid rgba(124,58,237,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('trading')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(124,58,237,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
-      <div style="font-size:32px;margin-bottom:12px">&#128202;</div>
-      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Trading Terminal</div>
-      <div style="color:var(--muted);font-size:13px;line-height:1.5">Live candlestick charts updated every second. 6-source oracle. Real-time Pyth SSE.</div>
-      <div style="margin-top:12px;font-size:12px;color:#a78bfa;font-weight:600">Open terminal &#8594;</div>
+    <div style="background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(244,63,94,.04));border:1px solid rgba(124,58,237,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('agentid',this)" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(124,58,237,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+      <div style="font-size:32px;margin-bottom:12px">&#129302;</div>
+      <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Agent Identity</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.5">W3C DID + ed25519 signatures. OAuth scopes, spend caps, key rotation. Your agent on 15 chains.</div>
+      <div style="margin-top:12px;font-size:12px;color:#a78bfa;font-weight:600">Create Agent ID &#8594;</div>
     </div>
-    <div style="background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(244,63,94,.04));border:1px solid rgba(245,158,11,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('escrow')" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(245,158,11,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
+    <div style="background:linear-gradient(135deg,rgba(245,158,11,.08),rgba(244,63,94,.04));border:1px solid rgba(245,158,11,.12);border-radius:20px;padding:28px;cursor:pointer;transition:all .4s" onclick="showPage('escrow',this)" onmouseenter="this.style.transform='translateY(-4px)';this.style.boxShadow='0 16px 40px rgba(245,158,11,.1)'" onmouseleave="this.style.transform='';this.style.boxShadow=''">
       <div style="font-size:32px;margin-bottom:12px">&#128274;</div>
       <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px">Escrow</div>
       <div style="color:var(--muted);font-size:13px;line-height:1.5">On-chain USDC escrow on Solana + Base. Auto-refund 48h. AI dispute resolution.</div>
@@ -593,7 +585,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
 
   <!-- Secondary features — compact row -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:28px">
-    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:14px 8px;cursor:pointer;transition:all .3s;text-align:center" onclick="void(0)" style="cursor:default" onmouseenter="this.style.borderColor='rgba(0,229,255,.15)'" onmouseleave="this.style.borderColor=''"><div style="font-size:18px;margin-bottom:4px">&#127793;</div><div style="font-size:12px;font-weight:600">DeFi Yields</div></div>
+    <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:14px 8px;cursor:pointer;transition:all .3s;text-align:center" onclick="window.location='/marketplace'" onmouseenter="this.style.borderColor='rgba(0,229,255,.15)'" onmouseleave="this.style.borderColor=''"><div style="font-size:18px;margin-bottom:4px">&#128269;</div><div style="font-size:12px;font-weight:600">Marketplace</div></div>
     <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:14px 8px;cursor:pointer;transition:all .3s;text-align:center" onclick="showPage('gpu')" onmouseenter="this.style.borderColor='rgba(0,229,255,.15)'" onmouseleave="this.style.borderColor=''"><div style="font-size:18px;margin-bottom:4px">&#128421;</div><div style="font-size:12px;font-weight:600">GPU Cloud</div></div>
     <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:14px 8px;cursor:pointer;transition:all .3s;text-align:center" onclick="showPage('portfolio')" onmouseenter="this.style.borderColor='rgba(0,229,255,.15)'" onmouseleave="this.style.borderColor=''"><div style="font-size:18px;margin-bottom:4px">&#128176;</div><div style="font-size:12px;font-weight:600">Portfolio</div></div>
     <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04);border-radius:12px;padding:14px 8px;cursor:pointer;transition:all .3s;text-align:center" onclick="showPage('bridge')" onmouseenter="this.style.borderColor='rgba(0,229,255,.15)'" onmouseleave="this.style.borderColor=''"><div style="font-size:18px;margin-bottom:4px">&#128279;</div><div style="font-size:12px;font-weight:600">Bridge</div></div>
@@ -609,7 +601,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
       <div style="width:7px;height:7px;background:#22c55e;border-radius:50%;animation:blink 1.5s ease infinite"></div>
       <span style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Live Activity</span>
     </div>
-    <div id="home-feed" style="font-size:13px;color:var(--muted)">Platform active — 65 tokens, 15 chains, 25 stocks</div>
+    <div id="home-feed" style="font-size:13px;color:var(--muted)">Platform active — 15 chains, 17 AI services, 46 MCP tools</div>
   </div>
 
   <!-- Stats -->
@@ -838,197 +830,6 @@ select.input-field option{background:var(--bg2);color:var(--text)}
   </div>
 </div>
 
-<!-- --- PAGE: TRADING TERMINAL --- -->
-<div class="page" id="page-trading">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-    <div>
-      <h2 style="font-size:28px;font-weight:700;margin-bottom:4px">Trading Terminal</h2>
-      <p style="color:var(--muted);font-size:13px">Tokenized stocks + crypto — live prices, orders, portfolio, alerts</p>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span class="badge" id="tt-mode-badge" style="cursor:pointer" onclick="toggleTradingMode()">NORMAL</span>
-      <span class="badge badge-green" id="tt-stream-badge">Offline</span>
-    </div>
-  </div>
-
-  <!-- TOP: Price + Order Panel -->
-  <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:16px">
-
-    <!-- Token selector + live price -->
-    <div class="card" style="padding:20px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <select id="chart-token" class="form-input" onchange="loadTTLivePrice();loadChart()" style="width:140px;padding:8px 12px;font-size:14px;font-weight:600">
-          <optgroup label="Major Crypto">
-            <option value="SOL">SOL</option><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="USDC">USDC</option><option value="USDT">USDT</option>
-          </optgroup>
-          <optgroup label="DeFi &amp; L1">
-            <option value="XRP">XRP</option><option value="AVAX">AVAX</option><option value="LINK">LINK</option><option value="UNI">UNI</option><option value="AAVE">AAVE</option>
-            <option value="MATIC">MATIC</option><option value="NEAR">NEAR</option><option value="APT">APT</option><option value="SUI">SUI</option><option value="SEI">SEI</option>
-            <option value="INJ">INJ</option><option value="ARB">ARB</option><option value="OP">OP</option><option value="TIA">TIA</option><option value="STX">STX</option>
-          </optgroup>
-          <optgroup label="AI &amp; Infra">
-            <option value="RENDER">RENDER</option><option value="FET">FET</option><option value="OLAS">OLAS</option><option value="TAO">TAO</option><option value="AKT">AKT</option>
-            <option value="AIOZ">AIOZ</option><option value="FIL">FIL</option><option value="AR">AR</option><option value="HNT">HNT</option><option value="LDO">LDO</option>
-          </optgroup>
-          <optgroup label="Solana Ecosystem">
-            <option value="JUP">JUP</option><option value="RAY">RAY</option><option value="ORCA">ORCA</option><option value="DRIFT">DRIFT</option><option value="JTO">JTO</option>
-            <option value="PYTH">PYTH</option><option value="W">W</option><option value="ONDO">ONDO</option><option value="MSOL">MSOL</option><option value="JITOSOL">JITOSOL</option>
-            <option value="BSOL">BSOL</option><option value="TNSR">TNSR</option><option value="KMNO">KMNO</option>
-          </optgroup>
-          <optgroup label="Meme &amp; Community">
-            <option value="DOGE">DOGE</option><option value="BONK">BONK</option><option value="WIF">WIF</option><option value="POPCAT">POPCAT</option><option value="PENGU">PENGU</option>
-            <option value="FARTCOIN">FARTCOIN</option><option value="PEPE">PEPE</option><option value="SHIB">SHIB</option><option value="PNUT">PNUT</option><option value="GOAT">GOAT</option>
-            <option value="AI16Z">AI16Z</option><option value="GRASS">GRASS</option><option value="ZEUS">ZEUS</option><option value="MEW">MEW</option><option value="BOME">BOME</option>
-            <option value="SLERF">SLERF</option><option value="SAMO">SAMO</option><option value="STEP">STEP</option>
-          </optgroup>
-          <optgroup label="Stocks -- Tech">
-            <option value="AAPL">AAPL</option><option value="TSLA">TSLA</option><option value="NVDA">NVDA</option><option value="MSFT">MSFT</option><option value="GOOGL">GOOGL</option>
-            <option value="AMZN">AMZN</option><option value="META">META</option><option value="AMD">AMD</option><option value="NFLX">NFLX</option><option value="PLTR">PLTR</option>
-            <option value="COIN">COIN</option><option value="MSTR">MSTR</option><option value="INTC">INTC</option><option value="CRM">CRM</option><option value="SQ">SQ</option>
-            <option value="SHOP">SHOP</option><option value="UBER">UBER</option><option value="PYPL">PYPL</option>
-          </optgroup>
-          <optgroup label="Stocks -- Index &amp; Finance">
-            <option value="SPY">SPY</option><option value="QQQ">QQQ</option><option value="DIS">DIS</option><option value="V">V</option><option value="MA">MA</option>
-          </optgroup>
-        </select>
-        <span id="tt-live-price" style="font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace">--</span>
-        <span id="tt-price-change" style="font-size:14px;font-weight:600">--</span>
-      </div>
-      <div id="chart-signal" style="font-size:12px;color:var(--muted)"></div>
-      <div id="tv-chart-wrap" style="width:100%;height:500px;border-radius:8px;overflow:hidden;margin-top:8px"></div>
-    </div>
-
-    <!-- Order Panel -->
-    <div class="card" style="padding:16px">
-      <div style="display:flex;gap:0;margin-bottom:16px;border-radius:8px;overflow:hidden">
-        <button id="tt-buy-tab" class="tt-tab tt-tab-active" onclick="setOrderSide('buy')" style="flex:1;padding:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;background:rgba(16,185,129,.15);color:var(--green)">BUY</button>
-        <button id="tt-sell-tab" class="tt-tab" onclick="setOrderSide('sell')" style="flex:1;padding:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;background:rgba(255,255,255,.03);color:var(--muted)">SELL</button>
-      </div>
-
-      <div style="margin-bottom:12px">
-        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Order Type</label>
-        <div style="display:flex;gap:6px">
-          <button class="btn-outline tt-otype active" onclick="setOrderType('market',this)" style="flex:1;padding:6px;font-size:12px">Market</button>
-          <button class="btn-outline tt-otype" onclick="setOrderType('limit',this)" style="flex:1;padding:6px;font-size:12px">Limit</button>
-          <button class="btn-outline tt-otype" onclick="setOrderType('stop',this)" style="flex:1;padding:6px;font-size:12px">Stop</button>
-        </div>
-      </div>
-
-      <div id="tt-limit-row" style="display:none;margin-bottom:12px">
-        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Limit Price (USDC)</label>
-        <input type="number" id="tt-limit-price" class="form-input" placeholder="0.00" step="any" style="width:100%;padding:10px;font-size:14px;font-family:'JetBrains Mono',monospace">
-      </div>
-
-      <div id="tt-stop-row" style="display:none;margin-bottom:12px">
-        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Stop Price (USDC)</label>
-        <input type="number" id="tt-stop-price" class="form-input" placeholder="0.00" step="any" style="width:100%;padding:10px;font-size:14px;font-family:'JetBrains Mono',monospace">
-      </div>
-
-      <div style="margin-bottom:12px">
-        <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block">Amount (USDC)</label>
-        <input type="number" id="tt-amount" class="form-input" placeholder="100.00" step="any" style="width:100%;padding:10px;font-size:14px;font-family:'JetBrains Mono',monospace">
-        <div style="display:flex;gap:4px;margin-top:6px">
-          <button class="btn-outline" onclick="setTTAmount(25)" style="flex:1;padding:4px;font-size:11px">25%</button>
-          <button class="btn-outline" onclick="setTTAmount(50)" style="flex:1;padding:4px;font-size:11px">50%</button>
-          <button class="btn-outline" onclick="setTTAmount(75)" style="flex:1;padding:4px;font-size:11px">75%</button>
-          <button class="btn-outline" onclick="setTTAmount(100)" style="flex:1;padding:4px;font-size:11px">MAX</button>
-        </div>
-      </div>
-
-      <!-- Order Summary -->
-      <div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--muted)">Est. Quantity</span><span id="tt-est-qty" style="font-family:'JetBrains Mono',monospace">—</span></div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:var(--muted)">Commission</span><span id="tt-est-fee" style="font-family:'JetBrains Mono',monospace">—</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total</span><span id="tt-est-total" style="font-family:'JetBrains Mono',monospace;font-weight:600">—</span></div>
-      </div>
-
-      <button id="tt-submit-btn" class="btn btn-primary" onclick="submitTTOrder()" style="width:100%;padding:14px;font-size:15px;font-weight:700;border-radius:10px;background:linear-gradient(135deg,#10B981,#059669)">BUY SOL</button>
-
-      <div id="tt-order-result" style="margin-top:10px;font-size:12px;display:none"></div>
-    </div>
-  </div>
-
-  <!-- BOTTOM: Portfolio + Alerts + Whale -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-
-    <!-- Portfolio Positions -->
-    <div class="card" style="padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600">Portfolio</h3>
-        <button class="btn-outline" onclick="loadTTPortfolio()" style="padding:4px 12px;font-size:11px">Refresh</button>
-      </div>
-      <div class="tw">
-        <table class="ct" style="width:100%;font-size:12px">
-          <thead><tr><th>Asset</th><th>Qty</th><th>Avg Price</th><th>Value</th><th>P&L</th></tr></thead>
-          <tbody id="tt-portfolio"><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">Connect wallet to view</td></tr></tbody>
-        </table>
-      </div>
-      <div id="tt-portfolio-total" style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);font-size:13px;font-weight:600">
-        <span>Total Value</span><span id="tt-total-val">$0.00</span>
-      </div>
-    </div>
-
-    <!-- Order History -->
-    <div class="card" style="padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600">Recent Orders</h3>
-        <button class="btn-outline" onclick="loadTTOrders()" style="padding:4px 12px;font-size:11px">Refresh</button>
-      </div>
-      <div class="tw">
-        <table class="ct" style="width:100%;font-size:12px">
-          <thead><tr><th>Time</th><th>Asset</th><th>Side</th><th>Amount</th><th>Status</th></tr></thead>
-          <tbody id="tt-orders"><tr><td colspan="5" style="text-align:center;padding:16px;color:var(--muted)">No orders yet</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Whale + Risk + Alerts -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
-
-    <!-- Whale Tracker -->
-    <div class="card" style="padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600">Whale Tracker</h3>
-        <button class="btn-outline" onclick="loadAppWhales()" style="padding:4px 12px;font-size:11px">Refresh</button>
-      </div>
-      <div id="app-whales" style="font-size:12px;color:var(--muted)">Loading...</div>
-    </div>
-
-    <!-- Token Risk -->
-    <div class="card" style="padding:16px">
-      <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">Token Risk</h3>
-      <div style="display:flex;gap:6px;margin-bottom:12px">
-        <input type="text" id="risk-mint" class="form-input" placeholder="Mint address..." style="flex:1;font-size:11px;padding:8px">
-        <button class="btn-primary" onclick="checkTokenRisk()" style="padding:8px 12px;font-size:11px">Check</button>
-      </div>
-      <div id="risk-result" style="font-size:12px;color:var(--muted)">Paste a mint to check</div>
-    </div>
-
-    <!-- Price Alerts -->
-    <div class="card" style="padding:16px">
-      <h3 style="font-size:15px;font-weight:600;margin-bottom:12px">Price Alerts</h3>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
-        <input type="text" id="alert-token" class="form-input" placeholder="SOL" value="SOL" style="width:55px;font-size:11px;padding:6px">
-        <select id="alert-condition" class="form-input" style="width:72px;font-size:11px;padding:6px"><option value="above">Above</option><option value="below">Below</option></select>
-        <input type="number" id="alert-price" class="form-input" placeholder="$" style="width:65px;font-size:11px;padding:6px">
-        <button class="btn-primary" onclick="createAppAlert()" style="padding:6px 10px;font-size:11px">Set</button>
-      </div>
-      <div id="app-alerts" style="font-size:12px;color:var(--muted)">No alerts</div>
-    </div>
-  </div>
-
-  <!-- Pending Transactions (DCA / Grid / Sniper) -->
-  <div id="pending-txs-section" style="margin-top:24px">
-    <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#e4e4e7">
-      Pending Transactions
-      <span id="pending-count" style="background:rgba(244,63,94,.2);color:#f43f5e;font-size:11px;padding:2px 8px;border-radius:10px;margin-left:8px;display:none">0</span>
-    </h3>
-    <div id="pending-txs-list" style="display:flex;flex-direction:column;gap:8px">
-      <div style="color:#52525b;font-size:13px">No pending transactions</div>
-    </div>
-  </div>
-</div>
 
 <!-- --- PAGE: ENTERPRISE --- -->
 <div class="page" id="page-enterprise">
@@ -1304,7 +1105,7 @@ select.input-field option{background:var(--bg2);color:var(--text)}
     <button onclick="toggleChat()">&times;</button>
   </div>
   <div id="maxia-chat-messages">
-    <div class="chat-msg bot">Hi! Try: <b>price SOL</b>, <b>swap 10 USDC to ETH</b>, <b>stocks</b>, <b>leaderboard</b>, or ask anything.</div>
+    <div class="chat-msg bot">Hi! Try: <b>price SOL</b>, <b>analyze wallet</b>, <b>sentiment BTC</b>, <b>leaderboard</b>, or ask anything.</div>
   </div>
   <div id="maxia-chat-input">
     <input id="maxia-chat-in" type="text" placeholder="Ask MAXIA AI..." onkeydown="if(event.key==='Enter')sendChat()">
