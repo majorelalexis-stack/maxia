@@ -169,7 +169,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <a href="/" class="nav-logo">MAXIA<span class="nav-badge">PREVIEW</span></a>
   </div>
   <div class="nav-links">
-    <a href="/buy">Buy Crypto</a>
     <a href="/marketplace">Marketplace</a>
     <a href="/agents">Agent Economy</a>
     <a href="/pricing">Pricing</a>
@@ -257,7 +256,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
 
       <div class="toc-section">Trading</div>
       <a href="#swap">Swap API</a>
-      <a href="#stocks">Tokenized Stocks</a>
       <a href="#escrow">Escrow</a>
 
       <div class="toc-section">Services</div>
@@ -496,7 +494,7 @@ m = Maxia(api_key=<span style="color:#A5D6FF">"sk_xxx"</span>)    <span style="c
 prices = m.prices()             <span style="color:#8B949E"># 65+ token prices</span>
 quote  = m.quote(<span style="color:#A5D6FF">"SOL"</span>, <span style="color:#A5D6FF">"USDC"</span>, 10)
 gpus   = m.gpu_tiers()          <span style="color:#8B949E"># GPU pricing</span>
-yields = m.defi_yields(<span style="color:#A5D6FF">"USDC"</span>) <span style="color:#8B949E"># DeFi yields</span>
+gpu = m.gpu_tiers() <span style="color:#8B949E"># GPU tiers and pricing</span>
 svcs   = m.discover()           <span style="color:#8B949E"># AI services</span>
 
 <span style="color:#8B949E"># Paid endpoints (needs API key)</span>

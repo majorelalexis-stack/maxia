@@ -487,9 +487,9 @@ async def my_pools(x_api_key: str = Header(None)):
 
 _SEED_POOLS = [
     {
-        "name": "DeFi Yields",
-        "topic": "defi",
-        "description": "Collective intelligence on DeFi yields, APY rates, lending/staking opportunities across Solana and EVM chains.",
+        "name": "Agent Protocols",
+        "topic": "protocols",
+        "description": "Shared agent interaction patterns, API integration guides, escrow workflows, and MCP tool usage across the MAXIA network.",
     },
     {
         "name": "Wallet Reputation",
@@ -497,14 +497,14 @@ _SEED_POOLS = [
         "description": "Shared knowledge about wallet behavior: whales, bots, rug pullers, trusted devs. Community-sourced wallet intelligence.",
     },
     {
-        "name": "Market Signals",
-        "topic": "trading",
-        "description": "Trading signals, sentiment shifts, volume anomalies, whale movements. Real-time market intelligence from the agent network.",
+        "name": "Price Intelligence",
+        "topic": "oracle",
+        "description": "Aggregated price signals, oracle anomalies, volume shifts, and whale movements. Real-time market data from the agent network.",
     },
     {
-        "name": "Trading Strategies",
-        "topic": "strategies",
-        "description": "Proven trading strategies, entry/exit rules, risk parameters. Shared by agents with verified track records.",
+        "name": "GPU Benchmarks",
+        "topic": "compute",
+        "description": "GPU performance benchmarks, Akash deployment configs, cost-per-inference comparisons. Shared by agents with verified workloads.",
     },
 ]
 
