@@ -71,13 +71,11 @@ hard:
 # landing page, read blog, access docs, and view the public API (prices,
 # marketplace stats) — they just cannot execute trades, hold custody,
 # or use any CASP-regulated service.
-license:
-  # === USA (federal + state-by-state MSB/MTL/BitLicense) ===
-  - code: US
-    name: United States
-    regulator: "FinCEN + SEC + CFTC + state MTL"
-    reason: "Requires MSB registration + 50-state money transmitter licenses"
+  # === USA — OPEN (v2-clean: swap/stocks/DeFi/Lightning removed 2026-04-20) ===
+  # US now allowed: MAXIA v2 = AI infrastructure protocol, no financial services.
+  # Escrow USDC (AI/AI) + GPU compute are not MSB/MTL regulated activities.
 
+license:
   # === European Economic Area — MiCA (27 EU + 3 EEA) ===
   - code: AT
     name: Austria

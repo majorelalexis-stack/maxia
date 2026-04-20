@@ -255,7 +255,7 @@ def _load_legacy_fallback() -> None:
     }
     legacy_geo_blocked = {"IN"}
     legacy_blocked = {
-        "CN", "KP", "IR", "SY", "CU", "MM", "AF", "RU", "BY", "US",
+        "CN", "KP", "IR", "SY", "CU", "MM", "AF", "RU", "BY",
     }
 
     idx: dict[str, CountryEntry] = {}

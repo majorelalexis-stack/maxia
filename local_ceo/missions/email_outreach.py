@@ -62,55 +62,24 @@ async def _generate_cold_email(
 ) -> Optional[dict]:
     """Generate a personalized cold email using the Writer agent.
 
-    When ``country`` is in a license/caution tier (US, EU, UK, JP, ...),
-    the prompt is swapped for a US_SAFE variant and the LLM output is
-    post-filtered to strip any residual forbidden language.
+    ``country`` kept for signature compat but unused in v2 — US fully open.
 
     Returns dict with 'subject' and 'body', or None on failure.
     """
-    us_safe = False
-    extra_rules = ""
-    try:
-        import sys as _sys
-        _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if _parent not in _sys.path:
-            _sys.path.insert(0, _parent)
-        from us_safe_content import is_us_safe_required, us_safe_prompt_rules
-        us_safe = is_us_safe_required(country_code=country)
-        if us_safe:
-            extra_rules = us_safe_prompt_rules()
-    except Exception as _e:
-        log.debug("[OUTREACH] us_safe_content unavailable: %s", _e)
-
-    if us_safe:
-        prompt = (
-            f"Write a SHORT cold email to {name} about MAXIA.\n\n"
-            f"Context about them: {context[:500]}\n\n"
-            f"{extra_rules}\n"
-            f"- Subject line: max 8 words, personalized to their project\n"
-            f"- Body: max 150 words. Frame MAXIA as a developer infrastructure "
-            f"platform: AI-to-AI service marketplace on 15 blockchains, MCP "
-            f"tools, GPU rental via Akash, 17 native AI services, free tier "
-            f"API (100 req/day), enterprise SSO. NO crypto trading language.\n"
-            f"- CTA: visit maxiaworld.app or reply to discuss MCP / GPU integration\n"
-            f"- Professional, not salesy, developer-friendly tone\n"
-            f"- Sign as 'MAXIA Team'\n\n"
-            f"Format: first line = subject (no prefix), rest = body."
-        )
-    else:
-        prompt = (
-            f"Write a SHORT cold email to {name} about MAXIA.\n\n"
-            f"Context about them: {context[:500]}\n\n"
-            f"Rules:\n"
-            f"- Subject line: max 8 words, personalized to their project\n"
-            f"- Body: max 150 words, explain what MAXIA can do for THEM specifically\n"
-            f"- MAXIA: AI-to-AI marketplace on 15 blockchains, USDC payments, "
-            f"65 tokens swap, GPU rental, 46 MCP tools, on-chain escrow\n"
-            f"- Include a clear CTA (visit maxiaworld.app, reply to discuss, etc.)\n"
-            f"- Professional, not salesy, developer-friendly tone\n"
-            f"- Sign as 'MAXIA Team'\n\n"
-            f"Format: first line = subject (no prefix), rest = body."
-        )
+    prompt = (
+        f"Write a SHORT cold email to {name} about MAXIA.\n\n"
+        f"Context about them: {context[:500]}\n\n"
+        f"Rules:\n"
+        f"- Subject line: max 8 words, personalized to their project\n"
+        f"- Body: max 150 words. MAXIA = AI infrastructure protocol: "
+        f"AI-to-AI service marketplace on 15 blockchains, on-chain USDC "
+        f"escrow, GPU rental via Akash, 46 MCP tools, 17 native AI services, "
+        f"free-tier API (100 req/day), enterprise SSO.\n"
+        f"- CTA: visit maxiaworld.app or reply to discuss MCP / GPU integration\n"
+        f"- Professional, not salesy, developer-friendly tone\n"
+        f"- Sign as 'MAXIA Team'\n\n"
+        f"Format: first line = subject (no prefix), rest = body."
+    )
 
     response = await ask(WRITER, prompt, knowledge=MAXIA_KNOWLEDGE[:1500])
     if not response or len(response) < 30:
@@ -121,36 +90,10 @@ async def _generate_cold_email(
     subject = lines[0].replace("Subject:", "").replace("subject:", "").strip().strip('"')
     body = lines[1].strip() if len(lines) > 1 else response
 
-    # Sanity check: subject should be short, body should exist
     if len(subject) > 120:
         subject = subject[:117] + "..."
     if len(body) < 20:
         return None
-
-    # US_SAFE post-filter — last-resort safety net before send
-    if us_safe:
-        try:
-            from us_safe_content import scrub_us_forbidden, validate_us_safe
-            body, body_hits = scrub_us_forbidden(body)
-            subject, subj_hits = scrub_us_forbidden(subject)
-            if body_hits + subj_hits > 0:
-                log.info(
-                    "[OUTREACH] US_SAFE scrubbed %d sentence(s) for %s",
-                    body_hits + subj_hits, name,
-                )
-            check = validate_us_safe(body + "\n" + subject)
-            if not check["ok"]:
-                log.warning(
-                    "[OUTREACH] US_SAFE post-validation FAILED for %s — "
-                    "violations=%s — dropping email",
-                    name, check["matches"],
-                )
-                return None
-            if not subject or len(body) < 20:
-                log.warning("[OUTREACH] US_SAFE scrub emptied email for %s — dropping", name)
-                return None
-        except Exception as _e:
-            log.debug("[OUTREACH] US_SAFE scrub failed: %s — sending anyway", _e)
 
     return {"subject": subject, "body": body}
 

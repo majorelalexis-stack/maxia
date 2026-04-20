@@ -273,98 +273,12 @@ async def _handle_price(intent: ParsedIntent) -> dict:
 
 
 async def _handle_swap(intent: ParsedIntent) -> dict:
-    """Get a swap quote (MAXIA commission + Jupiter pricing). Frontend builds the real tx."""
-    try:
-        from trading.crypto_swap import SUPPORTED_TOKENS, get_swap_quote
-        from blockchain.jupiter_router import get_quote as jup_get_quote
-
-        from_token = intent.from_token or ""
-        to_token = intent.to_token or ""
-        amount = intent.amount or 0
-
-        if from_token not in SUPPORTED_TOKENS:
-            supported = ", ".join(sorted(SUPPORTED_TOKENS.keys()))
-            return {
-                "response": f"Unknown token: {from_token}. Supported: {supported}",
-                "type": "error",
-                "data": None,
-            }
-        if to_token not in SUPPORTED_TOKENS:
-            supported = ", ".join(sorted(SUPPORTED_TOKENS.keys()))
-            return {
-                "response": f"Unknown token: {to_token}. Supported: {supported}",
-                "type": "error",
-                "data": None,
-            }
-        if amount <= 0:
-            return {
-                "response": "Amount must be positive.",
-                "type": "error",
-                "data": None,
-            }
-
-        # 1. Get MAXIA quote (with commission info)
-        quote = await get_swap_quote(from_token, to_token, amount)
-
-        if "error" in quote:
-            return {"response": quote["error"], "type": "error", "data": None}
-
-        out_amount = quote.get("output_amount", 0)
-        rate = quote.get("rate", 0)
-        commission = quote.get("commission_pct", 0)
-
-        # 2. Get Jupiter quote for real pricing (outAmount, priceImpact)
-        from_mint = SUPPORTED_TOKENS[from_token]["mint"]
-        to_mint = SUPPORTED_TOKENS[to_token]["mint"]
-        decimals = SUPPORTED_TOKENS[from_token].get("decimals", 6)
-        amount_raw = int(amount * (10 ** decimals))
-
-        jup_quote = await jup_get_quote(from_mint, to_mint, amount_raw)
-
-        result_data = dict(quote)
-        result_data["requires_wallet"] = True
-
-        # ONE-52: build unsigned TX if we have a Jupiter quote + user wallet
-        unsigned_tx = None
-        if jup_quote.get("success") and jup_quote.get("raw_quote"):
-            result_data["jupiter_quote"] = jup_quote["raw_quote"]
-            # Try to build the actual unsigned transaction for wallet signing
-            if intent.wallet:
-                try:
-                    from blockchain.jupiter_router import execute_swap as jup_build_tx
-                    tx_result = await jup_build_tx(jup_quote["raw_quote"], intent.wallet)
-                    if tx_result.get("success") and tx_result.get("swapTransaction"):
-                        unsigned_tx = tx_result["swapTransaction"]
-                        result_data["unsigned_tx"] = unsigned_tx
-                        result_data["last_valid_block_height"] = tx_result.get("lastValidBlockHeight", 0)
-                except Exception as e:
-                    logger.warning("[Chat] Failed to build swap TX: %s", e)
-
-        if unsigned_tx:
-            response_text = (
-                f"Swap ready: {amount} {from_token} -> {out_amount:.6f} {to_token}\n"
-                f"Rate: 1 {from_token} = {rate:.6f} {to_token}\n"
-                f"Commission: {commission}\n\n"
-                f"Transaction built — sign with your wallet to execute."
-            )
-            result_data["tx_ready"] = True
-        else:
-            response_text = (
-                f"Swap quote: {amount} {from_token} -> {out_amount:.6f} {to_token}\n"
-                f"Rate: 1 {from_token} = {rate:.6f} {to_token}\n"
-                f"Commission: {commission}\n\n"
-                f"Connect your wallet to execute this swap."
-            )
-            result_data["tx_ready"] = False
-
-        return {
-            "response": response_text,
-            "type": "swap_quote",
-            "data": result_data,
-        }
-    except Exception as exc:
-        err = safe_error(exc, "chat_swap")
-        return {"response": "Failed to get swap quote. Try again later.", "type": "error", "data": err}
+    """Swap feature removed in v2 (regulatory compliance)."""
+    return {
+        "response": "Token swap is not available in this version of MAXIA.",
+        "type": "error",
+        "data": None,
+    }
 
 
 async def _handle_swap_help() -> dict:
@@ -515,39 +429,12 @@ async def _handle_gpu() -> dict:
 
 
 async def _handle_yield() -> dict:
-    """Top DeFi yields for USDC."""
-    try:
-        from trading.yield_aggregator import _fetch_all_yields
-
-        all_yields = await _fetch_all_yields()
-
-        if not all_yields:
-            return {"response": "No yield data available.", "type": "error", "data": None}
-
-        # Filter USDC yields and sort by APY
-        usdc_yields = [y for y in all_yields if y.get("asset", "").upper() == "USDC"]
-        usdc_yields.sort(key=lambda y: y.get("apy", 0), reverse=True)
-        top_5 = usdc_yields[:5]
-
-        if not top_5:
-            return {"response": "No USDC yields found.", "type": "yield", "data": []}
-
-        lines = ["Top USDC yields:"]
-        for y in top_5:
-            protocol = y.get("protocol", "?")
-            chain = y.get("chain", "?")
-            apy = y.get("apy", 0)
-            tvl = y.get("tvl", 0)
-            lines.append(f"  {protocol} ({chain}): {apy:.2f}% APY — TVL ${tvl:,.0f}")
-
-        return {
-            "response": "\n".join(lines),
-            "type": "yield",
-            "data": top_5,
-        }
-    except Exception as exc:
-        err = safe_error(exc, "chat_yield")
-        return {"response": "Failed to fetch DeFi yields.", "type": "error", "data": err}
+    """DeFi yield aggregator removed in v2 (regulatory compliance)."""
+    return {
+        "response": "DeFi yield aggregation is not available in this version of MAXIA.",
+        "type": "error",
+        "data": None,
+    }
 
 
 async def _handle_alert(intent: ParsedIntent) -> dict:

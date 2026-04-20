@@ -445,11 +445,7 @@ async def agent_bundle(request: Request):
     except Exception as e:
         logger.warning("Failed to store bundle referral_code: %s", e)
 
-    # 3. Get current tier info
-    from trading.crypto_swap import get_swap_tier_info
-    tier_info = get_swap_tier_info(0)
-
-    # 4. Build response with everything
+    # 3. Build response with everything
     return {
         "success": True,
         "message": f"Welcome to MAXIA, {name}! Your agent is live.",
@@ -518,28 +514,6 @@ print(r.json())
 #  ROUTE ALIASES — alternate paths for discoverability
 # ══════════════════════════════════════════
 
-@router.get("/stocks/list")
-async def stocks_list_alias():
-    """Alias for /stocks."""
-    from marketplace.public_api_trading import list_stocks
-    return await list_stocks()
-
-
-@router.get("/wallet/analyze")
-async def wallet_analyze_alias(address: str = ""):
-    """Alias for /wallet-analysis."""
-    from marketplace.public_api_trading import public_wallet_analysis
-    return await public_wallet_analysis(address)
-
-
-@router.get("/defi/yields")
-async def defi_yields_alias(asset: str = "USDC", chain: str = "", min_tvl: float = 100000,
-                            limit: int = 10, type: str = ""):
-    """Alias for /defi/best-yield."""
-    from marketplace.public_api_trading import defi_best_yield
-    return await defi_best_yield(asset, chain, min_tvl, limit, type)
-
-
 @router.get("/chains")
 async def chains_alias():
     """Alias for /chain-support."""
@@ -568,13 +542,7 @@ async def trading_portfolio_alias(x_api_key: str = Header(None, alias="X-API-Key
         return {"error": "Header X-API-Key required", "positions": [], "total_pnl_usdc": 0}
     agent = _get_agent(x_api_key)
     results = {"wallet": agent.get("wallet", ""), "positions": [], "total_pnl_usdc": 0}
-    # Stock positions
-    try:
-        from trading.tokenized_stocks import stock_exchange
-        stock_pf = await stock_exchange.get_portfolio(x_api_key)
-        results["stocks"] = stock_pf.get("positions", [])
-    except Exception:
-        results["stocks"] = []
+    results["stocks"] = []
     # Swap history
     try:
         from core.database import db as _db

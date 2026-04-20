@@ -40,13 +40,9 @@ async def geofence_status(request: Request) -> JSONResponse:
     require_admin(request)
     try:
         from compliance.country_filter import stats as filter_stats
-        from core.geo_blocking import GEOFENCE_ENABLED, _GEOIP_DB_PATH
 
         data = {
-            "enabled": bool(GEOFENCE_ENABLED),
-            "kill_switch_env": "GEOFENCE_ENABLED (default=1)",
-            "maxmind_db_path": str(_GEOIP_DB_PATH),
-            "maxmind_db_present": _GEOIP_DB_PATH.exists(),
+            "geo_blocking": "disabled (v2-clean — stocks/swap removed)",
             "country_filter": filter_stats(),
         }
         return JSONResponse({"ok": True, **data})

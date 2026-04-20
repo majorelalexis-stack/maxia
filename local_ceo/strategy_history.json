@@ -1,0 +1,20 @@
+[
+  {
+    "week": 15,
+    "year": 2026,
+    "date": "12/04/2026 20:00",
+    "score": 24,
+    "actuals": {
+      "signups": 0,
+      "email_replies": 0,
+      "tweet_impressions": 10,
+      "services_listed": 0,
+      "health_uptime_pct": 99.7,
+      "tweets_posted": 1,
+      "total_agents": 20,
+      "health_alerts": 1
+    },
+    "key_insight": "**1",
+    "pivot_mode": false
+  }
+]

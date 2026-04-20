@@ -84,3 +84,7 @@ local_ceo/skill_scout_state.json
 # MaxMind GeoLite2 — license forbids redistribution
 backend/core/data/*.mmdb
 backend/.geofence.db
+
+# graphifyy — knowledge graph artifacts (AST + cache, rebuildable)
+graphify-out/
+backend/graphify-out/

@@ -13,7 +13,6 @@ MODULES :
   public_api_shared.py    -- Shared state + helpers
   public_api_sandbox.py   -- Sandbox + Dispute routes
   public_api_discover.py  -- Discover + Execute routes
-  public_api_trading.py   -- DeFi, GPU, Stocks, Crypto/Swap routes
   public_api_tools.py     -- Scrape, Image, Wallet-monitor, Referral, Compliance, Aliases
 """
 import logging
@@ -47,12 +46,10 @@ router = APIRouter(prefix="/api/public", tags=["public-api"])
 # ══════════════════════════════════════════
 from marketplace.public_api_sandbox import router as _sandbox_router  # noqa: E402
 from marketplace.public_api_discover import router as _discover_router  # noqa: E402
-from marketplace.public_api_trading import router as _trading_router  # noqa: E402
 from marketplace.public_api_tools import router as _tools_router  # noqa: E402
 
 router.include_router(_sandbox_router)
 router.include_router(_discover_router)
-router.include_router(_trading_router)
 router.include_router(_tools_router)
 
 
@@ -110,20 +107,10 @@ async def get_prices():
     """Tous les prix MAXIA en temps reel — GPU, services, commissions. Mis a jour live."""
     import time as _t
     from core.config import GPU_TIERS, SERVICE_PRICES, COMMISSION_TIERS
-    try:
-        from trading.crypto_swap import SWAP_COMMISSION_TIERS
-    except ImportError:
-        SWAP_COMMISSION_TIERS = {}
-    try:
-        from trading.tokenized_stocks import STOCK_COMMISSION_TIERS
-    except (ImportError, AttributeError):
-        STOCK_COMMISSION_TIERS = {}
     return {
         "gpu_tiers": GPU_TIERS,
         "service_prices": SERVICE_PRICES,
         "marketplace_commission_tiers": COMMISSION_TIERS,
-        "swap_commission_tiers": SWAP_COMMISSION_TIERS,
-        "stock_commission_tiers": STOCK_COMMISSION_TIERS,
         "currency": "USDC",
         "updated_at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()),
     }

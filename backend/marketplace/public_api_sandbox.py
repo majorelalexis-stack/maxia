@@ -221,14 +221,8 @@ async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key
     cost_usdc = round(amount * from_price, 4)
     output = round(amount * from_price / to_price, 6)
 
-    # Real swap commission tiers (based on 30-day volume if wallet available)
-    try:
-        from trading.crypto_swap import get_swap_commission_bps, get_swap_tier_name
-        swap_bps = get_swap_commission_bps(cost_usdc)
-        swap_tier = get_swap_tier_name(cost_usdc)
-    except Exception:
-        swap_bps = 10  # 0.10% Bronze default
-        swap_tier = "BRONZE"
+    swap_bps = 10  # 0.10% Bronze
+    swap_tier = "BRONZE"
     fee = round(cost_usdc * swap_bps / 10000, 4)
 
     async with _get_sandbox_lock(x_api_key):
@@ -258,75 +252,6 @@ async def sandbox_swap(req: dict, x_api_key: str = Header(None, alias="X-API-Key
         "rate": f"1 {from_token} = ${from_price:,.2f}",
         "from_price_usd": from_price, "to_price_usd": to_price,
         "balance_after": round(_sandbox_balances[x_api_key], 4),
-    }
-
-
-@router.post("/sandbox/buy-stock")
-async def sandbox_buy_stock(req: dict, x_api_key: str = Header(None, alias="X-API-Key")):
-    """Test stock purchase — live prices, real stock commission tiers."""
-    if not x_api_key:
-        raise HTTPException(401, "X-API-Key required")
-    await _load_from_db()
-    agent = _get_agent(x_api_key)
-
-    symbol = str(req.get("symbol", "")).upper()[:20]
-    amount_usdc = _safe_float(req.get("amount_usdc", 0), "amount_usdc")
-    if amount_usdc <= 0:
-        raise HTTPException(400, "amount_usdc must be > 0")
-    if not symbol:
-        raise HTTPException(400, "symbol required (e.g. AAPL, TSLA)")
-
-    balance = _get_sandbox_balance(x_api_key)
-
-    # Live stock prices from Yahoo Finance via price_oracle
-    try:
-        from trading.tokenized_stocks import stock_exchange, TOKENIZED_STOCKS, get_stock_commission_bps, get_stock_tier_name
-        if symbol not in TOKENIZED_STOCKS:
-            raise HTTPException(400, f"Stock '{symbol}' not available. Available: {', '.join(sorted(TOKENIZED_STOCKS.keys()))}")
-        price_data = await stock_exchange.get_price(symbol)
-        if isinstance(price_data, dict):
-            price = price_data.get("price_usd", 0) or price_data.get("price", 0)
-        else:
-            price = float(price_data or 0)
-        if not price:
-            price = TOKENIZED_STOCKS[symbol].get("fallback_price", 100)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Stock price error for %s: %s", symbol, e)
-        price = 100  # last resort fallback
-
-    shares = round(amount_usdc / price, 6)
-
-    # Real stock commission tiers (based on transaction amount)
-    try:
-        stock_bps = get_stock_commission_bps(amount_usdc)
-        stock_tier = get_stock_tier_name(amount_usdc)
-    except Exception:
-        stock_bps = 50  # 0.5% Bronze default
-        stock_tier = "BRONZE"
-    fee = round(amount_usdc * stock_bps / 10000, 4)
-
-    async with _get_sandbox_lock(x_api_key):
-        balance = _get_sandbox_balance(x_api_key)
-        if balance < amount_usdc:
-            return {
-                "sandbox": True, "tx_id": None,
-                "message": f"Insufficient balance: ${balance:,.2f} < ${amount_usdc:,.2f}. Reset your sandbox.",
-                "balance_usdc": balance, "cost_usdc": amount_usdc,
-            }
-
-        _sandbox_balances[x_api_key] = balance - amount_usdc
-    if x_api_key not in _sandbox_portfolios:
-        _sandbox_portfolios[x_api_key] = {}
-    _sandbox_portfolios[x_api_key][symbol] = _sandbox_portfolios[x_api_key].get(symbol, 0) + shares
-
-    return {
-        "sandbox": True, "symbol": symbol, "shares": shares,
-        "price_per_share": price, "total_usdc": amount_usdc,
-        "fee_usdc": fee, "tier": stock_tier, "commission_pct": f"{stock_bps/100}%",
-        "balance_after": round(_sandbox_balances[x_api_key], 4),
-        "portfolio": _sandbox_portfolios[x_api_key],
     }
 
 
