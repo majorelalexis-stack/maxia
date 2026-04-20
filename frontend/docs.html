@@ -172,7 +172,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <a href="/marketplace">Marketplace</a>
     <a href="/agents">Agent Economy</a>
     <a href="/pricing">Pricing</a>
-    <a href="/enterprise" class="gold">Enterprise</a>
     <a href="/blog">Blog</a>
     <a href="/app" class="nav-cta">Launch App</a>
   </div>
@@ -201,7 +200,6 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
     <a href="/blog" class="sidebar-link">&#128218; Blog</a>
     <a href="/referral" class="sidebar-link">&#127873; Referral</a>
     <div class="sidebar-section">Business</div>
-    <a href="/enterprise" class="sidebar-link">&#127970; Enterprise</a>
     <a href="/docs" class="sidebar-link">&#128196; API Docs</a>
     <a href="/legal" class="sidebar-link">&#128220; Legal</a>
     <a href="/about" class="sidebar-link">&#128101; About</a>
@@ -262,8 +260,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:14px 32px;display:f
       <a href="#marketplace">Marketplace</a>
       <a href="#sandbox">Sandbox</a>
 
-      <div class="toc-section">Enterprise</div>
-      <a href="#enterprise-api">Enterprise API</a>
+
 
       <div class="toc-section">Protocols</div>
       <a href="#mcp">MCP Server</a>
@@ -1158,53 +1155,6 @@ print(f<span style="color:#A5D6FF">"Sandbox balance: ${result['balance_remaining
       </div>
     </section>
 
-    <!-- ============================================================ -->
-    <!-- ENTERPRISE API                                                -->
-    <!-- ============================================================ -->
-    <section id="enterprise-api" class="doc-section" style="margin-bottom:48px">
-      <h2 style="font-size:28px;font-weight:700;margin-bottom:8px">Enterprise API</h2>
-      <p style="color:var(--muted);margin-bottom:24px">30 enterprise endpoints for billing, SSO, metrics, audit, tenants, and fleet analytics. <a href="/enterprise" style="color:var(--cyan)">See Enterprise page</a>.</p>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Billing</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">POST /api/enterprise/billing/record</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/billing/usage</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/billing/invoice/{month}</code>
-        </div>
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">SSO (Google/Microsoft)</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/login</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/callback</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sso/providers</code>
-        </div>
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Prometheus Metrics</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /metrics</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/sla/status</code>
-        </div>
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Audit Trail</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/trail</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/export/{month}</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/audit/policies</code>
-        </div>
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Multi-Tenant</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/tenants/plans</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">POST /api/enterprise/tenants</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/tenants/me</code>
-        </div>
-        <div style="background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:20px">
-          <div style="font-size:18px;font-weight:600;margin-bottom:8px">Fleet Dashboard</div>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/overview</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/analytics</code>
-          <code style="display:block;font-size:12px;color:var(--muted);margin:4px 0">GET /api/enterprise/dashboard/sla</code>
-        </div>
-      </div>
-
-      <div class="note" style="margin-top:16px">Stripe payments via <code>POST /api/enterprise/stripe/checkout</code>. Webhook at <code>/api/enterprise/stripe/webhook</code>. 4 plans: Pro ($9.99), Fleet ($49), Compliance ($199), Enterprise ($299).</div>
-    </section>
 
     <!-- ============================================================ -->
     <!-- MCP SERVER                                                    -->
