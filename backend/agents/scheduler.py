@@ -205,7 +205,44 @@ class Scheduler:
                         if "No module" not in str(e):
                             logger.error("[Newsletter] Digest error: %s", e)
 
+                # Toutes les semaines (2016 cycles) : Hub Scout (Agentverse + ElizaOS + GitHub)
+                if _cycle % 2016 == 0:
+                    try:
+                        import httpx
+                        from hub.hub_scout import HubScout
+                        from core.database import db as _db
+                        async with httpx.AsyncClient() as _client:
+                            stats = await HubScout().run(_db, _client)
+                        logger.info("[HubScout] Scan hebdo: %d trouves, %d nouveaux",
+                                    stats.get("agents_found", 0), stats.get("agents_new", 0))
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[HubScout] Weekly scan error: %s", e)
+
                 # CEO auto-blog — REMOVED (Plan CEO V4)
+
+                # Toutes les 24h (288 cycles) : Hub R1 boost batch (tous les agents)
+                if _cycle % 288 == 0:
+                    try:
+                        import httpx
+                        from hub.hub_r1 import apply_r1_boost
+                        from core.database import db as _db
+                        rows = await _db.raw_execute_fetchall(
+                            "SELECT hub_id FROM hub_agents WHERE status='active'"
+                        )
+                        hub_ids = [r["hub_id"] for r in rows] if rows else []
+                        ok = 0
+                        async with httpx.AsyncClient() as _client:
+                            for hub_id in hub_ids:
+                                try:
+                                    await apply_r1_boost(_db, hub_id, _client)
+                                    ok += 1
+                                except Exception:
+                                    pass
+                        logger.info("[HubR1] Boost batch quotidien: %d/%d agents", ok, len(hub_ids))
+                    except Exception as e:
+                        if "No module" not in str(e):
+                            logger.error("[HubR1] Daily batch error: %s", e)
 
                 # Toutes les 24h (288 cycles) : refresh fallback prices
                 if _cycle % 288 == 0:

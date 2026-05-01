@@ -83,7 +83,13 @@ def _compute_score_from_components(components: dict) -> int:
         - dispute * 0.30
     )
 
-    score = int(round(max(0.0, min(100.0, raw))))
+    # Boosts additifs R1-R4 (clampés à 0 minimum — jamais négatifs)
+    r1 = max(0.0, float(components.get("score_r1_boost") or 0.0))
+    r2 = max(0.0, float(components.get("score_r2_boost") or 0.0))
+    r3 = max(0.0, float(components.get("score_r3_eas") or 0.0))
+    r4 = max(0.0, float(components.get("score_r4_ext") or 0.0))
+
+    score = int(round(max(0.0, min(100.0, raw + r1 + r2 + r3 + r4))))
 
     # Plafond x402
     if not x402_unlocked:
@@ -235,7 +241,8 @@ async def compute_hub_score(hub_id: str) -> dict:
       {hub_id, score, grade, components: {…}, x402_unlocked, calculated_at}
     """
     row = await db._fetchone(
-        "SELECT hub_id, wallet, birth_ts, uptime_30d, score "
+        "SELECT hub_id, wallet, birth_ts, uptime_30d, score, "
+        "score_r1_boost, score_r2_boost, score_r3_eas, score_r4_ext "
         "FROM hub_agents WHERE hub_id=?",
         (hub_id,),
     )
@@ -250,6 +257,12 @@ async def compute_hub_score(hub_id: str) -> dict:
     components = await _fetch_score_components(
         hub_id, wallet, uptime_30d=uptime_30d, birth_ts=birth_ts
     )
+
+    # Injecter les boosts R1-R4 depuis la ligne hub_agents
+    components["score_r1_boost"] = row_dict.get("score_r1_boost") or 0.0
+    components["score_r2_boost"] = row_dict.get("score_r2_boost") or 0.0
+    components["score_r3_eas"] = row_dict.get("score_r3_eas") or 0.0
+    components["score_r4_ext"] = row_dict.get("score_r4_ext") or 0.0
 
     score = _compute_score_from_components(components)
     grade = _score_to_grade(score)

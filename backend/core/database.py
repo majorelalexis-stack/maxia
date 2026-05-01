@@ -1318,8 +1318,8 @@ db = Database()
 
 
 async def create_database() -> Database:
-    """Factory: Database() gere SQLite et PostgreSQL automatiquement.
-    Si DATABASE_URL est defini, PostgreSQL est utilise. Sinon, SQLite."""
-    db_instance = Database()
-    await db_instance.connect()
-    return db_instance
+    """Connecte le singleton module-level `db` et le retourne.
+    Tous les modules qui font `from core.database import db` obtiennent
+    le meme objet : une fois connecte ici, _pg est visible partout."""
+    await db.connect()
+    return db
