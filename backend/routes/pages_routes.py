@@ -149,6 +149,40 @@ async def llms_txt():
     return HTMLResponse("Not found", status_code=404)
 
 
+@router.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+async def terms():
+    path = FRONTEND_DIR / "terms.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+@router.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+async def privacy():
+    path = FRONTEND_DIR / "privacy.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+@router.get("/legal", response_class=HTMLResponse, include_in_schema=False)
+async def legal():
+    path = FRONTEND_DIR / "legal.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+@router.get("/trust", response_class=HTMLResponse, include_in_schema=False)
+async def trust():
+    path = FRONTEND_DIR / "trust.html"
+    if path.exists():
+        return FileResponse(str(path), media_type="text/html; charset=utf-8")
+    return HTMLResponse("Not found", status_code=404)
+
+@router.get("/cgu", include_in_schema=False)
+async def cgu():
+    from starlette.responses import RedirectResponse
+    return RedirectResponse("/terms", status_code=301)
+
+
 @router.get("/llms-full.txt", include_in_schema=False)
 async def llms_full_txt():
     """Detailed LLM context file for AI crawlers (Plan CEO V8 / Sprint 1)."""
@@ -210,6 +244,13 @@ async def sitemap():
         return FileResponse(str(sitemap_path), media_type="application/xml")
     return HTMLResponse("Not found", status_code=404)
 
+
+# ── Docs redirect ──
+
+@router.get("/docs", include_in_schema=False)
+async def docs_redirect():
+    from starlette.responses import RedirectResponse
+    return RedirectResponse("https://github.com/MAXIAWORLD/maxia", status_code=301)
 
 # ── Docs HTML page ──
 

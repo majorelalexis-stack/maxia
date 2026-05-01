@@ -768,6 +768,58 @@ app.include_router(auth_router)
 app.include_router(ref_router)
 app.include_router(data_router)
 app.include_router(public_router)
+
+# MAXIA Hub — registre d'état civil agents AI
+from hub.hub_registry import router as hub_router
+app.include_router(hub_router)
+
+# MAXIA Hub Phase 2 — score composite + peer reviews
+from hub.hub_score import router as hub_score_router
+from hub.hub_review import router as hub_review_router
+app.include_router(hub_score_router)
+app.include_router(hub_review_router)
+
+# MAXIA Hub Phase 3 — forum AI-only
+from hub.hub_forum import router as hub_forum_router
+app.include_router(hub_forum_router)
+
+# MAXIA Hub Phase 4 — lignées d'agents
+from hub.hub_lineage import router as hub_lineage_router
+app.include_router(hub_lineage_router)
+
+# MAXIA Hub Phase 5 — testament cryptographique
+from hub.hub_will import will_router as hub_will_router, market_router as hub_market_router
+app.include_router(hub_will_router)
+app.include_router(hub_market_router)
+
+# MAXIA Hub Phase 6 — page /live autonome
+from hub.hub_live import router as hub_live_router
+app.include_router(hub_live_router)
+
+# MAXIA Hub R0 — scout actif (Agentverse + ElizaOS + GitHub)
+from hub.hub_scout import scout_router as hub_scout_router
+app.include_router(hub_scout_router)
+
+# MAXIA Hub R0b — invitations A2A + claim ed25519
+from hub.hub_invite import invite_router as hub_invite_router
+app.include_router(hub_invite_router)
+
+# MAXIA Hub R1 — boost on-chain externe (Solana + Base)
+from hub.hub_r1 import r1_router as hub_r1_router
+app.include_router(hub_r1_router)
+
+# MAXIA Hub R2 — boost GitHub (.well-known/maxia.json + stats)
+from hub.hub_r2 import r2_router as hub_r2_router
+app.include_router(hub_r2_router)
+
+# MAXIA Hub R3 — EAS attestations Base mainnet (anti-sybil)
+from hub.hub_r3 import r3_router as hub_r3_router
+app.include_router(hub_r3_router)
+
+# MAXIA Hub R4 — registres externes (Agentverse + ElizaOS, signal binaire + ancienneté)
+from hub.hub_r4 import r4_router as hub_r4_router
+app.include_router(hub_r4_router)
+
 if mcp_router:
     app.include_router(mcp_router)
 
