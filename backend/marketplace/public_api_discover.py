@@ -341,13 +341,22 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
     else:
         raise HTTPException(404, "Service not found. Use GET /discover to find services.")
 
-    # ═══ PAYMENT: CREDITS → LIGHTNING L402 → ON-CHAIN USDC ═══
+    # ═══ PAYMENT: CREDITS → x402 → ON-CHAIN USDC ═══
     paid_with_credits = False
     paid_with_lightning = False
     lightning_charge_id = req.get("lightning_charge_id", "").strip()[:100] if isinstance(req.get("lightning_charge_id"), str) else ""
     # Also check X-Lightning-Payment header
     if not lightning_charge_id:
         lightning_charge_id = request.headers.get("x-lightning-payment", "").strip()[:100]
+
+    # x402: extract Solana tx signature from X-Payment header if present
+    from marketplace.x402_parser import parse_x402_header, build_x402_challenge
+    x_payment_header = request.headers.get("x-payment", "").strip()[:500]
+    if x_payment_header and not payment_tx:
+        x402_sig = parse_x402_header(x_payment_header)
+        if x402_sig:
+            payment_tx = x402_sig
+            logger.info("/execute x402 header detected, extracted sig: %s...", payment_tx[:16])
 
     if not payment_tx and not lightning_charge_id:
         # Try prepaid credits (off-chain, zero gas)
@@ -365,9 +374,12 @@ async def execute_agent_service(request: Request, req: dict, x_api_key: str = He
             logger.debug("Credits check failed: %s", e)
 
         if not paid_with_credits:
-            raise HTTPException(400,
-                "payment_tx required (or deposit prepaid credits via POST /api/credits/deposit). "
-                f"Send USDC to Treasury on Solana first. Treasury: {TREASURY_ADDRESS}")
+            from fastapi.responses import JSONResponse
+            challenge = build_x402_challenge(price, TREASURY_ADDRESS)
+            raise HTTPException(
+                status_code=402,
+                detail=challenge,
+            )
 
     if lightning_charge_id and not paid_with_credits:
         raise HTTPException(400, "Lightning payments not supported in this version of MAXIA.")
