@@ -92,13 +92,12 @@ class HubInviter:
         }
         try:
             resp = await http_client.post(endpoint, json=payload, timeout=_A2A_TIMEOUT)
-            if resp.status_code not in (200, 201, 202):
-                return False
+            status = "sent" if resp.status_code in (200, 201, 202) else "attempted"
             if db is not None:
                 await db.raw_execute(
                     "INSERT INTO hub_invitations(invite_id, scout_id, method, target, sent_at, status)"
                     " VALUES(?,?,?,?,?,?)",
-                    (uuid.uuid4().hex, scout_id, "a2a", endpoint, int(time.time()), "sent"),
+                    (uuid.uuid4().hex, scout_id, "a2a", endpoint, int(time.time()), status),
                 )
             return True
         except Exception:
@@ -162,7 +161,7 @@ class HubInviter:
         }
         rows = await db.raw_execute_fetchall(
             "SELECT scout_id, name, endpoint, source, raw_data FROM hub_scout_results"
-            " WHERE status='unverified' ORDER BY discovered_at ASC"
+            " WHERE status='eligible' ORDER BY discovered_at ASC"
         )
         for row in rows:
             row = dict(row)

@@ -277,6 +277,53 @@ async def get_agent_endpoint(hub_id: str) -> HubAgentProfile:
     return _row_to_profile(dict(row))
 
 
+@router.get("/agents/discovered")
+async def list_discovered_agents(
+    limit: int = Query(default=50, ge=1, le=200),
+    framework: Optional[str] = Query(default=None),
+) -> list[dict]:
+    """Agents découverts par le scout (éligibles, non encore enregistrés)."""
+    conditions = ["status='eligible'", "matched_hub_id IS NULL"]
+    params: list = []
+
+    if framework is not None:
+        conditions.append("framework=?")
+        params.append(framework)
+
+    where = " AND ".join(conditions)
+    params.append(limit)
+
+    rows = await db.raw_execute_fetchall(
+        f"SELECT scout_id, name, endpoint, framework, source, description, discovered_at"
+        f" FROM hub_scout_results"
+        f" WHERE {where}"
+        f" ORDER BY discovered_at DESC LIMIT ?",
+        tuple(params),
+    )
+
+    result = []
+    for row in rows:
+        r = dict(row)
+        sid = r["scout_id"]
+        result.append({
+            "id": f"scout:{sid}",
+            "scout_id": sid,
+            "hub_id": f"scout:{sid}",
+            "did": f"did:maxia:scout:{sid[:8]}",
+            "name": r.get("name") or "Unknown Agent",
+            "framework": r.get("framework") or "unknown",
+            "chain": None,
+            "score": 0,
+            "last_heartbeat": None,
+            "endpoint": r.get("endpoint"),
+            "source": r.get("source"),
+            "description": r.get("description"),
+            "discovered_at": r.get("discovered_at"),
+            "discovered": True,
+        })
+    return result
+
+
 @router.get("/agents", response_model=list[HubAgentProfile])
 async def list_agents_endpoint(
     skip: int = Query(default=0, ge=0),
