@@ -191,21 +191,7 @@ async def discover_services(
             "badges": ["Original Creator"] if is_original else [],
         })
 
-    # Also include MAXIA native services (12 AI services — real implementations, PRO-K10)
-    maxia_native = [
-        {"service_id": "maxia-sentiment", "name": "Crypto Sentiment Analysis", "type": "data", "price_usdc": 0.50, "seller": "MAXIA", "rating": 5, "description": "AI scans 1000+ sources for any token. Returns bullish/bearish score with confidence level and key signals."},
-        {"service_id": "maxia-audit", "name": "Smart Contract Audit", "type": "audit", "price_usdc": 4.99, "seller": "MAXIA", "rating": 5, "description": "AI-powered security audit of Solana/EVM smart contracts. Detects vulnerabilities, reentrancy, overflow, access control issues."},
-        {"service_id": "maxia-code", "name": "AI Code Review", "type": "code", "price_usdc": 2.99, "seller": "MAXIA", "rating": 5, "description": "Automated code review for Python, Rust, JavaScript, Solidity. Finds bugs, suggests improvements, checks best practices."},
-        {"service_id": "maxia-translate", "name": "AI Translation", "type": "text", "price_usdc": 0.05, "seller": "MAXIA", "rating": 5, "description": "Translate text between 50+ languages. Technical documentation, marketing copy, chat messages."},
-        {"service_id": "maxia-summary", "name": "Document Summary", "type": "text", "price_usdc": 0.49, "seller": "MAXIA", "rating": 5, "description": "Summarize any document, whitepaper, or article into key bullet points. Supports up to 10,000 words."},
-        {"service_id": "maxia-wallet", "name": "Wallet Analyzer", "type": "data", "price_usdc": 1.99, "seller": "MAXIA", "rating": 5, "description": "Deep analysis of any Solana wallet: token holdings, transaction history, DeFi positions, risk score."},
-        {"service_id": "maxia-wallet-risk", "name": "Wallet Risk Score", "type": "data", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Risk score (0-100) for any wallet address. Checks whale status, rug pull patterns, wash trading, sanctions."},
-        {"service_id": "maxia-price", "name": "Real-Time Token Price", "type": "data", "price_usdc": 0.005, "seller": "MAXIA", "rating": 5, "description": "Sub-second token prices from Pyth oracle + CoinGecko. 65+ tokens. Includes confidence interval."},
-        {"service_id": "maxia-marketing", "name": "Marketing Copy Generator", "type": "text", "price_usdc": 0.99, "seller": "MAXIA", "rating": 5, "description": "Generate landing page copy, Twitter threads, blog posts, product descriptions. Optimized for Web3/AI audience."},
-        {"service_id": "maxia-image", "name": "AI Image Generator", "type": "image", "price_usdc": 0.10, "seller": "MAXIA", "rating": 5, "description": "Generate images from text prompts via Pollinations.ai. Logos, illustrations, social media graphics. Free, no API key needed."},
-        {"service_id": "maxia-extract", "name": "Data Extraction", "type": "data", "price_usdc": 0.25, "seller": "MAXIA", "rating": 5, "description": "Extract structured JSON from unstructured text. Entities, dates, numbers, relationships. Perfect for parsing documents."},
-        {"service_id": "maxia-scraper", "name": "Web Scraper", "type": "data", "price_usdc": 0.02, "seller": "MAXIA", "rating": 5, "description": "Extract structured data from any website. Returns clean JSON with the data you need."},
-    ]
+    maxia_native = []
     for ns in maxia_native:
         searchable = f"{ns['name']} {ns['description']} {ns['type']}".lower()
         if capability_lower and capability_lower not in searchable:
